@@ -464,7 +464,8 @@ Rough implementation estimate: four to six weeks for the functional MVP, followe
 | **Step 5** | `packages/ai-analysis`, `packages/notifications` | Gemini AI structured analyst & Telegram bot/alert dispatcher. | **Completed** | `5d4c4b2` |
 | **Step 6** | `apps/api`, `apps/worker` | REST API, RBAC auth, background scanning worker. | **Completed** | `270b6d9` |
 | **Step 7** | `apps/web` | Cyber-intelligence web application (Dashboard, Scanner, Asset Deep-Dive, Backtesting). | **Completed** | `8248684` |
-| **Step 8** | `infra/`, Docker, Cloud Run | Docker containerization, Cloud Run deploy configs (`cloudbuild.yaml`, `Dockerfile`) & E2E verification. | **Completed** | `feat(infra): add Docker containerization, Cloud Run deploy configs and final documentation` |
+| **Step 8** | `infra/`, Docker, Cloud Run | Docker containerization, Cloud Run deploy configs (`cloudbuild.yaml`, `Dockerfile`) & E2E verification. | **Completed** | `8635dca` |
+| **Feature** | `TradingView & Bullmania` | TradingView Advanced Real-Time Chart (1H to 1M), Ivan on Tech Bullmania Money Line ribbon engine & Pine Script v5 code generator. | **Completed** | `4109752` |
 
 ---
 
