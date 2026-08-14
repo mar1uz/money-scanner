@@ -85,7 +85,7 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
           <div className="flex items-center gap-3">
             {/* Timeframe selector inside modal */}
             <div className="flex items-center bg-background-surface border border-background-border rounded-lg p-0.5">
-              {(['1h', '4h', '1d'] as Timeframe[]).map((tf) => (
+              {(['1h', '4h', '1d', '1w', '1m'] as Timeframe[]).map((tf) => (
                 <button
                   key={tf}
                   onClick={() => setActiveTf(tf)}
@@ -168,13 +168,12 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
             </div>
 
             {/* Interactive Chart */}
-            {data?.candles && (
-              <InteractiveChart
-                candles={data.candles}
-                symbol={symbol}
-                timeframe={activeTf}
-              />
-            )}
+            <InteractiveChart
+              candles={data?.candles || []}
+              symbol={symbol}
+              timeframe={activeTf}
+              onTimeframeChange={setActiveTf}
+            />
 
             {/* Technical Indicator Matrix */}
             {signal && (

@@ -15,6 +15,7 @@ export class BinanceMarketAdapter {
       case '4h': return '4h';
       case '1d': return '1d';
       case '1w': return '1w';
+      case '1m': return '1M';
       default: return '1h';
     }
   }
