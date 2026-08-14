@@ -49,6 +49,12 @@ export async function fetchXTrends(): Promise<XTrendTopic[]> {
   return res.json();
 }
 
+export async function fetchXPosts(): Promise<any[]> {
+  const res = await fetch(`${API_BASE}/social/posts`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch X posts`);
+  return res.json();
+}
+
 export async function fetchNews(limit = 20, category?: string): Promise<NewsItem[]> {
   const params = new URLSearchParams();
   params.set('limit', limit.toString());

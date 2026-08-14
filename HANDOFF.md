@@ -468,6 +468,7 @@ Rough implementation estimate: four to six weeks for the functional MVP, followe
 | **Step 9** | `packages/money-line`, `apps/web` | Proprietary **MoneyLine Overlay Force v1** (Adaptive Dual Supertrend Cloud + BUY/SELL triangle signal markers) in native TradingView Lightweight Charts engine. | **Completed** | `869af19` |
 | **Step 10** | `packages/social-analysis`, `apps/web` | Watchlist Quick-Add `(+)` in Search, 100% Real verified Crypto Twitter/X alpha links, live RSS crypto news feeds (CoinDesk, Cointelegraph, Decrypt), and interactive **Ask AI Market Analyst** Chat Studio. | **Completed** | `d4cca25` |
 | **Step 11** | `apps/web`, `apps/api`, `packages/market-data` | Dedicated **Full-Page Asset Deep-Dive View** (replacing modal popup), **8H Timeframe** support across indicator engine & charts, and deep historical Binance candle ingestion up to **1500 bars from genesis**. | **Completed** | `cfd2478` |
+| **Step 12** | `apps/web`, `packages/social-analysis`, `packages/money-line` | **Timeframe Bias & Flip Timer Rubric** (Bullish/Bearish Force %, exact elapsed time since flip), **6-Timeframe MTF Matrix** (`1H`, `4H`, `8H`, `1D`, `1W`, `1M`), **5-Min Auto-Refresh** + Manual Update button, and **Top Crypto Twitter/X Feeds** with direct tweet links (`@lookonchain`, `@WuBlockchain`, `@whale_alert`, `@tier10k`, etc.). | **Completed** | `f6c91a0` |
 
 ---
 

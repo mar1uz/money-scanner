@@ -14,6 +14,16 @@ socialNewsRouter.get('/social/trends', (req, res) => {
   }
 });
 
+socialNewsRouter.get('/social/posts', (req, res) => {
+  try {
+    const appState = AppState.getInstance();
+    const posts = appState.social.getRecentVerifiedPosts();
+    res.json(posts);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to fetch verified X posts', details: err.message });
+  }
+});
+
 socialNewsRouter.get('/news', (req, res) => {
   try {
     const category = req.query.category as NewsCategory | undefined;
