@@ -40,7 +40,7 @@ export const App: React.FC = () => {
     try {
       const [ov, rows] = await Promise.all([
         fetchMarketOverview(),
-        fetchScanner(timeframe, selectedTier, searchQuery, watchlistOnly)
+        fetchScanner(timeframe) // Always fetch all 50 assets master state
       ]);
       setOverview(ov);
       setScannerRows(rows);
@@ -55,7 +55,7 @@ export const App: React.FC = () => {
     refreshData();
     const interval = setInterval(refreshData, 15000); // 15s live refresh
     return () => clearInterval(interval);
-  }, [timeframe, selectedTier, searchQuery, watchlistOnly]);
+  }, [timeframe]);
 
   const toggleWatchlist = (symbol: string) => {
     setWatchlist(prev => 
@@ -73,6 +73,20 @@ export const App: React.FC = () => {
     }
   };
 
+  // Instant local filtering for table
+  const filteredScannerRows = scannerRows.filter(r => {
+    if (watchlistOnly && !watchlist.includes(r.symbol)) return false;
+    if (selectedTier !== 'ALL' && r.tier !== selectedTier) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().replace(/^[$#]/, '').toUpperCase();
+      const matchSym = r.symbol.toUpperCase().includes(q);
+      const matchNm = r.name.toUpperCase().includes(q);
+      const matchCat = r.category.toUpperCase().includes(q);
+      if (!matchSym && !matchNm && !matchCat) return false;
+    }
+    return true;
+  });
+
   return (
     <div className="min-h-screen flex flex-col bg-background text-slate-100 selection:bg-cyan-500/30 selection:text-cyan-200">
       {/* Top Header */}
@@ -85,7 +99,9 @@ export const App: React.FC = () => {
         onTriggerTestAlert={handleTriggerTestAlert}
         isStale={overview?.providerStatus.staleAssetsCount ? overview.providerStatus.staleAssetsCount > 0 : false}
         allAssets={scannerRows}
-        onSelectAsset={setSelectedAssetSymbol}
+        onSelectAsset={(sym) => {
+          setSelectedAssetSymbol(sym);
+        }}
       />
 
       {/* Main Tab Navigation */}
@@ -126,7 +142,7 @@ export const App: React.FC = () => {
               </div>
 
               <ScannerTable
-                rows={scannerRows.slice(0, 15)}
+                rows={filteredScannerRows.slice(0, 15)}
                 onSelectAsset={setSelectedAssetSymbol}
                 watchlist={watchlist}
                 onToggleWatchlist={toggleWatchlist}
@@ -152,7 +168,7 @@ export const App: React.FC = () => {
             </div>
 
             <ScannerTable
-              rows={scannerRows}
+              rows={filteredScannerRows}
               onSelectAsset={setSelectedAssetSymbol}
               watchlist={watchlist}
               onToggleWatchlist={toggleWatchlist}

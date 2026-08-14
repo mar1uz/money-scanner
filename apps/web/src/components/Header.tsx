@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Activity, Shield, Zap, Search, BellRing, X, Sparkles, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { Timeframe, AssetScannerRow } from '../types.js';
+import { TOP_50_CRYPTO_ASSETS } from '@money-scanner/shared';
 
 interface HeaderProps {
   timeframe: Timeframe;
@@ -27,16 +28,31 @@ export const Header: React.FC<HeaderProps> = ({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Sanitize query by removing $, # and spaces
+  // Sanitize query by removing $, #, spaces and convert to uppercase
   const cleanQuery = searchQuery.trim().replace(/^[$#]/, '').toUpperCase();
 
-  // Instant matching assets for dropdown
+  // Combine static top 50 universe with live signal data
+  const searchUniverse = TOP_50_CRYPTO_ASSETS.map(base => {
+    const live = allAssets.find(a => a.symbol.toUpperCase() === base.symbol.toUpperCase());
+    return {
+      symbol: base.symbol,
+      name: base.name,
+      category: base.category,
+      price: live ? live.price : 0,
+      change24h: live ? live.change24h : 0,
+      tier: live ? live.tier : 'Bullish',
+      moneyLineScore: live ? live.moneyLineScore : 0
+    };
+  });
+
+  // Instant matching assets for live dropdown
   const matchingAssets = cleanQuery
-    ? allAssets.filter(a => 
-        a.symbol.toUpperCase().includes(cleanQuery) || 
-        a.name.toUpperCase().includes(cleanQuery) ||
-        a.category.toUpperCase().includes(cleanQuery)
-      )
+    ? searchUniverse.filter(a => {
+        const sym = a.symbol.toUpperCase();
+        const nm = a.name.toUpperCase();
+        const cat = a.category.toUpperCase();
+        return sym.includes(cleanQuery) || nm.includes(cleanQuery) || cat.includes(cleanQuery);
+      })
     : [];
 
   useEffect(() => {
@@ -85,7 +101,7 @@ export const Header: React.FC<HeaderProps> = ({
               setIsDropdownOpen(true);
             }}
             onFocus={() => {
-              if (searchQuery) setIsDropdownOpen(true);
+              if (searchQuery.trim()) setIsDropdownOpen(true);
             }}
             placeholder="Search asset, symbol, or cashtag (e.g. BTC, $SOL, AI)..."
             className="w-full bg-background-surface/90 border border-background-border rounded-lg pl-9 pr-8 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/60 focus:ring-1 focus:ring-cyan-500/40 transition-all font-mono"
@@ -108,8 +124,9 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="absolute left-0 right-0 top-full mt-1.5 bg-background-card/95 backdrop-blur-xl border border-background-border rounded-xl shadow-2xl overflow-hidden z-50 max-h-80 overflow-y-auto cyber-glass">
             {matchingAssets.length > 0 ? (
               <div className="divide-y divide-background-border/50">
-                <div className="p-2 text-[10px] uppercase font-mono text-slate-400 bg-background-surface/50">
-                  Matching Assets ({matchingAssets.length})
+                <div className="p-2 text-[10px] uppercase font-mono text-slate-400 bg-background-surface/50 flex justify-between">
+                  <span>Found {matchingAssets.length} Matching Assets</span>
+                  <span className="text-cyan-400">Click to Open Analysis</span>
                 </div>
                 {matchingAssets.map(asset => {
                   const isUp = asset.change24h >= 0;
@@ -135,17 +152,21 @@ export const Header: React.FC<HeaderProps> = ({
                               {asset.category}
                             </span>
                           </div>
-                          <span className="text-[11px] font-mono text-slate-400">
-                            ${asset.price < 1 ? asset.price.toFixed(4) : asset.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                          </span>
+                          {asset.price > 0 && (
+                            <span className="text-[11px] font-mono text-slate-400">
+                              ${asset.price < 1 ? asset.price.toFixed(4) : asset.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </span>
+                          )}
                         </div>
                       </div>
 
                       <div className="flex items-center gap-2 font-mono text-xs">
-                        <span className={`flex items-center font-semibold text-[11px] ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          {isUp ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                          {isUp ? `+${asset.change24h}%` : `${asset.change24h}%`}
-                        </span>
+                        {asset.price > 0 && (
+                          <span className={`flex items-center font-semibold text-[11px] ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {isUp ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                            {isUp ? `+${asset.change24h}%` : `${asset.change24h}%`}
+                          </span>
+                        )}
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
                           asset.tier.includes('Bullish') ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' :
                           (asset.tier.includes('Bearish') ? 'bg-rose-500/10 text-rose-300 border-rose-500/30' : 'bg-slate-800 text-slate-300 border-slate-700')
