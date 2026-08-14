@@ -1,0 +1,22 @@
+{
+  "name": "money-scanner-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Money Scanner — Crypto Market Intelligence, Money Line Engine & Telegram Bot",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "dev:api": "npm --workspace=apps/api run dev",
+    "dev:web": "npm --workspace=apps/web run dev",
+    "dev:worker": "npm --workspace=apps/worker run dev",
+    "start": "npm --workspace=apps/api run start"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.9",
+    "typescript": "^5.4.5"
+  }
+}
