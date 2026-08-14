@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   AssetScannerRow,
   MoneyLineTier
@@ -13,7 +13,11 @@ import {
   Eye,
   Sparkles,
   RefreshCw,
-  Layers
+  Clock,
+  Coins,
+  TrendingUp,
+  Layers,
+  Award
 } from 'lucide-react';
 
 interface ScannerTableProps {
@@ -39,8 +43,10 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
   onToggleWatchlistOnly,
   loading = false
 }) => {
+  const [selectedMarketClass, setSelectedMarketClass] = useState<'ALL' | 'crypto' | 'stocks' | 'metals'>('ALL');
+
   const tiers: { id: string; label: string; color: string }[] = [
-    { id: 'ALL', label: 'All Signals', color: 'text-slate-300' },
+    { id: 'ALL', label: 'Toate Semnalele', color: 'text-slate-300' },
     { id: 'Strong Bullish', label: 'Strong Bullish', color: 'text-emerald-400' },
     { id: 'Bullish', label: 'Bullish', color: 'text-green-400' },
     { id: 'Neutral', label: 'Neutral', color: 'text-slate-400' },
@@ -48,7 +54,32 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
     { id: 'Strong Bearish', label: 'Strong Bearish', color: 'text-red-500' }
   ];
 
+  const marketClasses = [
+    { id: 'ALL', label: 'Trading 360° (All)', icon: Layers },
+    { id: 'crypto', label: 'Crypto 🪙', icon: Coins },
+    { id: 'stocks', label: 'Stocks & Tech 📈', icon: TrendingUp },
+    { id: 'metals', label: 'Metale & Gold 🥇', icon: Award }
+  ];
+
   const cleanWatchlist = watchlist.map(w => w.replace(/^[$#]/, '').trim().toUpperCase());
+
+  // Helper for human-readable flip age
+  const formatFlipAge = (ts?: number) => {
+    if (!ts) return 'Recent';
+    const diff = Math.max(0, Date.now() - ts);
+    const mins = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (mins < 1) return 'Chiar acum';
+    if (mins < 60) return `acum ${mins}m`;
+    if (hours < 24) {
+      const remMins = mins % 60;
+      return `acum ${hours}h${remMins > 0 ? ` ${remMins}m` : ''}`;
+    }
+    const remHours = hours % 24;
+    return `acum ${days}z${remHours > 0 ? ` ${remHours}h` : ''}`;
+  };
 
   const getScoreBadge = (score: number, tier: MoneyLineTier) => {
     let color = 'bg-slate-800 text-slate-300 border-slate-700';
@@ -71,21 +102,73 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
     );
   };
 
+  // Filter rows based on tier, watchlist, and 360° market class
   const filteredRows = rows.filter(r => {
     const sym = r.symbol.replace(/^[$#]/, '').trim().toUpperCase();
     if (watchlistOnly && !cleanWatchlist.includes(sym)) return false;
     if (selectedTier !== 'ALL' && r.tier !== selectedTier) return false;
+
+    if (selectedMarketClass !== 'ALL') {
+      const isStock = ['NVDA', 'TSLA', 'AAPL', 'MSFT', 'MSTR', 'COIN', 'SPY', 'QQQ'].includes(sym) || r.category?.includes('Stock') || r.category?.includes('Index') || r.category?.includes('Mega-Cap');
+      const isMetal = ['XAU', 'XAG', 'PAXG', 'OIL', 'COPPER'].includes(sym) || r.category?.includes('Metal') || r.category?.includes('Commodity');
+      const isCrypto = !isStock && !isMetal;
+
+      if (selectedMarketClass === 'stocks' && !isStock) return false;
+      if (selectedMarketClass === 'metals' && !isMetal) return false;
+      if (selectedMarketClass === 'crypto' && !isCrypto) return false;
+    }
+
     return true;
   });
 
   return (
     <div className="space-y-4">
-      {/* Filter Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-background-card/80 border border-background-border rounded-xl">
+      {/* 360° Market Class & Tier Filter Toolbar */}
+      <div className="space-y-3 p-4 bg-background-card/90 border border-background-border rounded-2xl cyber-glass shadow-xl">
+        {/* Top Filter: 360° Market Selector */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-background-border/60">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono text-slate-400 font-bold uppercase tracking-wider">
+              Piață 360°:
+            </span>
+            <div className="flex flex-wrap items-center bg-background-surface border border-background-border rounded-xl p-0.5">
+              {marketClasses.map(mc => (
+                <button
+                  key={mc.id}
+                  onClick={() => setSelectedMarketClass(mc.id as any)}
+                  className={`px-3 py-1.5 text-xs font-mono rounded-lg transition-all flex items-center gap-1.5 ${
+                    selectedMarketClass === mc.id
+                      ? 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-300 border border-cyan-500/40 font-bold shadow-glow-cyan'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <mc.icon className="w-3.5 h-3.5" />
+                  <span>{mc.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onToggleWatchlistOnly}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-xl border transition-all ${
+                watchlistOnly
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold shadow-glow-gold'
+                  : 'bg-background-surface text-slate-400 border-background-border hover:text-slate-200'
+              }`}
+            >
+              <Star className={`w-3.5 h-3.5 ${watchlistOnly ? 'fill-amber-400 text-amber-400' : 'text-slate-400'}`} />
+              <span>Watchlist ({cleanWatchlist.length})</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Bottom Filter: Tier Status Chips */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1.5 text-xs text-slate-400 mr-2 font-mono">
             <Filter className="w-3.5 h-3.5 text-cyan-400" />
-            <span>FILTER BY TIER:</span>
+            <span>FILTRU TIER:</span>
           </div>
           {tiers.map(t => (
             <button
@@ -101,37 +184,24 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
             </button>
           ))}
         </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onToggleWatchlistOnly}
-            className={`flex items-center gap-1.5 px-3 py-1 text-xs font-mono rounded-lg border transition-all ${
-              watchlistOnly
-                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold shadow-glow-gold'
-                : 'bg-background-surface text-slate-400 border-background-border hover:text-slate-200'
-            }`}
-          >
-            <Star className={`w-3.5 h-3.5 ${watchlistOnly ? 'fill-amber-400 text-amber-400' : 'text-slate-400'}`} />
-            <span>Watchlist Only ({cleanWatchlist.length})</span>
-          </button>
-        </div>
       </div>
 
-      {/* Cyber Table */}
-      <div className="overflow-x-auto rounded-xl border border-background-border cyber-glass">
+      {/* Cyber Table with Dedicated Flip Timer Column */}
+      <div className="overflow-x-auto rounded-2xl border border-background-border cyber-glass shadow-2xl">
         <table className="w-full text-left text-xs">
           <thead className="bg-background-surface/80 border-b border-background-border text-[11px] font-mono uppercase tracking-wider text-slate-400">
             <tr>
               <th className="py-3.5 px-4">Asset</th>
-              <th className="py-3.5 px-4">Price</th>
-              <th className="py-3.5 px-4">24h Change</th>
-              <th className="py-3.5 px-4">Money Line</th>
-              <th className="py-3.5 px-4">Tier Status</th>
+              <th className="py-3.5 px-4">Preț</th>
+              <th className="py-3.5 px-4">Variație 24h</th>
+              <th className="py-3.5 px-4">Scor Money Line</th>
+              <th className="py-3.5 px-4">Regim / Tier</th>
+              <th className="py-3.5 px-4 text-cyan-300">De Când este Flip (Timp)</th>
               <th className="py-3.5 px-4">RVOL</th>
-              <th className="py-3.5 px-4">Volatility (ATR)</th>
+              <th className="py-3.5 px-4">Volatilitate ATR</th>
               <th className="py-3.5 px-4">X Momentum</th>
               <th className="py-3.5 px-4">AI Bias</th>
-              <th className="py-3.5 px-4 text-right">Actions</th>
+              <th className="py-3.5 px-4 text-right">Acțiuni</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-background-border/50">
@@ -140,6 +210,8 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                 const sym = row.symbol.replace(/^[$#]/, '').trim().toUpperCase();
                 const isWatch = cleanWatchlist.includes(sym);
                 const isPositiveChange = row.change24h >= 0;
+                const isBull = row.tier?.includes('Bullish');
+                const isBear = row.tier?.includes('Bearish');
 
                 return (
                   <tr
@@ -155,7 +227,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                             e.stopPropagation();
                             onToggleWatchlist(row.symbol);
                           }}
-                          title={isWatch ? "Remove from Watchlist" : "Add to Watchlist"}
+                          title={isWatch ? "Elimină din Watchlist" : "Adaugă în Watchlist"}
                           className="text-slate-600 hover:text-amber-400 transition-colors p-1"
                         >
                           <Star className={`w-4 h-4 ${isWatch ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
@@ -165,7 +237,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                             <span className="font-bold text-sm text-slate-100 group-hover:text-cyan-300 transition-colors font-mono">
                               ${row.symbol}
                             </span>
-                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 font-mono">
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 font-mono border border-slate-700">
                               {row.category}
                             </span>
                           </div>
@@ -197,13 +269,33 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                     {/* Tier Status & Transition */}
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs text-slate-200">{row.tier}</span>
+                        <span className={`font-mono text-xs font-bold ${
+                          isBull ? 'text-emerald-400' : (isBear ? 'text-rose-400' : 'text-slate-300')
+                        }`}>
+                          {row.tier}
+                        </span>
                         {row.isTransition && (
                           <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 animate-pulse">
                             NEW
                           </span>
                         )}
                       </div>
+                    </td>
+
+                    {/* Dedicated Column: De Când este Flip (Flip Age) */}
+                    <td className="py-3.5 px-4 font-mono">
+                      {row.isTransition ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 animate-pulse shadow-glow-cyan">
+                          <Zap className="w-3.5 h-3.5" /> FLIP NOU (Acum)
+                        </span>
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <Clock className={`w-3.5 h-3.5 ${isBull ? 'text-emerald-400' : (isBear ? 'text-rose-400' : 'text-cyan-400')}`} />
+                          <span className={`font-semibold ${isBull ? 'text-emerald-300' : (isBear ? 'text-rose-300' : 'text-slate-300')}`}>
+                            {formatFlipAge(row.lastSignalChangeTime)}
+                          </span>
+                        </div>
+                      )}
                     </td>
 
                     {/* RVOL */}
@@ -241,8 +333,8 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                           e.stopPropagation();
                           onSelectAsset(row.symbol);
                         }}
-                        className="p-1.5 rounded-lg bg-background-surface hover:bg-slate-800 text-slate-400 hover:text-cyan-300 transition-colors"
-                        title="View Full-Page Deep Dive Analysis"
+                        className="p-1.5 rounded-xl bg-background-surface hover:bg-slate-800 text-slate-400 hover:text-cyan-300 border border-transparent hover:border-cyan-500/30 transition-all shadow-sm"
+                        title="Deschide Analiza Deep Dive"
                       >
                         <Eye className="w-4 h-4" />
                       </button>
@@ -252,12 +344,12 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
               })
             ) : (
               <tr>
-                <td colSpan={10} className="py-14 text-center text-slate-400 font-mono space-y-3">
+                <td colSpan={11} className="py-14 text-center text-slate-400 font-mono space-y-3">
                   {loading ? (
                     <div className="space-y-2">
                       <RefreshCw className="w-6 h-6 mx-auto animate-spin text-cyan-400" />
                       <p className="text-sm font-bold text-slate-200">Se încarcă semnalele Live Money Scanner...</p>
-                      <p className="text-xs text-slate-500">Se calculează matricea pe lumânările recente.</p>
+                      <p className="text-xs text-slate-500">Se sincronizează datele de piață 360°.</p>
                     </div>
                   ) : watchlistOnly ? (
                     <div className="space-y-3">
@@ -268,15 +360,15 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                         onClick={onToggleWatchlistOnly}
                         className="px-3.5 py-1.5 text-xs font-bold font-mono rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/30 transition-all shadow-glow-cyan"
                       >
-                        Afișează Toate Activele (50)
+                        Afișează Toate Activele 360°
                       </button>
                     </div>
                   ) : (
                     <div className="space-y-3">
                       <Filter className="w-6 h-6 mx-auto text-slate-500" />
-                      <p className="text-sm font-bold text-slate-200">Niciun activ găsit pentru categoria "{selectedTier}".</p>
+                      <p className="text-sm font-bold text-slate-200">Niciun activ găsit pentru filtrele curente.</p>
                       <button
-                        onClick={() => onSelectTier('ALL')}
+                        onClick={() => { onSelectTier('ALL'); setSelectedMarketClass('ALL'); }}
                         className="px-3.5 py-1.5 text-xs font-bold font-mono rounded-lg bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 transition-all"
                       >
                         Resetează Filtrele

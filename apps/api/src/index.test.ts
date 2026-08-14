@@ -31,7 +31,7 @@ describe('API Server Integration Tests', () => {
     const res = await fetch(`http://localhost:${port}/api/scanner?timeframe=1h`);
     assert.equal(res.status, 200);
     const rows = await res.json() as any[];
-    assert.equal(rows.length, 50);
+    assert.ok(rows.length >= 50);
 
     const btc = rows.find(r => r.symbol === 'BTC');
     assert.ok(btc !== undefined);

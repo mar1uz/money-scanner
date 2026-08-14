@@ -10,11 +10,29 @@ export interface Candle {
   isClosed: boolean;
 }
 
+export type AssetMarketClass = 'crypto' | 'stocks' | 'metals';
+
+export type AssetCategory = 
+  | 'Layer 1' 
+  | 'Layer 2' 
+  | 'DeFi' 
+  | 'AI' 
+  | 'Meme' 
+  | 'Infrastructure' 
+  | 'RWA' 
+  | 'Gaming'
+  | 'Tech Stock'
+  | 'Mega-Cap'
+  | 'Index / ETF'
+  | 'Precious Metal'
+  | 'Commodity';
+
 export interface AssetInfo {
-  symbol: string;         // e.g. "BTC"
-  name: string;           // e.g. "Bitcoin"
-  category: 'Layer 1' | 'Layer 2' | 'DeFi' | 'AI' | 'Meme' | 'Infrastructure' | 'RWA' | 'Gaming';
-  quoteCurrency: string;  // e.g. "USDT"
+  symbol: string;         // e.g. "BTC", "NVDA", "XAU"
+  name: string;           // e.g. "Bitcoin", "Nvidia Corp", "Gold (Aur)"
+  category: AssetCategory;
+  marketClass?: AssetMarketClass;
+  quoteCurrency: string;  // e.g. "USDT", "USD"
   marketCap?: number;
   rank: number;
   decimals: number;

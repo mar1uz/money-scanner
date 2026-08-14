@@ -2,6 +2,24 @@ import { Candle, AssetPriceQuote, TOP_50_CRYPTO_ASSETS } from '@money-scanner/sh
 
 export class FixtureMarketProvider {
   private basePrices: Map<string, number> = new Map([
+    // --- METALS & COMMODITIES ---
+    ['XAU', 2450.0],
+    ['XAG', 28.5],
+    ['PAXG', 2450.0],
+    ['OIL', 78.5],
+    ['COPPER', 4.15],
+
+    // --- STOCKS & INDICES ---
+    ['NVDA', 125.0],
+    ['TSLA', 215.0],
+    ['AAPL', 225.0],
+    ['MSFT', 445.0],
+    ['MSTR', 1450.0],
+    ['COIN', 220.0],
+    ['SPY', 555.0],
+    ['QQQ', 485.0],
+
+    // --- CRYPTO ---
     ['BTC', 64500],
     ['ETH', 3450],
     ['SOL', 155],
@@ -58,39 +76,34 @@ export class FixtureMarketProvider {
     const basePrice = this.basePrices.get(symbol) || 10.0;
     const candles: Candle[] = [];
     const now = Date.now();
-    const periodMs = timeframeHours * 3600 * 1000;
-    const startTimestamp = now - count * periodMs;
+    const intervalMs = timeframeHours * 3600 * 1000;
 
-    // Seeded random walk based on symbol characters
-    let seed = symbol.split('').reduce((acc, c) => acc + c.charCodeAt(0), 42);
-    const pseudoRandom = () => {
-      seed = (seed * 9301 + 49297) % 233280;
-      return seed / 233280;
-    };
+    let currentPrice = basePrice;
+    const isBull = symbol === 'BTC' || symbol === 'SOL' || symbol === 'NVDA' || symbol === 'XAU' || symbol === 'SUI';
 
-    let currentPrice = basePrice * 0.85;
-
-    for (let i = 0; i < count; i++) {
-      const isLast = i === count - 1;
-      const trendFactor = Math.sin(i / 15) * 0.008 + 0.001;
-      const noise = (pseudoRandom() - 0.49) * 0.02;
-      const change = trendFactor + noise;
+    for (let i = count; i >= 0; i--) {
+      const timestamp = now - i * intervalMs;
+      const drift = isBull ? 0.0008 : -0.0004;
+      const noise = (Math.sin(i * 0.15) * 0.012) + ((Math.random() - 0.5) * 0.008);
+      const change = drift + noise;
 
       const open = currentPrice;
-      currentPrice = currentPrice * (1 + change);
-      const high = Math.max(open, currentPrice) * (1 + pseudoRandom() * 0.008);
-      const low = Math.min(open, currentPrice) * (1 - pseudoRandom() * 0.008);
-      const volume = basePrice * (500 + pseudoRandom() * 1500);
+      const close = currentPrice * (1 + change);
+      const high = Math.max(open, close) * (1 + Math.random() * 0.006);
+      const low = Math.min(open, close) * (1 - Math.random() * 0.006);
+      const volume = Math.floor(Math.random() * 50000 + 10000);
 
       candles.push({
-        timestamp: startTimestamp + i * periodMs,
+        timestamp,
         open: Number(open.toFixed(4)),
         high: Number(high.toFixed(4)),
         low: Number(low.toFixed(4)),
-        close: Number(currentPrice.toFixed(4)),
-        volume: Number(volume.toFixed(2)),
-        isClosed: !isLast
+        close: Number(close.toFixed(4)),
+        volume,
+        isClosed: i > 0
       });
+
+      currentPrice = close;
     }
 
     return candles;
@@ -98,29 +111,24 @@ export class FixtureMarketProvider {
 
   public getPriceQuote(symbol: string): AssetPriceQuote {
     const basePrice = this.basePrices.get(symbol) || 10.0;
-    const candles = this.getCandles(symbol, 24, 1);
-    const latest = candles[candles.length - 1];
-    const dayAgo = candles[0];
-
-    const change24h = Number((((latest.close - dayAgo.open) / dayAgo.open) * 100).toFixed(2));
-    const high24h = Math.max(...candles.map(c => c.high));
-    const low24h = Math.min(...candles.map(c => c.low));
-    const volume24h = candles.reduce((acc, c) => acc + c.volume, 0);
+    const isBull = symbol === 'BTC' || symbol === 'SOL' || symbol === 'NVDA' || symbol === 'XAU' || symbol === 'SUI';
+    const change24h = isBull ? Number((Math.random() * 4 + 1.2).toFixed(2)) : Number((Math.random() * -3 - 0.5).toFixed(2));
+    const price = Number((basePrice * (1 + change24h / 100)).toFixed(4));
 
     return {
       symbol,
-      price: latest.close,
+      price,
       change24h,
-      high24h,
-      low24h,
-      volume24h: Number(volume24h.toFixed(2)),
-      timestamp: latest.timestamp,
-      source: 'FixtureMarketProvider',
+      high24h: Number((price * 1.03).toFixed(4)),
+      low24h: Number((price * 0.97).toFixed(4)),
+      volume24h: Math.floor(Math.random() * 10000000 + 500000),
+      timestamp: Date.now(),
+      source: 'FixtureProvider',
       isStale: false
     };
   }
 
   public getAllQuotes(): AssetPriceQuote[] {
-    return TOP_50_CRYPTO_ASSETS.map(asset => this.getPriceQuote(asset.symbol));
+    return TOP_50_CRYPTO_ASSETS.map(a => this.getPriceQuote(a.symbol));
   }
 }

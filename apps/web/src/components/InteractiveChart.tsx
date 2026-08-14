@@ -21,7 +21,14 @@ import {
   Sparkles,
   ExternalLink,
   Info,
-  BarChart2
+  BarChart2,
+  MousePointer,
+  Minus,
+  Maximize2,
+  Trash2,
+  Undo2,
+  Sliders,
+  Layers
 } from 'lucide-react';
 
 interface InteractiveChartProps {
@@ -29,6 +36,16 @@ interface InteractiveChartProps {
   symbol: string;
   timeframe: string;
   onTimeframeChange?: (tf: Timeframe) => void;
+}
+
+export type DrawingTool = 'select' | 'trendline' | 'fibonacci' | 'horizontal' | 'ruler';
+
+export interface ChartDrawing {
+  id: string;
+  type: 'trendline' | 'fibonacci' | 'horizontal' | 'ruler';
+  p1: { timeIndex: number; price: number };
+  p2?: { timeIndex: number; price: number };
+  color?: string;
 }
 
 // Exact MoneyLine Overlay Force v1 Mathematical Computation
@@ -99,12 +116,12 @@ export function calculateMoneyLineForce(candles: Candle[], timeframe: string) {
 
     let upperBand = 0;
     let lowerBand = 0;
-    let direction = 1;
+    let currentDir = 1;
 
     for (let i = 0; i < candles.length; i++) {
       const c = candles[i];
+      const curAtr = atr[i] || (c.high - c.low);
       const hl2 = (c.high + c.low) / 2;
-      const curAtr = atr[i] || 1;
 
       const basicUpper = hl2 + multiplier * curAtr;
       const basicLower = hl2 - multiplier * curAtr;
@@ -112,24 +129,25 @@ export function calculateMoneyLineForce(candles: Candle[], timeframe: string) {
       if (i === 0) {
         upperBand = basicUpper;
         lowerBand = basicLower;
-        direction = c.close > upperBand ? -1 : 1;
+        currentDir = c.close > basicUpper ? -1 : 1;
       } else {
         const prevClose = candles[i - 1].close;
-        const prevUpper = upperBand;
         const prevLower = lowerBand;
+        const prevUpper = upperBand;
 
         lowerBand = (basicLower > prevLower || prevClose < prevLower) ? basicLower : prevLower;
         upperBand = (basicUpper < prevUpper || prevClose > prevUpper) ? basicUpper : prevUpper;
 
-        if (direction === 1 && c.close > prevUpper) {
-          direction = -1; // Bullish crossover
-        } else if (direction === -1 && c.close < prevLower) {
-          direction = 1; // Bearish crossunder
+        if (currentDir === 1 && c.close > prevUpper) {
+          currentDir = -1; // Bullish flip
+        } else if (currentDir === -1 && c.close < prevLower) {
+          currentDir = 1; // Bearish flip
         }
       }
 
-      line.push(direction === -1 ? lowerBand : upperBand);
-      dir.push(direction);
+      const val = currentDir === -1 ? lowerBand : upperBand;
+      line.push(Number(val.toFixed(2)));
+      dir.push(currentDir);
     }
 
     return { line, dir };
@@ -138,25 +156,19 @@ export function calculateMoneyLineForce(candles: Candle[], timeframe: string) {
   const fast = calcSupertrend(f_fast);
   const slow = calcSupertrend(f_slow);
 
+  // Buy & Sell signal identification (ta.change(dirSlow))
   const buySignals: boolean[] = [];
   const sellSignals: boolean[] = [];
-  const cloudColor: string[] = [];
 
   for (let i = 0; i < candles.length; i++) {
-    const isBull = fast.dir[i] < 0 && slow.dir[i] < 0;
-    const isBear = fast.dir[i] > 0 && slow.dir[i] > 0;
-    cloudColor.push(isBull ? '#10b981' : (isBear ? '#f43f5e' : '#64748b'));
-
-    if (i > 0) {
-      // buySignal = ta.change(dirSlow) < 0
-      const buy = slow.dir[i - 1] === 1 && slow.dir[i] === -1;
-      // sellSignal = ta.change(dirSlow) > 0
-      const sell = slow.dir[i - 1] === -1 && slow.dir[i] === 1;
-      buySignals.push(buy);
-      sellSignals.push(sell);
-    } else {
+    if (i === 0) {
       buySignals.push(false);
       sellSignals.push(false);
+    } else {
+      const prevDirSlow = slow.dir[i - 1];
+      const curDirSlow = slow.dir[i];
+      buySignals.push(curDirSlow === -1 && prevDirSlow === 1);
+      sellSignals.push(curDirSlow === 1 && prevDirSlow === -1);
     }
   }
 
@@ -165,29 +177,32 @@ export function calculateMoneyLineForce(candles: Candle[], timeframe: string) {
     dirFast: fast.dir,
     lineSlow: slow.line,
     dirSlow: slow.dir,
-    cloudColor,
     buySignals,
     sellSignals
   };
 }
 
 export const InteractiveChart: React.FC<InteractiveChartProps> = ({
-  candles = [],
+  candles,
   symbol,
-  timeframe = '1h',
+  timeframe,
   onTimeframeChange
 }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartInstanceRef = useRef<IChartApi | null>(null);
+  const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+
   const [activeTab, setActiveTab] = useState<'chart' | 'pinescript'>('chart');
   const [activeInterval, setActiveInterval] = useState<string>(timeframe);
   const [copiedPine, setCopiedPine] = useState(false);
-  const [latestState, setLatestState] = useState<{
-    status: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
-    fastLine: number;
-    slowLine: number;
-    buySignal: boolean;
-    sellSignal: boolean;
-  } | null>(null);
+  const [latestState, setLatestState] = useState<{ status: string; fastLine: number; slowLine: number } | null>(null);
+
+  // Drawing Tools State
+  const [activeTool, setActiveTool] = useState<DrawingTool>('select');
+  const [drawings, setDrawings] = useState<ChartDrawing[]>([]);
+  const [currentStart, setCurrentStart] = useState<{ timeIndex: number; price: number; x: number; y: number } | null>(null);
+  const [mousePos, setMousePos] = useState<{ x: number; y: number; price: number } | null>(null);
+  const [, setRenderTrigger] = useState(0); // Trigger SVG re-renders on scroll/zoom
 
   useEffect(() => {
     setActiveInterval(timeframe);
@@ -243,7 +258,7 @@ finalSlow  = useAuto ? slowFactor : manualSlow
 [lineFast, dirFast] = ta.supertrend(finalFast, finalAtr)
 [lineSlow, dirSlow] = ta.supertrend(finalSlow, finalAtr)
 
-// --- Plotare Linii (Se vor lipi obligatoriu de preț datorită numelui nou) ---
+// --- Plotare Linii ---
 plotFast = plot(lineFast, color=dirFast < 0 ? color.new(color.green, 30) : color.new(color.red, 30), linewidth=1, title="Baza Nor")
 plotSlow = plot(lineSlow, color=dirSlow < 0 ? color.new(color.green, 50) : color.new(color.red, 50), linewidth=1, title="Margine Nor")
 
@@ -272,7 +287,7 @@ plotshape(sellSignal, title="SELL", style=shape.triangledown, location=location.
 
     const chart = createChart(container, {
       width: container.clientWidth,
-      height: 440,
+      height: 480,
       layout: {
         background: { type: ColorType.Solid, color: '#080c14' },
         textColor: '#94a3b8'
@@ -308,6 +323,8 @@ plotshape(sellSignal, title="SELL", style=shape.triangledown, location=location.
       }
     });
 
+    chartInstanceRef.current = chart;
+
     // 1. Add Candlestick Series
     const candleSeries = chart.addSeries(CandlestickSeries, {
       upColor: '#10b981',
@@ -316,6 +333,7 @@ plotshape(sellSignal, title="SELL", style=shape.triangledown, location=location.
       wickUpColor: '#10b981',
       wickDownColor: '#f43f5e'
     });
+    candleSeriesRef.current = candleSeries;
 
     // 2. Add Volume Histogram Series
     const volumeSeries = chart.addSeries(HistogramSeries, {
@@ -430,26 +448,27 @@ plotshape(sellSignal, title="SELL", style=shape.triangledown, location=location.
     }
 
     // Set latest state metrics
-    if (candles.length > 0) {
-      const lastIdx = candles.length - 1;
-      const isBull = moneyLine.dirFast[lastIdx] < 0 && moneyLine.dirSlow[lastIdx] < 0;
-      const isBear = moneyLine.dirFast[lastIdx] > 0 && moneyLine.dirSlow[lastIdx] > 0;
+    const lastIdx = candles.length - 1;
+    if (lastIdx >= 0) {
+      const isBullFast = moneyLine.dirFast[lastIdx] < 0;
+      const isBullSlow = moneyLine.dirSlow[lastIdx] < 0;
       setLatestState({
-        status: isBull ? 'BULLISH' : (isBear ? 'BEARISH' : 'NEUTRAL'),
-        fastLine: moneyLine.lineFast[lastIdx],
-        slowLine: moneyLine.lineSlow[lastIdx],
-        buySignal: moneyLine.buySignals[lastIdx],
-        sellSignal: moneyLine.sellSignals[lastIdx]
+        status: isBullFast && isBullSlow ? 'BULLISH' : (!isBullFast && !isBullSlow ? 'BEARISH' : 'TRANSITION'),
+        fastLine: moneyLine.lineFast[lastIdx] || 0,
+        slowLine: moneyLine.lineSlow[lastIdx] || 0
       });
     }
 
-    // Fit chart viewport to recent content
+    // Fit content & subscribe to range changes for SVG overlay synchronization
     chart.timeScale().fitContent();
+    chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+      setRenderTrigger(prev => prev + 1);
+    });
 
-    // Responsive window resize listener
     const handleResize = () => {
       if (chartContainerRef.current) {
         chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+        setRenderTrigger(prev => prev + 1);
       }
     };
     window.addEventListener('resize', handleResize);
@@ -457,8 +476,107 @@ plotshape(sellSignal, title="SELL", style=shape.triangledown, location=location.
     return () => {
       window.removeEventListener('resize', handleResize);
       chart.remove();
+      chartInstanceRef.current = null;
+      candleSeriesRef.current = null;
     };
   }, [activeTab, candles, activeInterval, symbol]);
+
+  // Convert (timeIndex, price) to pixel coordinates (x, y)
+  const getCoordinates = (timeIndex: number, price: number) => {
+    if (!chartInstanceRef.current || !candleSeriesRef.current || !candles || candles.length === 0) {
+      return null;
+    }
+    const idx = Math.max(0, Math.min(candles.length - 1, timeIndex));
+    const c = candles[idx];
+    const timeInSec = Math.floor(c.timestamp / 1000) + idx * 60;
+    const x = chartInstanceRef.current.timeScale().timeToCoordinate(timeInSec as any);
+    const y = candleSeriesRef.current.priceToCoordinate(price);
+
+    if (x === null || y === null) return null;
+    return { x, y };
+  };
+
+  // Convert pixel coordinates (x, y) to (timeIndex, price)
+  const getPointFromPixels = (x: number, y: number) => {
+    if (!chartInstanceRef.current || !candleSeriesRef.current || !candles || candles.length === 0) {
+      return null;
+    }
+    const time = chartInstanceRef.current.timeScale().coordinateToTime(x) as number;
+    const price = candleSeriesRef.current.coordinateToPrice(y) as number;
+
+    if (time === null || price === null) return null;
+
+    // Find closest candle index
+    let closestIdx = 0;
+    let minDiff = Infinity;
+    candles.forEach((c, idx) => {
+      const timeInSec = Math.floor(c.timestamp / 1000) + idx * 60;
+      const diff = Math.abs(timeInSec - time);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIdx = idx;
+      }
+    });
+
+    return { timeIndex: closestIdx, price: Number(price.toFixed(4)) };
+  };
+
+  // Handle drawing mouse interactions
+  const handleOverlayPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (activeTool === 'select') return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const pt = getPointFromPixels(x, y);
+    if (!pt) return;
+
+    if (activeTool === 'horizontal') {
+      const newDrawing: ChartDrawing = {
+        id: `h_${Date.now()}`,
+        type: 'horizontal',
+        p1: { timeIndex: pt.timeIndex, price: pt.price }
+      };
+      setDrawings(prev => [...prev, newDrawing]);
+      setActiveTool('select');
+      return;
+    }
+
+    if (!currentStart) {
+      // First point of 2-point drawing
+      setCurrentStart({ timeIndex: pt.timeIndex, price: pt.price, x, y });
+    } else {
+      // Second point: finalize drawing
+      const newDrawing: ChartDrawing = {
+        id: `${activeTool}_${Date.now()}`,
+        type: activeTool as any,
+        p1: { timeIndex: currentStart.timeIndex, price: currentStart.price },
+        p2: { timeIndex: pt.timeIndex, price: pt.price }
+      };
+      setDrawings(prev => [...prev, newDrawing]);
+      setCurrentStart(null);
+      setActiveTool('select');
+    }
+  };
+
+  const handleOverlayPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const pt = getPointFromPixels(x, y);
+    if (pt) {
+      setMousePos({ x, y, price: pt.price });
+    }
+  };
+
+  const handleUndo = () => {
+    setDrawings(prev => prev.slice(0, -1));
+  };
+
+  const handleClearAll = () => {
+    setDrawings([]);
+    setCurrentStart(null);
+  };
 
   const handleCopyPineScript = () => {
     navigator.clipboard.writeText(pineScriptCode);
@@ -491,7 +609,7 @@ plotshape(sellSignal, title="SELL", style=shape.triangledown, location=location.
 
             <button
               onClick={() => setActiveTab('pinescript')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono rounded-lg transition-all ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all ${
                 activeTab === 'pinescript'
                   ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold'
                   : 'text-slate-400 hover:text-slate-200'
@@ -539,7 +657,7 @@ plotshape(sellSignal, title="SELL", style=shape.triangledown, location=location.
         </div>
       </div>
 
-      {/* Main Tab 1: TradingView Chart with MoneyLine Overlay Force v1 */}
+      {/* Main Tab 1: TradingView Chart with Interactive Drawing Suite */}
       {activeTab === 'chart' && (
         <div className="space-y-3">
           {/* Real-time Indicator Status Bar */}
@@ -564,12 +682,365 @@ plotshape(sellSignal, title="SELL", style=shape.triangledown, location=location.
             </div>
           </div>
 
-          {/* TradingView Lightweight Chart Viewport */}
-          <div className="relative w-full rounded-xl overflow-hidden bg-background-card border border-background-border">
-            <div ref={chartContainerRef} className="w-full h-[440px]" />
+          {/* Chart Workspace with Floating Technical Drawing Dock */}
+          <div className="relative w-full rounded-2xl overflow-hidden bg-background-card border border-background-border flex">
+            {/* Left-side Floating Technical Drawing Toolbar (TradingView Style) */}
+            <div className="absolute left-3 top-3 z-30 flex flex-col gap-1.5 p-1.5 bg-background-card/95 backdrop-blur-md border border-background-border rounded-xl shadow-2xl">
+              {/* Select Tool */}
+              <button
+                type="button"
+                onClick={() => { setActiveTool('select'); setCurrentStart(null); }}
+                title="Cursor / Select (Navigare)"
+                className={`p-2 rounded-lg transition-all ${
+                  activeTool === 'select'
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-cyan'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                }`}
+              >
+                <MousePointer className="w-4 h-4" />
+              </button>
+
+              {/* Trendline Tool */}
+              <button
+                type="button"
+                onClick={() => { setActiveTool('trendline'); setCurrentStart(null); }}
+                title="Linie de Trend (Apasă pe 2 puncte)"
+                className={`p-2 rounded-lg transition-all ${
+                  activeTool === 'trendline'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-glow-emerald'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                }`}
+              >
+                <TrendingUp className="w-4 h-4" />
+              </button>
+
+              {/* Fibonacci Tool */}
+              <button
+                type="button"
+                onClick={() => { setActiveTool('fibonacci'); setCurrentStart(null); }}
+                title="Fibonacci Retracement (Apasă pe High & Low)"
+                className={`p-2 rounded-lg transition-all ${
+                  activeTool === 'fibonacci'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-glow-gold'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                }`}
+              >
+                <Layers className="w-4 h-4" />
+              </button>
+
+              {/* Horizontal Support/Resistance Level */}
+              <button
+                type="button"
+                onClick={() => { setActiveTool('horizontal'); setCurrentStart(null); }}
+                title="Nivel Orizontal Suport/Rezistență"
+                className={`p-2 rounded-lg transition-all ${
+                  activeTool === 'horizontal'
+                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-glow-cyan'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                }`}
+              >
+                <Minus className="w-4 h-4" />
+              </button>
+
+              {/* Measurement Ruler */}
+              <button
+                type="button"
+                onClick={() => { setActiveTool('ruler'); setCurrentStart(null); }}
+                title="Riglă de Măsurare Preț & % Procent"
+                className={`p-2 rounded-lg transition-all ${
+                  activeTool === 'ruler'
+                    ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 shadow-glow-cyan'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                }`}
+              >
+                <Maximize2 className="w-4 h-4" />
+              </button>
+
+              <div className="h-px bg-slate-800 my-0.5" />
+
+              {/* Undo Button */}
+              <button
+                type="button"
+                onClick={handleUndo}
+                disabled={drawings.length === 0}
+                title="Anulează Ultimul Desen"
+                className="p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 disabled:opacity-30 transition-colors"
+              >
+                <Undo2 className="w-4 h-4" />
+              </button>
+
+              {/* Clear All Drawings Button */}
+              <button
+                type="button"
+                onClick={handleClearAll}
+                disabled={drawings.length === 0}
+                title="Șterge Toate Desenele"
+                className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 disabled:opacity-30 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Drawing Tool Status Indicator Pill */}
+            {activeTool !== 'select' && (
+              <div className="absolute top-3 left-16 z-30 px-3 py-1.5 rounded-xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 font-mono text-xs flex items-center gap-2 shadow-glow-cyan animate-pulse">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>
+                  {activeTool === 'trendline' && (currentStart ? 'Apasă al doilea punct pentru a finaliza Linia de Trend' : 'Selectează punctul de pornire al Trendline-ului')}
+                  {activeTool === 'fibonacci' && (currentStart ? 'Apasă al doilea punct (High/Low) pentru nivelurile Fibonacci' : 'Selectează primul punct Fibonacci')}
+                  {activeTool === 'horizontal' && 'Apasă oriunde pe grafic pentru a plasa Nivelul Orizontal'}
+                  {activeTool === 'ruler' && (currentStart ? 'Apasă al doilea punct pentru a măsura procentul și variația' : 'Apasă primul punct de măsurare')}
+                </span>
+                <button
+                  onClick={() => { setActiveTool('select'); setCurrentStart(null); }}
+                  className="text-slate-400 hover:text-slate-100 ml-1 font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {/* TradingView Lightweight Chart Canvas Viewport */}
+            <div ref={chartContainerRef} className="w-full h-[480px]" />
+
+            {/* High-Performance SVG Drawing Overlay Layer */}
+            <svg
+              className={`absolute inset-0 w-full h-[480px] z-20 ${
+                activeTool !== 'select' ? 'cursor-crosshair' : 'pointer-events-none'
+              }`}
+              onPointerDown={handleOverlayPointerDown}
+              onPointerMove={handleOverlayPointerMove}
+            >
+              {/* Render Saved Drawings */}
+              {drawings.map(d => {
+                const c1 = getCoordinates(d.p1.timeIndex, d.p1.price);
+                const c2 = d.p2 ? getCoordinates(d.p2.timeIndex, d.p2.price) : null;
+
+                if (!c1) return null;
+
+                // 1. Horizontal Ray / Level
+                if (d.type === 'horizontal') {
+                  return (
+                    <g key={d.id}>
+                      <line
+                        x1="0"
+                        y1={c1.y}
+                        x2="100%"
+                        y2={c1.y}
+                        stroke="#a855f7"
+                        strokeWidth="1.5"
+                        strokeDasharray="4 4"
+                      />
+                      <rect
+                        x="10"
+                        y={c1.y - 10}
+                        width="80"
+                        height="20"
+                        rx="4"
+                        fill="#581c87"
+                        stroke="#a855f7"
+                        strokeWidth="1"
+                      />
+                      <text
+                        x="50"
+                        y={c1.y + 4}
+                        fill="#f3e8ff"
+                        textAnchor="middle"
+                        fontFamily="monospace"
+                        fontSize="10"
+                        fontWeight="bold"
+                      >
+                        ${d.p1.price < 1 ? d.p1.price.toFixed(4) : d.p1.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </text>
+                    </g>
+                  );
+                }
+
+                if (!c2 || !d.p2) return null;
+
+                // 2. Trend Line
+                if (d.type === 'trendline') {
+                  return (
+                    <g key={d.id}>
+                      <line
+                        x1={c1.x}
+                        y1={c1.y}
+                        x2={c2.x}
+                        y2={c2.y}
+                        stroke="#06b6d4"
+                        strokeWidth="2.5"
+                      />
+                      <circle cx={c1.x} cy={c1.y} r="4.5" fill="#06b6d4" stroke="#080c14" strokeWidth="2" />
+                      <circle cx={c2.x} cy={c2.y} r="4.5" fill="#06b6d4" stroke="#080c14" strokeWidth="2" />
+                    </g>
+                  );
+                }
+
+                // 3. Fibonacci Retracement Levels
+                if (d.type === 'fibonacci') {
+                  const fibLevels = [
+                    { level: 0.0, label: '0.0% (Base)', color: '#94a3b8' },
+                    { level: 0.236, label: '23.6%', color: '#f43f5e' },
+                    { level: 0.382, label: '38.2%', color: '#fb923c' },
+                    { level: 0.5, label: '50.0% (Mid)', color: '#38bdf8' },
+                    { level: 0.618, label: '61.8% (Golden Pocket)', color: '#fbbf24' },
+                    { level: 0.786, label: '78.6%', color: '#34d399' },
+                    { level: 1.0, label: '100.0% (Target)', color: '#c084fc' }
+                  ];
+
+                  const priceDiff = d.p2.price - d.p1.price;
+                  const minX = Math.min(c1.x, c2.x);
+                  const maxX = Math.max(c1.x, c2.x) + 300;
+
+                  return (
+                    <g key={d.id}>
+                      {/* Trendline anchor connector */}
+                      <line
+                        x1={c1.x}
+                        y1={c1.y}
+                        x2={c2.x}
+                        y2={c2.y}
+                        stroke="#64748b"
+                        strokeWidth="1"
+                        strokeDasharray="3 3"
+                      />
+                      {fibLevels.map(fib => {
+                        const levelPrice = d.p1.price + priceDiff * fib.level;
+                        const coords = getCoordinates(d.p1.timeIndex, levelPrice);
+                        if (!coords) return null;
+
+                        return (
+                          <g key={fib.level}>
+                            <line
+                              x1={minX}
+                              y1={coords.y}
+                              x2={maxX}
+                              y2={coords.y}
+                              stroke={fib.color}
+                              strokeWidth={fib.level === 0.618 ? '2' : '1.2'}
+                              strokeDasharray={fib.level === 0.618 ? 'none' : '4 2'}
+                              opacity={0.85}
+                            />
+                            <text
+                              x={minX + 8}
+                              y={coords.y - 4}
+                              fill={fib.color}
+                              fontFamily="monospace"
+                              fontSize="10"
+                              fontWeight="bold"
+                            >
+                              {fib.label} — ${levelPrice < 1 ? levelPrice.toFixed(4) : levelPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </text>
+                          </g>
+                        );
+                      })}
+                    </g>
+                  );
+                }
+
+                // 4. Measurement Ruler
+                if (d.type === 'ruler') {
+                  const left = Math.min(c1.x, c2.x);
+                  const top = Math.min(c1.y, c2.y);
+                  const width = Math.abs(c2.x - c1.x);
+                  const height = Math.abs(c2.y - c1.y);
+                  const priceDiff = d.p2.price - d.p1.price;
+                  const pct = ((d.p2.price - d.p1.price) / d.p1.price) * 100;
+                  const isUp = pct >= 0;
+
+                  return (
+                    <g key={d.id}>
+                      <rect
+                        x={left}
+                        y={top}
+                        width={width}
+                        height={height}
+                        fill={isUp ? 'rgba(16, 185, 129, 0.15)' : 'rgba(244, 63, 94, 0.15)'}
+                        stroke={isUp ? '#10b981' : '#f43f5e'}
+                        strokeWidth="1.5"
+                        strokeDasharray="4 4"
+                      />
+                      <rect
+                        x={left + width / 2 - 60}
+                        y={top + height / 2 - 12}
+                        width="120"
+                        height="24"
+                        rx="6"
+                        fill="#080c14"
+                        stroke={isUp ? '#10b981' : '#f43f5e'}
+                        strokeWidth="1"
+                      />
+                      <text
+                        x={left + width / 2}
+                        y={top + height / 2 + 4}
+                        fill={isUp ? '#34d399' : '#fb7185'}
+                        textAnchor="middle"
+                        fontFamily="monospace"
+                        fontSize="10"
+                        fontWeight="bold"
+                      >
+                        {isUp ? `+${pct.toFixed(2)}%` : `${pct.toFixed(2)}%`} (${priceDiff > 0 ? `+${priceDiff.toFixed(2)}` : priceDiff.toFixed(2)})
+                      </text>
+                    </g>
+                  );
+                }
+
+                return null;
+              })}
+
+              {/* Active Drawing Preview (Rubberband) */}
+              {currentStart && mousePos && (
+                <g>
+                  {activeTool === 'trendline' && (
+                    <line
+                      x1={currentStart.x}
+                      y1={currentStart.y}
+                      x2={mousePos.x}
+                      y2={mousePos.y}
+                      stroke="#06b6d4"
+                      strokeWidth="2"
+                      strokeDasharray="3 3"
+                    />
+                  )}
+                  {activeTool === 'fibonacci' && (
+                    <g>
+                      <line
+                        x1={currentStart.x}
+                        y1={currentStart.y}
+                        x2={mousePos.x}
+                        y2={mousePos.y}
+                        stroke="#fbbf24"
+                        strokeWidth="1.5"
+                        strokeDasharray="4 4"
+                      />
+                      <line
+                        x1={Math.min(currentStart.x, mousePos.x)}
+                        y1={mousePos.y}
+                        x2={Math.max(currentStart.x, mousePos.x) + 200}
+                        y2={mousePos.y}
+                        stroke="#fbbf24"
+                        strokeWidth="1.5"
+                      />
+                    </g>
+                  )}
+                  {activeTool === 'ruler' && (
+                    <rect
+                      x={Math.min(currentStart.x, mousePos.x)}
+                      y={Math.min(currentStart.y, mousePos.y)}
+                      width={Math.abs(mousePos.x - currentStart.x)}
+                      height={Math.abs(mousePos.y - currentStart.y)}
+                      fill="rgba(56, 189, 248, 0.15)"
+                      stroke="#38bdf8"
+                      strokeWidth="1.5"
+                      strokeDasharray="4 4"
+                    />
+                  )}
+                </g>
+              )}
+            </svg>
           </div>
 
-          {/* Money Line Indicator Legend */}
+          {/* Money Line Indicator Legend & Tool Guidance */}
           <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 bg-background-card/50 rounded-xl border border-background-border text-[11px] font-mono text-slate-400">
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1.5">
@@ -588,7 +1059,10 @@ plotshape(sellSignal, title="SELL", style=shape.triangledown, location=location.
                 ▼ SELL Signal
               </span>
             </div>
-            <span className="text-slate-300 font-bold">Dual Supertrend Cloud Logic</span>
+            <div className="flex items-center gap-2 text-cyan-300">
+              <Sliders className="w-3.5 h-3.5" />
+              <span>Instrumente Active: Linie de Trend, Fibonacci Retracement, Nivel Orizontal, Riglă %</span>
+            </div>
           </div>
         </div>
       )}
@@ -603,7 +1077,7 @@ plotshape(sellSignal, title="SELL", style=shape.triangledown, location=location.
                 <h3 className="font-bold text-slate-100 text-sm">MoneyLine Overlay Force v1 — Pine Script v6</h3>
               </div>
               <p className="text-slate-400 text-[11px]">
-                Scriptul exact furnizat cu adaptare automată a parametrilor (1H, 4H, 1D, 1W, 1M) și colorare nor.
+                Scriptul exact furnizat cu adaptare automată a parametrilor (1H, 4H, 8H, 1D, 1W, 1M) și colorare nor.
               </p>
             </div>
 
