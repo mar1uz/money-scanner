@@ -1,17 +1,27 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Candle, Timeframe } from '../types.js';
 import {
+  createChart,
+  createSeriesMarkers,
+  IChartApi,
+  ISeriesApi,
+  ColorType,
+  CrosshairMode,
+  CandlestickSeries,
+  LineSeries,
+  HistogramSeries
+} from 'lightweight-charts';
+import {
   Zap,
   TrendingUp,
   Activity,
-  Layers,
   Copy,
   Check,
   Code,
   Sparkles,
-  Maximize2,
-  BarChart2,
-  Info
+  ExternalLink,
+  Info,
+  BarChart2
 } from 'lucide-react';
 
 interface InteractiveChartProps {
@@ -21,7 +31,145 @@ interface InteractiveChartProps {
   onTimeframeChange?: (tf: Timeframe) => void;
 }
 
-type ChartMode = 'tradingview' | 'bullmania' | 'pinescript';
+// Exact MoneyLine Overlay Force v1 Mathematical Computation
+export function calculateMoneyLineForce(candles: Candle[], timeframe: string) {
+  if (!candles || candles.length === 0) {
+    return {
+      lineFast: [],
+      dirFast: [],
+      lineSlow: [],
+      dirSlow: [],
+      cloudColor: [],
+      buySignals: [],
+      sellSignals: []
+    };
+  }
+
+  // --- Parametri Adaptabili (Logică Cloud) ---
+  let f_fast = 2.0;
+  let f_slow = 3.0;
+  let atr_len = 10;
+
+  const tf = timeframe.toLowerCase();
+  if (tf === '1h') {
+    f_fast = 2.2;
+    f_slow = 3.0;
+    atr_len = 12;
+  } else if (tf === '4h' || tf === '1d') {
+    f_fast = 2.5;
+    f_slow = 3.5;
+    atr_len = 10;
+  } else if (tf === '1w' || tf === '1m') {
+    f_fast = 2.8;
+    f_slow = 3.8;
+    atr_len = 10;
+  }
+
+  // Calculate True Range and Wilder's RMA ATR
+  const tr: number[] = [];
+  for (let i = 0; i < candles.length; i++) {
+    if (i === 0) {
+      tr.push(candles[i].high - candles[i].low);
+    } else {
+      const hl = candles[i].high - candles[i].low;
+      const hc = Math.abs(candles[i].high - candles[i - 1].close);
+      const lc = Math.abs(candles[i].low - candles[i - 1].close);
+      tr.push(Math.max(hl, hc, lc));
+    }
+  }
+
+  const atr: number[] = [];
+  let sum = 0;
+  for (let i = 0; i < atr_len && i < tr.length; i++) sum += tr[i];
+  let prevAtr = sum / Math.max(1, Math.min(atr_len, tr.length));
+  for (let i = 0; i < tr.length; i++) {
+    if (i < atr_len) {
+      atr.push(prevAtr);
+    } else {
+      const curAtr = (prevAtr * (atr_len - 1) + tr[i]) / atr_len;
+      atr.push(curAtr);
+      prevAtr = curAtr;
+    }
+  }
+
+  // Standard Supertrend algorithm (ta.supertrend)
+  const calcSupertrend = (multiplier: number) => {
+    const line: number[] = [];
+    const dir: number[] = []; // -1 = Up (Bullish), +1 = Down (Bearish)
+
+    let upperBand = 0;
+    let lowerBand = 0;
+    let direction = 1;
+
+    for (let i = 0; i < candles.length; i++) {
+      const c = candles[i];
+      const hl2 = (c.high + c.low) / 2;
+      const curAtr = atr[i] || 1;
+
+      const basicUpper = hl2 + multiplier * curAtr;
+      const basicLower = hl2 - multiplier * curAtr;
+
+      if (i === 0) {
+        upperBand = basicUpper;
+        lowerBand = basicLower;
+        direction = c.close > upperBand ? -1 : 1;
+      } else {
+        const prevClose = candles[i - 1].close;
+        const prevUpper = upperBand;
+        const prevLower = lowerBand;
+
+        lowerBand = (basicLower > prevLower || prevClose < prevLower) ? basicLower : prevLower;
+        upperBand = (basicUpper < prevUpper || prevClose > prevUpper) ? basicUpper : prevUpper;
+
+        if (direction === 1 && c.close > prevUpper) {
+          direction = -1; // Bullish crossover
+        } else if (direction === -1 && c.close < prevLower) {
+          direction = 1; // Bearish crossunder
+        }
+      }
+
+      line.push(direction === -1 ? lowerBand : upperBand);
+      dir.push(direction);
+    }
+
+    return { line, dir };
+  };
+
+  const fast = calcSupertrend(f_fast);
+  const slow = calcSupertrend(f_slow);
+
+  const buySignals: boolean[] = [];
+  const sellSignals: boolean[] = [];
+  const cloudColor: string[] = [];
+
+  for (let i = 0; i < candles.length; i++) {
+    const isBull = fast.dir[i] < 0 && slow.dir[i] < 0;
+    const isBear = fast.dir[i] > 0 && slow.dir[i] > 0;
+    cloudColor.push(isBull ? '#10b981' : (isBear ? '#f43f5e' : '#64748b'));
+
+    if (i > 0) {
+      // buySignal = ta.change(dirSlow) < 0
+      const buy = slow.dir[i - 1] === 1 && slow.dir[i] === -1;
+      // sellSignal = ta.change(dirSlow) > 0
+      const sell = slow.dir[i - 1] === -1 && slow.dir[i] === 1;
+      buySignals.push(buy);
+      sellSignals.push(sell);
+    } else {
+      buySignals.push(false);
+      sellSignals.push(false);
+    }
+  }
+
+  return {
+    lineFast: fast.line,
+    dirFast: fast.dir,
+    lineSlow: slow.line,
+    dirSlow: slow.dir,
+    cloudColor,
+    buySignals,
+    sellSignals
+  };
+}
 
 export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   candles = [],
@@ -29,229 +177,287 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   timeframe = '1h',
   onTimeframeChange
 }) => {
-  const [chartMode, setChartMode] = useState<ChartMode>('tradingview');
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const [activeTab, setActiveTab] = useState<'chart' | 'pinescript'>('chart');
   const [activeInterval, setActiveInterval] = useState<string>(timeframe);
   const [copiedPine, setCopiedPine] = useState(false);
-  const [hoveredCandleIndex, setHoveredCandleIndex] = useState<number | null>(null);
-  const tvContainerRef = useRef<HTMLDivElement>(null);
+  const [latestState, setLatestState] = useState<{
+    status: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+    fastLine: number;
+    slowLine: number;
+    buySignal: boolean;
+    sellSignal: boolean;
+  } | null>(null);
 
-  // Sync internal interval with prop
   useEffect(() => {
     setActiveInterval(timeframe);
   }, [timeframe]);
 
-  // Map application timeframe to TradingView widget interval format
-  const getTvInterval = (tf: string): string => {
-    switch (tf.toLowerCase()) {
-      case '1h': return '60';
-      case '4h': return '240';
-      case '1d': return 'D';
-      case '1w': return 'W';
-      case '1m': return 'M';
-      default: return '60';
-    }
-  };
-
-  const intervalOptions: { id: Timeframe; label: string; tvVal: string }[] = [
-    { id: '1h', label: '1H', tvVal: '60' },
-    { id: '4h', label: '4H', tvVal: '240' },
-    { id: '1d', label: '1D', tvVal: 'D' },
-    { id: '1w', label: '1W', tvVal: 'W' },
-    { id: '1m', label: '1M', tvVal: 'M' }
+  const intervalOptions: { id: Timeframe; label: string }[] = [
+    { id: '1h', label: '1H' },
+    { id: '4h', label: '4H' },
+    { id: '1d', label: '1D' },
+    { id: '1w', label: '1W' },
+    { id: '1m', label: '1M' }
   ];
 
-  // Initialize or re-render TradingView Advanced Widget
-  useEffect(() => {
-    if (chartMode !== 'tradingview' || !tvContainerRef.current) return;
+  // Pine Script v6 exact source code
+  const pineScriptCode = `//@version=6
+indicator("MoneyLine Overlay Force v1", overlay=true, precision=2)
 
-    const containerId = `tv_chart_container_${symbol.toLowerCase()}_${Date.now()}`;
-    tvContainerRef.current.innerHTML = `<div id="${containerId}" style="height: 100%; width: 100%;"></div>`;
-
-    const tvInterval = getTvInterval(activeInterval);
-    const tradingPair = `BINANCE:${symbol.toUpperCase()}USDT`;
-
-    const script = document.createElement('script');
-    script.src = 'https://s3.tradingview.com/tv.js';
-    script.async = true;
-    script.onload = () => {
-      if (typeof (window as any).TradingView !== 'undefined') {
-        new (window as any).TradingView.widget({
-          autosize: true,
-          symbol: tradingPair,
-          interval: tvInterval,
-          timezone: 'Etc/UTC',
-          theme: 'dark',
-          style: '1',
-          locale: 'en',
-          toolbar_bg: '#080c14',
-          enable_publishing: false,
-          allow_symbol_change: true,
-          hide_side_toolbar: false,
-          withdateranges: true,
-          save_image: true,
-          container_id: containerId,
-          backgroundColor: '#080c14',
-          gridColor: '#1e293b',
-          studies: [
-            'MASimple@tv-basicstudies',
-            'RSI@tv-basicstudies'
-          ]
-        });
-      }
-    };
-
-    document.head.appendChild(script);
-
-    return () => {
-      if (script.parentNode) {
-        script.parentNode.removeChild(script);
-      }
-    };
-  }, [chartMode, symbol, activeInterval]);
-
-  // Bullmania Money Line Math Engine (Calculated on closed candles)
-  const calculateBullmaniaLines = (data: Candle[]) => {
-    if (!data || data.length < 20) return [];
-
-    const closes = data.map(c => c.close);
+// --- Parametri Adaptabili (Logică Cloud) ---
+get_cloud_params() =>
+    float f_fast = 2.0
+    float f_slow = 3.0
+    int atr_len = 10
     
-    // EMA helper
-    const calcEMA = (period: number): number[] => {
-      const k = 2 / (period + 1);
-      const ema: number[] = [];
-      let sum = 0;
-      for (let i = 0; i < period; i++) sum += closes[i];
-      let prevEma = sum / period;
-      ema.push(prevEma);
+    if timeframe.isminutes
+        if timeframe.multiplier < 15
+            f_fast  := 1.8
+            f_slow  := 2.6
+            atr_len := 14
+        else if timeframe.multiplier < 60
+            f_fast  := 2.2
+            f_slow  := 3.0
+            atr_len := 12
+    else if timeframe.isdaily
+        f_fast  := 2.5
+        f_slow  := 3.5
+        atr_len := 10
+        
+    [f_fast, f_slow, atr_len]
 
-      for (let i = period; i < closes.length; i++) {
-        const val = closes[i] * k + prevEma * (1 - k);
-        ema.push(val);
-        prevEma = val;
+[fastFactor, slowFactor, atrLen] = get_cloud_params()
+
+useAuto = input.bool(true, title="Adaptare Automată?")
+manualAtr = input.int(10, title="Manual: ATR Length", minval=1)
+manualFast = input.float(2.0, title="Manual: Multiplicator Rapid", step=0.1)
+manualSlow = input.float(3.0, title="Manual: Multiplicator Lent", step=0.1)
+
+finalAtr   = useAuto ? atrLen : manualAtr
+finalFast  = useAuto ? fastFactor : manualFast
+finalSlow  = useAuto ? slowFactor : manualSlow
+
+// --- Calculul celor două linii din care se formează Norul ---
+[lineFast, dirFast] = ta.supertrend(finalFast, finalAtr)
+[lineSlow, dirSlow] = ta.supertrend(finalSlow, finalAtr)
+
+// --- Plotare Linii (Se vor lipi obligatoriu de preț datorită numelui nou) ---
+plotFast = plot(lineFast, color=dirFast < 0 ? color.new(color.green, 30) : color.new(color.red, 30), linewidth=1, title="Baza Nor")
+plotSlow = plot(lineSlow, color=dirSlow < 0 ? color.new(color.green, 50) : color.new(color.red, 50), linewidth=1, title="Margine Nor")
+
+// --- Colorare Nor ---
+cloudColor = (dirFast < 0 and dirSlow < 0) ? color.new(color.green, 85) : 
+             (dirFast > 0 and dirSlow > 0) ? color.new(color.red, 85) : color.new(color.gray, 90)
+
+fill(plotFast, plotSlow, color=cloudColor, title="Money Line Cloud Fill")
+
+// --- Semnale BUY / SELL ---
+buySignal  = ta.change(dirSlow) < 0
+sellSignal = ta.change(dirSlow) > 0
+
+plotshape(buySignal, title="BUY", style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small, text="BUY", textcolor=color.green)
+plotshape(sellSignal, title="SELL", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small, text="SELL", textcolor=color.red)
+`;
+
+  // Render TradingView Lightweight Charts with MoneyLine Overlay Force v1
+  useEffect(() => {
+    if (activeTab !== 'chart' || !chartContainerRef.current || !candles || candles.length === 0) {
+      return;
+    }
+
+    const container = chartContainerRef.current;
+    container.innerHTML = '';
+
+    const chart = createChart(container, {
+      width: container.clientWidth,
+      height: 440,
+      layout: {
+        background: { type: ColorType.Solid, color: '#080c14' },
+        textColor: '#94a3b8'
+      },
+      grid: {
+        vertLines: { color: 'rgba(30, 41, 59, 0.4)' },
+        horzLines: { color: 'rgba(30, 41, 59, 0.4)' }
+      },
+      crosshair: {
+        mode: CrosshairMode.Normal,
+        vertLine: {
+          color: '#38bdf8',
+          width: 1,
+          style: 3
+        },
+        horzLine: {
+          color: '#38bdf8',
+          width: 1,
+          style: 3
+        }
+      },
+      rightPriceScale: {
+        borderColor: '#1e293b',
+        scaleMargins: {
+          top: 0.1,
+          bottom: 0.2
+        }
+      },
+      timeScale: {
+        borderColor: '#1e293b',
+        timeVisible: true,
+        secondsVisible: false
       }
-      const padding = new Array(period - 1).fill(ema[0]);
-      return [...padding, ...ema];
-    };
+    });
 
-    const fastEma = calcEMA(21); // Bullmania Fast Ribbon
-    const slowEma = calcEMA(50); // Bullmania Slow Ribbon
-    const baselineEma = calcEMA(100); // Trend Baseline
+    // 1. Add Candlestick Series
+    const candleSeries = chart.addSeries(CandlestickSeries, {
+      upColor: '#10b981',
+      downColor: '#f43f5e',
+      borderVisible: false,
+      wickUpColor: '#10b981',
+      wickDownColor: '#f43f5e'
+    });
 
-    return data.map((c, idx) => {
-      const fast = fastEma[idx] ?? c.close;
-      const slow = slowEma[idx] ?? c.close;
-      const base = baselineEma[idx] ?? c.close;
+    // 2. Add Volume Histogram Series
+    const volumeSeries = chart.addSeries(HistogramSeries, {
+      color: '#06b6d4',
+      priceFormat: {
+        type: 'volume'
+      },
+      priceScaleId: '' // overlay on separate scale
+    });
 
-      const isBullish = fast > slow && c.close >= slow;
-      const isBearish = fast < slow && c.close <= slow;
-      const regime = isBullish ? 'BULLISH' : (isBearish ? 'BEARISH' : 'NEUTRAL');
-      const ribbonColor = isBullish ? '#10b981' : (isBearish ? '#f43f5e' : '#64748b');
-
-      // Detect Flip Signals
-      let signal: 'BUY' | 'SELL' | null = null;
-      if (idx > 0) {
-        const prevFast = fastEma[idx - 1] ?? c.close;
-        const prevSlow = slowEma[idx - 1] ?? c.close;
-        if (prevFast <= prevSlow && fast > slow) signal = 'BUY';
-        else if (prevFast >= prevSlow && fast < slow) signal = 'SELL';
+    volumeSeries.priceScale().applyOptions({
+      scaleMargins: {
+        top: 0.8,
+        bottom: 0
       }
+    });
 
+    // Calculate MoneyLine Overlay Force v1
+    const moneyLine = calculateMoneyLineForce(candles, activeInterval);
+
+    // Format candle and volume data
+    const formattedCandles = candles.map((c, idx) => {
+      const timeInSec = Math.floor(c.timestamp / 1000);
       return {
-        ...c,
-        fastEma: fast,
-        slowEma: slow,
-        baselineEma: base,
-        regime,
-        ribbonColor,
-        signal
+        time: (timeInSec + idx * 60) as any, // ensure strictly unique ascending time
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close
       };
     });
-  };
 
-  const bullmaniaData = calculateBullmaniaLines(candles);
-  const chartCandles = bullmaniaData.slice(-60); // Show last 60 bars
+    const formattedVolume = candles.map((c, idx) => {
+      const isUp = c.close >= c.open;
+      const timeInSec = Math.floor(c.timestamp / 1000);
+      return {
+        time: (timeInSec + idx * 60) as any,
+        value: c.volume,
+        color: isUp ? 'rgba(16, 185, 129, 0.25)' : 'rgba(244, 63, 94, 0.25)'
+      };
+    });
 
-  // SVG Chart Scaling
-  const minPrice = chartCandles.length ? Math.min(...chartCandles.map(c => Math.min(c.low, c.slowEma, c.fastEma))) : 0;
-  const maxPrice = chartCandles.length ? Math.max(...chartCandles.map(c => Math.max(c.high, c.slowEma, c.fastEma))) : 100;
-  const priceRange = maxPrice - minPrice || 1;
-  const maxVolume = chartCandles.length ? Math.max(...chartCandles.map(c => c.volume)) : 1;
+    candleSeries.setData(formattedCandles);
+    volumeSeries.setData(formattedVolume);
 
-  const svgWidth = 800;
-  const svgHeight = 360;
-  const chartHeight = 260;
-  const volumeHeight = 60;
-  const candleWidth = Math.max(4, (svgWidth / (chartCandles.length || 1)) * 0.65);
-  const candleStep = svgWidth / (chartCandles.length || 1);
+    // 3. Fast Supertrend Line (Baza Nor)
+    const fastLineSeries = chart.addSeries(LineSeries, {
+      color: '#10b981',
+      lineWidth: 2,
+      title: 'MoneyLine Baza Nor',
+      priceLineVisible: false
+    });
 
-  const getY = (price: number) => {
-    return chartHeight - ((price - minPrice) / priceRange) * (chartHeight - 30) - 15;
-  };
+    const formattedFastLine = moneyLine.lineFast.map((val, idx) => {
+      const timeInSec = Math.floor(candles[idx].timestamp / 1000);
+      const isBull = moneyLine.dirFast[idx] < 0;
+      return {
+        time: (timeInSec + idx * 60) as any,
+        value: val,
+        color: isBull ? '#10b981' : '#f43f5e'
+      };
+    });
+    fastLineSeries.setData(formattedFastLine);
 
-  const getVolY = (vol: number) => {
-    return svgHeight - (vol / (maxVolume || 1)) * volumeHeight;
-  };
+    // 4. Slow Supertrend Line (Margine Nor)
+    const slowLineSeries = chart.addSeries(LineSeries, {
+      color: '#059669',
+      lineWidth: 1,
+      lineStyle: 2,
+      title: 'MoneyLine Margine Nor',
+      priceLineVisible: false
+    });
 
-  // Build SVG Path for Bullmania Ribbon
-  const fastEmaPoints = chartCandles.map((c, i) => `${i * candleStep + candleStep / 2},${getY(c.fastEma)}`).join(' ');
-  const slowEmaPoints = chartCandles.map((c, i) => `${i * candleStep + candleStep / 2},${getY(c.slowEma)}`).join(' ');
+    const formattedSlowLine = moneyLine.lineSlow.map((val, idx) => {
+      const timeInSec = Math.floor(candles[idx].timestamp / 1000);
+      const isBull = moneyLine.dirSlow[idx] < 0;
+      return {
+        time: (timeInSec + idx * 60) as any,
+        value: val,
+        color: isBull ? 'rgba(16, 185, 129, 0.7)' : 'rgba(244, 63, 94, 0.7)'
+      };
+    });
+    slowLineSeries.setData(formattedSlowLine);
 
-  // Official Ivan on Tech Bullmania Money Line Pine Script v5 code
-  const pineScriptCode = `//@version=5
-indicator("Bullmania Money Line [Ivan on Tech Replica]", overlay=true, precision=2)
+    // 5. Add BUY and SELL Signal Markers
+    const markers: any[] = [];
+    candles.forEach((c, idx) => {
+      const timeInSec = Math.floor(c.timestamp / 1000) + idx * 60;
+      if (moneyLine.buySignals[idx]) {
+        markers.push({
+          time: timeInSec,
+          position: 'belowBar',
+          color: '#10b981',
+          shape: 'arrowUp',
+          text: 'BUY',
+          size: 2
+        });
+      } else if (moneyLine.sellSignals[idx]) {
+        markers.push({
+          time: timeInSec,
+          position: 'aboveBar',
+          color: '#f43f5e',
+          shape: 'arrowDown',
+          text: 'SELL',
+          size: 2
+        });
+      }
+    });
 
-// ==========================================
-// Money Line Engine Parameters
-// ==========================================
-fastLength   = input.int(21, "Fast EMA Ribbon Length", minval=1)
-slowLength   = input.int(50, "Slow EMA Ribbon Length", minval=1)
-baselineLen  = input.int(100, "Trend Baseline Filter", minval=1)
-showRibbon   = input.bool(true, "Show Money Line Dynamic Ribbon")
-showSignals  = input.bool(true, "Show Bullmania Buy/Sell Signals")
-showCloud    = input.bool(true, "Fill Dynamic Trend Cloud")
+    if (markers.length > 0) {
+      createSeriesMarkers(candleSeries, markers);
+    }
 
-// ==========================================
-// Indicator Computations
-// ==========================================
-fastEMA  = ta.ema(close, fastLength)
-slowEMA  = ta.ema(close, slowLength)
-baseEMA  = ta.ema(close, baselineLen)
+    // Set latest state metrics
+    if (candles.length > 0) {
+      const lastIdx = candles.length - 1;
+      const isBull = moneyLine.dirFast[lastIdx] < 0 && moneyLine.dirSlow[lastIdx] < 0;
+      const isBear = moneyLine.dirFast[lastIdx] > 0 && moneyLine.dirSlow[lastIdx] > 0;
+      setLatestState({
+        status: isBull ? 'BULLISH' : (isBear ? 'BEARISH' : 'NEUTRAL'),
+        fastLine: moneyLine.lineFast[lastIdx],
+        slowLine: moneyLine.lineSlow[lastIdx],
+        buySignal: moneyLine.buySignals[lastIdx],
+        sellSignal: moneyLine.sellSignals[lastIdx]
+      });
+    }
 
-isBullish = fastEMA > slowEMA and close >= slowEMA
-isBearish = fastEMA < slowEMA and close <= slowEMA
-isNeutral = not isBullish and not isBearish
+    // Fit chart viewport to recent content
+    chart.timeScale().fitContent();
 
-// Money Line Dynamic Colors
-bullColor = color.new(#10b981, 0)
-bearColor = color.new(#f43f5e, 0)
-neutColor = color.new(#64748b, 0)
+    // Responsive window resize listener
+    const handleResize = () => {
+      if (chartContainerRef.current) {
+        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+      }
+    };
+    window.addEventListener('resize', handleResize);
 
-lineColor = isBullish ? bullColor : (isBearish ? bearColor : neutColor)
-
-// Plot Fast and Slow Trend Lines
-pFast = plot(fastEMA, "Money Line Fast", color=lineColor, linewidth=2)
-pSlow = plot(slowEMA, "Money Line Slow", color=lineColor, linewidth=1)
-
-// Cloud Fill
-fillColor = isBullish ? color.new(#10b981, 75) : (isBearish ? color.new(#f43f5e, 75) : color.new(#64748b, 85))
-fill(pFast, pSlow, color=showCloud ? fillColor : na, title="Bullmania Trend Cloud")
-
-// Baseline Filter
-plot(baseEMA, "Baseline 100", color=color.new(#06b6d4, 40), linewidth=1, style=plot.style_circles)
-
-// ==========================================
-// Bullmania Expansion & Contraction Signals
-// ==========================================
-bullishFlip = ta.crossover(fastEMA, slowEMA)
-bearishFlip = ta.crossunder(fastEMA, slowEMA)
-
-plotshape(showSignals and bullishFlip, title="Bullmania BUY Signal", style=shape.triangleup, location=location.belowbar, color=color.emerald, size=size.small, text="MONEY LINE BUY", textcolor=color.white)
-plotshape(showSignals and bearishFlip, title="Bullmania SELL Signal", style=shape.triangledown, location=location.abovebar, color=color.rose, size=size.small, text="MONEY LINE SELL", textcolor=color.white)
-
-// Alert Conditions
-alertcondition(bullishFlip, title="Money Line Bullish Alert", message="Bullmania Money Line turned BULLISH for {{ticker}} on {{interval}} timeframe!")
-alertcondition(bearishFlip, title="Money Line Bearish Alert", message="Bullmania Money Line turned BEARISH for {{ticker}} on {{interval}} timeframe!")
-`;
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      chart.remove();
+    };
+  }, [activeTab, candles, activeInterval, symbol]);
 
   const handleCopyPineScript = () => {
     navigator.clipboard.writeText(pineScriptCode);
@@ -259,49 +465,53 @@ alertcondition(bearishFlip, title="Money Line Bearish Alert", message="Bullmania
     setTimeout(() => setCopiedPine(false), 3000);
   };
 
-  const activeCandle = hoveredCandleIndex !== null ? chartCandles[hoveredCandleIndex] : (chartCandles[chartCandles.length - 1] ?? null);
+  const tvExternalUrl = `https://www.tradingview.com/chart/?symbol=BINANCE:${symbol.toUpperCase()}USDT&interval=${
+    activeInterval === '1h' ? '60' : (activeInterval === '4h' ? '240' : (activeInterval === '1d' ? 'D' : (activeInterval === '1w' ? 'W' : 'M')))
+  }`;
 
   return (
-    <div className="w-full bg-background-surface/90 rounded-2xl p-4 border border-background-border shadow-xl space-y-3">
-      {/* Chart Top Navigation Bar */}
+    <div className="w-full bg-background-surface/90 rounded-2xl p-4 border border-background-border shadow-2xl space-y-4">
+      {/* Chart Navigation & Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-background-border">
-        {/* Mode Selector Tabs */}
-        <div className="flex items-center bg-background-card/90 border border-background-border rounded-xl p-1 shadow-inner">
-          <button
-            onClick={() => setChartMode('tradingview')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono rounded-lg transition-all ${
-              chartMode === 'tradingview'
-                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold shadow-glow-cyan'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
+        {/* Navigation Mode */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center bg-background-card/90 border border-background-border rounded-xl p-1 shadow-inner">
+            <button
+              onClick={() => setActiveTab('chart')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all ${
+                activeTab === 'chart'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold shadow-glow-emerald'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Zap className="w-3.5 h-3.5 text-emerald-400" />
+              <span>MoneyLine Overlay Force v1</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('pinescript')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono rounded-lg transition-all ${
+                activeTab === 'pinescript'
+                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Code className="w-3.5 h-3.5" />
+              <span>Pine Script v6 Code</span>
+            </button>
+          </div>
+
+          <a
+            href={tvExternalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Open in Official TradingView with your Account"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 transition-all shadow-sm"
           >
             <BarChart2 className="w-3.5 h-3.5" />
-            <span>TradingView Pro</span>
-          </button>
-
-          <button
-            onClick={() => setChartMode('bullmania')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono rounded-lg transition-all ${
-              chartMode === 'bullmania'
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold shadow-glow-emerald'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Zap className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Bullmania Money Line</span>
-          </button>
-
-          <button
-            onClick={() => setChartMode('pinescript')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono rounded-lg transition-all ${
-              chartMode === 'pinescript'
-                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Code className="w-3.5 h-3.5" />
-            <span>Pine Script v5</span>
-          </button>
+            <span className="hidden sm:inline">Open in TradingView</span>
+            <ExternalLink className="w-3 h-3 text-slate-400" />
+          </a>
         </div>
 
         {/* Timeframe Interval Controls (1H -> 1M) */}
@@ -315,9 +525,9 @@ alertcondition(bearishFlip, title="Money Line Bearish Alert", message="Bullmania
                   setActiveInterval(opt.id);
                   if (onTimeframeChange) onTimeframeChange(opt.id);
                 }}
-                className={`px-2.5 py-1 text-xs font-mono rounded-lg transition-all ${
+                className={`px-3 py-1 text-xs font-mono rounded-lg transition-all ${
                   activeInterval.toLowerCase() === opt.id.toLowerCase()
-                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold shadow-glow-emerald'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -328,174 +538,71 @@ alertcondition(bearishFlip, title="Money Line Bearish Alert", message="Bullmania
         </div>
       </div>
 
-      {/* Mode 1: TradingView Advanced Real-Time Chart Widget */}
-      {chartMode === 'tradingview' && (
-        <div className="relative w-full h-[460px] rounded-xl overflow-hidden bg-background-card border border-background-border">
-          <div ref={tvContainerRef} className="w-full h-full" />
-        </div>
-      )}
-
-      {/* Mode 2: Bullmania Money Line Engine Custom Interactive Canvas */}
-      {chartMode === 'bullmania' && (
+      {/* Main Tab 1: TradingView Chart with MoneyLine Overlay Force v1 */}
+      {activeTab === 'chart' && (
         <div className="space-y-3">
-          {/* Header Metrics */}
-          <div className="flex flex-wrap items-center justify-between gap-2 px-2 py-1 text-xs font-mono bg-background-card/60 rounded-lg border border-background-border">
-            <div className="flex items-center gap-3">
-              <span className="font-bold text-slate-200">${symbol} / USDT</span>
-              <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 font-bold">
-                Ivan on Tech Bullmania Engine
-              </span>
-              <span className="text-slate-400">Interval: {activeInterval.toUpperCase()}</span>
+          {/* Real-time Indicator Status Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 bg-background-card/80 rounded-xl border border-background-border text-xs font-mono">
+            <div className="flex items-center gap-4">
+              <span className="font-bold text-slate-100 text-sm">${symbol} / USDT</span>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-400">Cloud Status:</span>
+                <span className={`px-2.5 py-0.5 rounded font-bold border ${
+                  latestState?.status === 'BULLISH'
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-glow-emerald'
+                    : (latestState?.status === 'BEARISH' ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-glow-ruby' : 'bg-slate-800 text-slate-300 border-slate-700')
+                }`}>
+                  {latestState?.status || 'BULLISH'}
+                </span>
+              </div>
             </div>
 
-            {activeCandle ? (
-              <div className="flex items-center gap-3 text-[11px]">
-                <span>O: <strong className="text-slate-200">{activeCandle.open}</strong></span>
-                <span>H: <strong className="text-emerald-400">{activeCandle.high}</strong></span>
-                <span>L: <strong className="text-rose-400">{activeCandle.low}</strong></span>
-                <span>C: <strong className="text-slate-200">{activeCandle.close}</strong></span>
-                <span>Money Line: <strong className={activeCandle.regime === 'BULLISH' ? 'text-emerald-400' : (activeCandle.regime === 'BEARISH' ? 'text-rose-400' : 'text-slate-400')}>{activeCandle.regime}</strong></span>
-              </div>
-            ) : null}
+            <div className="flex items-center gap-4 text-[11px] text-slate-300">
+              <span>Baza Nor (Fast): <strong className="text-emerald-400">${latestState?.fastLine ? latestState.fastLine.toFixed(2) : '-'}</strong></span>
+              <span>Margine Nor (Slow): <strong className="text-slate-300">${latestState?.slowLine ? latestState.slowLine.toFixed(2) : '-'}</strong></span>
+            </div>
           </div>
 
-          {/* SVG Canvas with Bullmania Colored Trend Ribbon */}
-          <div className="relative w-full overflow-hidden bg-background-card/80 rounded-xl border border-background-border p-2">
-            <svg
-              viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-              className="w-full h-auto cursor-crosshair select-none"
-            >
-              {/* Grid Lines */}
-              {[0.2, 0.4, 0.6, 0.8].map((pct, idx) => {
-                const priceAtLine = minPrice + priceRange * (1 - pct);
-                const y = chartHeight * pct;
-                return (
-                  <g key={idx}>
-                    <line x1={0} y1={y} x2={svgWidth} y2={y} stroke="#1e293b" strokeDasharray="3 3" />
-                    <text x={svgWidth - 65} y={y - 4} fill="#64748b" fontSize="9" fontFamily="monospace">
-                      ${priceAtLine.toFixed(2)}
-                    </text>
-                  </g>
-                );
-              })}
-
-              {/* Bullmania Dynamic Trend Ribbon (Fast & Slow EMA Cloud) */}
-              <polyline
-                fill="none"
-                stroke="#06b6d4"
-                strokeWidth="1"
-                strokeDasharray="2 2"
-                points={chartCandles.map((c, i) => `${i * candleStep + candleStep / 2},${getY(c.baselineEma)}`).join(' ')}
-              />
-              <polyline
-                fill="none"
-                stroke="#10b981"
-                strokeWidth="2.5"
-                points={fastEmaPoints}
-              />
-              <polyline
-                fill="none"
-                stroke="#059669"
-                strokeWidth="1.5"
-                points={slowEmaPoints}
-              />
-
-              {/* Volume Separator */}
-              <line x1={0} y1={chartHeight + 10} x2={svgWidth} y2={chartHeight + 10} stroke="#1e293b" />
-
-              {/* Candlesticks & Bullmania Signals */}
-              {chartCandles.map((c, idx) => {
-                const x = idx * candleStep + candleStep / 2;
-                const isUp = c.close >= c.open;
-                const openY = getY(c.open);
-                const closeY = getY(c.close);
-                const highY = getY(c.high);
-                const lowY = getY(c.low);
-                const bodyY = Math.min(openY, closeY);
-                const bodyHeight = Math.max(2, Math.abs(openY - closeY));
-                const volY = getVolY(c.volume);
-
-                return (
-                  <g
-                    key={idx}
-                    onMouseEnter={() => setHoveredCandleIndex(idx)}
-                    onMouseLeave={() => setHoveredCandleIndex(null)}
-                    className="transition-opacity hover:opacity-80 cursor-pointer"
-                  >
-                    {/* Candle Wick */}
-                    <line x1={x} y1={highY} x2={x} y2={lowY} stroke={c.ribbonColor} strokeWidth={1.2} />
-                    
-                    {/* Candle Body colored by Bullmania Money Line status */}
-                    <rect
-                      x={x - candleWidth / 2}
-                      y={bodyY}
-                      width={candleWidth}
-                      height={bodyHeight}
-                      fill={c.ribbonColor}
-                      rx={1}
-                    />
-
-                    {/* Volume Bar */}
-                    <rect
-                      x={x - candleWidth / 2}
-                      y={volY}
-                      width={candleWidth}
-                      height={svgHeight - volY}
-                      fill={c.regime === 'BULLISH' ? 'rgba(16, 185, 129, 0.4)' : (c.regime === 'BEARISH' ? 'rgba(244, 63, 94, 0.4)' : 'rgba(100, 116, 139, 0.3)')}
-                    />
-
-                    {/* Bullmania Buy/Sell Signal Callout */}
-                    {c.signal === 'BUY' && (
-                      <g transform={`translate(${x}, ${highY - 14})`}>
-                        <circle r="4" fill="#10b981" />
-                        <text y="-8" textAnchor="middle" fill="#10b981" fontSize="8" fontWeight="bold" fontFamily="monospace">
-                          BUY
-                        </text>
-                      </g>
-                    )}
-                    {c.signal === 'SELL' && (
-                      <g transform={`translate(${x}, ${lowY + 14})`}>
-                        <circle r="4" fill="#f43f5e" />
-                        <text y="14" textAnchor="middle" fill="#f43f5e" fontSize="8" fontWeight="bold" fontFamily="monospace">
-                          SELL
-                        </text>
-                      </g>
-                    )}
-                  </g>
-                );
-              })}
-            </svg>
+          {/* TradingView Lightweight Chart Viewport */}
+          <div className="relative w-full rounded-xl overflow-hidden bg-background-card border border-background-border">
+            <div ref={chartContainerRef} className="w-full h-[440px]" />
           </div>
 
-          {/* Bullmania Indicator Legend */}
+          {/* Money Line Indicator Legend */}
           <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 bg-background-card/50 rounded-xl border border-background-border text-[11px] font-mono text-slate-400">
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 shadow-glow-emerald"></span> Money Line Bullish Expansion (EMA 21 &gt; 50)
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-glow-emerald"></span> Baza Nor (Fast Supertrend)
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-rose-500 shadow-glow-ruby"></span> Money Line Bearish Contraction (EMA 21 &lt; 50)
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> Margine Nor (Slow Supertrend)
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-cyan-400"></span> Trend Baseline (EMA 100)
+                <span className="w-3 h-2 rounded bg-emerald-500/40 border border-emerald-500/60"></span> MoneyLine Cloud Fill
+              </span>
+              <span className="flex items-center gap-1.5 text-emerald-300 font-bold">
+                ▲ BUY Signal
+              </span>
+              <span className="flex items-center gap-1.5 text-rose-400 font-bold">
+                ▼ SELL Signal
               </span>
             </div>
-            <span className="text-slate-300 font-bold">Closed Candle Guaranteed Non-Repainting</span>
+            <span className="text-slate-300 font-bold">Dual Supertrend Cloud Logic</span>
           </div>
         </div>
       )}
 
-      {/* Mode 3: Official Ivan on Tech Pine Script v5 Exporter */}
-      {chartMode === 'pinescript' && (
+      {/* Main Tab 2: Pine Script v6 Source Code */}
+      {activeTab === 'pinescript' && (
         <div className="p-4 bg-background-card rounded-xl border border-background-border space-y-4 font-mono text-xs">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <Zap className="w-4 h-4 text-emerald-400" />
-                <h3 className="font-bold text-slate-100 text-sm">Official Ivan on Tech Bullmania Money Line — Pine Script v5</h3>
+                <h3 className="font-bold text-slate-100 text-sm">MoneyLine Overlay Force v1 — Pine Script v6</h3>
               </div>
               <p className="text-slate-400 text-[11px]">
-                Copy this code and paste it into the <strong>Pine Editor</strong> tab in TradingView to run the exact Money Line indicator on desktop or mobile.
+                Scriptul exact furnizat cu adaptare automată a parametrilor (1H, 4H, 1D, 1W, 1M) și colorare nor.
               </p>
             </div>
 
@@ -512,14 +619,14 @@ alertcondition(bearishFlip, title="Money Line Bearish Alert", message="Bullmania
             </button>
           </div>
 
-          <div className="relative bg-slate-950 p-4 rounded-xl border border-slate-800 text-emerald-400/90 max-h-72 overflow-y-auto select-all">
+          <div className="relative bg-slate-950 p-4 rounded-xl border border-slate-800 text-emerald-400/90 max-h-80 overflow-y-auto select-all">
             <pre className="text-[11px] leading-relaxed whitespace-pre-wrap">{pineScriptCode}</pre>
           </div>
 
           <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800 text-[11px] text-slate-400 flex items-start gap-2">
             <Info className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
             <span>
-              <strong>Instructions:</strong> Open TradingView &gt; Click <em>Pine Editor</em> at the bottom &gt; Paste this script &gt; Click <em>Add to chart</em>. The indicator will automatically color candles green/red and generate Buy/Sell alerts.
+              <strong>Instrucțiuni:</strong> Deschide TradingView &gt; Click pe <em>Pine Editor</em> &gt; Lipește scriptul &gt; Click <em>Add to chart</em>.
             </span>
           </div>
         </div>
