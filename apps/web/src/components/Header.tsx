@@ -50,16 +50,17 @@ export const Header: React.FC<HeaderProps> = ({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Sanitize query by removing $, #, spaces and convert to uppercase
-  const cleanQuery = searchQuery.trim().replace(/^[$#]/, '').toUpperCase();
+  // Sanitize query by removing $, #, leading/trailing whitespace
+  const rawQuery = searchQuery.trim().toLowerCase().replace(/^[$#]/, '');
 
-  // Combine static top 50 universe with live signal data
+  // Combine static 360 universe with live signal data
   const searchUniverse = TOP_50_CRYPTO_ASSETS.map(base => {
     const live = allAssets.find(a => a.symbol.toUpperCase() === base.symbol.toUpperCase());
     return {
       symbol: base.symbol,
       name: base.name,
       category: base.category,
+      aliases: (base as any).aliases || [],
       price: live ? live.price : 0,
       change24h: live ? live.change24h : 0,
       tier: live ? live.tier : 'Bullish',
@@ -67,13 +68,20 @@ export const Header: React.FC<HeaderProps> = ({
     };
   });
 
-  // Instant matching assets for live dropdown
-  const matchingAssets = cleanQuery
+  // Instant matching assets for live dropdown with fuzzy and alias matching
+  const matchingAssets = rawQuery
     ? searchUniverse.filter(a => {
-        const sym = a.symbol.toUpperCase();
-        const nm = a.name.toUpperCase();
-        const cat = a.category.toUpperCase();
-        return sym.includes(cleanQuery) || nm.includes(cleanQuery) || cat.includes(cleanQuery);
+        const sym = a.symbol.toLowerCase();
+        const nm = a.name.toLowerCase();
+        const cat = a.category.toLowerCase();
+        const aliases: string[] = (a.aliases || []).map((al: string) => al.toLowerCase());
+
+        return (
+          sym.includes(rawQuery) ||
+          nm.includes(rawQuery) ||
+          cat.includes(rawQuery) ||
+          aliases.some((al: string) => al.includes(rawQuery) || rawQuery.includes(al))
+        );
       })
     : [];
 
@@ -122,11 +130,9 @@ export const Header: React.FC<HeaderProps> = ({
               onSearchChange(e.target.value);
               setIsDropdownOpen(true);
             }}
-            onFocus={() => {
-              if (searchQuery.trim()) setIsDropdownOpen(true);
-            }}
-            placeholder="Search asset, symbol, or cashtag (e.g. BTC, $SOL, AI)..."
-            className="w-full bg-background-surface/90 border border-background-border rounded-lg pl-9 pr-8 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/60 focus:ring-1 focus:ring-cyan-500/40 transition-all font-mono"
+            onFocus={() => setIsDropdownOpen(true)}
+            placeholder="Caută generic ex: 'SpaceX', 'Gold', 'Aur', 'Tesla', 'Nvidia', '$BTC'..."
+            className="w-full bg-background-surface border border-background-border rounded-xl pl-9 pr-8 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/60 focus:ring-1 focus:ring-cyan-500/30 transition-all font-mono"
           />
           {searchQuery && (
             <button
@@ -134,25 +140,26 @@ export const Header: React.FC<HeaderProps> = ({
                 onSearchChange('');
                 setIsDropdownOpen(false);
               }}
-              className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-200"
+              className="absolute right-2.5 top-2.5 text-slate-500 hover:text-slate-300"
             >
               <X className="w-4 h-4" />
             </button>
           )}
         </div>
 
-        {/* Floating Dropdown Results */}
+        {/* Live Search Suggestions Dropdown */}
         {isDropdownOpen && searchQuery.trim() && (
-          <div className="absolute left-0 right-0 top-full mt-1.5 bg-background-card/95 backdrop-blur-xl border border-background-border rounded-xl shadow-2xl overflow-hidden z-50 max-h-80 overflow-y-auto cyber-glass">
+          <div className="absolute left-0 right-0 top-full mt-2 bg-background-card/95 backdrop-blur-xl border border-cyan-500/30 rounded-xl shadow-2xl overflow-hidden z-50 animate-fade-in max-h-96 overflow-y-auto divide-y divide-background-border">
+            <div className="p-2.5 bg-background-surface/80 text-[10px] font-mono text-slate-400 flex items-center justify-between">
+              <span>REZULTATE CĂUTARE INTELIGENTĂ ({matchingAssets.length})</span>
+              <span className="text-cyan-400">Apasă pe activ pentru Deep Dive</span>
+            </div>
+
             {matchingAssets.length > 0 ? (
               <div className="divide-y divide-background-border/50">
-                <div className="p-2 text-[10px] uppercase font-mono text-slate-400 bg-background-surface/50 flex justify-between">
-                  <span>Found {matchingAssets.length} Matching Assets</span>
-                  <span className="text-cyan-400">Click to Open Full Page • (+) for Watchlist</span>
-                </div>
                 {matchingAssets.map(asset => {
+                  const isInWatchlist = watchlist.map(w => w.replace(/^[$#]/, '').trim().toUpperCase()).includes(asset.symbol.toUpperCase());
                   const isUp = asset.change24h >= 0;
-                  const isInWatchlist = watchlist.includes(asset.symbol);
 
                   return (
                     <div
@@ -161,21 +168,19 @@ export const Header: React.FC<HeaderProps> = ({
                         if (onSelectAsset) onSelectAsset(asset.symbol);
                         setIsDropdownOpen(false);
                       }}
-                      className="p-3 hover:bg-background-hover transition-colors cursor-pointer flex items-center justify-between gap-3 group"
+                      className="p-3 hover:bg-background-surface/90 transition-all flex items-center justify-between cursor-pointer group"
                     >
                       <div className="flex items-center gap-3">
-                        {/* Watchlist Quick-Add (+) Button */}
                         <button
-                          type="button"
-                          title={isInWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
                           onClick={(e) => {
                             e.stopPropagation();
                             if (onToggleWatchlist) onToggleWatchlist(asset.symbol);
                           }}
+                          title={isInWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
                           className={`p-1.5 rounded-lg border transition-all ${
                             isInWatchlist
                               ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-glow-gold'
-                              : 'bg-slate-800/80 text-slate-400 border-slate-700 hover:text-cyan-300 hover:border-cyan-500/50 hover:bg-cyan-500/10'
+                              : 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-cyan-300 border-slate-700'
                           }`}
                         >
                           {isInWatchlist ? <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" /> : <Plus className="w-3.5 h-3.5" />}
@@ -221,7 +226,7 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             ) : (
               <div className="p-6 text-center text-xs font-mono text-slate-400">
-                No assets found matching "{searchQuery}". Try searching <span className="text-cyan-400">BTC</span>, <span className="text-cyan-400">SOL</span>, <span className="text-cyan-400">ETH</span>, or <span className="text-cyan-400">AI</span>.
+                Niciun activ găsit pentru "{searchQuery}". Încearcă <span className="text-cyan-400">SpaceX</span>, <span className="text-cyan-400">Gold</span>, <span className="text-cyan-400">Aur</span>, <span className="text-cyan-400">Tesla</span>, <span className="text-cyan-400">Nvidia</span>, sau <span className="text-cyan-400">BTC</span>.
               </div>
             )}
           </div>
@@ -243,9 +248,9 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         )}
 
-        {/* Timeframe Selector */}
+        {/* Timeframe Selector (1H, 4H, 8H, 1D, 1W, 1M) */}
         <div className="flex items-center bg-background-surface border border-background-border rounded-lg p-0.5">
-          {(['1h', '4h', '8h', '1d'] as Timeframe[]).map((tf) => (
+          {(['1h', '4h', '8h', '1d', '1w', '1m'] as Timeframe[]).map((tf) => (
             <button
               key={tf}
               onClick={() => onTimeframeChange(tf)}

@@ -17,11 +17,17 @@ scannerRouter.get('/scanner', async (req, res) => {
     let rows = await appState.refreshSignals(timeframe);
 
     if (search) {
-      rows = rows.filter(r => 
-        r.symbol.toUpperCase().includes(search) || 
-        r.name.toUpperCase().includes(search) ||
-        r.category.toUpperCase().includes(search)
-      );
+      const q = search.toLowerCase();
+      rows = rows.filter(r => {
+        const info = TOP_50_CRYPTO_ASSETS.find(a => a.symbol.toUpperCase() === r.symbol.toUpperCase());
+        const aliases = (info?.aliases || []).map(al => al.toLowerCase());
+        return (
+          r.symbol.toLowerCase().includes(q) || 
+          r.name.toLowerCase().includes(q) ||
+          r.category.toLowerCase().includes(q) ||
+          aliases.some(al => al.includes(q) || q.includes(al))
+        );
+      });
     }
     if (tier && tier !== 'ALL') {
       rows = rows.filter(r => r.tier === tier);

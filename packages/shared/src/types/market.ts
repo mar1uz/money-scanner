@@ -33,6 +33,7 @@ export interface AssetInfo {
   category: AssetCategory;
   marketClass?: AssetMarketClass;
   quoteCurrency: string;  // e.g. "USDT", "USD"
+  aliases?: string[];     // e.g. ["spacex", "elon musk", "gold", "aur", "nvidia", "ai chips"]
   marketCap?: number;
   rank: number;
   decimals: number;

@@ -10,10 +10,16 @@ export class FixtureMarketProvider {
     ['COPPER', 4.15],
 
     // --- STOCKS & INDICES ---
+    ['SPACEX', 195.0],
     ['NVDA', 125.0],
     ['TSLA', 215.0],
     ['AAPL', 225.0],
     ['MSFT', 445.0],
+    ['GOOGL', 178.0],
+    ['AMZN', 188.0],
+    ['META', 510.0],
+    ['PLTR', 32.5],
+    ['AMD', 145.0],
     ['MSTR', 1450.0],
     ['COIN', 220.0],
     ['SPY', 555.0],
