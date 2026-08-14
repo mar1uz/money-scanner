@@ -84,6 +84,8 @@ export const App: React.FC = () => {
         onSearchChange={setSearchQuery}
         onTriggerTestAlert={handleTriggerTestAlert}
         isStale={overview?.providerStatus.staleAssetsCount ? overview.providerStatus.staleAssetsCount > 0 : false}
+        allAssets={scannerRows}
+        onSelectAsset={setSelectedAssetSymbol}
       />
 
       {/* Main Tab Navigation */}

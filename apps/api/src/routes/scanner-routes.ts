@@ -9,14 +9,19 @@ scannerRouter.get('/scanner', async (req, res) => {
   try {
     const timeframe = (req.query.timeframe as Timeframe) || '1h';
     const tier = req.query.tier as string;
-    const search = (req.query.search as string || '').toUpperCase();
+    const rawSearch = (req.query.search as string || '').trim();
+    const search = rawSearch.replace(/^[$#]/, '').toUpperCase();
     const watchlistOnly = req.query.watchlist === 'true';
 
     const appState = AppState.getInstance();
     let rows = await appState.refreshSignals(timeframe);
 
     if (search) {
-      rows = rows.filter(r => r.symbol.includes(search) || r.name.toUpperCase().includes(search));
+      rows = rows.filter(r => 
+        r.symbol.toUpperCase().includes(search) || 
+        r.name.toUpperCase().includes(search) ||
+        r.category.toUpperCase().includes(search)
+      );
     }
     if (tier && tier !== 'ALL') {
       rows = rows.filter(r => r.tier === tier);
