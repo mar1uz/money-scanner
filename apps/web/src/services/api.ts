@@ -12,7 +12,7 @@ import { AssetDetailResponse } from '../types.js';
 const API_BASE = '/api';
 
 export async function fetchMarketOverview(): Promise<MarketOverviewSummary> {
-  const res = await fetch(`${API_BASE}/market/overview`);
+  const res = await fetch(`${API_BASE}/overview`).catch(() => fetch(`${API_BASE}/market/overview`));
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch market overview`);
   return res.json();
 }

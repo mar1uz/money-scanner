@@ -47,13 +47,15 @@ export const App: React.FC = () => {
   const refreshData = async () => {
     setLoading(true);
     try {
-      const [ov, rows] = await Promise.all([
+      const [ovRes, rowsRes] = await Promise.allSettled([
         fetchMarketOverview(),
         fetchScanner(timeframe) // Always fetch all 50 assets master state
       ]);
-      setOverview(ov);
-      if (rows && rows.length > 0) {
-        setScannerRows(rows);
+      if (ovRes.status === 'fulfilled') {
+        setOverview(ovRes.value);
+      }
+      if (rowsRes.status === 'fulfilled' && rowsRes.value && rowsRes.value.length > 0) {
+        setScannerRows(rowsRes.value);
       }
     } catch (err) {
       console.error('Data refresh error:', err);

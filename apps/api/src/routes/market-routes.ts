@@ -25,7 +25,7 @@ marketRouter.get('/status', (req, res) => {
   });
 });
 
-marketRouter.get('/overview', async (req, res) => {
+marketRouter.get(['/overview', '/market/overview'], async (req, res) => {
   try {
     const appState = AppState.getInstance();
     const overview = await appState.marketData.getMarketOverview();
@@ -35,7 +35,7 @@ marketRouter.get('/overview', async (req, res) => {
   }
 });
 
-marketRouter.get('/quotes', async (req, res) => {
+marketRouter.get(['/quotes', '/market/quotes'], async (req, res) => {
   try {
     const appState = AppState.getInstance();
     const quotes = await appState.marketData.getAllQuotes();
