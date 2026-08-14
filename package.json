@@ -8,12 +8,13 @@
     "apps/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
+    "build:packages": "npm run build --workspace=packages/shared && npm run build --workspace=packages/money-line && npm run build --workspace=packages/market-data && npm run build --workspace=packages/social-analysis && npm run build --workspace=packages/ai-analysis && npm run build --workspace=packages/notifications",
+    "build": "npm run build:packages && npm run build --workspace=apps/api && npm run build --workspace=apps/worker && npm run build --workspace=apps/web",
     "test": "npm run test --workspaces --if-present",
     "dev:api": "npm --workspace=apps/api run dev",
     "dev:web": "npm --workspace=apps/web run dev",
     "dev:worker": "npm --workspace=apps/worker run dev",
-    "start": "npm --workspace=apps/api run start"
+    "start": "node apps/api/dist/index.js"
   },
   "devDependencies": {
     "@types/node": "^20.14.9",

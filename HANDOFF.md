@@ -28,7 +28,7 @@ https://scanner.relayhub.no
 During development, use the independent Cloud Run URL:
 
 ```text
-https://crypto-scanner-[service-id].europe-west3.run.app
+https://crypto-scanner-web-384051756749.europe-west3.run.app
 ```
 
 For the custom domain, route `scanner.relayhub.no` through the existing Google Cloud external Application Load Balancer to the new Cloud Run backend. The host rule must be independent of the rule serving `relayhub.no`.
