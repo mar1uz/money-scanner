@@ -43,7 +43,7 @@ export class MarketDataService {
       return candles;
     } catch (err) {
       // Fallback to Fixture Provider seamlessly
-      const hours = timeframe === '4h' ? 4 : (timeframe === '1d' ? 24 : 1);
+      const hours = timeframe === '4h' ? 4 : (timeframe === '1d' ? 24 : (timeframe === '1w' ? 168 : (timeframe === '1m' ? 720 : 1)));
       const fallbackCandles = this.fixtureProvider.getCandles(symbol, limit, hours);
       this.candleCache.set(cacheKey, fallbackCandles);
       return fallbackCandles;

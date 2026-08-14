@@ -44,11 +44,11 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
     }
 
     const appState = AppState.getInstance();
-    const candles1h = await appState.marketData.getCandles(symbol, '1h', 250);
-    const candles4h = await appState.marketData.getCandles(symbol, '4h', 250);
-    const candles1d = await appState.marketData.getCandles(symbol, '1d', 250);
+    const activeCandles = await appState.marketData.getCandles(symbol, timeframe, 250);
 
-    const activeCandles = timeframe === '4h' ? candles4h : (timeframe === '1d' ? candles1d : candles1h);
+    const candles1h = timeframe === '1h' ? activeCandles : await appState.marketData.getCandles(symbol, '1h', 250);
+    const candles4h = timeframe === '4h' ? activeCandles : await appState.marketData.getCandles(symbol, '4h', 250);
+    const candles1d = timeframe === '1d' ? activeCandles : await appState.marketData.getCandles(symbol, '1d', 250);
 
     const signal1h = appState.moneyLine.calculateLatest(symbol, '1h', candles1h);
     const signal4h = appState.moneyLine.calculateLatest(symbol, '4h', candles4h);
@@ -60,7 +60,9 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       '1d': signal1d || undefined
     });
 
-    const activeSignal = timeframe === '4h' ? signal4h : (timeframe === '1d' ? signal1d : signal1h);
+    const activeSignal = (timeframe === '1h' || timeframe === '4h' || timeframe === '1d')
+      ? (timeframe === '1h' ? signal1h : (timeframe === '4h' ? signal4h : signal1d))
+      : appState.moneyLine.calculateLatest(symbol, timeframe, activeCandles);
     const quote = await appState.marketData.getPriceQuote(symbol);
     const xPosts = appState.social.getTrendingTopics();
     const news = appState.news.getNewsForSymbol(symbol);
