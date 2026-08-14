@@ -26,24 +26,17 @@ export class MarketDataService {
   public async getCandles(
     symbol: string,
     timeframe: Timeframe = '1h',
-    limit = 250
+    limit = 1000
   ): Promise<Candle[]> {
-    const cacheKey = `${symbol}_${timeframe}`;
+    const cacheKey = `${symbol}_${timeframe}_${limit}`;
     
     try {
-      if (timeframe === '4h' || timeframe === '1d') {
-        const hours = timeframe === '4h' ? 4 : 24;
-        // Fetch 1h base candles and aggregate
-        const raw1h = await this.getCandles(symbol, '1h', Math.max(limit * hours, 300));
-        return aggregateCandles(raw1h, hours);
-      }
-
       const candles = await this.binanceAdapter.fetchCandles(symbol, timeframe, limit);
       this.candleCache.set(cacheKey, candles);
       return candles;
     } catch (err) {
       // Fallback to Fixture Provider seamlessly
-      const hours = timeframe === '4h' ? 4 : (timeframe === '1d' ? 24 : (timeframe === '1w' ? 168 : (timeframe === '1m' ? 720 : 1)));
+      const hours = timeframe === '4h' ? 4 : (timeframe === '8h' ? 8 : (timeframe === '1d' ? 24 : (timeframe === '1w' ? 168 : (timeframe === '1m' ? 720 : 1))));
       const fallbackCandles = this.fixtureProvider.getCandles(symbol, limit, hours);
       this.candleCache.set(cacheKey, fallbackCandles);
       return fallbackCandles;

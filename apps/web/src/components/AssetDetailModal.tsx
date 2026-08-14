@@ -85,7 +85,7 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
           <div className="flex items-center gap-3">
             {/* Timeframe selector inside modal */}
             <div className="flex items-center bg-background-surface border border-background-border rounded-lg p-0.5">
-              {(['1h', '4h', '1d', '1w', '1m'] as Timeframe[]).map((tf) => (
+              {(['1h', '4h', '8h', '1d', '1w', '1m'] as Timeframe[]).map((tf) => (
                 <button
                   key={tf}
                   onClick={() => setActiveTf(tf)}

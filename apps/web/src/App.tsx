@@ -20,7 +20,7 @@ import { NewsFeedView } from './components/NewsFeedView.js';
 import { AIBriefingView } from './components/AIBriefingView.js';
 import { BacktestView } from './components/BacktestView.js';
 import { SystemStatusView } from './components/SystemStatusView.js';
-import { Zap, BellRing, Sparkles } from 'lucide-react';
+import { Zap, BellRing, Sparkles, CheckCircle2 } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
@@ -28,9 +28,17 @@ export const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTier, setSelectedTier] = useState('ALL');
   const [watchlistOnly, setWatchlistOnly] = useState(false);
-  const [watchlist, setWatchlist] = useState<string[]>(['BTC', 'ETH', 'SOL', 'SUI', 'FET']);
-  const [selectedAssetSymbol, setSelectedAssetSymbol] = useState<string | null>(null);
+  
+  // Persistent Watchlist from localStorage
+  const [watchlist, setWatchlist] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('money_scanner_watchlist');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return ['BTC', 'ETH', 'SOL', 'SUI', 'FET'];
+  });
 
+  const [selectedAssetSymbol, setSelectedAssetSymbol] = useState<string | null>(null);
   const [overview, setOverview] = useState<MarketOverviewSummary | null>(null);
   const [scannerRows, setScannerRows] = useState<AssetScannerRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,9 +66,23 @@ export const App: React.FC = () => {
   }, [timeframe]);
 
   const toggleWatchlist = (symbol: string) => {
-    setWatchlist(prev => 
-      prev.includes(symbol) ? prev.filter(s => s !== symbol) : [...prev, symbol]
+    const sym = symbol.toUpperCase();
+    const isAdding = !watchlist.includes(sym);
+    const updated = isAdding
+      ? [...watchlist, sym]
+      : watchlist.filter(s => s !== sym);
+
+    setWatchlist(updated);
+    try {
+      localStorage.setItem('money_scanner_watchlist', JSON.stringify(updated));
+    } catch {}
+
+    setBannerAlert(
+      isAdding
+        ? `★ $${sym} a fost adăugat în Watchlist! Este activ în semnalele Live Scanner.`
+        : `Active Watchlist: $${sym} a fost eliminat din listă.`
     );
+    setTimeout(() => setBannerAlert(null), 4000);
   };
 
   const handleTriggerTestAlert = async () => {
@@ -72,20 +94,6 @@ export const App: React.FC = () => {
       console.error(e);
     }
   };
-
-  // Instant local filtering for table
-  const filteredScannerRows = scannerRows.filter(r => {
-    if (watchlistOnly && !watchlist.includes(r.symbol)) return false;
-    if (selectedTier !== 'ALL' && r.tier !== selectedTier) return false;
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().replace(/^[$#]/, '').toUpperCase();
-      const matchSym = r.symbol.toUpperCase().includes(q);
-      const matchNm = r.name.toUpperCase().includes(q);
-      const matchCat = r.category.toUpperCase().includes(q);
-      if (!matchSym && !matchNm && !matchCat) return false;
-    }
-    return true;
-  });
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-slate-100 selection:bg-cyan-500/30 selection:text-cyan-200">
@@ -115,37 +123,49 @@ export const App: React.FC = () => {
 
       {/* Notification Banner */}
       {bannerAlert && (
-        <div className="bg-gradient-to-r from-cyan-600/30 to-emerald-600/30 border-b border-cyan-500/40 px-4 py-2 text-center text-xs font-mono text-cyan-200 flex items-center justify-center gap-2">
-          <BellRing className="w-4 h-4 text-cyan-400 animate-bounce" />
-          <span>{bannerAlert}</span>
+        <div className="mx-4 lg:mx-8 mt-3 p-3 bg-gradient-to-r from-emerald-500/20 via-cyan-500/20 to-emerald-500/20 border border-emerald-500/40 rounded-xl text-xs font-mono text-emerald-300 flex items-center justify-between shadow-glow-emerald animate-fade-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{bannerAlert}</span>
+          </div>
+          <button
+            onClick={() => setBannerAlert(null)}
+            className="text-slate-400 hover:text-slate-200 ml-4"
+          >
+            ✕
+          </button>
         </div>
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 p-4 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
-        {/* Dashboard View */}
+      <main className="flex-1 px-4 lg:px-8 py-6 space-y-6 max-w-[1600px] w-full mx-auto">
+        {/* Tab 1: Live Dashboard */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
-            <MarketRegimeGauge overview={overview} />
-            
-            {/* Quick Scanner Highlights */}
+            {/* Top Market Intelligence Gauges */}
+            {overview && (
+              <MarketRegimeGauge
+                overview={overview}
+              />
+            )}
+
+            {/* Live Money Scanner Signals Table */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Zap className="w-5 h-5 text-cyan-400" />
-                  <h2 className="text-base font-bold text-slate-100">Live Money Scanner Signals ({timeframe.toUpperCase()})</h2>
+                  <Zap className="w-4 h-4 text-cyan-400" />
+                  <h2 className="text-sm font-bold tracking-wide uppercase font-mono text-slate-200">
+                    Live Money Scanner Signals ({timeframe.toUpperCase()})
+                  </h2>
                 </div>
-                <button
-                  onClick={() => setActiveTab('scanner')}
-                  className="text-xs font-mono text-cyan-400 hover:underline"
-                >
-                  View Full Scanner (50 Assets) →
-                </button>
+                <span className="text-xs font-mono text-slate-400">
+                  Auto-refreshing every 15s • Deterministic Non-Repainting Engine
+                </span>
               </div>
 
               <ScannerTable
-                rows={filteredScannerRows.slice(0, 15)}
-                onSelectAsset={setSelectedAssetSymbol}
+                rows={scannerRows}
+                onSelectAsset={(sym) => setSelectedAssetSymbol(sym)}
                 watchlist={watchlist}
                 onToggleWatchlist={toggleWatchlist}
                 selectedTier={selectedTier}
@@ -157,21 +177,12 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* Full Scanner Tab */}
+        {/* Tab 2: Full Scanner */}
         {activeTab === 'scanner' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-slate-100">Deterministic Money Scanner Engine</h2>
-                <p className="text-xs text-slate-400">
-                  Ranking top 50 liquid crypto assets by original Money Line v1.0.0 composite scores, volume confirmation, and social momentum.
-                </p>
-              </div>
-            </div>
-
             <ScannerTable
-              rows={filteredScannerRows}
-              onSelectAsset={setSelectedAssetSymbol}
+              rows={scannerRows}
+              onSelectAsset={(sym) => setSelectedAssetSymbol(sym)}
               watchlist={watchlist}
               onToggleWatchlist={toggleWatchlist}
               selectedTier={selectedTier}
@@ -182,19 +193,19 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* X Trends Tab */}
+        {/* Tab 3: X Narrative Intelligence */}
         {activeTab === 'trends' && <XTrendsView />}
 
-        {/* News Tab */}
+        {/* Tab 4: News Feed */}
         {activeTab === 'news' && <NewsFeedView />}
 
-        {/* AI Analyst Studio Tab */}
+        {/* Tab 5: AI Market Briefing & Interactive Chat */}
         {activeTab === 'ai' && <AIBriefingView />}
 
-        {/* Backtest Strategy Tab */}
+        {/* Tab 6: Backtest Engine */}
         {activeTab === 'backtest' && <BacktestView />}
 
-        {/* System & Bot Health Tab */}
+        {/* Tab 7: System Status & Telemetry */}
         {activeTab === 'status' && <SystemStatusView />}
       </main>
 
@@ -202,15 +213,10 @@ export const App: React.FC = () => {
       {selectedAssetSymbol && (
         <AssetDetailModal
           symbol={selectedAssetSymbol}
-          onClose={() => setSelectedAssetSymbol(null)}
           timeframe={timeframe}
+          onClose={() => setSelectedAssetSymbol(null)}
         />
       )}
-
-      {/* Footer */}
-      <footer className="border-t border-background-border py-4 px-8 text-center text-xs font-mono text-slate-500 bg-background-card/40">
-        Money Scanner © 2026 — Isolated Crypto Intelligence Application • Independent of RelayHub • Decision-Support Only
-      </footer>
     </div>
   );
 };

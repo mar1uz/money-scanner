@@ -44,11 +44,11 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
     }
 
     const appState = AppState.getInstance();
-    const activeCandles = await appState.marketData.getCandles(symbol, timeframe, 250);
+    const activeCandles = await appState.marketData.getCandles(symbol, timeframe, 1500);
 
-    const candles1h = timeframe === '1h' ? activeCandles : await appState.marketData.getCandles(symbol, '1h', 250);
-    const candles4h = timeframe === '4h' ? activeCandles : await appState.marketData.getCandles(symbol, '4h', 250);
-    const candles1d = timeframe === '1d' ? activeCandles : await appState.marketData.getCandles(symbol, '1d', 250);
+    const candles1h = timeframe === '1h' ? activeCandles : await appState.marketData.getCandles(symbol, '1h', 500);
+    const candles4h = timeframe === '4h' ? activeCandles : await appState.marketData.getCandles(symbol, '4h', 500);
+    const candles1d = timeframe === '1d' ? activeCandles : await appState.marketData.getCandles(symbol, '1d', 500);
 
     const signal1h = appState.moneyLine.calculateLatest(symbol, '1h', candles1h);
     const signal4h = appState.moneyLine.calculateLatest(symbol, '4h', candles4h);

@@ -196,6 +196,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   const intervalOptions: { id: Timeframe; label: string }[] = [
     { id: '1h', label: '1H' },
     { id: '4h', label: '4H' },
+    { id: '8h', label: '8H' },
     { id: '1d', label: '1D' },
     { id: '1w', label: '1W' },
     { id: '1m', label: '1M' }
@@ -466,7 +467,7 @@ plotshape(sellSignal, title="SELL", style=shape.triangledown, location=location.
   };
 
   const tvExternalUrl = `https://www.tradingview.com/chart/?symbol=BINANCE:${symbol.toUpperCase()}USDT&interval=${
-    activeInterval === '1h' ? '60' : (activeInterval === '4h' ? '240' : (activeInterval === '1d' ? 'D' : (activeInterval === '1w' ? 'W' : 'M')))
+    activeInterval === '1h' ? '60' : (activeInterval === '4h' ? '240' : (activeInterval === '8h' ? '480' : (activeInterval === '1d' ? 'D' : (activeInterval === '1w' ? 'W' : 'M'))))
   }`;
 
   return (
