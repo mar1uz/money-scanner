@@ -209,6 +209,7 @@ export const App: React.FC = () => {
                     onSelectTier={setSelectedTier}
                     watchlistOnly={watchlistOnly}
                     onToggleWatchlistOnly={() => setWatchlistOnly(!watchlistOnly)}
+                    loading={loading}
                   />
                 </div>
               </div>
@@ -226,6 +227,7 @@ export const App: React.FC = () => {
                   onSelectTier={setSelectedTier}
                   watchlistOnly={watchlistOnly}
                   onToggleWatchlistOnly={() => setWatchlistOnly(!watchlistOnly)}
+                  loading={loading}
                 />
               </div>
             )}

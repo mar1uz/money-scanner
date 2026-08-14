@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   AssetScannerRow,
   MoneyLineTier
@@ -11,7 +11,9 @@ import {
   Zap,
   Filter,
   Eye,
-  Sparkles
+  Sparkles,
+  RefreshCw,
+  Layers
 } from 'lucide-react';
 
 interface ScannerTableProps {
@@ -23,6 +25,7 @@ interface ScannerTableProps {
   onSelectTier: (tier: string) => void;
   watchlistOnly: boolean;
   onToggleWatchlistOnly: () => void;
+  loading?: boolean;
 }
 
 export const ScannerTable: React.FC<ScannerTableProps> = ({
@@ -33,7 +36,8 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
   selectedTier,
   onSelectTier,
   watchlistOnly,
-  onToggleWatchlistOnly
+  onToggleWatchlistOnly,
+  loading = false
 }) => {
   const tiers: { id: string; label: string; color: string }[] = [
     { id: 'ALL', label: 'All Signals', color: 'text-slate-300' },
@@ -44,9 +48,10 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
     { id: 'Strong Bearish', label: 'Strong Bearish', color: 'text-red-500' }
   ];
 
+  const cleanWatchlist = watchlist.map(w => w.replace(/^[$#]/, '').trim().toUpperCase());
+
   const getScoreBadge = (score: number, tier: MoneyLineTier) => {
     let color = 'bg-slate-800 text-slate-300 border-slate-700';
-    let glow = '';
 
     if (tier === 'Strong Bullish') {
       color = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-glow-emerald';
@@ -67,7 +72,8 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
   };
 
   const filteredRows = rows.filter(r => {
-    if (watchlistOnly && !watchlist.includes(r.symbol)) return false;
+    const sym = r.symbol.replace(/^[$#]/, '').trim().toUpperCase();
+    if (watchlistOnly && !cleanWatchlist.includes(sym)) return false;
     if (selectedTier !== 'ALL' && r.tier !== selectedTier) return false;
     return true;
   });
@@ -96,17 +102,19 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
           ))}
         </div>
 
-        <button
-          onClick={onToggleWatchlistOnly}
-          className={`flex items-center gap-1.5 px-3 py-1 text-xs font-mono rounded-lg border transition-all ${
-            watchlistOnly
-              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-              : 'bg-background-surface text-slate-400 border-background-border hover:text-slate-200'
-          }`}
-        >
-          <Star className={`w-3.5 h-3.5 ${watchlistOnly ? 'fill-amber-400 text-amber-400' : 'text-slate-400'}`} />
-          <span>Watchlist Only ({watchlist.length})</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onToggleWatchlistOnly}
+            className={`flex items-center gap-1.5 px-3 py-1 text-xs font-mono rounded-lg border transition-all ${
+              watchlistOnly
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold shadow-glow-gold'
+                : 'bg-background-surface text-slate-400 border-background-border hover:text-slate-200'
+            }`}
+          >
+            <Star className={`w-3.5 h-3.5 ${watchlistOnly ? 'fill-amber-400 text-amber-400' : 'text-slate-400'}`} />
+            <span>Watchlist Only ({cleanWatchlist.length})</span>
+          </button>
+        </div>
       </div>
 
       {/* Cyber Table */}
@@ -129,7 +137,8 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
           <tbody className="divide-y divide-background-border/50">
             {filteredRows.length > 0 ? (
               filteredRows.map((row) => {
-                const isWatch = watchlist.includes(row.symbol);
+                const sym = row.symbol.replace(/^[$#]/, '').trim().toUpperCase();
+                const isWatch = cleanWatchlist.includes(sym);
                 const isPositiveChange = row.change24h >= 0;
 
                 return (
@@ -146,6 +155,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                             e.stopPropagation();
                             onToggleWatchlist(row.symbol);
                           }}
+                          title={isWatch ? "Remove from Watchlist" : "Add to Watchlist"}
                           className="text-slate-600 hover:text-amber-400 transition-colors p-1"
                         >
                           <Star className={`w-4 h-4 ${isWatch ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
@@ -219,7 +229,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                     {/* AI Bias */}
                     <td className="py-3.5 px-4 font-mono">
                       <span className="flex items-center gap-1 text-purple-300 text-xs font-medium">
-                        <Sparkles className="w-3 h-3 text-purple-400" />
+                        <Sparkles className="w-3.5 h-3.5" />
                         {(row.aiConfidence * 100).toFixed(0)}%
                       </span>
                     </td>
@@ -242,17 +252,37 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
               })
             ) : (
               <tr>
-                <td colSpan={10} className="py-12 text-center text-slate-400 font-mono space-y-2">
-                  <p className="text-sm font-bold text-slate-300">
-                    {watchlistOnly
-                      ? `Niciun activ găsit în Watchlist.`
-                      : `Se încarcă semnalele Live Money Scanner...`}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {watchlistOnly
-                      ? `Apasă pe steluță (★) sau caută orice activ din cele 50 pentru a-l include în semnalele tale live.`
-                      : `Se sincronizează datele de piață.`}
-                  </p>
+                <td colSpan={10} className="py-14 text-center text-slate-400 font-mono space-y-3">
+                  {loading ? (
+                    <div className="space-y-2">
+                      <RefreshCw className="w-6 h-6 mx-auto animate-spin text-cyan-400" />
+                      <p className="text-sm font-bold text-slate-200">Se încarcă semnalele Live Money Scanner...</p>
+                      <p className="text-xs text-slate-500">Se calculează matricea pe lumânările recente.</p>
+                    </div>
+                  ) : watchlistOnly ? (
+                    <div className="space-y-3">
+                      <Star className="w-6 h-6 mx-auto text-amber-400/80" />
+                      <p className="text-sm font-bold text-slate-200">Niciun activ din Watchlist pentru filtrele selectate.</p>
+                      <p className="text-xs text-slate-400">Active în Watchlist: <span className="text-cyan-300">{cleanWatchlist.join(', ') || 'Niciunul'}</span></p>
+                      <button
+                        onClick={onToggleWatchlistOnly}
+                        className="px-3.5 py-1.5 text-xs font-bold font-mono rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/30 transition-all shadow-glow-cyan"
+                      >
+                        Afișează Toate Activele (50)
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <Filter className="w-6 h-6 mx-auto text-slate-500" />
+                      <p className="text-sm font-bold text-slate-200">Niciun activ găsit pentru categoria "{selectedTier}".</p>
+                      <button
+                        onClick={() => onSelectTier('ALL')}
+                        className="px-3.5 py-1.5 text-xs font-bold font-mono rounded-lg bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 transition-all"
+                      >
+                        Resetează Filtrele
+                      </button>
+                    </div>
+                  )}
                 </td>
               </tr>
             )}
