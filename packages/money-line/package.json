@@ -1,0 +1,19 @@
+{
+  "name": "@money-scanner/money-line",
+  "version": "1.0.0",
+  "description": "Deterministic Money Line indicator engine for Money Scanner",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test dist/**/*.test.js || tsx --test src/**/*.test.ts",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@money-scanner/shared": "^1.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.15.6",
+    "typescript": "^5.4.5"
+  }
+}

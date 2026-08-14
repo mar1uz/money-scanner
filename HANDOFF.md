@@ -457,9 +457,9 @@ Rough implementation estimate: four to six weeks for the functional MVP, followe
 
 | Step | Component | Description | Status | Git Commit |
 |---|---|---|---|---|
-| **Step 1** | `packages/shared`, Core Monorepo | Monorepo setup (npm workspaces), `.gitignore`, TypeScript configuration, domain interfaces (Market, Indicators, X, News, AI, Telegram, Backtest, Auth) and Top 50 Assets universe. | **Completed** | `feat(core): initialize monorepo architecture and shared domain models` |
-| **Step 2** | `packages/money-line` | Deterministic Money Line v1.0.0 math engine (EMA, MACD, RSI, RVOL, ATR, composite scoring) and unit tests. | In Progress | Pending |
-| **Step 3** | `packages/market-data` | Market data ingestion, provider normalization, candle aggregation and health monitoring. | Pending | Pending |
+| **Step 1** | `packages/shared`, Core Monorepo | Monorepo setup (npm workspaces), `.gitignore`, TypeScript configuration, domain interfaces (Market, Indicators, X, News, AI, Telegram, Backtest, Auth) and Top 50 Assets universe. | **Completed** | `fc6ee6a` |
+| **Step 2** | `packages/money-line` | Deterministic Money Line v1.0.0 math engine (EMA, MACD, RSI, RVOL, ATR, composite scoring) and unit tests. | **Completed** | `feat(money-line): implement deterministic indicator engine and mathematical test suite` |
+| **Step 3** | `packages/market-data` | Market data ingestion, provider normalization, candle aggregation and health monitoring. | In Progress | Pending |
 | **Step 4** | `packages/social-analysis` | Social intelligence (X trends clustering, spam filter) & news feed aggregator. | Pending | Pending |
 | **Step 5** | `packages/ai-analysis`, `packages/notifications` | Gemini AI structured analyst & Telegram bot/alert dispatcher. | Pending | Pending |
 | **Step 6** | `apps/api`, `apps/worker` | REST API, RBAC auth, background scanning worker. | Pending | Pending |
