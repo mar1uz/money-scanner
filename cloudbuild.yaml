@@ -1,0 +1,50 @@
+steps:
+  # 1. Build container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'europe-west3-docker.pkg.dev/$PROJECT_ID/crypto-scanner/crypto-scanner-web:$COMMIT_SHA'
+      - '-t'
+      - 'europe-west3-docker.pkg.dev/$PROJECT_ID/crypto-scanner/crypto-scanner-web:latest'
+      - '.'
+
+  # 2. Push container image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'europe-west3-docker.pkg.dev/$PROJECT_ID/crypto-scanner/crypto-scanner-web'
+
+  # 3. Deploy to Cloud Run (isolated from RelayHub)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'crypto-scanner-web'
+      - '--image'
+      - 'europe-west3-docker.pkg.dev/$PROJECT_ID/crypto-scanner/crypto-scanner-web:$COMMIT_SHA'
+      - '--region'
+      - 'europe-west3'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--service-account'
+      - 'crypto-scanner-sa@$PROJECT_ID.iam.gserviceaccount.com'
+      - '--set-env-vars'
+      - 'NODE_ENV=production,PORT=8080'
+      - '--memory'
+      - '1Gi'
+      - '--cpu'
+      - '1'
+      - '--min-instances'
+      - '0'
+      - '--max-instances'
+      - '5'
+
+images:
+  - 'europe-west3-docker.pkg.dev/$PROJECT_ID/crypto-scanner/crypto-scanner-web:$COMMIT_SHA'
+  - 'europe-west3-docker.pkg.dev/$PROJECT_ID/crypto-scanner/crypto-scanner-web:latest'
+
+timeout: '900s'

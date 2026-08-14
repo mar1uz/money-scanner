@@ -463,8 +463,44 @@ Rough implementation estimate: four to six weeks for the functional MVP, followe
 | **Step 4** | `packages/social-analysis` | Social intelligence (X trends clustering, spam filter) & news feed aggregator. | **Completed** | `e660a44` |
 | **Step 5** | `packages/ai-analysis`, `packages/notifications` | Gemini AI structured analyst & Telegram bot/alert dispatcher. | **Completed** | `5d4c4b2` |
 | **Step 6** | `apps/api`, `apps/worker` | REST API, RBAC auth, background scanning worker. | **Completed** | `270b6d9` |
-| **Step 7** | `apps/web` | Cyber-intelligence web application (Dashboard, Scanner, Asset Deep-Dive, Backtesting). | **Completed** | `feat(web): build modern cyber-intelligence dashboard, scanner, asset analysis and backtesting UI` |
-| **Step 8** | `infra/`, Docker, Cloud Run | Docker containerization, Cloud Run deploy configs & E2E verification. | In Progress | Pending |
+| **Step 7** | `apps/web` | Cyber-intelligence web application (Dashboard, Scanner, Asset Deep-Dive, Backtesting). | **Completed** | `8248684` |
+| **Step 8** | `infra/`, Docker, Cloud Run | Docker containerization, Cloud Run deploy configs (`cloudbuild.yaml`, `Dockerfile`) & E2E verification. | **Completed** | `feat(infra): add Docker containerization, Cloud Run deploy configs and final documentation` |
+
+---
+
+## 15. Operational & Execution Commands
+
+### Local Development
+```bash
+# Install dependencies
+npm install
+
+# Run all test suites
+npm test
+
+# Run API in development mode
+npm run dev:api
+
+# Run Web frontend in development mode
+npm run dev:web
+
+# Run background scanner worker
+npm run dev:worker
+```
+
+### Production Build & Verification
+```bash
+# Compile all workspace packages and apps
+npm run build
+
+# Start production API server
+npm start
+```
+
+---
+
+This document is the implementation baseline. Update it whenever architecture, APIs, scope, security rules, or deployment decisions change.
+
 
 ---
 
