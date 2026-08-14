@@ -1,0 +1,30 @@
+{
+  "name": "@money-scanner/api",
+  "version": "1.0.0",
+  "description": "REST and WebSocket API server for Money Scanner",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "node --test dist/**/*.test.js || tsx --test src/**/*.test.ts",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@money-scanner/shared": "^1.0.0",
+    "@money-scanner/money-line": "^1.0.0",
+    "@money-scanner/market-data": "^1.0.0",
+    "@money-scanner/social-analysis": "^1.0.0",
+    "@money-scanner/ai-analysis": "^1.0.0",
+    "@money-scanner/notifications": "^1.0.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.9",
+    "tsx": "^4.15.6",
+    "typescript": "^5.4.5"
+  }
+}

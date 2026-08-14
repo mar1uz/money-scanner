@@ -461,12 +461,11 @@ Rough implementation estimate: four to six weeks for the functional MVP, followe
 | **Step 2** | `packages/money-line` | Deterministic Money Line v1.0.0 math engine (EMA, MACD, RSI, RVOL, ATR, composite scoring) and unit tests. | **Completed** | `bf1f753` |
 | **Step 3** | `packages/market-data` | Market data ingestion, provider normalization, candle aggregation and health monitoring. | **Completed** | `1928cc0` |
 | **Step 4** | `packages/social-analysis` | Social intelligence (X trends clustering, spam filter) & news feed aggregator. | **Completed** | `e660a44` |
-| **Step 5** | `packages/ai-analysis`, `packages/notifications` | Gemini AI structured analyst & Telegram bot/alert dispatcher. | **Completed** | `feat(ai-telegram): implement Gemini AI market analyst engine and Telegram alert dispatcher` |
-| **Step 6** | `apps/api`, `apps/worker` | REST API, RBAC auth, background scanning worker. | In Progress | Pending |
+| **Step 5** | `packages/ai-analysis`, `packages/notifications` | Gemini AI structured analyst & Telegram bot/alert dispatcher. | **Completed** | `5d4c4b2` |
+| **Step 6** | `apps/api`, `apps/worker` | REST API, RBAC auth, background scanning worker. | **Completed** | `feat(api-worker): implement REST/WebSocket API service, auth RBAC and background scanning worker` |
 | **Step 7** | `apps/web` | Cyber-intelligence web application (Dashboard, Scanner, Asset Deep-Dive, Backtesting). | Pending | Pending |
 | **Step 8** | `infra/`, Docker, Cloud Run | Docker containerization, Cloud Run deploy configs & E2E verification. | Pending | Pending |
 
 ---
 
-This document is the implementation baseline. Update it whenever architecture, APIs, scope, security rules, or deployment decisions change.
 

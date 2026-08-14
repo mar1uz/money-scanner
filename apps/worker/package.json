@@ -1,0 +1,25 @@
+{
+  "name": "@money-scanner/worker",
+  "version": "1.0.0",
+  "description": "Background continuous market scanner and alert job worker",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@money-scanner/shared": "^1.0.0",
+    "@money-scanner/money-line": "^1.0.0",
+    "@money-scanner/market-data": "^1.0.0",
+    "@money-scanner/social-analysis": "^1.0.0",
+    "@money-scanner/ai-analysis": "^1.0.0",
+    "@money-scanner/notifications": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.9",
+    "tsx": "^4.15.6",
+    "typescript": "^5.4.5"
+  }
+}
