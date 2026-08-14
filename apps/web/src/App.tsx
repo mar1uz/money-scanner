@@ -20,7 +20,7 @@ import { NewsFeedView } from './components/NewsFeedView.js';
 import { AIBriefingView } from './components/AIBriefingView.js';
 import { BacktestView } from './components/BacktestView.js';
 import { SystemStatusView } from './components/SystemStatusView.js';
-import { Zap, BellRing, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Zap, BellRing, Sparkles, CheckCircle2, RefreshCw } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
@@ -45,13 +45,16 @@ export const App: React.FC = () => {
   const [bannerAlert, setBannerAlert] = useState<string | null>(null);
 
   const refreshData = async () => {
+    setLoading(true);
     try {
       const [ov, rows] = await Promise.all([
         fetchMarketOverview(),
         fetchScanner(timeframe) // Always fetch all 50 assets master state
       ]);
       setOverview(ov);
-      setScannerRows(rows);
+      if (rows && rows.length > 0) {
+        setScannerRows(rows);
+      }
     } catch (err) {
       console.error('Data refresh error:', err);
     } finally {
@@ -61,7 +64,8 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     refreshData();
-    const interval = setInterval(refreshData, 15000); // 15s live refresh
+    // 5 minutes auto-refresh as requested
+    const interval = setInterval(refreshData, 300000); 
     return () => clearInterval(interval);
   }, [timeframe]);
 
@@ -115,6 +119,8 @@ export const App: React.FC = () => {
         }}
         watchlist={watchlist}
         onToggleWatchlist={toggleWatchlist}
+        onRefreshMarket={refreshData}
+        isRefreshing={loading}
       />
 
       {/* Main Tab Navigation (Hidden when in Full-Page Deep Dive) */}
@@ -170,16 +176,28 @@ export const App: React.FC = () => {
 
                 {/* Live Money Scanner Signals Table */}
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <Zap className="w-4 h-4 text-cyan-400" />
                       <h2 className="text-sm font-bold tracking-wide uppercase font-mono text-slate-200">
                         Live Money Scanner Signals ({timeframe.toUpperCase()})
                       </h2>
                     </div>
-                    <span className="text-xs font-mono text-slate-400">
-                      Auto-refreshing every 15s • Deterministic Non-Repainting Engine
-                    </span>
+
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={refreshData}
+                        disabled={loading}
+                        className="flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-bold bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded-lg transition-all disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                        <span>Actualizează Datele</span>
+                      </button>
+
+                      <span className="text-xs font-mono text-slate-400 hidden sm:inline">
+                        Auto-refresh: 5 min • Deterministic Engine
+                      </span>
+                    </div>
                   </div>
 
                   <ScannerTable

@@ -46,23 +46,40 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
     const appState = AppState.getInstance();
     const activeCandles = await appState.marketData.getCandles(symbol, timeframe, 1500);
 
-    const candles1h = timeframe === '1h' ? activeCandles : await appState.marketData.getCandles(symbol, '1h', 500);
-    const candles4h = timeframe === '4h' ? activeCandles : await appState.marketData.getCandles(symbol, '4h', 500);
-    const candles1d = timeframe === '1d' ? activeCandles : await appState.marketData.getCandles(symbol, '1d', 500);
+    const [candles1h, candles4h, candles8h, candles1d, candles1w, candles1m] = await Promise.all([
+      timeframe === '1h' ? activeCandles : appState.marketData.getCandles(symbol, '1h', 500),
+      timeframe === '4h' ? activeCandles : appState.marketData.getCandles(symbol, '4h', 500),
+      timeframe === '8h' ? activeCandles : appState.marketData.getCandles(symbol, '8h', 500),
+      timeframe === '1d' ? activeCandles : appState.marketData.getCandles(symbol, '1d', 500),
+      timeframe === '1w' ? activeCandles : appState.marketData.getCandles(symbol, '1w', 300),
+      timeframe === '1m' ? activeCandles : appState.marketData.getCandles(symbol, '1m', 150)
+    ]);
 
     const signal1h = appState.moneyLine.calculateLatest(symbol, '1h', candles1h);
     const signal4h = appState.moneyLine.calculateLatest(symbol, '4h', candles4h);
+    const signal8h = appState.moneyLine.calculateLatest(symbol, '8h', candles8h);
     const signal1d = appState.moneyLine.calculateLatest(symbol, '1d', candles1d);
+    const signal1w = appState.moneyLine.calculateLatest(symbol, '1w', candles1w);
+    const signal1m = appState.moneyLine.calculateLatest(symbol, '1m', candles1m);
 
     const mtfSummary = calculateMTFConfluence({
       '1h': signal1h || undefined,
       '4h': signal4h || undefined,
-      '1d': signal1d || undefined
+      '8h': signal8h || undefined,
+      '1d': signal1d || undefined,
+      '1w': signal1w || undefined,
+      '1m': signal1m || undefined
     });
 
-    const activeSignal = (timeframe === '1h' || timeframe === '4h' || timeframe === '1d')
-      ? (timeframe === '1h' ? signal1h : (timeframe === '4h' ? signal4h : signal1d))
-      : appState.moneyLine.calculateLatest(symbol, timeframe, activeCandles);
+    const activeSignal = timeframe === '1h' ? signal1h : (
+      timeframe === '4h' ? signal4h : (
+        timeframe === '8h' ? signal8h : (
+          timeframe === '1d' ? signal1d : (
+            timeframe === '1w' ? signal1w : signal1m
+          )
+        )
+      )
+    );
     const quote = await appState.marketData.getPriceQuote(symbol);
     const xPosts = appState.social.getTrendingTopics();
     const news = appState.news.getNewsForSymbol(symbol);

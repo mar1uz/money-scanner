@@ -11,7 +11,8 @@ import {
   ArrowDownRight,
   Plus,
   Star,
-  Check
+  Check,
+  RefreshCw
 } from 'lucide-react';
 import { Timeframe, AssetScannerRow } from '../types.js';
 import { TOP_50_CRYPTO_ASSETS } from '@money-scanner/shared';
@@ -28,6 +29,8 @@ interface HeaderProps {
   onSelectAsset?: (symbol: string) => void;
   watchlist?: string[];
   onToggleWatchlist?: (symbol: string) => void;
+  onRefreshMarket?: () => void;
+  isRefreshing?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -40,7 +43,9 @@ export const Header: React.FC<HeaderProps> = ({
   allAssets = [],
   onSelectAsset,
   watchlist = [],
-  onToggleWatchlist
+  onToggleWatchlist,
+  onRefreshMarket,
+  isRefreshing = false
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -102,7 +107,7 @@ export const Header: React.FC<HeaderProps> = ({
               v1.0.0
             </span>
           </div>
-          <p className="text-[11px] text-slate-400">Crypto Intelligence & Deterministic Money Line</p>
+          <p className="text-[11px] text-slate-400">Crypto Intelligence &amp; Deterministic Money Line</p>
         </div>
       </div>
 
@@ -143,7 +148,7 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="divide-y divide-background-border/50">
                 <div className="p-2 text-[10px] uppercase font-mono text-slate-400 bg-background-surface/50 flex justify-between">
                   <span>Found {matchingAssets.length} Matching Assets</span>
-                  <span className="text-cyan-400">Click row for Deep-Dive • (+) for Watchlist</span>
+                  <span className="text-cyan-400">Click to Open Full Page • (+) for Watchlist</span>
                 </div>
                 {matchingAssets.map(asset => {
                   const isUp = asset.change24h >= 0;
@@ -225,15 +230,28 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Controls & User Pill */}
       <div className="flex items-center gap-3">
+        {/* Manual Market Refresh Button */}
+        {onRefreshMarket && (
+          <button
+            onClick={onRefreshMarket}
+            disabled={isRefreshing}
+            title="Actualizează Datele de Piață"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-bold bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded-xl transition-all shadow-sm disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Actualizează Date</span>
+          </button>
+        )}
+
         {/* Timeframe Selector */}
         <div className="flex items-center bg-background-surface border border-background-border rounded-lg p-0.5">
-          {(['1h', '4h', '1d'] as Timeframe[]).map((tf) => (
+          {(['1h', '4h', '8h', '1d'] as Timeframe[]).map((tf) => (
             <button
               key={tf}
               onClick={() => onTimeframeChange(tf)}
               className={`px-3 py-1 text-xs font-mono font-medium rounded-md transition-all ${
                 timeframe === tf
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-glow-cyan'
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-glow-cyan font-bold'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-background-hover'
               }`}
             >
@@ -249,7 +267,7 @@ export const Header: React.FC<HeaderProps> = ({
             <span className={`relative inline-flex rounded-full h-2 w-2 ${isStale ? 'bg-amber-400' : 'bg-emerald-400'}`}></span>
           </span>
           <span className="text-[11px] font-mono text-slate-300 hidden sm:inline">
-            {isStale ? 'STALE' : 'LIVE'}
+            {isStale ? 'STALE' : 'LIVE (5m)'}
           </span>
         </div>
 

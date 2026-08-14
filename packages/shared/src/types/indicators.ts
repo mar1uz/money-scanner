@@ -57,7 +57,10 @@ export interface MoneyLineSignal {
 export interface MultiTimeframeSummary {
   '1h'?: MoneyLineSignal;
   '4h'?: MoneyLineSignal;
+  '8h'?: MoneyLineSignal;
   '1d'?: MoneyLineSignal;
+  '1w'?: MoneyLineSignal;
+  '1m'?: MoneyLineSignal;
   compositeMtfScore: number;
   confluenceTier: MoneyLineTier;
 }

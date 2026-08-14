@@ -193,39 +193,59 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
 
       {/* Multi-Timeframe Confluence Grid */}
       <div className="space-y-3">
-        <h2 className="text-xs font-mono uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-          <Layers className="w-4 h-4 text-cyan-400" />
-          Multi-Timeframe Confluence Matrix
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {['1h', '4h', '1d'].map((tf) => {
-            const mtfSignal = data?.multiTimeframe?.signals[tf];
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-mono uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+            <Layers className="w-4 h-4 text-cyan-400" />
+            Multi-Timeframe Confluence Matrix (1H, 4H, 8H, 1D, 1W, 1M)
+          </h2>
+          {data?.multiTimeframe && (
+            <div className="flex items-center gap-2 text-xs font-mono">
+              <span className="text-slate-400">Composite Confluence:</span>
+              <span className={`px-2.5 py-0.5 rounded font-bold border ${
+                data.multiTimeframe.confluenceTier?.includes('Bullish')
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-glow-emerald'
+                  : (data.multiTimeframe.confluenceTier?.includes('Bearish') ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-glow-ruby' : 'bg-slate-800 text-slate-300 border-slate-700')
+              }`}>
+                {data.multiTimeframe.confluenceTier} ({data.multiTimeframe.compositeMtfScore > 0 ? `+${data.multiTimeframe.compositeMtfScore}` : data.multiTimeframe.compositeMtfScore})
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {['1h', '4h', '8h', '1d', '1w', '1m'].map((tf) => {
+            const mtfSignal = data?.multiTimeframe?.[tf as keyof typeof data.multiTimeframe] as any;
             const isBull = mtfSignal?.tier?.includes('Bullish');
             const isBear = mtfSignal?.tier?.includes('Bearish');
 
             return (
               <div
                 key={tf}
-                className="cyber-glass rounded-xl p-4 border border-background-border space-y-2"
+                onClick={() => setActiveTf(tf as Timeframe)}
+                className={`cyber-glass rounded-xl p-3.5 border transition-all cursor-pointer space-y-2 ${
+                  activeTf === tf
+                    ? 'border-cyan-500/60 bg-cyan-500/10 shadow-glow-cyan'
+                    : 'border-background-border hover:border-slate-700'
+                }`}
               >
                 <div className="flex items-center justify-between font-mono text-xs">
-                  <span className="font-bold text-slate-300 uppercase">{tf} Timeframe</span>
-                  <span className={`px-2 py-0.5 rounded font-bold ${
-                    isBull ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
-                    (isBear ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-slate-800 text-slate-400')
+                  <span className="font-bold text-slate-200 uppercase">{tf}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
+                    isBull ? 'bg-emerald-500/20 text-emerald-300' :
+                    (isBear ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-800 text-slate-400')
                   }`}>
                     {mtfSignal?.tier || 'Neutral'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-xs font-mono">
-                  <span className="text-slate-400">Score:</span>
+                  <span className="text-slate-400 text-[11px]">Score:</span>
                   <span className="font-bold text-slate-200">
-                    {mtfSignal?.score > 0 ? `+${mtfSignal.score}` : (mtfSignal?.score || 0)} / 100
+                    {mtfSignal?.score > 0 ? `+${mtfSignal.score}` : (mtfSignal?.score !== undefined ? mtfSignal.score : '-')}
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-xs font-mono">
+                <div className="flex items-center justify-between text-xs font-mono text-[11px]">
                   <span className="text-slate-400">RVOL:</span>
-                  <span className="text-slate-300">{mtfSignal?.rawIndicators?.rvol || '1.0'}x</span>
+                  <span className="text-slate-300">{mtfSignal?.rawIndicators?.rvol ? `${mtfSignal.rawIndicators.rvol}x` : '1.0x'}</span>
                 </div>
               </div>
             );
