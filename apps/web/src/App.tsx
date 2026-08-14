@@ -102,6 +102,8 @@ export const App: React.FC = () => {
         onSelectAsset={(sym) => {
           setSelectedAssetSymbol(sym);
         }}
+        watchlist={watchlist}
+        onToggleWatchlist={toggleWatchlist}
       />
 
       {/* Main Tab Navigation */}

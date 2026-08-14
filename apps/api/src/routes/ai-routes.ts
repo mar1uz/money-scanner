@@ -47,3 +47,29 @@ aiRouter.post('/ai/analyze/:symbol', async (req, res) => {
     res.status(500).json({ error: 'Failed to generate asset AI analysis', details: err.message });
   }
 });
+
+aiRouter.post('/ai/ask', async (req, res) => {
+  try {
+    const { question } = req.body;
+    if (!question || typeof question !== 'string') {
+      return res.status(400).json({ error: 'Question string is required in request body' });
+    }
+
+    const appState = AppState.getInstance();
+    const overview = await appState.marketData.getMarketOverview();
+    const trends = appState.social.getTrendingTopics();
+    const news = appState.news.getLatestNews(15);
+
+    const signalsObj: Record<string, MoneyLineSignal> = {};
+    for (const [key, signal] of appState.cachedSignals.entries()) {
+      if (key.endsWith('_1h')) {
+        signalsObj[signal.symbol] = signal;
+      }
+    }
+
+    const response = await appState.ai.askAnalyst(question, overview, signalsObj, trends, news);
+    res.json(response);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to process AI analyst question', details: err.message });
+  }
+});

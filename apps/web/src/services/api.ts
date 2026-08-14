@@ -92,3 +92,18 @@ export async function triggerTestAlert(symbol: string): Promise<any> {
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to send test alert`);
   return res.json();
 }
+
+export async function askAIAnalyst(question: string): Promise<{
+  answer: string;
+  relatedSymbols: string[];
+  evidenceCitations: any[];
+}> {
+  const res = await fetch(`${API_BASE}/ai/ask`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question })
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to get answer from AI analyst`);
+  return res.json();
+}
+

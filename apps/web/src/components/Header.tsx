@@ -1,5 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Activity, Shield, Zap, Search, BellRing, X, Sparkles, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import {
+  Activity,
+  Shield,
+  Zap,
+  Search,
+  BellRing,
+  X,
+  Sparkles,
+  ArrowUpRight,
+  ArrowDownRight,
+  Plus,
+  Star,
+  Check
+} from 'lucide-react';
 import { Timeframe, AssetScannerRow } from '../types.js';
 import { TOP_50_CRYPTO_ASSETS } from '@money-scanner/shared';
 
@@ -13,6 +26,8 @@ interface HeaderProps {
   isStale?: boolean;
   allAssets?: AssetScannerRow[];
   onSelectAsset?: (symbol: string) => void;
+  watchlist?: string[];
+  onToggleWatchlist?: (symbol: string) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -23,7 +38,9 @@ export const Header: React.FC<HeaderProps> = ({
   onTriggerTestAlert,
   isStale = false,
   allAssets = [],
-  onSelectAsset
+  onSelectAsset,
+  watchlist = [],
+  onToggleWatchlist
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -126,10 +143,12 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="divide-y divide-background-border/50">
                 <div className="p-2 text-[10px] uppercase font-mono text-slate-400 bg-background-surface/50 flex justify-between">
                   <span>Found {matchingAssets.length} Matching Assets</span>
-                  <span className="text-cyan-400">Click to Open Analysis</span>
+                  <span className="text-cyan-400">Click row for Deep-Dive • (+) for Watchlist</span>
                 </div>
                 {matchingAssets.map(asset => {
                   const isUp = asset.change24h >= 0;
+                  const isInWatchlist = watchlist.includes(asset.symbol);
+
                   return (
                     <div
                       key={asset.symbol}
@@ -140,6 +159,23 @@ export const Header: React.FC<HeaderProps> = ({
                       className="p-3 hover:bg-background-hover transition-colors cursor-pointer flex items-center justify-between gap-3 group"
                     >
                       <div className="flex items-center gap-3">
+                        {/* Watchlist Quick-Add (+) Button */}
+                        <button
+                          type="button"
+                          title={isInWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onToggleWatchlist) onToggleWatchlist(asset.symbol);
+                          }}
+                          className={`p-1.5 rounded-lg border transition-all ${
+                            isInWatchlist
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-glow-gold'
+                              : 'bg-slate-800/80 text-slate-400 border-slate-700 hover:text-cyan-300 hover:border-cyan-500/50 hover:bg-cyan-500/10'
+                          }`}
+                        >
+                          {isInWatchlist ? <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" /> : <Plus className="w-3.5 h-3.5" />}
+                        </button>
+
                         <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center font-mono font-bold text-xs text-cyan-300 border border-slate-700">
                           ${asset.symbol}
                         </div>
