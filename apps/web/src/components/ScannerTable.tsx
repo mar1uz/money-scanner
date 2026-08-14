@@ -127,122 +127,135 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-background-border/50">
-            {filteredRows.map((row) => {
-              const isWatch = watchlist.includes(row.symbol);
-              const isPositiveChange = row.change24h >= 0;
+            {filteredRows.length > 0 ? (
+              filteredRows.map((row) => {
+                const isWatch = watchlist.includes(row.symbol);
+                const isPositiveChange = row.change24h >= 0;
 
-              return (
-                <tr
-                  key={row.symbol}
-                  onClick={() => onSelectAsset(row.symbol)}
-                  className="hover:bg-background-surface/60 transition-colors cursor-pointer group"
-                >
-                  {/* Symbol & Name */}
-                  <td className="py-3.5 px-4">
-                    <div className="flex items-center gap-3">
+                return (
+                  <tr
+                    key={row.symbol}
+                    onClick={() => onSelectAsset(row.symbol)}
+                    className="hover:bg-background-surface/60 transition-colors cursor-pointer group"
+                  >
+                    {/* Symbol & Name */}
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleWatchlist(row.symbol);
+                          }}
+                          className="text-slate-600 hover:text-amber-400 transition-colors p-1"
+                        >
+                          <Star className={`w-4 h-4 ${isWatch ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
+                        </button>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm text-slate-100 group-hover:text-cyan-300 transition-colors font-mono">
+                              ${row.symbol}
+                            </span>
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 font-mono">
+                              {row.category}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-slate-400">{row.name}</span>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Price */}
+                    <td className="py-3.5 px-4 font-mono font-semibold text-slate-200">
+                      ${row.price < 1 ? row.price.toFixed(4) : row.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+
+                    {/* 24h Change */}
+                    <td className="py-3.5 px-4 font-mono">
+                      <span className={`inline-flex items-center gap-0.5 font-bold ${
+                        isPositiveChange ? 'text-emerald-400' : 'text-rose-400'
+                      }`}>
+                        {isPositiveChange ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
+                        {isPositiveChange ? `+${row.change24h}%` : `${row.change24h}%`}
+                      </span>
+                    </td>
+
+                    {/* Money Line Score */}
+                    <td className="py-3.5 px-4 font-mono">
+                      {getScoreBadge(row.moneyLineScore, row.tier)}
+                    </td>
+
+                    {/* Tier Status & Transition */}
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs text-slate-200">{row.tier}</span>
+                        {row.isTransition && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 animate-pulse">
+                            NEW
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* RVOL */}
+                    <td className="py-3.5 px-4 font-mono text-slate-300">
+                      <span className={row.rvol > 1.5 ? 'text-cyan-400 font-bold' : ''}>
+                        {row.rvol.toFixed(2)}x
+                      </span>
+                    </td>
+
+                    {/* ATR Volatility */}
+                    <td className="py-3.5 px-4 font-mono text-slate-400">
+                      {row.volatilityAtrPercent.toFixed(2)}%
+                    </td>
+
+                    {/* X Momentum */}
+                    <td className="py-3.5 px-4 font-mono">
+                      <span className="flex items-center gap-1 text-amber-400 font-semibold">
+                        <Flame className="w-3.5 h-3.5" />
+                        {row.xTrendScore.toFixed(1)}
+                      </span>
+                    </td>
+
+                    {/* AI Bias */}
+                    <td className="py-3.5 px-4 font-mono">
+                      <span className="flex items-center gap-1 text-purple-300 text-xs font-medium">
+                        <Sparkles className="w-3 h-3 text-purple-400" />
+                        {(row.aiConfidence * 100).toFixed(0)}%
+                      </span>
+                    </td>
+
+                    {/* Actions */}
+                    <td className="py-3.5 px-4 text-right">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onToggleWatchlist(row.symbol);
+                          onSelectAsset(row.symbol);
                         }}
-                        className="text-slate-600 hover:text-amber-400 transition-colors"
+                        className="p-1.5 rounded-lg bg-background-surface hover:bg-slate-800 text-slate-400 hover:text-cyan-300 transition-colors"
+                        title="View Full-Page Deep Dive Analysis"
                       >
-                        <Star className={`w-4 h-4 ${isWatch ? 'fill-amber-400 text-amber-400' : ''}`} />
+                        <Eye className="w-4 h-4" />
                       </button>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-sm text-slate-100 group-hover:text-cyan-300 transition-colors font-mono">
-                            ${row.symbol}
-                          </span>
-                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 font-mono">
-                            {row.category}
-                          </span>
-                        </div>
-                        <span className="text-[11px] text-slate-400">{row.name}</span>
-                      </div>
-                    </div>
-                  </td>
-
-                  {/* Price */}
-                  <td className="py-3.5 px-4 font-mono font-semibold text-slate-200">
-                    ${row.price < 1 ? row.price.toFixed(4) : row.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </td>
-
-                  {/* 24h Change */}
-                  <td className="py-3.5 px-4 font-mono">
-                    <span className={`inline-flex items-center gap-0.5 font-bold ${
-                      isPositiveChange ? 'text-emerald-400' : 'text-rose-400'
-                    }`}>
-                      {isPositiveChange ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
-                      {isPositiveChange ? `+${row.change24h}%` : `${row.change24h}%`}
-                    </span>
-                  </td>
-
-                  {/* Money Line Score */}
-                  <td className="py-3.5 px-4">
-                    {getScoreBadge(row.moneyLineScore, row.tier)}
-                  </td>
-
-                  {/* Tier & Transition Badge */}
-                  <td className="py-3.5 px-4 font-mono">
-                    <div className="flex items-center gap-1.5">
-                      <span className={`font-semibold ${
-                        row.tier.includes('Bullish') ? 'text-emerald-400' : (row.tier.includes('Bearish') ? 'text-rose-400' : 'text-slate-400')
-                      }`}>
-                        {row.tier}
-                      </span>
-                      {row.isTransition && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 uppercase font-bold animate-pulse">
-                          NEW
-                        </span>
-                      )}
-                    </div>
-                  </td>
-
-                  {/* RVOL */}
-                  <td className="py-3.5 px-4 font-mono">
-                    <span className={`font-medium ${row.rvol >= 1.8 ? 'text-cyan-400 font-bold' : 'text-slate-300'}`}>
-                      {row.rvol}x
-                    </span>
-                  </td>
-
-                  {/* Volatility */}
-                  <td className="py-3.5 px-4 font-mono text-slate-400">
-                    {row.volatilityAtrPercent}%
-                  </td>
-
-                  {/* X Trend Momentum */}
-                  <td className="py-3.5 px-4">
-                    <div className="flex items-center gap-1 font-mono text-slate-300">
-                      <Flame className={`w-3.5 h-3.5 ${row.xTrendScore > 40 ? 'text-amber-400' : 'text-slate-500'}`} />
-                      <span>{row.xTrendScore}</span>
-                    </div>
-                  </td>
-
-                  {/* AI Bias */}
-                  <td className="py-3.5 px-4">
-                    <div className="flex items-center gap-1 font-mono text-xs">
-                      <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                      <span className="text-slate-300">88% Conf</span>
-                    </div>
-                  </td>
-
-                  {/* Action Button */}
-                  <td className="py-3.5 px-4 text-right">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelectAsset(row.symbol);
-                      }}
-                      className="inline-flex items-center gap-1 px-3 py-1 rounded bg-slate-800 hover:bg-cyan-500/20 hover:text-cyan-300 hover:border-cyan-500/30 text-slate-300 border border-slate-700 transition-all font-mono text-xs"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>Deep-Dive</span>
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
+                    </td>
+                  </tr>
+                );
+              })
+            ) : (
+              <tr>
+                <td colSpan={10} className="py-12 text-center text-slate-400 font-mono space-y-2">
+                  <p className="text-sm font-bold text-slate-300">
+                    {watchlistOnly
+                      ? `Niciun activ găsit în Watchlist.`
+                      : `Se încarcă semnalele Live Money Scanner...`}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {watchlistOnly
+                      ? `Apasă pe steluță (★) sau caută orice activ din cele 50 pentru a-l include în semnalele tale live.`
+                      : `Se sincronizează datele de piață.`}
+                  </p>
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

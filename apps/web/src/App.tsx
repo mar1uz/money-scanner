@@ -14,7 +14,7 @@ import { Header } from './components/Header.js';
 import { Navigation } from './components/Navigation.js';
 import { MarketRegimeGauge } from './components/MarketRegimeGauge.js';
 import { ScannerTable } from './components/ScannerTable.js';
-import { AssetDetailModal } from './components/AssetDetailModal.js';
+import { AssetDeepDiveView } from './components/AssetDeepDiveView.js';
 import { XTrendsView } from './components/XTrendsView.js';
 import { NewsFeedView } from './components/NewsFeedView.js';
 import { AIBriefingView } from './components/AIBriefingView.js';
@@ -101,7 +101,10 @@ export const App: React.FC = () => {
       <Header
         timeframe={timeframe}
         onTimeframeChange={setTimeframe}
-        onSearchClick={() => setActiveTab('scanner')}
+        onSearchClick={() => {
+          setSelectedAssetSymbol(null);
+          setActiveTab('scanner');
+        }}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onTriggerTestAlert={handleTriggerTestAlert}
@@ -114,12 +117,17 @@ export const App: React.FC = () => {
         onToggleWatchlist={toggleWatchlist}
       />
 
-      {/* Main Tab Navigation */}
-      <Navigation
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        watchlistCount={watchlist.length}
-      />
+      {/* Main Tab Navigation (Hidden when in Full-Page Deep Dive) */}
+      {!selectedAssetSymbol && (
+        <Navigation
+          activeTab={activeTab}
+          onTabChange={(tab) => {
+            setSelectedAssetSymbol(null);
+            setActiveTab(tab);
+          }}
+          watchlistCount={watchlist.length}
+        />
+      )}
 
       {/* Notification Banner */}
       {bannerAlert && (
@@ -139,84 +147,88 @@ export const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 px-4 lg:px-8 py-6 space-y-6 max-w-[1600px] w-full mx-auto">
-        {/* Tab 1: Live Dashboard */}
-        {activeTab === 'dashboard' && (
-          <div className="space-y-6">
-            {/* Top Market Intelligence Gauges */}
-            {overview && (
-              <MarketRegimeGauge
-                overview={overview}
-              />
+        {/* Full-Page Asset Deep-Dive View */}
+        {selectedAssetSymbol ? (
+          <AssetDeepDiveView
+            symbol={selectedAssetSymbol}
+            initialTimeframe={timeframe}
+            onBack={() => setSelectedAssetSymbol(null)}
+            watchlist={watchlist}
+            onToggleWatchlist={toggleWatchlist}
+          />
+        ) : (
+          <>
+            {/* Tab 1: Live Dashboard */}
+            {activeTab === 'dashboard' && (
+              <div className="space-y-6">
+                {/* Top Market Intelligence Gauges */}
+                {overview && (
+                  <MarketRegimeGauge
+                    overview={overview}
+                  />
+                )}
+
+                {/* Live Money Scanner Signals Table */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-cyan-400" />
+                      <h2 className="text-sm font-bold tracking-wide uppercase font-mono text-slate-200">
+                        Live Money Scanner Signals ({timeframe.toUpperCase()})
+                      </h2>
+                    </div>
+                    <span className="text-xs font-mono text-slate-400">
+                      Auto-refreshing every 15s • Deterministic Non-Repainting Engine
+                    </span>
+                  </div>
+
+                  <ScannerTable
+                    rows={scannerRows}
+                    onSelectAsset={(sym) => setSelectedAssetSymbol(sym)}
+                    watchlist={watchlist}
+                    onToggleWatchlist={toggleWatchlist}
+                    selectedTier={selectedTier}
+                    onSelectTier={setSelectedTier}
+                    watchlistOnly={watchlistOnly}
+                    onToggleWatchlistOnly={() => setWatchlistOnly(!watchlistOnly)}
+                  />
+                </div>
+              </div>
             )}
 
-            {/* Live Money Scanner Signals Table */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-cyan-400" />
-                  <h2 className="text-sm font-bold tracking-wide uppercase font-mono text-slate-200">
-                    Live Money Scanner Signals ({timeframe.toUpperCase()})
-                  </h2>
-                </div>
-                <span className="text-xs font-mono text-slate-400">
-                  Auto-refreshing every 15s • Deterministic Non-Repainting Engine
-                </span>
+            {/* Tab 2: Full Scanner */}
+            {activeTab === 'scanner' && (
+              <div className="space-y-4">
+                <ScannerTable
+                  rows={scannerRows}
+                  onSelectAsset={(sym) => setSelectedAssetSymbol(sym)}
+                  watchlist={watchlist}
+                  onToggleWatchlist={toggleWatchlist}
+                  selectedTier={selectedTier}
+                  onSelectTier={setSelectedTier}
+                  watchlistOnly={watchlistOnly}
+                  onToggleWatchlistOnly={() => setWatchlistOnly(!watchlistOnly)}
+                />
               </div>
+            )}
 
-              <ScannerTable
-                rows={scannerRows}
-                onSelectAsset={(sym) => setSelectedAssetSymbol(sym)}
-                watchlist={watchlist}
-                onToggleWatchlist={toggleWatchlist}
-                selectedTier={selectedTier}
-                onSelectTier={setSelectedTier}
-                watchlistOnly={watchlistOnly}
-                onToggleWatchlistOnly={() => setWatchlistOnly(!watchlistOnly)}
-              />
-            </div>
-          </div>
+            {/* Tab 3: X Narrative Intelligence */}
+            {activeTab === 'trends' && <XTrendsView />}
+
+            {/* Tab 4: News Feed */}
+            {activeTab === 'news' && <NewsFeedView />}
+
+            {/* Tab 5: AI Market Briefing & Interactive Chat */}
+            {activeTab === 'ai' && <AIBriefingView />}
+
+            {/* Tab 6: Backtest Engine */}
+            {activeTab === 'backtest' && <BacktestView />}
+
+            {/* Tab 7: System Status & Telemetry */}
+            {activeTab === 'status' && <SystemStatusView />}
+          </>
         )}
-
-        {/* Tab 2: Full Scanner */}
-        {activeTab === 'scanner' && (
-          <div className="space-y-4">
-            <ScannerTable
-              rows={scannerRows}
-              onSelectAsset={(sym) => setSelectedAssetSymbol(sym)}
-              watchlist={watchlist}
-              onToggleWatchlist={toggleWatchlist}
-              selectedTier={selectedTier}
-              onSelectTier={setSelectedTier}
-              watchlistOnly={watchlistOnly}
-              onToggleWatchlistOnly={() => setWatchlistOnly(!watchlistOnly)}
-            />
-          </div>
-        )}
-
-        {/* Tab 3: X Narrative Intelligence */}
-        {activeTab === 'trends' && <XTrendsView />}
-
-        {/* Tab 4: News Feed */}
-        {activeTab === 'news' && <NewsFeedView />}
-
-        {/* Tab 5: AI Market Briefing & Interactive Chat */}
-        {activeTab === 'ai' && <AIBriefingView />}
-
-        {/* Tab 6: Backtest Engine */}
-        {activeTab === 'backtest' && <BacktestView />}
-
-        {/* Tab 7: System Status & Telemetry */}
-        {activeTab === 'status' && <SystemStatusView />}
       </main>
-
-      {/* Asset Deep-Dive Modal */}
-      {selectedAssetSymbol && (
-        <AssetDetailModal
-          symbol={selectedAssetSymbol}
-          timeframe={timeframe}
-          onClose={() => setSelectedAssetSymbol(null)}
-        />
-      )}
     </div>
   );
 };
