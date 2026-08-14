@@ -108,14 +108,14 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <span className="font-bold text-lg tracking-wider bg-gradient-to-r from-white via-slate-100 to-cyan-400 bg-clip-text text-transparent">
-              MONEY SCANNER
+            <span className="font-bold text-lg tracking-wider bg-gradient-to-r from-white via-cyan-300 to-emerald-400 bg-clip-text text-transparent">
+              MARKET SCANNER 360
             </span>
             <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
               v1.0.0
             </span>
           </div>
-          <p className="text-[11px] text-slate-400">Crypto Intelligence &amp; Deterministic Money Line</p>
+          <p className="text-[11px] text-slate-400">Trading 360° • Crypto, Stocks &amp; Metale • Money Line Engine</p>
         </div>
       </div>
 

@@ -84,7 +84,7 @@ export const SystemStatusView: React.FC = () => {
           <div className="space-y-1 font-mono text-xs text-slate-300">
             <div className="flex justify-between">
               <span className="text-slate-500">Service ID:</span>
-              <span>crypto-scanner-api</span>
+              <span>market-scanner-360-api</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-500">Port:</span>

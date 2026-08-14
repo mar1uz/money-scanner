@@ -7,7 +7,7 @@ export const marketRouter = Router();
 marketRouter.get('/health', (req, res) => {
   res.json({
     status: 'ok',
-    service: 'crypto-scanner-api',
+    service: 'market-scanner-360-api',
     version: MONEY_LINE_VERSION,
     uptimeSeconds: Math.floor(process.uptime()),
     timestamp: Date.now()

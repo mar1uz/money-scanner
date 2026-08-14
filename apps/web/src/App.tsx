@@ -91,6 +91,11 @@ export const App: React.FC = () => {
     setTimeout(() => setBannerAlert(null), 4000);
   };
 
+  const handleReorderWatchlist = (newOrder: string[]) => {
+    setWatchlist(newOrder);
+    localStorage.setItem('money_scanner_watchlist', JSON.stringify(newOrder));
+  };
+
   const handleTriggerTestAlert = async () => {
     try {
       await triggerTestAlert('BTC');
@@ -182,7 +187,7 @@ export const App: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <Zap className="w-4 h-4 text-cyan-400" />
                       <h2 className="text-sm font-bold tracking-wide uppercase font-mono text-slate-200">
-                        Live Money Scanner Signals ({timeframe.toUpperCase()})
+                        Live Market Scanner 360 Signals ({timeframe.toUpperCase()})
                       </h2>
                     </div>
 
@@ -207,6 +212,7 @@ export const App: React.FC = () => {
                     onSelectAsset={(sym) => setSelectedAssetSymbol(sym)}
                     watchlist={watchlist}
                     onToggleWatchlist={toggleWatchlist}
+                    onReorderWatchlist={handleReorderWatchlist}
                     selectedTier={selectedTier}
                     onSelectTier={setSelectedTier}
                     watchlistOnly={watchlistOnly}
@@ -225,6 +231,7 @@ export const App: React.FC = () => {
                   onSelectAsset={(sym) => setSelectedAssetSymbol(sym)}
                   watchlist={watchlist}
                   onToggleWatchlist={toggleWatchlist}
+                  onReorderWatchlist={handleReorderWatchlist}
                   selectedTier={selectedTier}
                   onSelectTier={setSelectedTier}
                   watchlistOnly={watchlistOnly}

@@ -7,12 +7,14 @@ import {
 } from '@money-scanner/shared';
 import { MarketHealthMonitor } from './health-monitor.js';
 import { BinanceMarketAdapter } from './adapters/binance.js';
+import { PublicStockMarketAdapter } from './adapters/public-stock.js';
 import { FixtureMarketProvider } from './adapters/fixture-provider.js';
 import { aggregateCandles } from './aggregator.js';
 
 export class MarketDataService {
   private healthMonitor: MarketHealthMonitor;
   private binanceAdapter: BinanceMarketAdapter;
+  private stockAdapter: PublicStockMarketAdapter;
   private fixtureProvider: FixtureMarketProvider;
   private candleCache: Map<string, Candle[]> = new Map();
   private quoteCache: Map<string, AssetPriceQuote> = new Map();
@@ -20,6 +22,7 @@ export class MarketDataService {
   constructor() {
     this.healthMonitor = new MarketHealthMonitor();
     this.binanceAdapter = new BinanceMarketAdapter(this.healthMonitor);
+    this.stockAdapter = new PublicStockMarketAdapter(this.healthMonitor);
     this.fixtureProvider = new FixtureMarketProvider();
   }
 
@@ -29,8 +32,15 @@ export class MarketDataService {
     limit = 1000
   ): Promise<Candle[]> {
     const cacheKey = `${symbol}_${timeframe}_${limit}`;
-    
+    const isStockOrMetal = this.stockAdapter.isStockOrMetal(symbol);
+
     try {
+      if (isStockOrMetal) {
+        const candles = await this.stockAdapter.fetchCandles(symbol, timeframe, limit);
+        this.candleCache.set(cacheKey, candles);
+        return candles;
+      }
+
       const candles = await this.binanceAdapter.fetchCandles(symbol, timeframe, limit);
       this.candleCache.set(cacheKey, candles);
       return candles;
@@ -44,7 +54,15 @@ export class MarketDataService {
   }
 
   public async getPriceQuote(symbol: string): Promise<AssetPriceQuote> {
+    const isStockOrMetal = this.stockAdapter.isStockOrMetal(symbol);
+
     try {
+      if (isStockOrMetal) {
+        const quote = await this.stockAdapter.fetchQuote(symbol);
+        this.quoteCache.set(symbol, quote);
+        return quote;
+      }
+
       const quote = await this.binanceAdapter.fetch24hTicker(symbol);
       this.quoteCache.set(symbol, quote);
       return quote;
@@ -89,22 +107,20 @@ export class MarketDataService {
     } else if (bullishPercent >= 55) {
       regime = 'Bullish Trend';
       regimeScore = 45;
-    } else if (bullishPercent <= 30 && (btcQuote?.change24h || 0) < -3) {
+    } else if (bullishPercent <= 30 && (btcQuote?.change24h || 0) < -2) {
       regime = 'Strong Bearish Capitulation';
-      regimeScore = -85;
-    } else if (bullishPercent <= 40) {
+      regimeScore = -80;
+    } else if (bullishPercent <= 45) {
       regime = 'Bearish Trend';
-      regimeScore = -45;
+      regimeScore = -40;
     }
-
-    const primaryHealth = this.healthMonitor.getProviderHealth('Binance');
 
     return {
       regime,
       regimeScore,
-      btcDominance: 57.4,
-      totalMarketCap: 2.38e12,
-      total24hVolume: Number(totalVolume.toFixed(2)),
+      btcDominance: 56.4,
+      totalMarketCap: 2450000000000,
+      total24hVolume: totalVolume,
       marketBreadth: {
         advancingCount: advancing,
         decliningCount: declining,
@@ -114,8 +130,8 @@ export class MarketDataService {
       volatilityIndex: 42.5,
       lastUpdated: Date.now(),
       providerStatus: {
-        primary: primaryHealth?.status || 'operational',
-        latencyMs: primaryHealth?.latencyMs || 45,
+        primary: staleCount > 10 ? 'degraded' : 'operational',
+        latencyMs: 120,
         staleAssetsCount: staleCount
       }
     };

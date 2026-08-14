@@ -17,14 +17,35 @@ import {
   Coins,
   TrendingUp,
   Layers,
-  Award
+  Award,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  GripVertical,
+  SlidersHorizontal,
+  X
 } from 'lucide-react';
+
+export type SortField =
+  | 'symbol'
+  | 'price'
+  | 'change24h'
+  | 'moneyLineScore'
+  | 'tier'
+  | 'flipAge'
+  | 'rvol'
+  | 'volatilityAtrPercent'
+  | 'xTrendScore'
+  | 'aiConfidence';
+
+export type SortDirection = 'asc' | 'desc';
 
 interface ScannerTableProps {
   rows: AssetScannerRow[];
   onSelectAsset: (symbol: string) => void;
   watchlist: string[];
   onToggleWatchlist: (symbol: string) => void;
+  onReorderWatchlist?: (newOrder: string[]) => void;
   selectedTier: string;
   onSelectTier: (tier: string) => void;
   watchlistOnly: boolean;
@@ -37,6 +58,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
   onSelectAsset,
   watchlist,
   onToggleWatchlist,
+  onReorderWatchlist,
   selectedTier,
   onSelectTier,
   watchlistOnly,
@@ -44,6 +66,10 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
   loading = false
 }) => {
   const [selectedMarketClass, setSelectedMarketClass] = useState<'ALL' | 'crypto' | 'stocks' | 'metals'>('ALL');
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [draggedSymbol, setDraggedSymbol] = useState<string | null>(null);
+  const [dragOverSymbol, setDragOverSymbol] = useState<string | null>(null);
 
   const tiers: { id: string; label: string; color: string }[] = [
     { id: 'ALL', label: 'Toate Semnalele', color: 'text-slate-300' },
@@ -102,14 +128,74 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
     );
   };
 
+  // Handle header sorting click
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection('desc');
+    }
+  };
+
+  // Tier numerical weight for sorting
+  const getTierWeight = (tier: string) => {
+    switch (tier) {
+      case 'Strong Bullish': return 5;
+      case 'Bullish': return 4;
+      case 'Neutral': return 3;
+      case 'Bearish': return 2;
+      case 'Strong Bearish': return 1;
+      default: return 0;
+    }
+  };
+
+  // Drag and Drop reordering for Watchlist
+  const handleDragStart = (e: React.DragEvent, symbol: string) => {
+    e.dataTransfer.setData('text/plain', symbol);
+    setDraggedSymbol(symbol);
+  };
+
+  const handleDragOver = (e: React.DragEvent, targetSymbol: string) => {
+    e.preventDefault();
+    if (draggedSymbol && draggedSymbol !== targetSymbol) {
+      setDragOverSymbol(targetSymbol);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, targetSymbol: string) => {
+    e.preventDefault();
+    const sourceSymbol = draggedSymbol || e.dataTransfer.getData('text/plain');
+    if (!sourceSymbol || sourceSymbol === targetSymbol) {
+      setDraggedSymbol(null);
+      setDragOverSymbol(null);
+      return;
+    }
+
+    const currentList = [...cleanWatchlist];
+    const sourceIdx = currentList.indexOf(sourceSymbol.toUpperCase());
+    const targetIdx = currentList.indexOf(targetSymbol.toUpperCase());
+
+    if (sourceIdx !== -1 && targetIdx !== -1) {
+      currentList.splice(sourceIdx, 1);
+      currentList.splice(targetIdx, 0, sourceSymbol.toUpperCase());
+      if (onReorderWatchlist) {
+        onReorderWatchlist(currentList);
+      }
+    }
+
+    setDraggedSymbol(null);
+    setDragOverSymbol(null);
+  };
+
   // Filter rows based on tier, watchlist, and 360° market class
-  const filteredRows = rows.filter(r => {
+  let filteredRows = rows.filter(r => {
     const sym = r.symbol.replace(/^[$#]/, '').trim().toUpperCase();
     if (watchlistOnly && !cleanWatchlist.includes(sym)) return false;
     if (selectedTier !== 'ALL' && r.tier !== selectedTier) return false;
 
     if (selectedMarketClass !== 'ALL') {
-      const isStock = ['NVDA', 'TSLA', 'AAPL', 'MSFT', 'MSTR', 'COIN', 'SPY', 'QQQ'].includes(sym) || r.category?.includes('Stock') || r.category?.includes('Index') || r.category?.includes('Mega-Cap');
+      const isStock = ['SPACEX', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'PLTR', 'AMD', 'MSTR', 'COIN', 'SPY', 'QQQ'].includes(sym) || r.category?.includes('Stock') || r.category?.includes('Index') || r.category?.includes('Mega-Cap');
       const isMetal = ['XAU', 'XAG', 'PAXG', 'OIL', 'COPPER'].includes(sym) || r.category?.includes('Metal') || r.category?.includes('Commodity');
       const isCrypto = !isStock && !isMetal;
 
@@ -120,6 +206,69 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
 
     return true;
   });
+
+  // Apply sorting if a sort field is active
+  if (sortField) {
+    filteredRows = [...filteredRows].sort((a, b) => {
+      let comparison = 0;
+      switch (sortField) {
+        case 'symbol':
+          comparison = a.symbol.localeCompare(b.symbol);
+          break;
+        case 'price':
+          comparison = a.price - b.price;
+          break;
+        case 'change24h':
+          comparison = a.change24h - b.change24h;
+          break;
+        case 'moneyLineScore':
+          comparison = a.moneyLineScore - b.moneyLineScore;
+          break;
+        case 'tier':
+          comparison = getTierWeight(a.tier) - getTierWeight(b.tier);
+          break;
+        case 'flipAge':
+          comparison = (a.lastSignalChangeTime || 0) - (b.lastSignalChangeTime || 0);
+          break;
+        case 'rvol':
+          comparison = a.rvol - b.rvol;
+          break;
+        case 'volatilityAtrPercent':
+          comparison = a.volatilityAtrPercent - b.volatilityAtrPercent;
+          break;
+        case 'xTrendScore':
+          comparison = a.xTrendScore - b.xTrendScore;
+          break;
+        case 'aiConfidence':
+          comparison = a.aiConfidence - b.aiConfidence;
+          break;
+        default:
+          comparison = 0;
+      }
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  } else if (watchlistOnly) {
+    // Keep custom manual drag order when watchlistOnly is active and no column sort is clicked
+    filteredRows = [...filteredRows].sort((a, b) => {
+      const idxA = cleanWatchlist.indexOf(a.symbol.toUpperCase());
+      const idxB = cleanWatchlist.indexOf(b.symbol.toUpperCase());
+      if (idxA === -1) return 1;
+      if (idxB === -1) return -1;
+      return idxA - idxB;
+    });
+  }
+
+  // Header Sort Icon helper
+  const renderSortIcon = (field: SortField) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="w-3 h-3 text-slate-600 group-hover:text-slate-400 transition-colors" />;
+    }
+    return sortDirection === 'asc' ? (
+      <ArrowUp className="w-3 h-3 text-cyan-400 font-bold" />
+    ) : (
+      <ArrowDown className="w-3 h-3 text-cyan-400 font-bold" />
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -164,43 +313,218 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
           </div>
         </div>
 
-        {/* Bottom Filter: Tier Status Chips */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1.5 text-xs text-slate-400 mr-2 font-mono">
-            <Filter className="w-3.5 h-3.5 text-cyan-400" />
-            <span>FILTRU TIER:</span>
+        {/* Bottom Filter: Tier Status Chips & Sort Indicator */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5 text-xs text-slate-400 mr-2 font-mono">
+              <Filter className="w-3.5 h-3.5 text-cyan-400" />
+              <span>FILTRU TIER:</span>
+            </div>
+            {tiers.map(t => (
+              <button
+                key={t.id}
+                onClick={() => onSelectTier(t.id)}
+                className={`px-3 py-1 text-xs font-mono rounded-lg transition-all border ${
+                  selectedTier === t.id
+                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-glow-cyan font-bold'
+                    : 'bg-background-surface text-slate-400 border-background-border hover:border-slate-700 hover:text-slate-200'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
-          {tiers.map(t => (
-            <button
-              key={t.id}
-              onClick={() => onSelectTier(t.id)}
-              className={`px-3 py-1 text-xs font-mono rounded-lg transition-all border ${
-                selectedTier === t.id
-                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-glow-cyan font-bold'
-                  : 'bg-background-surface text-slate-400 border-background-border hover:border-slate-700 hover:text-slate-200'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+
+          {/* Active Sort Pill with Reset Button */}
+          {sortField && (
+            <div className="flex items-center gap-2 text-xs font-mono bg-background-surface px-3 py-1 rounded-xl border border-cyan-500/30">
+              <span className="text-slate-400">Sortat după:</span>
+              <span className="text-cyan-300 font-bold uppercase">{sortField} ({sortDirection.toUpperCase()})</span>
+              <button
+                onClick={() => setSortField(null)}
+                className="text-slate-500 hover:text-rose-400 transition-colors ml-1"
+                title="Resetează Sortarea"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Cyber Table with Dedicated Flip Timer Column */}
+      {/* Interactive Watchlist Reorder Quick-Bar (Drag & Drop Chips) */}
+      {cleanWatchlist.length > 0 && (
+        <div className="p-3.5 bg-background-card/80 border border-background-border rounded-2xl cyber-glass space-y-2">
+          <div className="flex items-center justify-between text-xs font-mono">
+            <span className="text-slate-400 flex items-center gap-1.5">
+              <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+              <span>Ordinea Mea în Watchlist (Trage cu Click &amp; Hold pentru a rearanja ordinea):</span>
+            </span>
+            <span className="text-slate-500 text-[11px] hidden sm:inline">
+              ⇄ Drag &amp; drop active
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {cleanWatchlist.map((sym, idx) => {
+              const row = rows.find(r => r.symbol.toUpperCase() === sym);
+              const isUp = (row?.change24h || 0) >= 0;
+              const isDragging = draggedSymbol === sym;
+              const isOver = dragOverSymbol === sym;
+
+              return (
+                <div
+                  key={sym}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, sym)}
+                  onDragOver={(e) => handleDragOver(e, sym)}
+                  onDrop={(e) => handleDrop(e, sym)}
+                  onDragEnd={() => { setDraggedSymbol(null); setDragOverSymbol(null); }}
+                  onClick={() => onSelectAsset(sym)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all cursor-grab active:cursor-grabbing text-xs font-mono select-none ${
+                    isDragging ? 'opacity-40 scale-95 border-dashed border-cyan-400' :
+                    (isOver ? 'bg-cyan-500/20 border-cyan-400 scale-105 shadow-glow-cyan' : 'bg-background-surface hover:bg-slate-800 border-background-border hover:border-cyan-500/40')
+                  }`}
+                >
+                  <GripVertical className="w-3.5 h-3.5 text-slate-500" />
+                  <span className="font-bold text-slate-100">${sym}</span>
+                  {row && (
+                    <span className={`text-[10px] font-bold ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {isUp ? `+${row.change24h}%` : `${row.change24h}%`}
+                    </span>
+                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleWatchlist(sym);
+                    }}
+                    title="Șterge din Watchlist"
+                    className="text-slate-600 hover:text-rose-400 ml-0.5"
+                  >
+                    ×
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Cyber Table with Interactive Sortable Column Headers */}
       <div className="overflow-x-auto rounded-2xl border border-background-border cyber-glass shadow-2xl">
         <table className="w-full text-left text-xs">
-          <thead className="bg-background-surface/80 border-b border-background-border text-[11px] font-mono uppercase tracking-wider text-slate-400">
+          <thead className="bg-background-surface/80 border-b border-background-border text-[11px] font-mono uppercase tracking-wider text-slate-400 select-none">
             <tr>
-              <th className="py-3.5 px-4">Asset</th>
-              <th className="py-3.5 px-4">Preț</th>
-              <th className="py-3.5 px-4">Variație 24h</th>
-              <th className="py-3.5 px-4">Scor Money Line</th>
-              <th className="py-3.5 px-4">Regim / Tier</th>
-              <th className="py-3.5 px-4 text-cyan-300">De Când este Flip (Timp)</th>
-              <th className="py-3.5 px-4">RVOL</th>
-              <th className="py-3.5 px-4">Volatilitate ATR</th>
-              <th className="py-3.5 px-4">X Momentum</th>
-              <th className="py-3.5 px-4">AI Bias</th>
+              {/* Asset Name & Symbol Header */}
+              <th
+                onClick={() => handleSort('symbol')}
+                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>Asset</span>
+                  {renderSortIcon('symbol')}
+                </div>
+              </th>
+
+              {/* Price Header */}
+              <th
+                onClick={() => handleSort('price')}
+                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>Preț</span>
+                  {renderSortIcon('price')}
+                </div>
+              </th>
+
+              {/* 24h Change Header */}
+              <th
+                onClick={() => handleSort('change24h')}
+                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>Variație 24h</span>
+                  {renderSortIcon('change24h')}
+                </div>
+              </th>
+
+              {/* Money Line Score Header */}
+              <th
+                onClick={() => handleSort('moneyLineScore')}
+                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>Scor Money Line</span>
+                  {renderSortIcon('moneyLineScore')}
+                </div>
+              </th>
+
+              {/* Tier Status Header */}
+              <th
+                onClick={() => handleSort('tier')}
+                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>Regim / Tier</span>
+                  {renderSortIcon('tier')}
+                </div>
+              </th>
+
+              {/* Flip Age (Time) Header */}
+              <th
+                onClick={() => handleSort('flipAge')}
+                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group text-cyan-300"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>De Când este Flip</span>
+                  {renderSortIcon('flipAge')}
+                </div>
+              </th>
+
+              {/* RVOL Header */}
+              <th
+                onClick={() => handleSort('rvol')}
+                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>RVOL</span>
+                  {renderSortIcon('rvol')}
+                </div>
+              </th>
+
+              {/* Volatility ATR Header */}
+              <th
+                onClick={() => handleSort('volatilityAtrPercent')}
+                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>Volatilitate ATR</span>
+                  {renderSortIcon('volatilityAtrPercent')}
+                </div>
+              </th>
+
+              {/* X Momentum Header */}
+              <th
+                onClick={() => handleSort('xTrendScore')}
+                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>X Momentum</span>
+                  {renderSortIcon('xTrendScore')}
+                </div>
+              </th>
+
+              {/* AI Bias Header */}
+              <th
+                onClick={() => handleSort('aiConfidence')}
+                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>AI Bias</span>
+                  {renderSortIcon('aiConfidence')}
+                </div>
+              </th>
+
               <th className="py-3.5 px-4 text-right">Acțiuni</th>
             </tr>
           </thead>
@@ -212,16 +536,36 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                 const isPositiveChange = row.change24h >= 0;
                 const isBull = row.tier?.includes('Bullish');
                 const isBear = row.tier?.includes('Bearish');
+                const isDragging = draggedSymbol === sym;
+                const isOver = dragOverSymbol === sym;
 
                 return (
                   <tr
                     key={row.symbol}
+                    draggable={isWatch}
+                    onDragStart={(e) => handleDragStart(e, sym)}
+                    onDragOver={(e) => handleDragOver(e, sym)}
+                    onDrop={(e) => handleDrop(e, sym)}
+                    onDragEnd={() => { setDraggedSymbol(null); setDragOverSymbol(null); }}
                     onClick={() => onSelectAsset(row.symbol)}
-                    className="hover:bg-background-surface/60 transition-colors cursor-pointer group"
+                    className={`hover:bg-background-surface/60 transition-colors cursor-pointer group ${
+                      isDragging ? 'opacity-40 bg-slate-900' : (isOver ? 'bg-cyan-500/10 border-cyan-400' : '')
+                    }`}
                   >
-                    {/* Symbol & Name */}
+                    {/* Symbol & Name with Drag Handle */}
                     <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        {isWatch ? (
+                          <div
+                            title="Apasă și trage în sus/jos pentru a rearanja în Watchlist"
+                            className="cursor-grab active:cursor-grabbing text-slate-500 hover:text-amber-400 p-0.5"
+                          >
+                            <GripVertical className="w-4 h-4" />
+                          </div>
+                        ) : (
+                          <div className="w-4" />
+                        )}
+
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -348,7 +692,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                   {loading ? (
                     <div className="space-y-2">
                       <RefreshCw className="w-6 h-6 mx-auto animate-spin text-cyan-400" />
-                      <p className="text-sm font-bold text-slate-200">Se încarcă semnalele Live Money Scanner...</p>
+                      <p className="text-sm font-bold text-slate-200">Se încarcă semnalele Live Market Scanner 360...</p>
                       <p className="text-xs text-slate-500">Se sincronizează datele de piață 360°.</p>
                     </div>
                   ) : watchlistOnly ? (
@@ -368,7 +712,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                       <Filter className="w-6 h-6 mx-auto text-slate-500" />
                       <p className="text-sm font-bold text-slate-200">Niciun activ găsit pentru filtrele curente.</p>
                       <button
-                        onClick={() => { onSelectTier('ALL'); setSelectedMarketClass('ALL'); }}
+                        onClick={() => { onSelectTier('ALL'); setSelectedMarketClass('ALL'); setSortField(null); }}
                         className="px-3.5 py-1.5 text-xs font-bold font-mono rounded-lg bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 transition-all"
                       >
                         Resetează Filtrele

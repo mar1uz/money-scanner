@@ -584,7 +584,27 @@ plotshape(sellSignal, title="SELL", style=shape.triangledown, location=location.
     setTimeout(() => setCopiedPine(false), 3000);
   };
 
-  const tvExternalUrl = `https://www.tradingview.com/chart/?symbol=BINANCE:${symbol.toUpperCase()}USDT&interval=${
+  // Helper to map symbol to TradingView symbol with exchange prefix
+  const getTradingViewSymbol = (sym: string) => {
+    const s = sym.toUpperCase();
+    if (['NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'AMD', 'PLTR', 'QQQ'].includes(s)) {
+      return `NASDAQ:${s}`;
+    }
+    if (['SPY', 'MSTR', 'COIN'].includes(s)) {
+      return `NYSE:${s}`;
+    }
+    if (s === 'XAU') return 'TVC:GOLD';
+    if (s === 'XAG') return 'TVC:SILVER';
+    if (s === 'OIL') return 'TVC:USOIL';
+    if (s === 'COPPER') return 'CAPITALCOM:COPPER';
+    if (s === 'SPACEX') return 'NASDAQ:ARKX';
+    return `BINANCE:${s}USDT`;
+  };
+
+  const isStockOrMetal = ['SPACEX', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'PLTR', 'AMD', 'MSTR', 'COIN', 'SPY', 'QQQ', 'XAU', 'XAG', 'OIL', 'COPPER'].includes(symbol.toUpperCase());
+  const quoteCurrency = isStockOrMetal ? 'USD' : 'USDT';
+
+  const tvExternalUrl = `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(getTradingViewSymbol(symbol))}&interval=${
     activeInterval === '1h' ? '60' : (activeInterval === '4h' ? '240' : (activeInterval === '8h' ? '480' : (activeInterval === '1d' ? 'D' : (activeInterval === '1w' ? 'W' : 'M'))))
   }`;
 
@@ -663,7 +683,7 @@ plotshape(sellSignal, title="SELL", style=shape.triangledown, location=location.
           {/* Real-time Indicator Status Bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 bg-background-card/80 rounded-xl border border-background-border text-xs font-mono">
             <div className="flex items-center gap-4">
-              <span className="font-bold text-slate-100 text-sm">${symbol} / USDT</span>
+              <span className="font-bold text-slate-100 text-sm">${symbol} / {quoteCurrency}</span>
               <div className="flex items-center gap-2">
                 <span className="text-slate-400">Cloud Status:</span>
                 <span className={`px-2.5 py-0.5 rounded font-bold border ${

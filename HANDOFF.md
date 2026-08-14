@@ -28,7 +28,7 @@ https://scanner.relayhub.no
 During development, use the independent Cloud Run URL:
 
 ```text
-https://crypto-scanner-web-384051756749.europe-west3.run.app
+https://market-scanner-360-384051756749.europe-west3.run.app
 ```
 
 For the custom domain, route `scanner.relayhub.no` through the existing Google Cloud external Application Load Balancer to the new Cloud Run backend. The host rule must be independent of the rule serving `relayhub.no`.
@@ -471,6 +471,7 @@ Rough implementation estimate: four to six weeks for the functional MVP, followe
 | **Step 12** | `apps/web`, `packages/social-analysis`, `packages/money-line` | **Timeframe Bias & Flip Timer Rubric** (Bullish/Bearish Force %, exact elapsed time since flip), **6-Timeframe MTF Matrix** (`1H`, `4H`, `8H`, `1D`, `1W`, `1M`), **5-Min Auto-Refresh** + Manual Update button, and **Top Crypto Twitter/X Feeds** with direct tweet links (`@lookonchain`, `@WuBlockchain`, `@whale_alert`, `@tier10k`, etc.). | **Completed** | `f6c91a0` |
 | **Step 13** | `apps/web`, `packages/shared`, `packages/market-data` | **Technical Analysis Drawing Suite** (Trendlines, Fibonacci Retracement with Golden Pocket, Horizontal Support/Resistance Rays, % Measurement Ruler), **Dedicated Flip Age Column** in Live Money Scanner Signals Table, and **Trading 360° Universe** (US Stocks, Indices & Precious Metals/Commodities: `NVDA`, `TSLA`, `AAPL`, `MSFT`, `MSTR`, `COIN`, `SPY`, `QQQ`, `XAU`, `XAG`, `PAXG`, `OIL`, `COPPER`). | **Completed** | `9a81e0f` |
 | **Step 14** | `apps/web`, `packages/shared`, `apps/api` | **Generic & Fuzzy Alias Search** (e.g. `spacex`, `elon musk`, `gold`, `aur`, `argint`, `petrol`, `google`, `facebook`, `ai chips`), **Global Mega-Cap & Space Tech Ingestion** (`SPACEX`, `GOOGL`, `AMZN`, `META`, `PLTR`, `AMD`), and **Main Dashboard 1W & 1M Timeframes** (`1H`, `4H`, `8H`, `1D`, `1W`, `1M`). | **Completed** | `4b7c12d` |
+| **Step 15** | `apps/web`, `packages/market-data`, `infra/` | **Rebranding to Market Scanner 360** (Cloud Run service `market-scanner-360`), **Interactive Sortable Columns** (Preț, Variație, Scor Money Line, Flip Age, RVOL, Volatilitate), **Drag-and-Drop Watchlist Reordering** (Click & Hold `GripVertical`), and **Public Stock & Commodity Market Adapter** for Stocks & Metals (`NVDA`, `TSLA`, `AAPL`, `XAU`, `XAG`, `OIL`, etc.). | **Completed** | `e1f8b4a` |
 
 ---
 

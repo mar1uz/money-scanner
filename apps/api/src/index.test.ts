@@ -15,7 +15,7 @@ describe('API Server Integration Tests', () => {
     assert.equal(res.status, 200);
     const body = await res.json() as any;
     assert.equal(body.status, 'ok');
-    assert.equal(body.service, 'crypto-scanner-api');
+    assert.equal(body.service, 'market-scanner-360-api');
     assert.ok(body.version !== undefined);
 
     await new Promise<void>(resolve => server.close(() => resolve()));

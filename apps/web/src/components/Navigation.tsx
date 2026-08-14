@@ -23,7 +23,7 @@ export const Navigation: React.FC<NavigationProps> = ({
 }) => {
   const tabs = [
     { id: 'dashboard', label: 'Market Dashboard', icon: LayoutDashboard },
-    { id: 'scanner', label: 'Money Scanner', icon: ScanLine, badge: '50 Assets' },
+    { id: 'scanner', label: 'Market Scanner 360', icon: ScanLine, badge: '360°' },
     { id: 'trends', label: 'X Trends & Narratives', icon: Flame },
     { id: 'news', label: 'News Intelligence', icon: Newspaper },
     { id: 'ai', label: 'AI Market Analyst', icon: BrainCircuit, badge: 'Gemini' },
