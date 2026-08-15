@@ -28,7 +28,13 @@ import {
   Trash2,
   Undo2,
   Sliders,
-  Layers
+  Layers,
+  ArrowUpRight,
+  Square,
+  Split,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  MoveVertical
 } from 'lucide-react';
 
 interface InteractiveChartProps {
@@ -38,11 +44,22 @@ interface InteractiveChartProps {
   onTimeframeChange?: (tf: Timeframe) => void;
 }
 
-export type DrawingTool = 'select' | 'trendline' | 'fibonacci' | 'horizontal' | 'ruler';
+export type DrawingTool = 
+  | 'select' 
+  | 'trendline' 
+  | 'ray' 
+  | 'horizontal' 
+  | 'vertical' 
+  | 'fibonacci' 
+  | 'channel' 
+  | 'rectangle' 
+  | 'long_position' 
+  | 'short_position' 
+  | 'ruler';
 
 export interface ChartDrawing {
   id: string;
-  type: 'trendline' | 'fibonacci' | 'horizontal' | 'ruler';
+  type: DrawingTool;
   p1: { timeIndex: number; price: number };
   p2?: { timeIndex: number; price: number };
   color?: string;
@@ -591,6 +608,18 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       return;
     }
 
+    if (activeTool === 'vertical') {
+      const newDrawing: ChartDrawing = {
+        id: `v_${Date.now()}`,
+        type: 'vertical',
+        p1: { timeIndex: pt.timeIndex, price: pt.price },
+        color: '#a855f7'
+      };
+      setDrawings(prev => [...prev, newDrawing]);
+      setActiveTool('select');
+      return;
+    }
+
     setCurrentStart(pt);
   };
 
@@ -608,16 +637,22 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       return;
     }
 
-    if (activeTool === 'trendline' || activeTool === 'fibonacci' || activeTool === 'ruler') {
-      const newDrawing: ChartDrawing = {
-        id: `${activeTool}_${Date.now()}`,
-        type: activeTool,
-        p1: { timeIndex: currentStart.timeIndex, price: currentStart.price },
-        p2: { timeIndex: pt.timeIndex, price: pt.price },
-        color: activeTool === 'fibonacci' ? '#fbbf24' : (activeTool === 'ruler' ? '#38bdf8' : '#06b6d4')
-      };
-      setDrawings(prev => [...prev, newDrawing]);
-    }
+    const newDrawing: ChartDrawing = {
+      id: `${activeTool}_${Date.now()}`,
+      type: activeTool,
+      p1: { timeIndex: currentStart.timeIndex, price: currentStart.price },
+      p2: { timeIndex: pt.timeIndex, price: pt.price },
+      color: activeTool === 'fibonacci' 
+        ? '#fbbf24' 
+        : (activeTool === 'ruler' 
+          ? '#38bdf8' 
+          : (activeTool === 'long_position' 
+            ? '#10b981' 
+            : (activeTool === 'short_position' 
+              ? '#f43f5e' 
+              : (activeTool === 'rectangle' ? '#06b6d4' : (activeTool === 'channel' ? '#06b6d4' : (activeTool === 'ray' ? '#38bdf8' : '#06b6d4'))))))
+    };
+    setDrawings(prev => [...prev, newDrawing]);
 
     setCurrentStart(null);
     setActiveTool('select');
@@ -829,12 +864,12 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
 
           {/* Chart View Container with Floating Drawing Tools & SVG Overlay */}
           <div className="relative w-full rounded-2xl overflow-hidden bg-background-card border border-background-border">
-            {/* Left Floating Technical Drawing Toolbar */}
-            <div className="absolute left-3 top-3 z-30 flex flex-col items-center gap-1.5 p-1.5 bg-background-card/95 backdrop-blur-md border border-background-border rounded-xl shadow-2xl">
+            {/* Left Floating Technical Drawing Toolbar (Full TradingView Suite) */}
+            <div className="absolute left-3 top-3 z-30 flex flex-col items-center gap-1 p-1.5 bg-background-card/95 backdrop-blur-md border border-background-border rounded-xl shadow-2xl max-h-[500px] overflow-y-auto">
               {/* Pointer / Cursor Mode */}
               <button
                 onClick={() => { setActiveTool('select'); setCurrentStart(null); }}
-                title="Cursor / Pan & Zoom"
+                title="Mod Cursor (Pan & Zoom normal)"
                 className={`p-2 rounded-lg transition-all ${
                   activeTool === 'select'
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-cyan'
@@ -859,6 +894,45 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                 <TrendingUp className="w-4 h-4" />
               </button>
 
+              {/* Extended Ray Tool */}
+              <button
+                onClick={() => { setActiveTool('ray'); setCurrentStart(null); }}
+                title="Rază Extinsă / Ray Line (Trage linia spre infinit la dreapta)"
+                className={`p-2 rounded-lg transition-all ${
+                  activeTool === 'ray'
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-cyan'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <ArrowUpRight className="w-4 h-4" />
+              </button>
+
+              {/* Horizontal Support/Resistance Line */}
+              <button
+                onClick={() => { setActiveTool('horizontal'); setCurrentStart(null); }}
+                title="Nivel Orizontal Suport / Rezistență (Click pentru a plasa)"
+                className={`p-2 rounded-lg transition-all ${
+                  activeTool === 'horizontal'
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-cyan'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <Minus className="w-4 h-4" />
+              </button>
+
+              {/* Vertical Time Line */}
+              <button
+                onClick={() => { setActiveTool('vertical'); setCurrentStart(null); }}
+                title="Linie Verticală Marcaj Timp / Sesiune (Click pentru a plasa)"
+                className={`p-2 rounded-lg transition-all ${
+                  activeTool === 'vertical'
+                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-glow-cyan'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <MoveVertical className="w-4 h-4" />
+              </button>
+
               {/* Fibonacci Retracement Tool */}
               <button
                 onClick={() => { setActiveTool('fibonacci'); setCurrentStart(null); }}
@@ -872,17 +946,58 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                 <Layers className="w-4 h-4" />
               </button>
 
-              {/* Horizontal Support/Resistance Ray */}
+              {/* Parallel Channel Tool */}
               <button
-                onClick={() => { setActiveTool('horizontal'); setCurrentStart(null); }}
-                title="Nivel Orizontal Suport / Rezistență (Click pentru a plasa)"
+                onClick={() => { setActiveTool('channel'); setCurrentStart(null); }}
+                title="Canal de Trend Paralel (Click & Trage)"
                 className={`p-2 rounded-lg transition-all ${
-                  activeTool === 'horizontal'
+                  activeTool === 'channel'
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-cyan'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                 }`}
               >
-                <Minus className="w-4 h-4" />
+                <Split className="w-4 h-4" />
+              </button>
+
+              {/* Rectangle / Order Block Box */}
+              <button
+                onClick={() => { setActiveTool('rectangle'); setCurrentStart(null); }}
+                title="Dreptunghi / Zonă de Consolidare & Order Block"
+                className={`p-2 rounded-lg transition-all ${
+                  activeTool === 'rectangle'
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-cyan'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <Square className="w-4 h-4" />
+              </button>
+
+              <div className="w-4 h-[1px] bg-slate-800 my-0.5" />
+
+              {/* Long Position Tool (R:R) */}
+              <button
+                onClick={() => { setActiveTool('long_position'); setCurrentStart(null); }}
+                title="Poziție Long (Target Verde, Stop Loss Roșu & Raport Risc:Recompensă)"
+                className={`p-2 rounded-lg transition-all ${
+                  activeTool === 'long_position'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-glow-emerald'
+                    : 'text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10'
+                }`}
+              >
+                <ArrowUpCircle className="w-4 h-4" />
+              </button>
+
+              {/* Short Position Tool (R:R) */}
+              <button
+                onClick={() => { setActiveTool('short_position'); setCurrentStart(null); }}
+                title="Poziție Short (Target Verde, Stop Loss Roșu & Raport Risc:Recompensă)"
+                className={`p-2 rounded-lg transition-all ${
+                  activeTool === 'short_position'
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-glow-ruby'
+                    : 'text-slate-400 hover:text-rose-400 hover:bg-rose-500/10'
+                }`}
+              >
+                <ArrowDownCircle className="w-4 h-4" />
               </button>
 
               {/* Measurement Ruler Tool */}
@@ -959,14 +1074,37 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                   );
                 }
 
-                // 2. Horizontal Support / Resistance Level Ray
+                // 2. Extended Ray
+                if (d.type === 'ray' && c2) {
+                  const dx = c2.x - c1.x;
+                  const dy = c2.y - c1.y;
+                  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+                  const extX = c1.x + (dx / len) * 2500;
+                  const extY = c1.y + (dy / len) * 2500;
+                  return (
+                    <g key={d.id}>
+                      <line
+                        x1={c1.x}
+                        y1={c1.y}
+                        x2={extX}
+                        y2={extY}
+                        stroke={d.color || '#38bdf8'}
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
+                      <circle cx={c1.x} cy={c1.y} r="3.5" fill={d.color || '#38bdf8'} />
+                    </g>
+                  );
+                }
+
+                // 3. Horizontal Support / Resistance Level Ray
                 if (d.type === 'horizontal') {
                   return (
                     <g key={d.id}>
                       <line
                         x1={0}
                         y1={c1.y}
-                        x2={2000}
+                        x2={2500}
                         y2={c1.y}
                         stroke={d.color || '#38bdf8'}
                         strokeWidth="1.5"
@@ -997,7 +1135,24 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                   );
                 }
 
-                // 3. Fibonacci Retracement Levels
+                // 4. Vertical Time Line
+                if (d.type === 'vertical') {
+                  return (
+                    <g key={d.id}>
+                      <line
+                        x1={c1.x}
+                        y1={0}
+                        x2={c1.x}
+                        y2={600}
+                        stroke={d.color || '#a855f7'}
+                        strokeWidth="1.5"
+                        strokeDasharray="5 5"
+                      />
+                    </g>
+                  );
+                }
+
+                // 5. Fibonacci Retracement Levels
                 if (d.type === 'fibonacci' && c2 && d.p2) {
                   const fibLevels = [
                     { level: 0.0, label: '0.0% (Start)', color: '#94a3b8' },
@@ -1068,7 +1223,75 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                   );
                 }
 
-                // 4. Measurement Ruler
+                // 6. Parallel Channel
+                if (d.type === 'channel' && c2) {
+                  const channelH = 40;
+                  return (
+                    <g key={d.id}>
+                      <line x1={c1.x} y1={c1.y} x2={c2.x} y2={c2.y} stroke={d.color || '#06b6d4'} strokeWidth="2" />
+                      <line x1={c1.x} y1={c1.y + channelH} x2={c2.x} y2={c2.y + channelH} stroke={d.color || '#06b6d4'} strokeWidth="2" />
+                      <line x1={c1.x} y1={c1.y + channelH / 2} x2={c2.x} y2={c2.y + channelH / 2} stroke={d.color || '#06b6d4'} strokeWidth="1" strokeDasharray="4 4" opacity="0.6" />
+                      <polygon points={`${c1.x},${c1.y} ${c2.x},${c2.y} ${c2.x},${c2.y + channelH} ${c1.x},${c1.y + channelH}`} fill="rgba(6, 182, 212, 0.1)" />
+                    </g>
+                  );
+                }
+
+                // 7. Rectangle / Order Block
+                if (d.type === 'rectangle' && c2) {
+                  const left = Math.min(c1.x, c2.x);
+                  const top = Math.min(c1.y, c2.y);
+                  const width = Math.abs(c2.x - c1.x);
+                  const height = Math.abs(c2.y - c1.y);
+                  return (
+                    <g key={d.id}>
+                      <rect x={left} y={top} width={width} height={height} fill="rgba(6, 182, 212, 0.15)" stroke="#06b6d4" strokeWidth="1.5" rx="3" />
+                    </g>
+                  );
+                }
+
+                // 8. Long Position Tool (R:R)
+                if (d.type === 'long_position' && c2 && d.p2) {
+                  const targetPrice = Math.max(d.p1.price, d.p2.price);
+                  const stopLossPrice = d.p1.price - Math.abs(targetPrice - d.p1.price) / 2;
+                  const targetY = candleSeriesRef.current?.priceToCoordinate(targetPrice) || c1.y - 50;
+                  const stopY = candleSeriesRef.current?.priceToCoordinate(stopLossPrice) || c1.y + 25;
+                  const boxWidth = Math.max(120, Math.abs(c2.x - c1.x));
+                  const rr = Math.abs((targetPrice - d.p1.price) / Math.max(0.0001, (d.p1.price - stopLossPrice)));
+                  return (
+                    <g key={d.id}>
+                      <rect x={c1.x} y={targetY} width={boxWidth} height={Math.abs(c1.y - targetY)} fill="rgba(16, 185, 129, 0.25)" stroke="#10b981" strokeWidth="1.5" />
+                      <rect x={c1.x} y={c1.y} width={boxWidth} height={Math.abs(stopY - c1.y)} fill="rgba(244, 63, 94, 0.25)" stroke="#f43f5e" strokeWidth="1.5" />
+                      <line x1={c1.x} y1={c1.y} x2={c1.x + boxWidth} y2={c1.y} stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="3 3" />
+                      <rect x={c1.x + 5} y={c1.y - 12} width="110" height="24" rx="4" fill="#080c14" stroke="#10b981" strokeWidth="1" />
+                      <text x={c1.x + 60} y={c1.y + 4} fill="#34d399" textAnchor="middle" fontFamily="monospace" fontSize="10" fontWeight="bold">
+                        LONG • R:R {rr.toFixed(2)}
+                      </text>
+                    </g>
+                  );
+                }
+
+                // 9. Short Position Tool (R:R)
+                if (d.type === 'short_position' && c2 && d.p2) {
+                  const targetPrice = Math.min(d.p1.price, d.p2.price);
+                  const stopLossPrice = d.p1.price + Math.abs(d.p1.price - targetPrice) / 2;
+                  const targetY = candleSeriesRef.current?.priceToCoordinate(targetPrice) || c1.y + 50;
+                  const stopY = candleSeriesRef.current?.priceToCoordinate(stopLossPrice) || c1.y - 25;
+                  const boxWidth = Math.max(120, Math.abs(c2.x - c1.x));
+                  const rr = Math.abs((d.p1.price - targetPrice) / Math.max(0.0001, (stopLossPrice - d.p1.price)));
+                  return (
+                    <g key={d.id}>
+                      <rect x={c1.x} y={c1.y} width={boxWidth} height={Math.abs(targetY - c1.y)} fill="rgba(16, 185, 129, 0.25)" stroke="#10b981" strokeWidth="1.5" />
+                      <rect x={c1.x} y={stopY} width={boxWidth} height={Math.abs(c1.y - stopY)} fill="rgba(244, 63, 94, 0.25)" stroke="#f43f5e" strokeWidth="1.5" />
+                      <line x1={c1.x} y1={c1.y} x2={c1.x + boxWidth} y2={c1.y} stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="3 3" />
+                      <rect x={c1.x + 5} y={c1.y - 12} width="110" height="24" rx="4" fill="#080c14" stroke="#f43f5e" strokeWidth="1" />
+                      <text x={c1.x + 60} y={c1.y + 4} fill="#fb7185" textAnchor="middle" fontFamily="monospace" fontSize="10" fontWeight="bold">
+                        SHORT • R:R {rr.toFixed(2)}
+                      </text>
+                    </g>
+                  );
+                }
+
+                // 10. Measurement Ruler
                 if (d.type === 'ruler' && c2 && d.p2) {
                   const left = Math.min(c1.x, c2.x);
                   const top = Math.min(c1.y, c2.y);
@@ -1121,7 +1344,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
               {/* Active Drawing Preview (Rubberband) */}
               {currentStart && mousePos && (
                 <g>
-                  {activeTool === 'trendline' && (
+                  {(activeTool === 'trendline' || activeTool === 'ray') && (
                     <line
                       x1={currentStart.x}
                       y1={currentStart.y}
@@ -1152,6 +1375,30 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                         strokeWidth="1.5"
                       />
                     </g>
+                  )}
+                  {(activeTool === 'rectangle' || activeTool === 'channel') && (
+                    <rect
+                      x={Math.min(currentStart.x, mousePos.x)}
+                      y={Math.min(currentStart.y, mousePos.y)}
+                      width={Math.abs(mousePos.x - currentStart.x)}
+                      height={Math.abs(mousePos.y - currentStart.y)}
+                      fill="rgba(6, 182, 212, 0.15)"
+                      stroke="#06b6d4"
+                      strokeWidth="1.5"
+                      strokeDasharray="4 4"
+                    />
+                  )}
+                  {(activeTool === 'long_position' || activeTool === 'short_position') && (
+                    <rect
+                      x={Math.min(currentStart.x, mousePos.x)}
+                      y={Math.min(currentStart.y, mousePos.y)}
+                      width={Math.abs(mousePos.x - currentStart.x)}
+                      height={Math.abs(mousePos.y - currentStart.y)}
+                      fill={activeTool === 'long_position' ? "rgba(16, 185, 129, 0.2)" : "rgba(244, 63, 94, 0.2)"}
+                      stroke={activeTool === 'long_position' ? "#10b981" : "#f43f5e"}
+                      strokeWidth="1.5"
+                      strokeDasharray="4 4"
+                    />
                   )}
                   {activeTool === 'ruler' && (
                     <rect
@@ -1194,7 +1441,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
             </div>
             <div className="flex items-center gap-2 text-cyan-300">
               <Sliders className="w-3.5 h-3.5" />
-              <span>Instrumente Active: Linie de Trend, Fibonacci Retracement, Nivel Orizontal, Riglă %</span>
+              <span>Bara TradingView: Trendline, Rază, Orizontal, Vertical, Fibonacci, Canal, Order Block, Long/Short R:R, Riglă %</span>
             </div>
           </div>
         </div>
