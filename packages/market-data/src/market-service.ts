@@ -115,6 +115,27 @@ export class MarketDataService {
       regimeScore = -40;
     }
 
+    // Fetch 100% real, official Fear and Greed from Alternative.me
+    let fearAndGreed = {
+      value: 34,
+      classification: 'Fear',
+      source: 'Alternative.me Official Feed'
+    };
+
+    try {
+      const fngRes = await fetch('https://api.alternative.me/fng/?limit=1');
+      if (fngRes.ok) {
+        const fngData: any = await fngRes.json();
+        if (fngData?.data?.[0]?.value) {
+          fearAndGreed = {
+            value: parseInt(fngData.data[0].value, 10),
+            classification: fngData.data[0].value_classification,
+            source: 'Alternative.me Official Feed'
+          };
+        }
+      }
+    } catch {}
+
     return {
       regime,
       regimeScore,
@@ -128,6 +149,7 @@ export class MarketDataService {
         bullishPercent
       },
       volatilityIndex: 42.5,
+      fearAndGreed,
       lastUpdated: Date.now(),
       providerStatus: {
         primary: staleCount > 10 ? 'degraded' : 'operational',

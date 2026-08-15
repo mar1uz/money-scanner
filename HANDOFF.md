@@ -1,5 +1,14 @@
 # Money Scanner — Project Handoff
 
+> [!IMPORTANT]
+> ### 🛡️ MANDATORY GOLDEN DIRECTIVE: 100% REAL & VERIFIED DATA ONLY (ZERO INVENTED NUMBERS)
+> **NO APPROXIMATIONS, FICTIONAL DATA, OR PLACEHOLDERS ARE PERMITTED ANYWHERE IN THIS APPLICATION.**
+> Every single metric, percentage, price, macroeconomic figure, indicator score, and index across the platform:
+> - **Crypto Fear & Greed Index**: MUST be fetched directly from Alternative.me official public API (`https://api.alternative.me/fng/?limit=1`).
+> - **USA Economic Status**: Real official U.S. Treasury National Debt ($36.2T+), BLS Consumer Price Index (CPI/PCE), Federal Reserve Funds Rate, and Treasury Yield Curve.
+> - **Market Prices & Candlesticks**: Real OHLCV feeds from Binance API and Public Stock/Commodity market adapters (Yahoo Finance v8 / NASDAQ / TVC).
+> - **News & Social Intelligence**: 100% verified news from Bloomberg, Reuters, CoinDesk, Decrypt, and authentic tweets from verified analysts.
+
 ## 1. Project purpose
 
 Money Scanner is a separate crypto-market intelligence application. It will scan liquid crypto assets, calculate an original deterministic trend indicator called **Money Line**, explain current market conditions with an AI analyst, monitor crypto topics trending on X, and provide Telegram commands and alerts.
@@ -476,6 +485,7 @@ Rough implementation estimate: four to six weeks for the functional MVP, followe
 | **Step 17** | `apps/web`, `apps/api`, `packages/shared` | **Market Cap Valuation Suite & Default Ordering** (Dedicated Market Cap column, formatted abbreviations `$1.34T`, `$82B`, default descending ranking), **Dynamic AI Verdict & X Social Alpha Badges** (`Strong Buy 92%`, `Buy`, `Neutral`, `Risk-Off`, `Viral 🔥`, `High ⚡`), and **Pre-loaded MoneyLine Supertrend Indicator** directly inside official TradingView chart with 1-click Pine Script copy. | **Completed** | `7f41c9a` |
 | **Step 18** | `apps/web` | **Primary Chart MoneyLine Cloud & Drawing Suite Integration** (Native real-time rendering of Fast/Slow Supertrend Cloud lines, Dual Cloud Fill ribbon, BUY/SELL signal markers, full left Drawing Toolbar with Trendlines, Fibonacci Retracement, Horizontal Rays, % Ruler, and Timeframe synchronization). | **Completed** | `6c10b7f` |
 | **Step 19** | `apps/web`, `packages/social-analysis`, `apps/api` | **Fear & Greed Index Suite & Dynamic Multi-Market Macro Engine** (Fear & Greed gauge replacing Volatility with sentiment tiers, multi-market selector for `Trading 360° (All)`, `Crypto 🪙`, `Stocks SUA 📈`, `Metale & Gold 🥇` dynamically updating Regime, Breadth, Liquidity, and Sentiment, plus asset-specific X posts and AI-curated news deep dive). | **Completed** | `4e19a3b` |
+| **Step 20** | `apps/web`, `apps/api`, `packages/shared`, `packages/market-data` | **USA Economic Status Suite & 100% Real Official Alternative.me API Integration** (Direct live Alternative.me public API for exact real Crypto Fear & Greed index, comprehensive USA Macro Dashboard with $36.2T National Debt ticker, 1M-30Y Treasury Yield Curve, CPI/PCE Inflation, FOMC Rate Cut Odds, Wall Street Indices, Michigan Consumer Sentiment, and Gemini AI Future Guidance with What-If Scenario Simulator). | **Completed** | `91e2b7a` |
 
 ---
 

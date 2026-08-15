@@ -20,6 +20,7 @@ import { NewsFeedView } from './components/NewsFeedView.js';
 import { AIBriefingView } from './components/AIBriefingView.js';
 import { BacktestView } from './components/BacktestView.js';
 import { SystemStatusView } from './components/SystemStatusView.js';
+import { USAStatusView } from './components/USAStatusView.js';
 import { Zap, BellRing, Sparkles, CheckCircle2, RefreshCw } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -247,7 +248,10 @@ export const App: React.FC = () => {
               </div>
             )}
 
-            {/* Tab 3: X Narrative Intelligence */}
+            {/* Tab 3: USA Economic Status & Macro Intelligence */}
+            {activeTab === 'usa_status' && <USAStatusView />}
+
+            {/* Tab 4: X Narrative Intelligence */}
             {activeTab === 'trends' && <XTrendsView />}
 
             {/* Tab 4: News Feed */}

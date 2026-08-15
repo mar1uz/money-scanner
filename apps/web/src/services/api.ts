@@ -113,3 +113,9 @@ export async function askAIAnalyst(question: string): Promise<{
   return res.json();
 }
 
+export async function fetchUSAStatus(): Promise<any> {
+  const res = await fetch(`${API_BASE}/macro/usa-status`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch USA economic status`);
+  return res.json();
+}
+

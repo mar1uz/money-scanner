@@ -9,6 +9,7 @@ import { aiRouter } from './routes/ai-routes.js';
 import { telegramRouter } from './routes/telegram-routes.js';
 import { backtestRouter } from './routes/backtest-routes.js';
 import { authRouter } from './routes/auth-routes.js';
+import { macroRouter } from './routes/macro-routes.js';
 
 export function createServer() {
   const app = express();
@@ -29,6 +30,7 @@ export function createServer() {
   app.use('/api', telegramRouter);
   app.use('/api', backtestRouter);
   app.use('/api', authRouter);
+  app.use('/api', macroRouter);
 
   // Serve static web app bundle if built
   const possibleWebDistPaths = [

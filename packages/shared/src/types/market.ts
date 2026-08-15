@@ -72,6 +72,11 @@ export interface MarketOverviewSummary {
     bullishPercent: number;
   };
   volatilityIndex: number; // 0 to 100
+  fearAndGreed?: {
+    value: number;
+    classification: string;
+    source: string;
+  };
   lastUpdated: number;
   providerStatus: {
     primary: 'operational' | 'degraded' | 'offline';
