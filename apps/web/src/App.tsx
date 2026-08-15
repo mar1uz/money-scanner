@@ -130,6 +130,10 @@ export const App: React.FC = () => {
         onToggleWatchlist={toggleWatchlist}
         onRefreshMarket={refreshData}
         isRefreshing={loading}
+        onLogoClick={() => {
+          setSelectedAssetSymbol(null);
+          setActiveTab('dashboard');
+        }}
       />
 
       {/* Main Tab Navigation (Hidden when in Full-Page Deep Dive) */}

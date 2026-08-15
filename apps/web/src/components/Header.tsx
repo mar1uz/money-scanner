@@ -31,6 +31,7 @@ interface HeaderProps {
   onToggleWatchlist?: (symbol: string) => void;
   onRefreshMarket?: () => void;
   isRefreshing?: boolean;
+  onLogoClick?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -45,7 +46,8 @@ export const Header: React.FC<HeaderProps> = ({
   watchlist = [],
   onToggleWatchlist,
   onRefreshMarket,
-  isRefreshing = false
+  isRefreshing = false,
+  onLogoClick
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -97,10 +99,14 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-40 bg-background/90 backdrop-blur-md border-b border-background-border px-4 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-4">
-      {/* Brand Identity */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500/20 via-background-card to-emerald-500/20 border border-cyan-500/30 shadow-glow-cyan">
-          <Zap className="w-5 h-5 text-cyber-cyan" />
+      {/* Brand Identity (Clickable to return Home/Dashboard) */}
+      <div 
+        onClick={onLogoClick}
+        title="Mergi la Pagina Principală (Dashboard)"
+        className="flex items-center gap-3 cursor-pointer group hover:opacity-90 transition-all select-none"
+      >
+        <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500/20 via-background-card to-emerald-500/20 border border-cyan-500/30 shadow-glow-cyan group-hover:border-cyan-400/60 transition-all">
+          <Zap className="w-5 h-5 text-cyber-cyan group-hover:scale-110 transition-transform" />
           <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyber-cyan opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyber-cyan"></span>
@@ -108,14 +114,14 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <span className="font-bold text-lg tracking-wider bg-gradient-to-r from-white via-cyan-300 to-emerald-400 bg-clip-text text-transparent">
+            <span className="font-bold text-lg tracking-wider bg-gradient-to-r from-white via-cyan-300 to-emerald-400 bg-clip-text text-transparent group-hover:from-cyan-200 group-hover:to-emerald-300">
               MARKET SCANNER 360
             </span>
             <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
               v1.0.0
             </span>
           </div>
-          <p className="text-[11px] text-slate-400">Trading 360° • Crypto, Stocks &amp; Metale • Money Line Engine</p>
+          <p className="text-[11px] text-slate-400 group-hover:text-slate-300 transition-colors">Trading 360° • Crypto, Stocks &amp; Metale • Money Line Engine</p>
         </div>
       </div>
 

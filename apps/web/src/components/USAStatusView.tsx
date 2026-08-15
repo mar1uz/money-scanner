@@ -131,14 +131,22 @@ export const USAStatusView: React.FC = () => {
         <div className="cyber-glass rounded-2xl p-5 border border-rose-500/30 bg-rose-500/5 space-y-3 relative overflow-hidden shadow-glow-ruby">
           <div className="flex items-center justify-between font-mono text-xs text-slate-400">
             <span className="uppercase font-bold tracking-wider text-rose-300">Datoria Totală SUA</span>
-            <Landmark className="w-4 h-4 text-rose-400" />
+            <a
+              href="https://fred.stlouisfed.org/series/GFDEBTN"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] text-cyan-400 hover:underline flex items-center gap-1 font-bold bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20"
+              title="Vezi seria oficială FRED a Băncii Rezervei Federale St. Louis"
+            >
+              <span>FRED: GFDEBTN</span>
+            </a>
           </div>
           <div className="space-y-1">
             <div className="text-2xl font-black font-mono text-slate-100 tracking-tight">
               {data.fiscal.debtFormatted}
             </div>
             <div className="text-xs text-rose-400 font-mono font-bold">
-              {data.fiscal.debtToGdpPercent}% din PIB
+              {data.fiscal.debtToGdpPercent}% din PIB • U.S. Treasury
             </div>
           </div>
           <div className="space-y-1 text-[11px] font-mono text-slate-400 pt-2 border-t border-rose-500/20">
@@ -190,8 +198,9 @@ export const USAStatusView: React.FC = () => {
             <div className="text-2xl font-black font-mono text-slate-100">
               {data.monetaryPolicy.fedFundsRateRange}
             </div>
-            <div className="text-xs text-cyan-300 font-mono font-bold">
-              {data.monetaryPolicy.cyclePhase}
+            <div className="flex items-center gap-1.5 text-xs text-cyan-300 font-mono font-bold">
+              <Calendar className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Ședință FOMC: <strong className="text-slate-100">{data.monetaryPolicy.nextFomcDate}</strong></span>
             </div>
           </div>
           <div className="space-y-1 text-[11px] font-mono text-slate-400 pt-2 border-t border-cyan-500/20">

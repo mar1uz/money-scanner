@@ -56,6 +56,7 @@ export function calculateMoneyLineForce(candles: Candle[], timeframe: string) {
       dirFast: [],
       lineSlow: [],
       dirSlow: [],
+      sma200: [],
       cloudColor: [],
       buySignals: [],
       sellSignals: []
@@ -156,6 +157,19 @@ export function calculateMoneyLineForce(candles: Candle[], timeframe: string) {
   const fast = calcSupertrend(f_fast);
   const slow = calcSupertrend(f_slow);
 
+  // 200 Simple Moving Average (SMA 200)
+  const sma200: number[] = [];
+  const smaLen = 200;
+  for (let i = 0; i < candles.length; i++) {
+    const windowStart = Math.max(0, i - smaLen + 1);
+    let sumClose = 0;
+    for (let j = windowStart; j <= i; j++) {
+      sumClose += candles[j].close;
+    }
+    const count = i - windowStart + 1;
+    sma200.push(Number((sumClose / count).toFixed(2)));
+  }
+
   // Buy & Sell signal identification (ta.change(dirSlow))
   const buySignals: boolean[] = [];
   const sellSignals: boolean[] = [];
@@ -177,6 +191,7 @@ export function calculateMoneyLineForce(candles: Candle[], timeframe: string) {
     dirFast: fast.dir,
     lineSlow: slow.line,
     dirSlow: slow.dir,
+    sma200,
     buySignals,
     sellSignals
   };
@@ -197,7 +212,13 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   const [activeTab, setActiveTab] = useState<'chart' | 'tv_embed' | 'pinescript'>('chart');
   const [activeInterval, setActiveInterval] = useState<string>(timeframe);
   const [copiedPine, setCopiedPine] = useState(false);
-  const [latestState, setLatestState] = useState<{ status: string; fastLine: number; slowLine: number } | null>(null);
+  const [latestState, setLatestState] = useState<{
+    status: string;
+    fastLine: number;
+    slowLine: number;
+    sma200: number;
+    isAboveSma200: boolean;
+  } | null>(null);
 
   // Technical Analysis Drawing Suite State
   const [activeTool, setActiveTool] = useState<DrawingTool>('select');
@@ -363,6 +384,24 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     });
     slowLineSeries.setData(formattedSlowLine);
 
+    // SMA 200 Macro Baseline
+    const sma200Series = chart.addSeries(LineSeries, {
+      color: '#fbbf24', // Amber/Yellow
+      lineWidth: 2,
+      lineStyle: 0,
+      title: 'SMA 200 Macro Baseline',
+      priceLineVisible: false
+    });
+
+    const formattedSma200 = moneyLine.sma200.map((val, idx) => {
+      const timeInSec = Math.floor(candles[idx].timestamp / 1000);
+      return {
+        time: (timeInSec + idx * 60) as any,
+        value: val
+      };
+    });
+    sma200Series.setData(formattedSma200);
+
     // BUY and SELL Signal Triangles
     const markers: any[] = [];
     candles.forEach((c, idx) => {
@@ -397,10 +436,14 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     if (lastIdx >= 0) {
       const isBullFast = moneyLine.dirFast[lastIdx] < 0;
       const isBullSlow = moneyLine.dirSlow[lastIdx] < 0;
+      const lastSma200 = moneyLine.sma200[lastIdx] || 0;
+      const lastClose = candles[lastIdx].close;
       setLatestState({
         status: isBullFast && isBullSlow ? 'BULLISH' : (!isBullFast && !isBullSlow ? 'BEARISH' : 'TRANSITION'),
         fastLine: moneyLine.lineFast[lastIdx] || 0,
-        slowLine: moneyLine.lineSlow[lastIdx] || 0
+        slowLine: moneyLine.lineSlow[lastIdx] || 0,
+        sma200: lastSma200,
+        isAboveSma200: lastClose >= lastSma200
       });
     }
 
@@ -629,6 +672,10 @@ sellSignal = ta.change(dirSlow) > 0
 
 plotshape(buySignal, title="BUY", style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small, text="BUY", textcolor=color.green)
 plotshape(sellSignal, title="SELL", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small, text="SELL", textcolor=color.red)
+
+// --- Indicator Macro SMA 200 ---
+sma200 = ta.sma(close, 200)
+plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro Baseline")
 `;
 
   return (
@@ -736,6 +783,17 @@ plotshape(sellSignal, title="SELL", style=shape.triangledown, location=location.
             <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-300">
               <span>Baza Nor (Fast): <strong className="text-emerald-400">${latestState?.fastLine ? latestState.fastLine.toFixed(2) : '-'}</strong></span>
               <span>Margine Nor (Slow): <strong className="text-slate-300">${latestState?.slowLine ? latestState.slowLine.toFixed(2) : '-'}</strong></span>
+              <span className="flex items-center gap-1.5 font-mono">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-glow-gold"></span>
+                <span>SMA 200: <strong className="text-amber-300">${latestState?.sma200 ? (latestState.sma200 < 1 ? latestState.sma200.toFixed(4) : latestState.sma200.toLocaleString(undefined, { minimumFractionDigits: 2 })) : '-'}</strong></span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold border ${
+                  latestState?.isAboveSma200
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                    : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                }`}>
+                  {latestState?.isAboveSma200 ? '▲ Peste (Bull)' : '▼ Sub (Bear)'}
+                </span>
+              </span>
               <button
                 onClick={handleCopyPineScript}
                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold transition-all ml-2"
@@ -1092,12 +1150,15 @@ plotshape(sellSignal, title="SELL", style=shape.triangledown, location=location.
 
           {/* Money Line Indicator Legend & Tool Guidance */}
           <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 bg-background-card/50 rounded-xl border border-background-border text-[11px] font-mono text-slate-400">
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4">
               <span className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-glow-emerald"></span> Baza Nor (Fast Supertrend)
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> Margine Nor (Slow Supertrend)
+              </span>
+              <span className="flex items-center gap-1.5 text-amber-300 font-bold">
+                <span className="w-3 h-1 rounded-full bg-amber-400 shadow-glow-gold"></span> SMA 200 Macro Baseline
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="w-3 h-2 rounded bg-emerald-500/40 border border-emerald-500/60"></span> MoneyLine Cloud Fill
