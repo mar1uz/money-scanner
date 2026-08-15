@@ -71,6 +71,7 @@ export interface AssetScannerRow {
   category: string;
   price: number;
   change24h: number;
+  marketCap?: number;
   high24h: number;
   low24h: number;
   volume24h: number;

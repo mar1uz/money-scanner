@@ -260,9 +260,15 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
           calendar: true,
           studies: [
             'Supertrend@tv-basicstudies',
-            'MASimple@tv-basicstudies'
+            'MASimple@tv-basicstudies',
+            'Volume@tv-basicstudies'
           ],
-          studies_overrides: {},
+          studies_overrides: {
+            "supertrend.atrLength": 10,
+            "supertrend.factor": 2.5,
+            "volume.volume.color.0": "rgba(244, 63, 94, 0.5)",
+            "volume.volume.color.1": "rgba(16, 185, 129, 0.5)"
+          },
           disabled_features: [],
           enabled_features: [
             'study_templates',
@@ -609,17 +615,28 @@ plotshape(sellSignal, title="SELL", style=shape.triangledown, location=location.
         <div className="space-y-3">
           {/* Status Sub-bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 bg-background-card/80 rounded-xl border border-background-border text-xs font-mono">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <span className="font-bold text-slate-100 text-sm">{tvSymbol} ({activeInterval.toUpperCase()})</span>
-              <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 text-[10px] font-bold">
-                Instrumente Oficiale TradingView Active (Linie Trend, Fib, Riglă, Indicatori)
+              <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold flex items-center gap-1">
+                <Zap className="w-3 h-3 text-emerald-400" />
+                Indicator MoneyLine Supertrend Activ
+              </span>
+              <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 text-[10px] font-bold hidden md:inline-flex">
+                Toate Instrumentele Oficiale Active (Fib, Trendline, Riglă)
               </span>
             </div>
 
             <div className="flex items-center gap-2 text-slate-400 text-[11px]">
-              <span>Cotație: <strong className="text-slate-200">${quoteCurrency}</strong></span>
+              <button
+                onClick={handleCopyPineScript}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold transition-all"
+                title="Copiază codul complet MoneyLine Overlay Force v1 pentru Pine Editor"
+              >
+                {copiedPine ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-emerald-400" />}
+                <span>{copiedPine ? 'COPIAT!' : 'Copiază Pine Script'}</span>
+              </button>
               <span>•</span>
-              <span className="text-emerald-400">Live Real-Time Feed</span>
+              <span>Cotație: <strong className="text-slate-200">${quoteCurrency}</strong></span>
             </div>
           </div>
 

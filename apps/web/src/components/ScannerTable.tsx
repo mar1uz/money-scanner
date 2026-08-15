@@ -23,13 +23,15 @@ import {
   ArrowDown,
   GripVertical,
   SlidersHorizontal,
-  X
+  X,
+  DollarSign
 } from 'lucide-react';
 
 export type SortField =
   | 'symbol'
   | 'price'
   | 'change24h'
+  | 'marketCap'
   | 'moneyLineScore'
   | 'tier'
   | 'flipAge'
@@ -66,7 +68,8 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
   loading = false
 }) => {
   const [selectedMarketClass, setSelectedMarketClass] = useState<'ALL' | 'crypto' | 'stocks' | 'metals'>('ALL');
-  const [sortField, setSortField] = useState<SortField | null>(null);
+  // Default sort order: Market Cap DESC
+  const [sortField, setSortField] = useState<SortField | null>('marketCap');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [draggedSymbol, setDraggedSymbol] = useState<string | null>(null);
   const [dragOverSymbol, setDragOverSymbol] = useState<string | null>(null);
@@ -88,6 +91,15 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
   ];
 
   const cleanWatchlist = watchlist.map(w => w.replace(/^[$#]/, '').trim().toUpperCase());
+
+  // Helper for formatting Market Cap
+  const formatMarketCap = (cap?: number) => {
+    if (!cap || cap <= 0) return '-';
+    if (cap >= 1e12) return `$${(cap / 1e12).toFixed(2)}T`;
+    if (cap >= 1e9) return `$${(cap / 1e9).toFixed(2)}B`;
+    if (cap >= 1e6) return `$${(cap / 1e6).toFixed(2)}M`;
+    return `$${cap.toLocaleString()}`;
+  };
 
   // Helper for human-readable flip age
   const formatFlipAge = (ts?: number) => {
@@ -124,6 +136,75 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-mono text-xs font-bold border ${color}`}>
         <Zap className="w-3 h-3" />
         {score > 0 ? `+${score}` : score}
+      </span>
+    );
+  };
+
+  // Helper for X Social Momentum badge
+  const renderXMomentum = (score: number) => {
+    if (score >= 70) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-glow-gold">
+          <Flame className="w-3 h-3 text-amber-400 animate-pulse" />
+          {score.toFixed(1)} <span className="text-[10px] text-amber-400/80">Viral</span>
+        </span>
+      );
+    }
+    if (score >= 45) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-mono font-semibold bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+          <Flame className="w-3 h-3 text-cyan-400" />
+          {score.toFixed(1)} <span className="text-[10px] text-cyan-400/80">High</span>
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-mono text-slate-400 bg-slate-800/60 border border-slate-700/50">
+        <Flame className="w-3 h-3 text-slate-500" />
+        {score.toFixed(1)}
+      </span>
+    );
+  };
+
+  // Helper for Actionable AI Verdict Badge
+  const renderAIVerdict = (conf: number) => {
+    const pct = (conf * 100).toFixed(0);
+    if (conf >= 0.80) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-glow-emerald">
+          <Sparkles className="w-3 h-3 text-emerald-400" />
+          Strong Buy ({pct}%)
+        </span>
+      );
+    }
+    if (conf >= 0.60) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-mono font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+          <Sparkles className="w-3 h-3 text-emerald-400" />
+          Buy ({pct}%)
+        </span>
+      );
+    }
+    if (conf >= 0.40) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-mono font-medium bg-slate-800 text-slate-300 border border-slate-700">
+          <Sparkles className="w-3 h-3 text-slate-400" />
+          Neutral ({pct}%)
+        </span>
+      );
+    }
+    if (conf >= 0.25) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-mono font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/30">
+          <Sparkles className="w-3 h-3 text-rose-400" />
+          Sell ({pct}%)
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-glow-ruby">
+        <Sparkles className="w-3 h-3 text-rose-400" />
+        Risk-Off ({pct}%)
       </span>
     );
   };
@@ -220,6 +301,9 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
           break;
         case 'change24h':
           comparison = a.change24h - b.change24h;
+          break;
+        case 'marketCap':
+          comparison = (a.marketCap || 0) - (b.marketCap || 0);
           break;
         case 'moneyLineScore':
           comparison = a.moneyLineScore - b.moneyLineScore;
@@ -339,11 +423,11 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
           {sortField && (
             <div className="flex items-center gap-2 text-xs font-mono bg-background-surface px-3 py-1 rounded-xl border border-cyan-500/30">
               <span className="text-slate-400">Sortat după:</span>
-              <span className="text-cyan-300 font-bold uppercase">{sortField} ({sortDirection.toUpperCase()})</span>
+              <span className="text-cyan-300 font-bold uppercase">{sortField === 'marketCap' ? 'Market Cap' : sortField} ({sortDirection.toUpperCase()})</span>
               <button
-                onClick={() => setSortField(null)}
+                onClick={() => { setSortField('marketCap'); setSortDirection('desc'); }}
                 className="text-slate-500 hover:text-rose-400 transition-colors ml-1"
-                title="Resetează Sortarea"
+                title="Resetează la ordinea Market Cap"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -366,7 +450,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {cleanWatchlist.map((sym, idx) => {
+            {cleanWatchlist.map((sym) => {
               const row = rows.find(r => r.symbol.toUpperCase() === sym);
               const isUp = (row?.change24h || 0) >= 0;
               const isDragging = draggedSymbol === sym;
@@ -448,6 +532,18 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                 </div>
               </th>
 
+              {/* Market Cap Header */}
+              <th
+                onClick={() => handleSort('marketCap')}
+                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group text-cyan-300"
+              >
+                <div className="flex items-center gap-1.5">
+                  <DollarSign className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Market Cap</span>
+                  {renderSortIcon('marketCap')}
+                </div>
+              </th>
+
               {/* Money Line Score Header */}
               <th
                 onClick={() => handleSort('moneyLineScore')}
@@ -473,7 +569,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
               {/* Flip Age (Time) Header */}
               <th
                 onClick={() => handleSort('flipAge')}
-                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group text-cyan-300"
+                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
               >
                 <div className="flex items-center gap-1.5">
                   <span>De Când este Flip</span>
@@ -514,13 +610,13 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                 </div>
               </th>
 
-              {/* AI Bias Header */}
+              {/* AI Bias & Verdict Header */}
               <th
                 onClick={() => handleSort('aiConfidence')}
                 className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
               >
                 <div className="flex items-center gap-1.5">
-                  <span>AI Bias</span>
+                  <span>AI Verdict</span>
                   {renderSortIcon('aiConfidence')}
                 </div>
               </th>
@@ -605,6 +701,11 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                       </span>
                     </td>
 
+                    {/* Market Cap Column */}
+                    <td className="py-3.5 px-4 font-mono font-bold text-cyan-300">
+                      {formatMarketCap(row.marketCap)}
+                    </td>
+
                     {/* Money Line Score */}
                     <td className="py-3.5 px-4 font-mono">
                       {getScoreBadge(row.moneyLineScore, row.tier)}
@@ -656,18 +757,12 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
 
                     {/* X Momentum */}
                     <td className="py-3.5 px-4 font-mono">
-                      <span className="flex items-center gap-1 text-amber-400 font-semibold">
-                        <Flame className="w-3.5 h-3.5" />
-                        {row.xTrendScore.toFixed(1)}
-                      </span>
+                      {renderXMomentum(row.xTrendScore)}
                     </td>
 
-                    {/* AI Bias */}
+                    {/* AI Verdict */}
                     <td className="py-3.5 px-4 font-mono">
-                      <span className="flex items-center gap-1 text-purple-300 text-xs font-medium">
-                        <Sparkles className="w-3.5 h-3.5" />
-                        {(row.aiConfidence * 100).toFixed(0)}%
-                      </span>
+                      {renderAIVerdict(row.aiConfidence)}
                     </td>
 
                     {/* Actions */}
@@ -688,7 +783,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
               })
             ) : (
               <tr>
-                <td colSpan={11} className="py-14 text-center text-slate-400 font-mono space-y-3">
+                <td colSpan={12} className="py-14 text-center text-slate-400 font-mono space-y-3">
                   {loading ? (
                     <div className="space-y-2">
                       <RefreshCw className="w-6 h-6 mx-auto animate-spin text-cyan-400" />
@@ -712,7 +807,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                       <Filter className="w-6 h-6 mx-auto text-slate-500" />
                       <p className="text-sm font-bold text-slate-200">Niciun activ găsit pentru filtrele curente.</p>
                       <button
-                        onClick={() => { onSelectTier('ALL'); setSelectedMarketClass('ALL'); setSortField(null); }}
+                        onClick={() => { onSelectTier('ALL'); setSelectedMarketClass('ALL'); setSortField('marketCap'); setSortDirection('desc'); }}
                         className="px-3.5 py-1.5 text-xs font-bold font-mono rounded-lg bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 transition-all"
                       >
                         Resetează Filtrele
