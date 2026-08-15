@@ -226,7 +226,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   const chartApiRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'chart' | 'tv_embed' | 'pinescript'>('chart');
+  const [activeTab, setActiveTab] = useState<'tv_embed' | 'chart' | 'pinescript'>('tv_embed');
   const [activeInterval, setActiveInterval] = useState<string>(timeframe);
   const [copiedPine, setCopiedPine] = useState(false);
   const [latestState, setLatestState] = useState<{
@@ -259,44 +259,92 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
 
   // Helper to map symbol to TradingView symbol with exchange prefix
   const getTradingViewSymbol = (sym: string) => {
-    const s = sym.toUpperCase().trim();
+    if (!sym) return 'BINANCE:BTCUSDT';
+    let s = sym.toUpperCase().trim().replace(/[\/\-\s]/g, '');
+
+    // If already prefixed with exchange (e.g., BINANCE:BTCUSDT, NASDAQ:AAPL, TVC:DXY)
     if (s.includes(':')) return s;
-    if (s === 'BTC.D' || s === 'BTCD') return 'CRYPTOCAP:BTC.D';
-    if (s === 'ETH.D' || s === 'ETHD') return 'CRYPTOCAP:ETH.D';
-    if (s === 'USDT.D' || s === 'USDTD') return 'CRYPTOCAP:USDT.D';
+
+    // Crypto Dominance & Market Caps (TradingView CRYPTOCAP)
+    if (s === 'BTCD' || s === 'BTC.D') return 'CRYPTOCAP:BTC.D';
+    if (s === 'ETHD' || s === 'ETH.D') return 'CRYPTOCAP:ETH.D';
+    if (s === 'USDTD' || s === 'USDT.D') return 'CRYPTOCAP:USDT.D';
     if (s === 'TOTAL') return 'CRYPTOCAP:TOTAL';
     if (s === 'TOTAL2') return 'CRYPTOCAP:TOTAL2';
     if (s === 'TOTAL3') return 'CRYPTOCAP:TOTAL3';
-    if (s === 'DXY' || s === 'DYXY') return 'TVC:DXY';
-    if (s === 'VIX') return 'CBOE:VIX';
+
+    // Macro, Treasury & Currency Indices (TVC / CBOE)
+    if (s === 'DXY' || s === 'DYXY' || s === 'USDX') return 'TVC:DXY';
+    if (s === 'VIX' || s === 'VOLATILITY') return 'CBOE:VIX';
     if (s === 'US10Y' || s === 'TNX') return 'TVC:US10Y';
     if (s === 'US02Y') return 'TVC:US02Y';
-    if (s === 'EURUSD' || s === 'EUR/USD') return 'FX:EURUSD';
-    if (s === 'GBPUSD' || s === 'GBP/USD') return 'FX:GBPUSD';
-    if (s === 'USDJPY' || s === 'USD/JPY') return 'FX:USDJPY';
-    if (s === 'XAU' || s === 'GOLD') return 'TVC:GOLD';
-    if (s === 'XAG' || s === 'SILVER') return 'TVC:SILVER';
-    if (s === 'OIL' || s === 'USOIL') return 'TVC:USOIL';
+    if (s === 'US30Y') return 'TVC:US30Y';
+    if (s === 'US05Y') return 'TVC:US05Y';
+
+    // Forex Pairs (FX)
+    if (s === 'EURUSD') return 'FX:EURUSD';
+    if (s === 'GBPUSD') return 'FX:GBPUSD';
+    if (s === 'USDJPY') return 'FX:USDJPY';
+    if (s === 'AUDUSD') return 'FX:AUDUSD';
+    if (s === 'USDCAD') return 'FX:USDCAD';
+    if (s === 'USDCHF') return 'FX:USDCHF';
+
+    // Commodities & Precious Metals (TVC / CapitalCom)
+    if (s === 'XAU' || s === 'GOLD' || s === 'XAUUSD') return 'TVC:GOLD';
+    if (s === 'XAG' || s === 'SILVER' || s === 'XAGUSD') return 'TVC:SILVER';
+    if (s === 'OIL' || s === 'USOIL' || s === 'WTI' || s === 'CL') return 'TVC:USOIL';
     if (s === 'BRENT' || s === 'UKOIL') return 'TVC:UKOIL';
-    if (s === 'NATGAS') return 'TVC:NATGAS';
-    if (s === 'COPPER') return 'CAPITALCOM:COPPER';
+    if (s === 'NATGAS' || s === 'NG') return 'TVC:NATGAS';
+    if (s === 'COPPER' || s === 'HG') return 'CAPITALCOM:COPPER';
     if (s === 'PLATINUM' || s === 'PL') return 'TVC:PLATINUM';
     if (s === 'PALLADIUM' || s === 'PA') return 'TVC:PALLADIUM';
+
+    // Space Tech
     if (s === 'SPACEX') return 'NASDAQ:ARKX';
-    if (['NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'AMD', 'PLTR', 'QQQ', 'NFLX', 'SMCI', 'ARM', 'AVGO', 'QCOM', 'INTC', 'TSM', 'ORCL', 'IBM', 'HOOD'].includes(s)) {
+
+    // US Tech & Growth Equities (NASDAQ)
+    const nasdaqStocks = [
+      'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'META', 'AMD',
+      'PLTR', 'MSTR', 'COIN', 'QQQ', 'NFLX', 'SMCI', 'ARM', 'AVGO', 'QCOM',
+      'INTC', 'TSM', 'ORCL', 'IBM', 'HOOD', 'CRWD', 'PANW', 'SNOW', 'NET',
+      'DDOG', 'ZS', 'SHOP', 'PYPL', 'ADBE', 'CSCO', 'TXN', 'MU', 'ABNB',
+      'MELI', 'PDD', 'BIDU', 'JD', 'BABA'
+    ];
+    if (nasdaqStocks.includes(s)) {
       return `NASDAQ:${s}`;
     }
-    if (['SPY', 'MSTR', 'COIN', 'DJI', 'DIA', 'IWM', 'JPM', 'V', 'MA', 'LLY', 'XOM', 'BA'].includes(s)) {
+
+    // US Large Cap & Index ETFs (AMEX / NYSE)
+    if (s === 'SPY') return 'AMEX:SPY';
+    if (s === 'DIA') return 'AMEX:DIA';
+    if (s === 'IWM') return 'AMEX:IWM';
+    if (s === 'DJI') return 'DJ:DJI';
+    if (s === 'SPX') return 'INDEX:SPX';
+    if (s === 'NDX') return 'INDEX:NDX';
+
+    const nyseStocks = [
+      'JPM', 'V', 'MA', 'LLY', 'XOM', 'BA', 'DIS', 'WMT', 'KO', 'PEP',
+      'NKE', 'GS', 'MS', 'UNH', 'CVX', 'PFE', 'ABBV', 'CAT', 'GE', 'MCD',
+      'HD', 'PG', 'JNJ', 'MRK', 'BAC', 'WFC', 'C'
+    ];
+    if (nyseStocks.includes(s)) {
       return `NYSE:${s}`;
     }
-    if (s.endsWith('USDT') || s.endsWith('USD') || s.endsWith('BTC')) {
+
+    // Crypto Pairs with suffix
+    if (s.endsWith('USDT') || s.endsWith('BUSD') || s.endsWith('USDC')) {
       return `BINANCE:${s}`;
     }
+    if (s.endsWith('USD')) {
+      return `COINBASE:${s}`;
+    }
+
+    // Default Crypto Ticker on Binance
     return `BINANCE:${s}USDT`;
   };
 
-  const isDominanceOrRatio = ['BTC.D', 'ETH.D', 'USDT.D', 'US10Y', 'US02Y'].includes(symbol.toUpperCase());
-  const isStockOrMetal = ['SPACEX', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'PLTR', 'AMD', 'MSTR', 'COIN', 'SPY', 'QQQ', 'XAU', 'XAG', 'OIL', 'COPPER', 'DXY', 'DYXY', 'VIX', 'EURUSD', 'GBPUSD', 'USDJPY', 'BRENT', 'NATGAS', 'SILVER', 'GOLD', 'PLATINUM', 'PALLADIUM'].includes(symbol.toUpperCase());
+  const isDominanceOrRatio = ['BTC.D', 'ETH.D', 'USDT.D', 'US10Y', 'US02Y', 'US30Y', 'US05Y'].includes(symbol.toUpperCase());
+  const isStockOrMetal = ['SPACEX', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'PLTR', 'AMD', 'MSTR', 'COIN', 'SPY', 'QQQ', 'XAU', 'XAG', 'OIL', 'COPPER', 'DXY', 'DYXY', 'VIX', 'EURUSD', 'GBPUSD', 'USDJPY', 'BRENT', 'NATGAS', 'SILVER', 'GOLD', 'PLATINUM', 'PALLADIUM', 'JPM', 'V', 'MA', 'LLY', 'XOM', 'BA'].includes(symbol.toUpperCase());
   const quoteCurrency = isDominanceOrRatio ? '%' : (isStockOrMetal ? 'USD' : 'USDT');
   const tvSymbol = getTradingViewSymbol(symbol);
 
@@ -515,8 +563,8 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     }
 
     const container = tvWidgetContainerRef.current;
-    const uniqueId = `tv_chart_${symbol}_${Math.random().toString(36).substring(7)}`;
-    container.innerHTML = `<div id="${uniqueId}" style="height: 560px; width: 100%;"></div>`;
+    const uniqueId = `tv_chart_${symbol.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}`;
+    container.innerHTML = `<div id="${uniqueId}" style="height: 620px; width: 100%;"></div>`;
 
     const tvInterval = activeInterval === '1h' ? '60' : (activeInterval === '4h' ? '240' : (activeInterval === '8h' ? '480' : (activeInterval === '1d' ? 'D' : (activeInterval === '1w' ? 'W' : 'M'))));
 
@@ -529,16 +577,28 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
           timezone: 'Etc/UTC',
           theme: 'dark',
           style: '1',
-          locale: 'en',
+          locale: 'ro',
           toolbar_bg: '#080c14',
           enable_publishing: false,
           allow_symbol_change: true,
           container_id: uniqueId,
           withdateranges: true,
           hide_side_toolbar: false,
+          hide_top_toolbar: false,
+          studies: [
+            "MASimple@tv-basicstudies"
+          ],
+          studies_overrides: {
+            "moving average.length": 200,
+            "moving average.plot.color": "#fbbf24",
+            "moving average.plot.linewidth": 2
+          },
           details: true,
           hotlist: true,
-          calendar: true
+          calendar: true,
+          show_popup_button: true,
+          popup_width: "1000",
+          popup_height: "650"
         });
       }
     };
@@ -743,6 +803,18 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-background-card/90 border border-background-border rounded-xl p-1 shadow-inner">
             <button
+              onClick={() => setActiveTab('tv_embed')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all ${
+                activeTab === 'tv_embed'
+                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 font-bold shadow-glow-cyan'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <BarChart2 className="w-3.5 h-3.5 text-blue-400" />
+              <span>TradingView Oficial (Bara fx Indicatori &amp; Toate Instrumentele)</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('chart')}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all ${
                 activeTab === 'chart'
@@ -751,19 +823,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
               }`}
             >
               <Zap className="w-3.5 h-3.5 text-emerald-400" />
-              <span>MoneyLine Force v1 (Cu Nor &amp; Semnale)</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('tv_embed')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all ${
-                activeTab === 'tv_embed'
-                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 font-bold'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <BarChart2 className="w-3.5 h-3.5 text-blue-400" />
-              <span>TradingView Iframe</span>
+              <span>MoneyLine Cloud Canvas (Grafic Rapid)</span>
             </button>
 
             <button
@@ -1447,23 +1507,72 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
         </div>
       )}
 
-      {/* Main Tab 2: TradingView Official Embed Iframe */}
+      {/* Main Tab: Official TradingView Pro Platform */}
       {activeTab === 'tv_embed' && (
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 bg-background-card/80 rounded-xl border border-background-border text-xs font-mono">
-            <div className="flex items-center gap-3">
+          {/* Top Real-Time MoneyLine & Indicators Status Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2.5 bg-background-card/90 rounded-xl border border-background-border text-xs font-mono">
+            <div className="flex flex-wrap items-center gap-3">
               <span className="font-bold text-slate-100 text-sm">{tvSymbol} ({activeInterval.toUpperCase()})</span>
-              <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-300 border border-blue-500/30 text-[10px] font-bold">
-                TradingView Direct Web Iframe
+              <span className="px-2.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/40 text-[10px] font-bold shadow-glow-cyan">
+                Platforma Oficială TradingView v6
+              </span>
+              <span className="text-slate-400 text-[11px] hidden md:inline">
+                Cotație: <strong className="text-slate-200">${quoteCurrency}</strong>
               </span>
             </div>
-            <div className="text-slate-400 text-[11px]">
-              Cotație: <strong className="text-slate-200">${quoteCurrency}</strong>
-            </div>
+
+            {/* MoneyLine & SMA 200 Telemetry Badges */}
+            {latestState && (
+              <div className="flex flex-wrap items-center gap-3 text-[11px]">
+                <span className="flex items-center gap-1 text-emerald-400 font-bold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                  Bază Nor: ${latestState.fastLine.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </span>
+                <span className="flex items-center gap-1 text-emerald-300 font-bold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                  Margine Nor: ${latestState.slowLine.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </span>
+                <span className="flex items-center gap-1 text-amber-300 font-bold">
+                  <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                  SMA 200: ${latestState.sma200.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                  latestState.isAboveSma200
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                }`}>
+                  {latestState.isAboveSma200 ? '▲ Peste SMA 200' : '▼ Sub SMA 200'}
+                </span>
+              </div>
+            )}
+
+            <button
+              onClick={handleCopyPineScript}
+              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-mono rounded-lg transition-all ${
+                copiedPine
+                  ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 font-bold'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+              }`}
+            >
+              {copiedPine ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-cyan-400" />}
+              <span>{copiedPine ? 'COPIAT!' : 'Copiază Pine Script'}</span>
+            </button>
           </div>
 
+          {/* Official TradingView Container with Full Native Toolbars */}
           <div className="w-full rounded-2xl overflow-hidden bg-background-card border border-background-border shadow-2xl">
-            <div ref={tvWidgetContainerRef} className="w-full h-[560px]" />
+            <div ref={tvWidgetContainerRef} className="w-full h-[620px]" />
+          </div>
+
+          {/* Guidance Banner */}
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-slate-900/60 rounded-xl border border-slate-800 text-[11px] font-mono text-slate-400">
+            <div className="flex items-center gap-2 text-cyan-300">
+              <Sparkles className="w-4 h-4 text-cyan-400 shrink-0" />
+              <span>
+                <strong>Bara Oficială TradingView:</strong> Click pe <strong>fx Indicatori</strong> din bara de sus pentru orice indicator/strategie nativă și folosește bara din stânga pentru toate instrumentele de desen.
+              </span>
+            </div>
           </div>
         </div>
       )}
