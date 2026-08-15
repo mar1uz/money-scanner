@@ -371,8 +371,8 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     const fastLineSeries = chart.addSeries(LineSeries, {
       color: '#10b981',
       lineWidth: 2,
-      title: 'MoneyLine Baza Nor (Fast)',
-      priceLineVisible: false
+      priceLineVisible: false,
+      lastValueVisible: false
     });
 
     const formattedFastLine = moneyLine.lineFast.map((val, idx) => {
@@ -391,8 +391,8 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       color: '#059669',
       lineWidth: 1,
       lineStyle: 2,
-      title: 'MoneyLine Margine Nor (Slow)',
-      priceLineVisible: false
+      priceLineVisible: false,
+      lastValueVisible: false
     });
 
     const formattedSlowLine = moneyLine.lineSlow.map((val, idx) => {
@@ -411,8 +411,8 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       color: '#fbbf24', // Amber/Yellow
       lineWidth: 2,
       lineStyle: 0,
-      title: 'SMA 200 Macro Baseline',
-      priceLineVisible: false
+      priceLineVisible: false,
+      lastValueVisible: false
     });
 
     const formattedSma200 = moneyLine.sma200.map((val, idx) => {

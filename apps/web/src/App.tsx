@@ -170,7 +170,8 @@ export const App: React.FC = () => {
         {selectedAssetSymbol ? (
           <AssetDeepDiveView
             symbol={selectedAssetSymbol}
-            initialTimeframe={timeframe}
+            timeframe={timeframe}
+            onTimeframeChange={setTimeframe}
             onBack={() => setSelectedAssetSymbol(null)}
             watchlist={watchlist}
             onToggleWatchlist={toggleWatchlist}

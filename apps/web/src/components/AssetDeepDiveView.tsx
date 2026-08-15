@@ -27,7 +27,8 @@ import {
 
 interface AssetDeepDiveViewProps {
   symbol: string;
-  initialTimeframe?: Timeframe;
+  timeframe: Timeframe;
+  onTimeframeChange: (tf: Timeframe) => void;
   onBack: () => void;
   watchlist: string[];
   onToggleWatchlist: (symbol: string) => void;
@@ -35,12 +36,12 @@ interface AssetDeepDiveViewProps {
 
 export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   symbol,
-  initialTimeframe = '1h',
+  timeframe,
+  onTimeframeChange,
   onBack,
   watchlist,
   onToggleWatchlist
 }) => {
-  const [activeTf, setActiveTf] = useState<Timeframe>(initialTimeframe);
   const [data, setData] = useState<AssetDetailResponse | null>(null);
   const [xPosts, setXPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,7 +50,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   const loadData = () => {
     setLoading(true);
     Promise.all([
-      fetchAssetDetail(symbol, activeTf),
+      fetchAssetDetail(symbol, timeframe),
       fetchXPosts().catch(() => [])
     ])
       .then(([detailRes, postsRes]) => {
@@ -63,7 +64,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   useEffect(() => {
     loadData();
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [symbol, activeTf]);
+  }, [symbol, timeframe]);
 
   const handleSendAlert = async () => {
     try {
@@ -80,7 +81,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   const explanation = data?.aiExplanation;
 
   // Find exact signal for currently active timeframe
-  const currentTfSignal = (data?.multiTimeframe?.[activeTf as keyof typeof data.multiTimeframe] as any) || data?.activeSignal;
+  const currentTfSignal = (data?.multiTimeframe?.[timeframe as keyof typeof data.multiTimeframe] as any) || data?.activeSignal;
   const isBull = currentTfSignal?.tier?.includes('Bullish');
   const isBear = currentTfSignal?.tier?.includes('Bearish');
   const forceScore = currentTfSignal?.score || 0;
@@ -177,14 +178,14 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
             <span>{isInWatchlist ? 'În Watchlist' : 'Adaugă în Watchlist'}</span>
           </button>
 
-          {/* Timeframe selector */}
+          {/* Universal Timeframe selector */}
           <div className="flex items-center bg-background-surface border border-background-border rounded-xl p-0.5">
             {(['1h', '4h', '8h', '1d', '1w', '1m'] as Timeframe[]).map((tf) => (
               <button
                 key={tf}
-                onClick={() => setActiveTf(tf)}
+                onClick={() => onTimeframeChange(tf)}
                 className={`px-3 py-1.5 text-xs font-mono rounded-lg transition-all ${
-                  activeTf === tf
+                  timeframe === tf
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold shadow-glow-cyan'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
@@ -233,7 +234,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs uppercase font-mono tracking-wider text-slate-400">
-                  Regim Money Line ({activeTf.toUpperCase()})
+                  Regim Money Line ({timeframe.toUpperCase()})
                 </span>
                 <span className={`px-2.5 py-0.5 rounded-md text-xs font-mono font-bold border ${
                   isBull 
@@ -261,7 +262,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
           <div className="flex flex-col sm:items-end justify-center bg-background-surface/80 p-3.5 rounded-xl border border-background-border font-mono text-xs space-y-1">
             <div className="flex items-center gap-1.5 text-slate-400">
               <Clock className="w-3.5 h-3.5 text-cyan-400" />
-              <span>TIMP DE LA ULTIMUL FLIP ({activeTf.toUpperCase()}):</span>
+              <span>TIMP DE LA ULTIMUL FLIP ({timeframe.toUpperCase()}):</span>
             </div>
             <div className="flex items-center gap-2">
               <span className={`font-bold text-sm ${isBull ? 'text-emerald-400' : (isBear ? 'text-rose-400' : 'text-slate-200')}`}>
@@ -279,7 +280,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
         {/* Progress Bar showing Bullish / Bearish Force % */}
         <div className="mt-4 pt-3 border-t border-background-border/50 space-y-1.5">
           <div className="flex justify-between text-xs font-mono text-slate-300">
-            <span>Intensitate Trend {activeTf.toUpperCase()} ({isBull ? 'Bullish Force' : (isBear ? 'Bearish Pressure' : 'Momentum')}):</span>
+            <span>Intensitate Trend {timeframe.toUpperCase()} ({isBull ? 'Bullish Force' : (isBear ? 'Bearish Pressure' : 'Momentum')}):</span>
             <span className={`font-bold ${isBull ? 'text-emerald-400' : (isBear ? 'text-rose-400' : 'text-slate-400')}`}>
               {forcePercent.toFixed(1)}%
             </span>
@@ -301,7 +302,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
           <div className="flex items-center gap-2">
             <Zap className="w-4 h-4 text-emerald-400" />
             <h2 className="text-sm font-bold tracking-wide uppercase font-mono text-slate-200">
-              Grafic Interactiv TradingView cu MoneyLine Overlay Force v1 ({activeTf.toUpperCase()})
+              Grafic Interactiv TradingView cu MoneyLine Overlay Force v1 ({timeframe.toUpperCase()})
             </h2>
           </div>
           <span className="text-xs font-mono text-slate-400 hidden sm:inline">
@@ -312,8 +313,8 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
         <InteractiveChart
           candles={data?.candles || []}
           symbol={symbol}
-          timeframe={activeTf}
-          onTimeframeChange={setActiveTf}
+          timeframe={timeframe}
+          onTimeframeChange={onTimeframeChange}
         />
       </div>
 
@@ -347,9 +348,9 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
             return (
               <div
                 key={tf}
-                onClick={() => setActiveTf(tf as Timeframe)}
+                onClick={() => onTimeframeChange(tf as Timeframe)}
                 className={`cyber-glass rounded-xl p-3.5 border transition-all cursor-pointer space-y-2 ${
-                  activeTf === tf
+                  timeframe === tf
                     ? 'border-cyan-500/60 bg-cyan-500/10 shadow-glow-cyan'
                     : 'border-background-border hover:border-slate-700'
                 }`}

@@ -51,6 +51,43 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Global Type-to-Search Listener: Typing anywhere in app opens and types in search
+  useEffect(() => {
+    function handleGlobalKeyDown(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      
+      const activeEl = document.activeElement;
+      const isInputActive = activeEl && (
+        activeEl.tagName === 'INPUT' ||
+        activeEl.tagName === 'TEXTAREA' ||
+        activeEl.tagName === 'SELECT' ||
+        (activeEl as HTMLElement).isContentEditable
+      );
+
+      if (isInputActive) {
+        if (e.key === 'Escape') {
+          setIsDropdownOpen(false);
+          (activeEl as HTMLElement).blur();
+        }
+        return;
+      }
+
+      // Check if it's a printable character (letters, numbers, symbols)
+      if (e.key.length === 1 && !e.repeat) {
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+          onSearchChange(e.key);
+          setIsDropdownOpen(true);
+          e.preventDefault();
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [onSearchChange]);
 
   // Sanitize query by removing $, #, leading/trailing whitespace
   const rawQuery = searchQuery.trim().toLowerCase().replace(/^[$#]/, '');
@@ -125,11 +162,12 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Global Search Bar with Live Suggestions Dropdown */}
-      <div ref={dropdownRef} className="flex-1 max-w-md relative hidden md:block">
+      {/* Global Search Bar with Live Suggestions Dropdown (Always visible on mobile & desktop) */}
+      <div ref={dropdownRef} className="w-full order-3 md:order-2 md:w-auto md:flex-1 max-w-md relative block">
         <div className="relative">
           <Search className="absolute left-3 top-2.5 w-4 h-4 text-cyan-400/70" />
           <input
+            ref={searchInputRef}
             type="text"
             value={searchQuery}
             onChange={(e) => {
@@ -145,7 +183,7 @@ export const Header: React.FC<HeaderProps> = ({
                 setIsDropdownOpen(false);
               }
             }}
-            placeholder="Caută orice activ: BTC.D, DXY, TOTAL, SpaceX, Gold, Tesla, NVDA, EURUSD..."
+            placeholder="Scrie direct pentru căutare: BTC.D, DXY, TOTAL, SpaceX, Gold, Tesla, NVDA..."
             className="w-full bg-background-surface border border-background-border rounded-xl pl-9 pr-8 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/60 focus:ring-1 focus:ring-cyan-500/30 transition-all font-mono"
           />
           {searchQuery && (
