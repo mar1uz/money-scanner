@@ -52,6 +52,8 @@ interface ScannerTableProps {
   onSelectTier: (tier: string) => void;
   watchlistOnly: boolean;
   onToggleWatchlistOnly: () => void;
+  selectedMarketClass?: 'ALL' | 'crypto' | 'stocks' | 'metals';
+  onSelectMarketClass?: (market: 'ALL' | 'crypto' | 'stocks' | 'metals') => void;
   loading?: boolean;
 }
 
@@ -65,9 +67,14 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
   onSelectTier,
   watchlistOnly,
   onToggleWatchlistOnly,
+  selectedMarketClass: controlledMarketClass,
+  onSelectMarketClass: controlledSetMarketClass,
   loading = false
 }) => {
-  const [selectedMarketClass, setSelectedMarketClass] = useState<'ALL' | 'crypto' | 'stocks' | 'metals'>('ALL');
+  const [internalMarketClass, setInternalMarketClass] = useState<'ALL' | 'crypto' | 'stocks' | 'metals'>('ALL');
+  const selectedMarketClass = controlledMarketClass !== undefined ? controlledMarketClass : internalMarketClass;
+  const setSelectedMarketClass = controlledSetMarketClass || setInternalMarketClass;
+
   // Default sort order: Market Cap DESC
   const [sortField, setSortField] = useState<SortField | null>('marketCap');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');

@@ -39,6 +39,7 @@ export const App: React.FC = () => {
   });
 
   const [selectedAssetSymbol, setSelectedAssetSymbol] = useState<string | null>(null);
+  const [selectedMarketCategory, setSelectedMarketCategory] = useState<'ALL' | 'crypto' | 'stocks' | 'metals'>('ALL');
   const [overview, setOverview] = useState<MarketOverviewSummary | null>(null);
   const [scannerRows, setScannerRows] = useState<AssetScannerRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -174,12 +175,13 @@ export const App: React.FC = () => {
             {/* Tab 1: Live Dashboard */}
             {activeTab === 'dashboard' && (
               <div className="space-y-6">
-                {/* Top Market Intelligence Gauges */}
-                {overview && (
-                  <MarketRegimeGauge
-                    overview={overview}
-                  />
-                )}
+                {/* Top Market Intelligence Gauges with Market Category Filter & Fear & Greed */}
+                <MarketRegimeGauge
+                  overview={overview}
+                  rows={scannerRows}
+                  selectedCategory={selectedMarketCategory}
+                  onSelectCategory={setSelectedMarketCategory}
+                />
 
                 {/* Live Money Scanner Signals Table */}
                 <div className="space-y-3">
@@ -217,6 +219,8 @@ export const App: React.FC = () => {
                     onSelectTier={setSelectedTier}
                     watchlistOnly={watchlistOnly}
                     onToggleWatchlistOnly={() => setWatchlistOnly(!watchlistOnly)}
+                    selectedMarketClass={selectedMarketCategory}
+                    onSelectMarketClass={setSelectedMarketCategory}
                     loading={loading}
                   />
                 </div>
@@ -236,6 +240,8 @@ export const App: React.FC = () => {
                   onSelectTier={setSelectedTier}
                   watchlistOnly={watchlistOnly}
                   onToggleWatchlistOnly={() => setWatchlistOnly(!watchlistOnly)}
+                  selectedMarketClass={selectedMarketCategory}
+                  onSelectMarketClass={setSelectedMarketCategory}
                   loading={loading}
                 />
               </div>

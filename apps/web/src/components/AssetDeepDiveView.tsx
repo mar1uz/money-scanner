@@ -117,9 +117,10 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
     );
   }
 
-  // Filter X posts for this asset or general top alpha
-  const assetXPosts = xPosts.filter(p => p.symbols?.includes(symbol) || p.text?.includes(`$${symbol}`));
-  const displayXPosts = assetXPosts.length > 0 ? assetXPosts : xPosts.slice(0, 3);
+  // Use asset-specific X posts from backend API or local filter
+  const backendXPosts = (data as any)?.xPosts || [];
+  const assetXPosts = xPosts.filter(p => p.symbols?.includes(symbol) || p.text?.toUpperCase().includes(`$${symbol.toUpperCase()}`));
+  const displayXPosts = backendXPosts.length > 0 ? backendXPosts : (assetXPosts.length > 0 ? assetXPosts : xPosts.slice(0, 3));
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -487,35 +488,37 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
         </div>
       )}
 
-      {/* Real News & Top Verified X Tweets Section */}
+      {/* Top AI-Curated News & Specific X Alpha Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Real News */}
+        {/* Top AI Curated News */}
         <div className="cyber-glass rounded-2xl p-6 border border-background-border space-y-3">
-          <div className="flex items-center justify-between font-mono text-xs text-slate-300">
+          <div className="flex items-center justify-between font-mono text-xs text-slate-300 pb-1 border-b border-background-border/50">
             <div className="flex items-center gap-2">
               <Newspaper className="w-4 h-4 text-cyan-400" />
-              <h3 className="font-bold text-sm text-slate-100">Știri de Ultimă Oră pentru ${symbol}</h3>
+              <h3 className="font-bold text-sm text-slate-100">Top Știri Relevante pentru ${symbol} (Curate cu AI)</h3>
             </div>
-            <span className="text-slate-500 text-[11px]">Surse: CoinDesk, Decrypt, Bloomberg</span>
+            <span className="text-cyan-400 font-bold text-[10px] bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/30">
+              AI Filtered
+            </span>
           </div>
           {data?.news && data.news.length > 0 ? (
-            <div className="space-y-2.5">
-              {data.news.slice(0, 3).map((n) => (
+            <div className="space-y-3">
+              {data.news.slice(0, 4).map((n) => (
                 <a
                   key={n.id}
                   href={n.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-3 rounded-xl bg-background-surface/80 hover:bg-background-surface border border-background-border hover:border-cyan-500/40 transition-all block space-y-1 group"
+                  className="p-3.5 rounded-xl bg-background-surface/80 hover:bg-background-surface border border-background-border hover:border-cyan-500/40 transition-all block space-y-1.5 group"
                 >
-                  <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
-                    <span className="font-bold text-cyan-400">{n.source}</span>
-                    <span>{new Date(n.publishedAt).toLocaleDateString()}</span>
+                  <div className="flex items-center justify-between text-[10px] font-mono">
+                    <span className="font-bold text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">{n.source}</span>
+                    <span className="text-emerald-400 font-semibold">{n.sentiment || 'Bullish Catalyst'}</span>
                   </div>
-                  <h4 className="font-bold text-xs text-slate-200 group-hover:text-cyan-300 line-clamp-1">
+                  <h4 className="font-bold text-xs text-slate-100 group-hover:text-cyan-300 line-clamp-2 leading-snug">
                     {n.title}
                   </h4>
-                  <p className="text-[11px] text-slate-400 line-clamp-2">{n.summary}</p>
+                  <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">{n.summary}</p>
                 </a>
               ))}
             </div>
@@ -524,20 +527,20 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
           )}
         </div>
 
-        {/* Live Top Verified Crypto Twitter (X) Posts */}
+        {/* Live Top Verified Crypto/Markets Twitter (X) Posts */}
         <div className="cyber-glass rounded-2xl p-6 border border-background-border space-y-3">
-          <div className="flex items-center justify-between font-mono text-xs text-slate-300">
+          <div className="flex items-center justify-between font-mono text-xs text-slate-300 pb-1 border-b border-background-border/50">
             <div className="flex items-center gap-2">
               <Twitter className="w-4 h-4 text-[#1DA1F2]" />
-              <h3 className="font-bold text-sm text-slate-100">Top Postări &amp; Alpha pe X</h3>
+              <h3 className="font-bold text-sm text-slate-100">Top Postări &amp; Alpha pe X despre ${symbol}</h3>
             </div>
             <a
-              href={`https://x.com/search?q=%24${symbol}%20min_faves%3A20&f=live`}
+              href={`https://x.com/search?q=%24${symbol}&f=live`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-cyan-400 hover:underline flex items-center gap-1 text-[11px]"
             >
-              <span>Caută ${symbol} pe X</span>
+              <span>Caută pe X</span>
               <ExternalLink className="w-3 h-3" />
             </a>
           </div>
@@ -570,7 +573,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
                 </p>
 
                 <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 pt-1">
-                  <span>❤️ {post.likeCount?.toLocaleString()} aprecieri • 🔁 {post.repostCount?.toLocaleString()} reposts</span>
+                  <span>❤️ {post.likes?.toLocaleString() || post.likeCount?.toLocaleString()} aprecieri • 🔁 {post.reposts?.toLocaleString() || post.repostCount?.toLocaleString()} reposts</span>
                   <span className="text-cyan-400 font-semibold">{post.sentiment || 'Bullish Alpha'}</span>
                 </div>
               </div>

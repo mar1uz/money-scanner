@@ -87,12 +87,13 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       )
     );
     const quote = await appState.marketData.getPriceQuote(symbol);
-    const xPosts = appState.social.getTrendingTopics();
+    const xPosts = appState.social.getPostsForSymbol(symbol);
+    const trendingTopics = appState.social.getTrendingTopics();
     const news = appState.news.getNewsForSymbol(symbol);
 
     let aiExplanation = null;
     if (activeSignal) {
-      aiExplanation = await appState.ai.generateAssetExplanation(symbol, quote.price, activeSignal, xPosts, news);
+      aiExplanation = await appState.ai.generateAssetExplanation(symbol, quote.price, activeSignal, trendingTopics, news);
     }
 
     res.json({
@@ -103,7 +104,8 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       multiTimeframe: mtfSummary,
       candles: activeCandles,
       news,
-      xTrends: xPosts.filter(t => t.cashtag === `$${symbol}`),
+      xPosts,
+      xTrends: trendingTopics.filter(t => t.cashtag === `$${symbol}`),
       aiExplanation,
       lastUpdated: Date.now()
     });
