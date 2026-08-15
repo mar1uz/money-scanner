@@ -211,7 +211,8 @@ export const Header: React.FC<HeaderProps> = ({
             {rawQuery && (
               <div
                 onClick={() => {
-                  if (onSelectAsset) onSelectAsset(rawQuery.toUpperCase());
+                  const targetSymbol = matchingAssets.length > 0 ? matchingAssets[0].symbol : rawQuery.toUpperCase();
+                  if (onSelectAsset) onSelectAsset(targetSymbol);
                   setIsDropdownOpen(false);
                 }}
                 className="p-3 bg-gradient-to-r from-cyan-500/15 via-blue-500/10 to-transparent hover:from-cyan-500/25 transition-all flex items-center justify-between cursor-pointer border-b border-cyan-500/20 group"
@@ -223,7 +224,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-xs text-cyan-200 group-hover:text-cyan-100 font-mono">
-                        Deschide ${rawQuery.toUpperCase()}
+                        Deschide ${matchingAssets.length > 0 ? matchingAssets[0].symbol : rawQuery.toUpperCase()}
                       </span>
                       <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 font-mono font-bold">
                         TradingView Direct

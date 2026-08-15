@@ -226,7 +226,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   const chartApiRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'tv_embed' | 'chart' | 'pinescript'>('tv_embed');
+  const [activeTab, setActiveTab] = useState<'chart' | 'tv_embed' | 'pinescript'>('chart');
   const [activeInterval, setActiveInterval] = useState<string>(timeframe);
   const [copiedPine, setCopiedPine] = useState(false);
   const [latestState, setLatestState] = useState<{
@@ -258,89 +258,99 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   ];
 
   // Helper to map symbol to TradingView symbol with exchange prefix
-  const getTradingViewSymbol = (sym: string) => {
+  const getTradingViewSymbol = (sym: string): string => {
     if (!sym) return 'BINANCE:BTCUSDT';
-    let s = sym.toUpperCase().trim().replace(/[\/\-\s]/g, '');
+    let s = sym.toUpperCase().trim();
 
     // If already prefixed with exchange (e.g., BINANCE:BTCUSDT, NASDAQ:AAPL, TVC:DXY)
     if (s.includes(':')) return s;
 
+    // Clean common characters (slashes, dashes, spaces)
+    const clean = s.replace(/[\/\-\s]/g, '');
+
     // Crypto Dominance & Market Caps (TradingView CRYPTOCAP)
-    if (s === 'BTCD' || s === 'BTC.D') return 'CRYPTOCAP:BTC.D';
-    if (s === 'ETHD' || s === 'ETH.D') return 'CRYPTOCAP:ETH.D';
-    if (s === 'USDTD' || s === 'USDT.D') return 'CRYPTOCAP:USDT.D';
-    if (s === 'TOTAL') return 'CRYPTOCAP:TOTAL';
-    if (s === 'TOTAL2') return 'CRYPTOCAP:TOTAL2';
-    if (s === 'TOTAL3') return 'CRYPTOCAP:TOTAL3';
+    if (clean === 'BTCD' || clean === 'BTC.D' || s === 'BTC.D') return 'CRYPTOCAP:BTC.D';
+    if (clean === 'ETHD' || clean === 'ETH.D' || s === 'ETH.D') return 'CRYPTOCAP:ETH.D';
+    if (clean === 'USDTD' || clean === 'USDT.D' || s === 'USDT.D') return 'CRYPTOCAP:USDT.D';
+    if (clean === 'TOTAL') return 'CRYPTOCAP:TOTAL';
+    if (clean === 'TOTAL2') return 'CRYPTOCAP:TOTAL2';
+    if (clean === 'TOTAL3') return 'CRYPTOCAP:TOTAL3';
 
     // Macro, Treasury & Currency Indices (TVC / CBOE)
-    if (s === 'DXY' || s === 'DYXY' || s === 'USDX') return 'TVC:DXY';
-    if (s === 'VIX' || s === 'VOLATILITY') return 'CBOE:VIX';
-    if (s === 'US10Y' || s === 'TNX') return 'TVC:US10Y';
-    if (s === 'US02Y') return 'TVC:US02Y';
-    if (s === 'US30Y') return 'TVC:US30Y';
-    if (s === 'US05Y') return 'TVC:US05Y';
+    if (clean === 'DXY' || clean === 'DYXY' || clean === 'USDX' || clean === 'USDINDEX') return 'TVC:DXY';
+    if (clean === 'VIX' || clean === 'VOLATILITY') return 'CBOE:VIX';
+    if (clean === 'US10Y' || clean === 'TNX' || clean === 'US10') return 'TVC:US10Y';
+    if (clean === 'US02Y' || clean === 'US02') return 'TVC:US02Y';
+    if (clean === 'US30Y' || clean === 'US30') return 'TVC:US30Y';
+    if (clean === 'US05Y' || clean === 'US05') return 'TVC:US05Y';
 
     // Forex Pairs (FX)
-    if (s === 'EURUSD') return 'FX:EURUSD';
-    if (s === 'GBPUSD') return 'FX:GBPUSD';
-    if (s === 'USDJPY') return 'FX:USDJPY';
-    if (s === 'AUDUSD') return 'FX:AUDUSD';
-    if (s === 'USDCAD') return 'FX:USDCAD';
-    if (s === 'USDCHF') return 'FX:USDCHF';
+    if (clean === 'EURUSD') return 'FX:EURUSD';
+    if (clean === 'GBPUSD') return 'FX:GBPUSD';
+    if (clean === 'USDJPY') return 'FX:USDJPY';
+    if (clean === 'AUDUSD') return 'FX:AUDUSD';
+    if (clean === 'USDCAD') return 'FX:USDCAD';
+    if (clean === 'USDCHF') return 'FX:USDCHF';
 
     // Commodities & Precious Metals (TVC / CapitalCom)
-    if (s === 'XAU' || s === 'GOLD' || s === 'XAUUSD') return 'TVC:GOLD';
-    if (s === 'XAG' || s === 'SILVER' || s === 'XAGUSD') return 'TVC:SILVER';
-    if (s === 'OIL' || s === 'USOIL' || s === 'WTI' || s === 'CL') return 'TVC:USOIL';
-    if (s === 'BRENT' || s === 'UKOIL') return 'TVC:UKOIL';
-    if (s === 'NATGAS' || s === 'NG') return 'TVC:NATGAS';
-    if (s === 'COPPER' || s === 'HG') return 'CAPITALCOM:COPPER';
-    if (s === 'PLATINUM' || s === 'PL') return 'TVC:PLATINUM';
-    if (s === 'PALLADIUM' || s === 'PA') return 'TVC:PALLADIUM';
+    if (clean === 'XAU' || clean === 'GOLD' || clean === 'XAUUSD' || clean === 'AUR') return 'TVC:GOLD';
+    if (clean === 'XAG' || clean === 'SILVER' || clean === 'XAGUSD' || clean === 'ARGINT') return 'TVC:SILVER';
+    if (clean === 'OIL' || clean === 'USOIL' || clean === 'WTI' || clean === 'CL' || clean === 'PETROL') return 'TVC:USOIL';
+    if (clean === 'BRENT' || clean === 'UKOIL') return 'TVC:UKOIL';
+    if (clean === 'NATGAS' || clean === 'NG') return 'TVC:NATGAS';
+    if (clean === 'COPPER' || clean === 'HG' || clean === 'CUPRU') return 'CAPITALCOM:COPPER';
+    if (clean === 'PLATINUM' || clean === 'PL') return 'TVC:PLATINUM';
+    if (clean === 'PALLADIUM' || clean === 'PA') return 'TVC:PALLADIUM';
+    if (clean === 'PAXG' || clean === 'PAXGUSDT') return 'BINANCE:PAXGUSDT';
 
     // Space Tech
-    if (s === 'SPACEX') return 'NASDAQ:ARKX';
+    if (clean === 'SPACEX') return 'NASDAQ:ARKX';
 
-    // US Tech & Growth Equities (NASDAQ)
-    const nasdaqStocks = [
-      'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'META', 'AMD',
-      'PLTR', 'MSTR', 'COIN', 'QQQ', 'NFLX', 'SMCI', 'ARM', 'AVGO', 'QCOM',
-      'INTC', 'TSM', 'ORCL', 'IBM', 'HOOD', 'CRWD', 'PANW', 'SNOW', 'NET',
-      'DDOG', 'ZS', 'SHOP', 'PYPL', 'ADBE', 'CSCO', 'TXN', 'MU', 'ABNB',
-      'MELI', 'PDD', 'BIDU', 'JD', 'BABA'
-    ];
-    if (nasdaqStocks.includes(s)) {
-      return `NASDAQ:${s}`;
-    }
+    // US Index & Sector ETFs (AMEX)
+    const amexTickers = ['SPY', 'DIA', 'IWM', 'VOO', 'IVV', 'XLF', 'XLE', 'XLK', 'XLV', 'XLI', 'XLP', 'XLU', 'XLY', 'XLB', 'VNQ', 'GLD', 'SLV'];
+    if (amexTickers.includes(clean)) return `AMEX:${clean}`;
 
-    // US Large Cap & Index ETFs (AMEX / NYSE)
-    if (s === 'SPY') return 'AMEX:SPY';
-    if (s === 'DIA') return 'AMEX:DIA';
-    if (s === 'IWM') return 'AMEX:IWM';
-    if (s === 'DJI') return 'DJ:DJI';
-    if (s === 'SPX') return 'INDEX:SPX';
-    if (s === 'NDX') return 'INDEX:NDX';
+    const indexTickers: Record<string, string> = {
+      'DJI': 'DJ:DJI',
+      'SPX': 'INDEX:SPX',
+      'NDX': 'INDEX:NDX',
+      'RUT': 'INDEX:RUT',
+      'DAX': 'INDEX:DAX',
+      'FTSE': 'INDEX:FTSE',
+      'NIKKEI': 'INDEX:NKY'
+    };
+    if (indexTickers[clean]) return indexTickers[clean];
 
+    // Major US Equities (NYSE)
     const nyseStocks = [
       'JPM', 'V', 'MA', 'LLY', 'XOM', 'BA', 'DIS', 'WMT', 'KO', 'PEP',
       'NKE', 'GS', 'MS', 'UNH', 'CVX', 'PFE', 'ABBV', 'CAT', 'GE', 'MCD',
-      'HD', 'PG', 'JNJ', 'MRK', 'BAC', 'WFC', 'C'
+      'HD', 'PG', 'JNJ', 'MRK', 'BAC', 'WFC', 'C', 'IBM', 'ORCL', 'CRM',
+      'NOW', 'UBER', 'SNOW', 'PLTR', 'SPOT', 'NET', 'DDOG', 'SHOP', 'SQ',
+      'NU', 'COIN', 'MSTR', 'RACE', 'NIO', 'BABA', 'TSM', 'ASML', 'SAP'
     ];
-    if (nyseStocks.includes(s)) {
-      return `NYSE:${s}`;
-    }
+    if (nyseStocks.includes(clean)) return `NYSE:${clean}`;
+
+    // US Tech Equities (NASDAQ)
+    const nasdaqStocks = [
+      'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'META', 'AMD',
+      'QQQ', 'NFLX', 'SMCI', 'ARM', 'AVGO', 'QCOM', 'INTC', 'HOOD', 'CRWD',
+      'PANW', 'ZS', 'PYPL', 'ADBE', 'CSCO', 'TXN', 'MU', 'ABNB', 'MELI',
+      'PDD', 'BIDU', 'JD', 'GME', 'AMC', 'SOFI', 'RIVN', 'LCID', 'DJT',
+      'DKNG', 'CELH', 'ELF', 'APP', 'DUOL', 'ROKU', 'EA', 'TTWO', 'RBLX', 'MRNA'
+    ];
+    if (nasdaqStocks.includes(clean)) return `NASDAQ:${clean}`;
 
     // Crypto Pairs with suffix
-    if (s.endsWith('USDT') || s.endsWith('BUSD') || s.endsWith('USDC')) {
-      return `BINANCE:${s}`;
+    if (clean.endsWith('USDT') || clean.endsWith('BUSD') || clean.endsWith('USDC')) {
+      return `BINANCE:${clean}`;
     }
-    if (s.endsWith('USD')) {
-      return `COINBASE:${s}`;
+    if (clean.endsWith('USD')) {
+      return `COINBASE:${clean}`;
     }
 
     // Default Crypto Ticker on Binance
-    return `BINANCE:${s}USDT`;
+    return `BINANCE:${clean}USDT`;
   };
 
   const isDominanceOrRatio = ['BTC.D', 'ETH.D', 'USDT.D', 'US10Y', 'US02Y', 'US30Y', 'US05Y'].includes(symbol.toUpperCase());
@@ -803,18 +813,6 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-background-card/90 border border-background-border rounded-xl p-1 shadow-inner">
             <button
-              onClick={() => setActiveTab('tv_embed')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all ${
-                activeTab === 'tv_embed'
-                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 font-bold shadow-glow-cyan'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <BarChart2 className="w-3.5 h-3.5 text-blue-400" />
-              <span>TradingView Oficial (Bara fx Indicatori &amp; Toate Instrumentele)</span>
-            </button>
-
-            <button
               onClick={() => setActiveTab('chart')}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all ${
                 activeTab === 'chart'
@@ -823,7 +821,19 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
               }`}
             >
               <Zap className="w-3.5 h-3.5 text-emerald-400" />
-              <span>MoneyLine Cloud Canvas (Grafic Rapid)</span>
+              <span>MoneyLine Force v1 (cu Nor &amp; Bara Instrumente TradingView)</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('tv_embed')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all ${
+                activeTab === 'tv_embed'
+                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 font-bold shadow-glow-cyan'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <BarChart2 className="w-3.5 h-3.5 text-blue-400" />
+              <span>TradingView Oficial (Iframe)</span>
             </button>
 
             <button
@@ -834,21 +844,21 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <Code className="w-3.5 h-3.5" />
+              <Code className="w-3.5 h-3.5 text-purple-400" />
               <span>Pine Script v6 Code</span>
             </button>
           </div>
 
           <a
-            href={`https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol)}&interval=${
+            href={`https://www.tradingview.com/chart/?symbol=${tvSymbol}&interval=${
               activeInterval === '1h' ? '60' : (activeInterval === '4h' ? '240' : (activeInterval === '8h' ? '480' : (activeInterval === '1d' ? 'D' : (activeInterval === '1w' ? 'W' : 'M'))))
             }`}
             target="_blank"
             rel="noopener noreferrer"
-            title="Open in Official TradingView with your Account"
+            title={`Deschide ${tvSymbol} în TradingView Oficial`}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 transition-all shadow-sm"
           >
-            <BarChart2 className="w-3.5 h-3.5" />
+            <BarChart2 className="w-3.5 h-3.5 text-cyan-400" />
             <span className="hidden sm:inline">Deschide Tab TradingView</span>
             <ExternalLink className="w-3 h-3 text-slate-400" />
           </a>
