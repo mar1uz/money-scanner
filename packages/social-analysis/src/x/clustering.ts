@@ -79,11 +79,17 @@ export function clusterPostsIntoTopics(posts: XPostItem[]): XTrendTopic[] {
       ? Number(((bullishCount - bearishCount) / pList.length).toFixed(2))
       : 0;
 
+    const firstPost = pList[0];
+    const sector = firstPost?.sector || 'crypto';
+    const aiSummaryRo = firstPost?.aiSummaryRo;
+
     topics.push({
       id: `topic_${symbol.toLowerCase()}_${Date.now()}`,
       topic: `$${symbol} Momentum & Ecosystem Discussions`,
       cashtag: `$${symbol}`,
       category,
+      sector,
+      aiSummaryRo,
       postCountLastHour: pList.length,
       velocityScore: velocity,
       sentimentScore,

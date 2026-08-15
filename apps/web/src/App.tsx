@@ -256,8 +256,8 @@ export const App: React.FC = () => {
             {/* Tab 3: USA Economic Status & Macro Intelligence */}
             {activeTab === 'usa_status' && <USAStatusView />}
 
-            {/* Tab 4: X Narrative Intelligence */}
-            {activeTab === 'trends' && <XTrendsView />}
+            {/* Tab 4: X Narrative Intelligence & AI News Aggregator */}
+            {activeTab === 'trends' && <XTrendsView onSelectAsset={(sym) => setSelectedAssetSymbol(sym)} />}
 
             {/* Tab 4: News Feed */}
             {activeTab === 'news' && <NewsFeedView />}
