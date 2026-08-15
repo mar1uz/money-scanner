@@ -2,8 +2,7 @@ export * from '@money-scanner/shared';
 export { TOP_50_CRYPTO_ASSETS } from '@money-scanner/shared';
 
 export type AppTab = 
-  | 'dashboard'
-  | 'scanner'
+  | 'market'
   | 'usa_status'
   | 'trends'
   | 'news'

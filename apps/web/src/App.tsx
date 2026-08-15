@@ -11,7 +11,7 @@ import {
   triggerTestAlert
 } from './services/api.js';
 import { Header } from './components/Header.js';
-import { Navigation } from './components/Navigation.js';
+import { Sidebar } from './components/Sidebar.js';
 import { MarketRegimeGauge } from './components/MarketRegimeGauge.js';
 import { ScannerTable } from './components/ScannerTable.js';
 import { AssetDeepDiveView } from './components/AssetDeepDiveView.js';
@@ -21,10 +21,10 @@ import { AIBriefingView } from './components/AIBriefingView.js';
 import { BacktestView } from './components/BacktestView.js';
 import { SystemStatusView } from './components/SystemStatusView.js';
 import { USAStatusView } from './components/USAStatusView.js';
-import { Zap, BellRing, Sparkles, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Zap, CheckCircle2, RefreshCw } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
+  const [activeTab, setActiveTab] = useState<AppTab>('market');
   const [timeframe, setTimeframe] = useState<Timeframe>('1w');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTier, setSelectedTier] = useState('ALL');
@@ -51,7 +51,7 @@ export const App: React.FC = () => {
     try {
       const [ovRes, rowsRes] = await Promise.allSettled([
         fetchMarketOverview(),
-        fetchScanner(timeframe) // Always fetch all 50 assets master state
+        fetchScanner(timeframe)
       ]);
       if (ovRes.status === 'fulfilled') {
         setOverview(ovRes.value);
@@ -68,7 +68,6 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     refreshData();
-    // 5 minutes auto-refresh as requested
     const interval = setInterval(refreshData, 300000); 
     return () => clearInterval(interval);
   }, [timeframe]);
@@ -87,10 +86,10 @@ export const App: React.FC = () => {
 
     setBannerAlert(
       isAdding
-        ? `★ $${sym} a fost adăugat în Watchlist! Este activ în semnalele Live Scanner.`
-        : `Active Watchlist: $${sym} a fost eliminat din listă.`
+        ? `★ $${sym} a fost adăugat în Watchlist!`
+        : `Active Watchlist: $${sym} a fost eliminat.`
     );
-    setTimeout(() => setBannerAlert(null), 4000);
+    setTimeout(() => setBannerAlert(null), 3500);
   };
 
   const handleReorderWatchlist = (newOrder: string[]) => {
@@ -101,178 +100,153 @@ export const App: React.FC = () => {
   const handleTriggerTestAlert = async () => {
     try {
       await triggerTestAlert('BTC');
-      setBannerAlert('⚡ Test Telegram Alert dispatched successfully for $BTC!');
-      setTimeout(() => setBannerAlert(null), 5000);
+      setBannerAlert('⚡ Test Alert expediat cu succes pe Telegram pentru $BTC!');
+      setTimeout(() => setBannerAlert(null), 4000);
     } catch (e) {
       console.error(e);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-slate-100 selection:bg-cyan-500/30 selection:text-cyan-200">
-      {/* Top Header */}
-      <Header
-        timeframe={timeframe}
-        onTimeframeChange={setTimeframe}
-        onSearchClick={() => {
-          setSelectedAssetSymbol(null);
-          setActiveTab('scanner');
-        }}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        onTriggerTestAlert={handleTriggerTestAlert}
-        isStale={overview?.providerStatus.staleAssetsCount ? overview.providerStatus.staleAssetsCount > 0 : false}
-        allAssets={scannerRows}
-        onSelectAsset={(sym) => {
-          setSelectedAssetSymbol(sym);
-        }}
-        watchlist={watchlist}
-        onToggleWatchlist={toggleWatchlist}
-        onRefreshMarket={refreshData}
-        isRefreshing={loading}
-        onLogoClick={() => {
-          setSelectedAssetSymbol(null);
-          setActiveTab('dashboard');
-        }}
-      />
-
-      {/* Main Tab Navigation (Hidden when in Full-Page Deep Dive) */}
+    <div className="min-h-screen flex bg-background text-slate-100 selection:bg-cyan-500/30 selection:text-cyan-200">
+      {/* Persistent Left Sidebar (Desktop) + Bottom Nav (Mobile) */}
       {!selectedAssetSymbol && (
-        <Navigation
+        <Sidebar
           activeTab={activeTab}
           onTabChange={(tab) => {
             setSelectedAssetSymbol(null);
             setActiveTab(tab);
           }}
           watchlistCount={watchlist.length}
+          onLogoClick={() => {
+            setSelectedAssetSymbol(null);
+            setActiveTab('market');
+          }}
         />
       )}
 
-      {/* Notification Banner */}
-      {bannerAlert && (
-        <div className="mx-4 lg:mx-8 mt-3 p-3 bg-gradient-to-r from-emerald-500/20 via-cyan-500/20 to-emerald-500/20 border border-emerald-500/40 rounded-xl text-xs font-mono text-emerald-300 flex items-center justify-between shadow-glow-emerald animate-fade-in">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>{bannerAlert}</span>
+      {/* Main Wrapper with responsive margin for desktop sidebar */}
+      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${!selectedAssetSymbol ? 'md:pl-[260px] pb-16 md:pb-0' : ''}`}>
+        {/* Minimal Search & Control Header */}
+        <Header
+          timeframe={timeframe}
+          onTimeframeChange={setTimeframe}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onTriggerTestAlert={handleTriggerTestAlert}
+          isStale={overview?.providerStatus.staleAssetsCount ? overview.providerStatus.staleAssetsCount > 0 : false}
+          allAssets={scannerRows}
+          onSelectAsset={(sym) => {
+            setSelectedAssetSymbol(sym);
+          }}
+          watchlist={watchlist}
+          onToggleWatchlist={toggleWatchlist}
+          onRefreshMarket={refreshData}
+          isRefreshing={loading}
+        />
+
+        {/* Notification Banner */}
+        {bannerAlert && (
+          <div className="mx-4 lg:mx-8 mt-3 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs font-mono text-emerald-300 flex items-center justify-between shadow-glow-emerald animate-fade-in">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{bannerAlert}</span>
+            </div>
+            <button
+              onClick={() => setBannerAlert(null)}
+              className="text-slate-400 hover:text-slate-200 ml-4"
+            >
+              ✕
+            </button>
           </div>
-          <button
-            onClick={() => setBannerAlert(null)}
-            className="text-slate-400 hover:text-slate-200 ml-4"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-
-      {/* Main Content Area */}
-      <main className="flex-1 px-4 lg:px-8 py-6 space-y-6 max-w-[1600px] w-full mx-auto">
-        {/* Full-Page Asset Deep-Dive View */}
-        {selectedAssetSymbol ? (
-          <AssetDeepDiveView
-            symbol={selectedAssetSymbol}
-            timeframe={timeframe}
-            onTimeframeChange={setTimeframe}
-            onBack={() => setSelectedAssetSymbol(null)}
-            watchlist={watchlist}
-            onToggleWatchlist={toggleWatchlist}
-          />
-        ) : (
-          <>
-            {/* Tab 1: Live Dashboard */}
-            {activeTab === 'dashboard' && (
-              <div className="space-y-6">
-                {/* Top Market Intelligence Gauges with Market Category Filter & Fear & Greed */}
-                <MarketRegimeGauge
-                  overview={overview}
-                  rows={scannerRows}
-                  selectedCategory={selectedMarketCategory}
-                  onSelectCategory={setSelectedMarketCategory}
-                />
-
-                {/* Live Money Scanner Signals Table */}
-                <div className="space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <Zap className="w-4 h-4 text-cyan-400" />
-                      <h2 className="text-sm font-bold tracking-wide uppercase font-mono text-slate-200">
-                        Live Market Scanner 360 Signals ({timeframe.toUpperCase()})
-                      </h2>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={refreshData}
-                        disabled={loading}
-                        className="flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-bold bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded-lg transition-all disabled:opacity-50"
-                      >
-                        <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                        <span>Actualizează Datele</span>
-                      </button>
-
-                      <span className="text-xs font-mono text-slate-400 hidden sm:inline">
-                        Auto-refresh: 5 min • Deterministic Engine
-                      </span>
-                    </div>
-                  </div>
-
-                  <ScannerTable
-                    rows={scannerRows}
-                    onSelectAsset={(sym) => setSelectedAssetSymbol(sym)}
-                    watchlist={watchlist}
-                    onToggleWatchlist={toggleWatchlist}
-                    onReorderWatchlist={handleReorderWatchlist}
-                    selectedTier={selectedTier}
-                    onSelectTier={setSelectedTier}
-                    watchlistOnly={watchlistOnly}
-                    onToggleWatchlistOnly={() => setWatchlistOnly(!watchlistOnly)}
-                    selectedMarketClass={selectedMarketCategory}
-                    onSelectMarketClass={setSelectedMarketCategory}
-                    loading={loading}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Tab 2: Full Scanner */}
-            {activeTab === 'scanner' && (
-              <div className="space-y-4">
-                <ScannerTable
-                  rows={scannerRows}
-                  onSelectAsset={(sym) => setSelectedAssetSymbol(sym)}
-                  watchlist={watchlist}
-                  onToggleWatchlist={toggleWatchlist}
-                  onReorderWatchlist={handleReorderWatchlist}
-                  selectedTier={selectedTier}
-                  onSelectTier={setSelectedTier}
-                  watchlistOnly={watchlistOnly}
-                  onToggleWatchlistOnly={() => setWatchlistOnly(!watchlistOnly)}
-                  selectedMarketClass={selectedMarketCategory}
-                  onSelectMarketClass={setSelectedMarketCategory}
-                  loading={loading}
-                />
-              </div>
-            )}
-
-            {/* Tab 3: USA Economic Status & Macro Intelligence */}
-            {activeTab === 'usa_status' && <USAStatusView />}
-
-            {/* Tab 4: X Narrative Intelligence & AI News Aggregator */}
-            {activeTab === 'trends' && <XTrendsView onSelectAsset={(sym) => setSelectedAssetSymbol(sym)} />}
-
-            {/* Tab 4: News Feed */}
-            {activeTab === 'news' && <NewsFeedView />}
-
-            {/* Tab 5: AI Market Briefing & Interactive Chat */}
-            {activeTab === 'ai' && <AIBriefingView />}
-
-            {/* Tab 6: Backtest Engine */}
-            {activeTab === 'backtest' && <BacktestView />}
-
-            {/* Tab 7: System Status & Telemetry */}
-            {activeTab === 'status' && <SystemStatusView />}
-          </>
         )}
-      </main>
+
+        {/* Main Content Area */}
+        <main className="flex-1 px-4 lg:px-8 py-6 space-y-6 max-w-[1600px] w-full mx-auto animate-fade-in">
+          {/* Full-Page Asset Deep-Dive View */}
+          {selectedAssetSymbol ? (
+            <AssetDeepDiveView
+              symbol={selectedAssetSymbol}
+              timeframe={timeframe}
+              onTimeframeChange={setTimeframe}
+              onBack={() => setSelectedAssetSymbol(null)}
+              watchlist={watchlist}
+              onToggleWatchlist={toggleWatchlist}
+            />
+          ) : (
+            <>
+              {/* Tab 1: Market Intelligence (Gauges + Scanner Table) */}
+              {activeTab === 'market' && (
+                <div className="space-y-6">
+                  {/* Top Market Intelligence Gauges */}
+                  <MarketRegimeGauge
+                    overview={overview}
+                    rows={scannerRows}
+                    selectedCategory={selectedMarketCategory}
+                    onSelectCategory={setSelectedMarketCategory}
+                  />
+
+                  {/* Scanner Signals Header & Table */}
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-cyan-400" />
+                        <h2 className="text-xs font-bold tracking-wider uppercase font-mono text-slate-300">
+                          Semnale Live Market Scanner 360 ({timeframe.toUpperCase()})
+                        </h2>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={refreshData}
+                          disabled={loading}
+                          className="flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-medium bg-white/[0.03] hover:bg-white/[0.07] text-slate-300 hover:text-cyan-300 border border-white/[0.06] rounded-xl transition-all disabled:opacity-50"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-cyan-400' : ''}`} />
+                          <span>Actualizează</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <ScannerTable
+                      rows={scannerRows}
+                      onSelectAsset={(sym) => setSelectedAssetSymbol(sym)}
+                      watchlist={watchlist}
+                      onToggleWatchlist={toggleWatchlist}
+                      onReorderWatchlist={handleReorderWatchlist}
+                      selectedTier={selectedTier}
+                      onSelectTier={setSelectedTier}
+                      watchlistOnly={watchlistOnly}
+                      onToggleWatchlistOnly={() => setWatchlistOnly(!watchlistOnly)}
+                      selectedMarketClass={selectedMarketCategory}
+                      onSelectMarketClass={setSelectedMarketCategory}
+                      loading={loading}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 2: USA Economic Status & Macro Intelligence */}
+              {activeTab === 'usa_status' && <USAStatusView />}
+
+              {/* Tab 3: X Narrative Intelligence & AI News Aggregator */}
+              {activeTab === 'trends' && <XTrendsView onSelectAsset={(sym) => setSelectedAssetSymbol(sym)} />}
+
+              {/* Tab 4: News Feed */}
+              {activeTab === 'news' && <NewsFeedView />}
+
+              {/* Tab 5: AI Market Briefing & Interactive Chat */}
+              {activeTab === 'ai' && <AIBriefingView />}
+
+              {/* Tab 6: Backtest Engine */}
+              {activeTab === 'backtest' && <BacktestView />}
+
+              {/* Tab 7: System Status & Telemetry */}
+              {activeTab === 'status' && <SystemStatusView />}
+            </>
+          )}
+        </main>
+      </div>
     </div>
   );
 };

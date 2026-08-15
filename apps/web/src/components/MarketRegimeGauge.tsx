@@ -240,44 +240,42 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
   ];
 
   return (
-    <div className="space-y-4 mb-6">
+    <div className="space-y-4">
       {/* Top Market Selector Filter Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-2 bg-background-card/90 border border-background-border rounded-2xl shadow-inner font-mono">
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-          <div className="flex items-center gap-1.5 text-xs text-slate-400 mr-1 px-2 hidden sm:flex">
-            <SlidersHorizontal className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Selectează Piața:</span>
-          </div>
-
+      <div className="flex flex-wrap items-center justify-between gap-3 p-1.5 bg-white/[0.02] border border-white/[0.04] rounded-2xl">
+        <div className="flex flex-wrap items-center gap-1">
           {marketCategories.map(cat => (
             <button
               key={cat.id}
               onClick={() => onSelectCategory && onSelectCategory(cat.id)}
-              className={`flex items-center gap-2 px-3.5 py-1.5 text-xs rounded-xl font-bold transition-all ${
+              className={`flex items-center gap-2 px-3.5 py-1.5 text-xs rounded-xl font-medium transition-all ${
                 selectedCategory === cat.id
-                  ? 'bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-cyan'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent'
+                  ? 'bg-white/[0.08] text-white font-semibold shadow-sm border border-white/[0.08]'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
               }`}
             >
-              <cat.icon className="w-3.5 h-3.5" />
+              <cat.icon className={`w-3.5 h-3.5 ${selectedCategory === cat.id ? 'text-cyan-400' : 'text-slate-500'}`} />
               <span>{cat.label}</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                selectedCategory === cat.id ? 'bg-cyan-500/20 text-cyan-300' : 'bg-white/[0.04] text-slate-500'
+              }`}>
                 {cat.count}
               </span>
             </button>
           ))}
         </div>
 
-        <div className="text-[11px] text-slate-400 hidden lg:flex items-center gap-2 pr-2">
-          <span>Indicatori Calibrați pe: <strong className="text-cyan-300">{marketCategories.find(c => c.id === selectedCategory)?.label}</strong></span>
+        <div className="text-[11px] text-slate-500 hidden lg:flex items-center gap-1.5 pr-3 font-mono">
+          <span>Active filtrate:</span>
+          <strong className="text-slate-300 font-semibold">{filteredRows.length} instrumente</strong>
         </div>
       </div>
 
       {/* 4 Macro Intelligence Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Market Regime */}
-        <div className={`cyber-glass rounded-2xl p-4 border transition-all ${regimeInfo.colorClass}`}>
-          <div className="flex items-center justify-between mb-2">
+        <div className={`card-base p-5 border transition-all ${regimeInfo.colorClass}`}>
+          <div className="flex items-center justify-between mb-3">
             <span className="text-xs uppercase font-mono tracking-wider text-slate-400">Market Regime</span>
             <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${regimeInfo.colorClass}`}>
               {regimeInfo.score > 0 ? `+${regimeInfo.score}` : regimeInfo.score} / 100
@@ -285,15 +283,21 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
           </div>
           <div className="flex items-center gap-3">
             {regimeInfo.isBull ? (
-              <TrendingUp className="w-6 h-6 text-emerald-400 flex-shrink-0" />
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                <TrendingUp className="w-5 h-5 text-emerald-400" />
+              </div>
             ) : regimeInfo.isBear ? (
-              <TrendingDown className="w-6 h-6 text-rose-400 flex-shrink-0" />
+              <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
+                <TrendingDown className="w-5 h-5 text-rose-400" />
+              </div>
             ) : (
-              <Activity className="w-6 h-6 text-slate-400 flex-shrink-0" />
+              <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
+                <Activity className="w-5 h-5 text-slate-400" />
+              </div>
             )}
             <div>
               <h3 className="text-sm font-bold text-slate-100 line-clamp-1">{regimeInfo.label}</h3>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-slate-400 mt-0.5">
                 {selectedCategory === 'stocks' ? 'Mega-Cap Equities Structure' : (selectedCategory === 'metals' ? 'Sovereign Commodities Demand' : 'Money Line Trend Composite')}
               </p>
             </div>
@@ -301,7 +305,7 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
         </div>
 
         {/* Card 2: Market Breadth */}
-        <div className="cyber-glass rounded-2xl p-4 border border-background-border">
+        <div className="card-base p-5">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs uppercase font-mono tracking-wider text-slate-400">Market Breadth</span>
             <span className="text-xs font-mono font-bold text-cyan-300">
@@ -309,14 +313,14 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
             </span>
           </div>
           {/* Multi-segment Breadth Bar */}
-          <div className="w-full h-2 rounded-full bg-slate-800 flex overflow-hidden my-2 border border-slate-700/60">
+          <div className="w-full h-2 rounded-full bg-white/[0.04] flex overflow-hidden my-3 border border-white/[0.06]">
             <div 
               className="bg-emerald-400 h-full transition-all duration-500" 
               style={{ width: `${(advancingCount / totalAssets) * 100}%` }}
               title={`${advancingCount} Up`}
             />
             <div 
-              className="bg-slate-500 h-full transition-all duration-500" 
+              className="bg-slate-600 h-full transition-all duration-500" 
               style={{ width: `${(neutralCount / totalAssets) * 100}%` }}
               title={`${neutralCount} Neutral`}
             />
@@ -327,34 +331,34 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
             />
           </div>
           <div className="flex justify-between text-[11px] text-slate-400 font-mono">
-            <span className="text-emerald-400 font-bold">{advancingCount} Up</span>
+            <span className="text-emerald-400 font-semibold">{advancingCount} Up</span>
             <span className="text-slate-400">{neutralCount} Neutral</span>
-            <span className="text-rose-400 font-bold">{decliningCount} Down</span>
+            <span className="text-rose-400 font-semibold">{decliningCount} Down</span>
           </div>
         </div>
 
         {/* Card 3: Global Liquidity & Market Cap */}
-        <div className="cyber-glass rounded-2xl p-4 border border-background-border">
+        <div className="card-base p-5">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs uppercase font-mono tracking-wider text-slate-400">Global Liquidity</span>
             <Layers className="w-4 h-4 text-cyan-400" />
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-lg font-bold font-mono text-slate-100">
+            <span className="text-xl font-bold font-mono text-slate-100">
               {totalMarketCap > 0 ? formatLargeNumber(totalMarketCap) : '$2.42T'}
             </span>
-            <span className="text-xs text-slate-400 font-mono">Total Cap</span>
+            <span className="text-xs text-slate-500 font-mono">Total Cap</span>
           </div>
-          <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono mt-1">
-            <span>24h Vol: {total24hVol > 0 ? formatLargeNumber(total24hVol) : '$78.4B'}</span>
-            <span className="text-cyan-400">{filteredRows.length} Active {selectedCategory === 'ALL' ? '360°' : selectedCategory}</span>
+          <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono mt-2 pt-2 border-t border-white/[0.04]">
+            <span>24h Vol: <strong className="text-slate-300">{total24hVol > 0 ? formatLargeNumber(total24hVol) : '$78.4B'}</strong></span>
+            <span className="text-cyan-400">{filteredRows.length} Active</span>
           </div>
         </div>
 
-        {/* Card 4: Fear and Greed Index (Replacing Volatility Index) */}
-        <div className="cyber-glass rounded-2xl p-4 border border-background-border">
+        {/* Card 4: Fear and Greed Index */}
+        <div className="card-base p-5">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs uppercase font-mono tracking-wider text-slate-400">Fear &amp; Greed Index</span>
+            <span className="text-xs uppercase font-mono tracking-wider text-slate-400">Fear &amp; Greed</span>
             <div className="flex items-center gap-1.5">
               <span className="text-sm">{fearGreedInfo.emoji}</span>
               <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${fearGreedInfo.colorClass}`}>
@@ -364,27 +368,22 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
           </div>
           
           <div className="flex items-baseline gap-2">
-            <span className="text-lg font-bold font-mono text-slate-100">{fearGreedScore}</span>
-            <span className="text-xs text-slate-400 font-mono">/ 100</span>
+            <span className="text-xl font-bold font-mono text-slate-100">{fearGreedScore}</span>
+            <span className="text-xs text-slate-500 font-mono">/ 100</span>
           </div>
 
           {/* Fear & Greed Visual Progress Gauge */}
-          <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden my-1.5 border border-slate-700/60">
+          <div className="w-full h-2 rounded-full bg-white/[0.04] overflow-hidden my-2 border border-white/[0.06]">
             <div 
               className={`h-full ${fearGreedInfo.barColor} transition-all duration-500`}
               style={{ width: `${fearGreedScore}%` }}
             />
           </div>
 
-          <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
-            <span className="text-rose-400">0 Extreme Fear</span>
-            <span className="text-amber-400">50 Neutral</span>
-            <span className="text-emerald-400">100 Greed</span>
-          </div>
-
-          <div className="pt-1 text-[10px] text-slate-400 font-mono border-t border-slate-800/80 flex items-center justify-between">
-            <span>Sursă Oficială:</span>
-            <span className="text-cyan-300 font-semibold">{activeFng.source}</span>
+          <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono">
+            <span>0 Extreme Fear</span>
+            <span>50 Neutral</span>
+            <span>100 Greed</span>
           </div>
         </div>
       </div>

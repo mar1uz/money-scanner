@@ -17,7 +17,9 @@
     "start": "node apps/api/dist/index.js"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/node": "^20.14.9",
+    "playwright": "^1.62.1",
     "typescript": "^5.4.5"
   }
 }

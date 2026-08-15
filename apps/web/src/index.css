@@ -4,7 +4,7 @@
 
 @layer base {
   html, body {
-    background-color: #080b11;
+    background-color: #0a0e17;
     color: #f1f5f9;
     font-family: 'Inter', sans-serif;
     overflow-x: hidden;
@@ -22,51 +22,93 @@
   }
 }
 
-/* Custom Cyber Glassmorphism & Glow Utilities */
+/* ─── Design System: Spacing & Radius Variables ─── */
+:root {
+  --space-section: 2rem;
+  --space-card: 1.25rem;
+  --radius-card: 1rem;
+  --radius-lg: 1.25rem;
+  --sidebar-width: 260px;
+  --sidebar-collapsed: 64px;
+  --header-height: 56px;
+}
+
+/* ─── Card Elevation System ─── */
+.card-base {
+  background: rgba(15, 20, 32, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-card);
+  transition: all 0.2s ease;
+}
+
+.card-base:hover {
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.4);
+}
+
+.card-elevated {
+  background: rgba(15, 20, 32, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 40px -8px rgba(0, 0, 0, 0.5);
+}
+
+/* ─── Legacy Cyber Glass (kept for backward compat) ─── */
 .cyber-glass {
-  background: rgba(14, 19, 31, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(31, 41, 61, 0.8);
+  background: rgba(15, 20, 32, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .cyber-glass-hover:hover {
-  background: rgba(21, 27, 43, 0.85);
-  border-color: rgba(56, 189, 248, 0.3);
+  background: rgba(21, 28, 44, 0.85);
+  border-color: rgba(56, 189, 248, 0.2);
 }
 
+/* ─── Glow Utilities ─── */
 .cyber-glow-cyan {
-  box-shadow: 0 0 15px -3px rgba(0, 242, 254, 0.35);
+  box-shadow: 0 0 15px -3px rgba(0, 242, 254, 0.25);
 }
 
 .cyber-glow-emerald {
-  box-shadow: 0 0 15px -3px rgba(16, 185, 129, 0.35);
+  box-shadow: 0 0 15px -3px rgba(16, 185, 129, 0.25);
 }
 
 .cyber-glow-ruby {
-  box-shadow: 0 0 15px -3px rgba(244, 63, 94, 0.35);
+  box-shadow: 0 0 15px -3px rgba(244, 63, 94, 0.25);
 }
 
-/* Custom Cyber Scrollbar */
+/* ─── Scrollbar ─── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #080b11;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1f293d;
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: rgba(255, 255, 255, 0.15);
 }
 
-/* Pulse animation for live data pill */
+/* ─── Sidebar Transitions ─── */
+.sidebar-transition {
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              padding 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─── Animations ─── */
 @keyframes pulse-ring {
   0% { transform: scale(0.95); opacity: 0.8; }
   50% { transform: scale(1.15); opacity: 0.3; }
@@ -75,4 +117,27 @@
 
 .animate-pulse-ring {
   animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes fade-slide-up {
+  0% { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-slide-up {
+  animation: fade-slide-up 0.4s ease-out forwards;
+}
+
+/* ─── Section Title Typography ─── */
+.section-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+/* ─── Subtle Divider ─── */
+.divider-subtle {
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
 }

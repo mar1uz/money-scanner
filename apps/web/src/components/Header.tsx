@@ -1,19 +1,15 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
-  Activity,
-  Shield,
-  Zap,
   Search,
-  BellRing,
   X,
   Sparkles,
   ArrowUpRight,
   ArrowDownRight,
   Plus,
   Star,
-  Check,
   RefreshCw,
-  CornerDownLeft
+  CornerDownLeft,
+  BellRing
 } from 'lucide-react';
 import { Timeframe, AssetScannerRow } from '../types.js';
 import { buildSearchUniverse, performAISearchMatch, SearchMatchResult } from '../services/ai-search.js';
@@ -21,10 +17,9 @@ import { buildSearchUniverse, performAISearchMatch, SearchMatchResult } from '..
 interface HeaderProps {
   timeframe: Timeframe;
   onTimeframeChange: (tf: Timeframe) => void;
-  onSearchClick: () => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
-  onTriggerTestAlert: () => void;
+  onTriggerTestAlert?: () => void;
   isStale?: boolean;
   allAssets?: AssetScannerRow[];
   onSelectAsset?: (symbol: string) => void;
@@ -32,7 +27,6 @@ interface HeaderProps {
   onToggleWatchlist?: (symbol: string) => void;
   onRefreshMarket?: () => void;
   isRefreshing?: boolean;
-  onLogoClick?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -47,8 +41,7 @@ export const Header: React.FC<HeaderProps> = ({
   watchlist = [],
   onToggleWatchlist,
   onRefreshMarket,
-  isRefreshing = false,
-  onLogoClick
+  isRefreshing = false
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState<number>(0);
@@ -70,7 +63,7 @@ export const Header: React.FC<HeaderProps> = ({
     setHighlightedIndex(0);
   }, [searchQuery]);
 
-  // Global Type-to-Search Listener: Typing anywhere in app opens and types in search
+  // Global Type-to-Search Listener
   useEffect(() => {
     function handleGlobalKeyDown(e: KeyboardEvent) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -91,7 +84,6 @@ export const Header: React.FC<HeaderProps> = ({
         return;
       }
 
-      // Check if it's a printable character (letters, numbers, symbols)
       if (e.key.length === 1 && !e.repeat) {
         if (searchInputRef.current) {
           searchInputRef.current.focus();
@@ -119,7 +111,6 @@ export const Header: React.FC<HeaderProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Keyboard navigation handler for Search Input
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -162,37 +153,11 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-background/90 backdrop-blur-md border-b border-background-border px-4 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-4">
-      {/* Brand Identity (Clickable to return Home/Dashboard) */}
-      <div 
-        onClick={onLogoClick}
-        title="Mergi la Pagina Principală (Dashboard)"
-        className="flex items-center gap-3 cursor-pointer group hover:opacity-90 transition-all select-none"
-      >
-        <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500/20 via-background-card to-emerald-500/20 border border-cyan-500/30 shadow-glow-cyan group-hover:border-cyan-400/60 transition-all">
-          <Zap className="w-5 h-5 text-cyber-cyan group-hover:scale-110 transition-transform" />
-          <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyber-cyan opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyber-cyan"></span>
-          </span>
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-lg tracking-wider bg-gradient-to-r from-white via-cyan-300 to-emerald-400 bg-clip-text text-transparent group-hover:from-cyan-200 group-hover:to-emerald-300">
-              MARKET SCANNER 360
-            </span>
-            <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-              v1.0.0
-            </span>
-          </div>
-          <p className="text-[11px] text-slate-400 group-hover:text-slate-300 transition-colors">Trading 360° • Crypto, Stocks &amp; Metale • Money Line Engine</p>
-        </div>
-      </div>
-
-      {/* Global AI Semantic Search Bar with Keyboard Navigation (Arrow Up / Down / Enter) */}
-      <div ref={dropdownRef} className="w-full order-3 md:order-2 md:w-auto md:flex-1 max-w-md relative block">
+    <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-xl border-b border-white/[0.04] px-4 lg:px-8 py-2.5 flex items-center justify-between gap-4">
+      {/* Central AI Search Bar */}
+      <div ref={dropdownRef} className="flex-1 max-w-xl relative">
         <div className="relative">
-          <Search className="absolute left-3 top-2.5 w-4 h-4 text-cyan-400/70" />
+          <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-cyan-400/60" />
           <input
             ref={searchInputRef}
             type="text"
@@ -204,38 +169,42 @@ export const Header: React.FC<HeaderProps> = ({
             onFocus={() => setIsDropdownOpen(true)}
             onKeyDown={handleKeyDown}
             placeholder="Căutare AI: monedă Vitalik, aur, mașini electrice, plăci video, DXY..."
-            className="w-full bg-background-surface border border-background-border rounded-xl pl-9 pr-8 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/60 focus:ring-1 focus:ring-cyan-500/30 transition-all font-mono"
+            className="w-full bg-white/[0.03] hover:bg-white/[0.05] focus:bg-white/[0.06] border border-white/[0.06] focus:border-cyan-500/50 rounded-xl pl-10 pr-9 py-2 text-xs font-mono text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/20 transition-all shadow-inner"
           />
-          {searchQuery && (
+          {searchQuery ? (
             <button
               onClick={() => {
                 onSearchChange('');
                 setIsDropdownOpen(false);
               }}
-              className="absolute right-2.5 top-2.5 text-slate-500 hover:text-slate-300"
+              className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
+          ) : (
+            <div className="absolute right-3 top-2.5 hidden sm:flex items-center gap-1 text-[10px] font-mono text-slate-500 bg-white/[0.04] px-1.5 py-0.5 rounded border border-white/[0.04] pointer-events-none">
+              <span>/</span>
+            </div>
           )}
         </div>
 
-        {/* Live Search Suggestions Dropdown with AI Ranking & Arrow Navigation */}
+        {/* AI Dropdown with Suggestions */}
         {isDropdownOpen && searchQuery.trim() && (
-          <div className="absolute left-0 right-0 top-full mt-2 bg-background-card/95 backdrop-blur-xl border border-cyan-500/30 rounded-xl shadow-2xl overflow-hidden z-50 animate-fade-in max-h-[420px] overflow-y-auto divide-y divide-background-border">
-            <div className="p-2.5 bg-background-surface/90 text-[10px] font-mono text-slate-400 flex items-center justify-between border-b border-background-border">
+          <div className="absolute left-0 right-0 top-full mt-2 bg-background-card/95 backdrop-blur-2xl border border-cyan-500/30 rounded-2xl shadow-elevated overflow-hidden z-50 animate-fade-in max-h-[420px] overflow-y-auto divide-y divide-white/[0.04]">
+            <div className="p-2.5 bg-white/[0.02] text-[10px] font-mono text-slate-400 flex items-center justify-between border-b border-white/[0.04]">
               <span className="flex items-center gap-1 text-cyan-300 font-bold">
                 <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                POTRIVIRE AI INTELIGENTĂ ({matchingAssets.length})
+                REZULTATE AI ({matchingAssets.length})
               </span>
               <span className="text-slate-400 flex items-center gap-1.5">
-                <span>Navighează cu <strong className="text-cyan-300">↑ / ↓</strong></span>
+                <span><strong className="text-cyan-300">↑ / ↓</strong></span>
                 <span>•</span>
-                <span>Selectează cu <strong className="text-emerald-400">Enter ↵</strong></span>
+                <span>Selectează: <strong className="text-emerald-400">Enter ↵</strong></span>
               </span>
             </div>
 
             {matchingAssets.length > 0 ? (
-              <div className="divide-y divide-background-border/50">
+              <div className="divide-y divide-white/[0.03]">
                 {matchingAssets.map((asset, index) => {
                   const isInWatchlist = watchlist.map(w => w.replace(/^[$#]/, '').trim().toUpperCase()).includes(asset.symbol.toUpperCase());
                   const isUp = asset.change24h >= 0;
@@ -253,7 +222,7 @@ export const Header: React.FC<HeaderProps> = ({
                       className={`p-3 transition-all flex items-center justify-between cursor-pointer group border-l-2 ${
                         isHighlighted
                           ? 'bg-cyan-500/15 border-cyan-400 text-slate-100 shadow-inner'
-                          : 'hover:bg-background-surface/80 border-transparent text-slate-300'
+                          : 'hover:bg-white/[0.03] border-transparent text-slate-300'
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -262,11 +231,10 @@ export const Header: React.FC<HeaderProps> = ({
                             e.stopPropagation();
                             if (onToggleWatchlist) onToggleWatchlist(asset.symbol);
                           }}
-                          title={isInWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
                           className={`p-1.5 rounded-lg border transition-all ${
                             isInWatchlist
                               ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-glow-gold'
-                              : 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-cyan-300 border-slate-700'
+                              : 'bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-cyan-300 border-white/[0.06]'
                           }`}
                         >
                           {isInWatchlist ? <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" /> : <Plus className="w-3.5 h-3.5" />}
@@ -275,22 +243,22 @@ export const Header: React.FC<HeaderProps> = ({
                         <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-mono font-bold text-xs border transition-all ${
                           asset.isTopMatch
                             ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-glow-emerald'
-                            : 'bg-slate-800 text-cyan-300 border-slate-700'
+                            : 'bg-white/[0.04] text-cyan-300 border-white/[0.06]'
                         }`}>
                           ${asset.symbol}
                         </div>
                         <div>
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="font-bold text-xs text-slate-100 group-hover:text-cyan-300 font-mono">
+                            <span className="font-semibold text-xs text-slate-100 group-hover:text-cyan-300 font-mono">
                               {asset.name}
                             </span>
-                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 font-mono">
+                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/[0.04] text-slate-400 font-mono">
                               {asset.category}
                             </span>
                             {asset.isTopMatch && (
-                              <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-bold font-mono shadow-glow-emerald flex items-center gap-0.5">
+                              <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-bold font-mono flex items-center gap-0.5">
                                 <Sparkles className="w-2.5 h-2.5 text-emerald-400" />
-                                ✨ AI TOP MATCH
+                                ✨ TOP MATCH
                               </span>
                             )}
                           </div>
@@ -319,7 +287,7 @@ export const Header: React.FC<HeaderProps> = ({
                         )}
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
                           asset.tier.includes('Bullish') ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' :
-                          (asset.tier.includes('Bearish') ? 'bg-rose-500/10 text-rose-300 border-rose-500/30' : 'bg-slate-800 text-slate-300 border-slate-700')
+                          (asset.tier.includes('Bearish') ? 'bg-rose-500/10 text-rose-300 border-rose-500/30' : 'bg-white/[0.04] text-slate-300 border-white/[0.06]')
                         }`}>
                           {asset.moneyLineScore > 0 ? `+${asset.moneyLineScore}` : asset.moneyLineScore}
                         </span>
@@ -339,7 +307,7 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="p-6 text-center text-xs font-mono text-slate-400 space-y-2">
                 <p>Niciun activ potrivit pentru <span className="text-cyan-300 font-bold">"{searchQuery}"</span>.</p>
                 <p className="text-[11px] text-slate-500">
-                  Încearcă termeni precum: <span className="text-cyan-400">moneda Vitalik</span>, <span className="text-cyan-400">aur</span>, <span className="text-cyan-400">mașini electrice</span>, <span className="text-cyan-400">plăci video</span>, <span className="text-cyan-400">SpaceX</span>, sau <span className="text-cyan-400">DXY</span>.
+                  Încearcă termeni precum: <span className="text-cyan-400">moneda Vitalik</span>, <span className="text-cyan-400">aur</span>, <span className="text-cyan-400">mașini electrice</span>, <span className="text-cyan-400">plăci video</span>, sau <span className="text-cyan-400">DXY</span>.
                 </p>
               </div>
             )}
@@ -347,31 +315,18 @@ export const Header: React.FC<HeaderProps> = ({
         )}
       </div>
 
-      {/* Controls & User Pill */}
-      <div className="flex items-center gap-3">
-        {/* Manual Market Refresh Button */}
-        {onRefreshMarket && (
-          <button
-            onClick={onRefreshMarket}
-            disabled={isRefreshing}
-            title="Actualizează Datele de Piață"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-bold bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded-xl transition-all shadow-sm disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Actualizează Date</span>
-          </button>
-        )}
-
-        {/* Timeframe Selector (1H, 4H, 8H, 1D, 1W, 1M) */}
-        <div className="flex items-center bg-background-surface border border-background-border rounded-lg p-0.5">
+      {/* Right Controls: Timeframe Pills, Live Status, Refresh */}
+      <div className="flex items-center gap-2.5">
+        {/* Timeframe Selector */}
+        <div className="flex items-center bg-white/[0.03] border border-white/[0.06] rounded-xl p-0.5">
           {(['1h', '4h', '8h', '1d', '1w', '1m'] as Timeframe[]).map((tf) => (
             <button
               key={tf}
               onClick={() => onTimeframeChange(tf)}
-              className={`px-3 py-1 text-xs font-mono font-medium rounded-md transition-all ${
+              className={`px-2.5 py-1 text-[11px] font-mono rounded-lg transition-all ${
                 timeframe === tf
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-glow-cyan font-bold'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-background-hover'
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               {tf.toUpperCase()}
@@ -379,37 +334,40 @@ export const Header: React.FC<HeaderProps> = ({
           ))}
         </div>
 
-        {/* Live Data Status Indicator */}
-        <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-background-surface border border-background-border">
+        {/* Refresh Button */}
+        {onRefreshMarket && (
+          <button
+            onClick={onRefreshMarket}
+            disabled={isRefreshing}
+            title="Actualizează Datele de Piață"
+            className="flex items-center justify-center w-8 h-8 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] text-slate-300 hover:text-cyan-300 border border-white/[0.06] transition-all disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-cyan-400' : ''}`} />
+          </button>
+        )}
+
+        {/* Live / Stale Pulse */}
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.03] border border-white/[0.06]">
           <span className="relative flex h-2 w-2">
             <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isStale ? 'bg-amber-400' : 'bg-emerald-400'}`}></span>
             <span className={`relative inline-flex rounded-full h-2 w-2 ${isStale ? 'bg-amber-400' : 'bg-emerald-400'}`}></span>
           </span>
-          <span className="text-[11px] font-mono text-slate-300 hidden sm:inline">
-            {isStale ? 'STALE' : 'LIVE (5m)'}
+          <span className="text-[10px] font-mono text-slate-400 hidden sm:inline font-medium">
+            {isStale ? 'STALE' : 'LIVE'}
           </span>
         </div>
 
         {/* Test Alert Button */}
-        <button
-          onClick={onTriggerTestAlert}
-          title="Send Test Telegram Alert"
-          className="flex items-center gap-1.5 px-2.5 py-1 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg transition-all"
-        >
-          <BellRing className="w-3.5 h-3.5 text-cyan-400" />
-          <span className="hidden sm:inline">Test Alert</span>
-        </button>
-
-        {/* User Role Pill */}
-        <div className="flex items-center gap-2 pl-2 border-l border-background-border">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white text-xs font-bold ring-1 ring-cyan-400/40">
-            M
-          </div>
-          <div className="hidden lg:block text-left">
-            <div className="text-xs font-semibold text-slate-200">Marius PJ</div>
-            <div className="text-[10px] text-cyan-400 font-mono">Administrator</div>
-          </div>
-        </div>
+        {onTriggerTestAlert && (
+          <button
+            onClick={onTriggerTestAlert}
+            title="Test Alert Telegram"
+            className="hidden lg:flex items-center gap-1 px-2.5 py-1 text-[11px] font-mono text-slate-400 hover:text-cyan-300 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] rounded-xl transition-all"
+          >
+            <BellRing className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Alert</span>
+          </button>
+        )}
       </div>
     </header>
   );

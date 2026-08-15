@@ -364,52 +364,13 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
   return (
     <div className="space-y-4">
       {/* 360° Market Class & Tier Filter Toolbar */}
-      <div className="space-y-3 p-4 bg-background-card/90 border border-background-border rounded-2xl cyber-glass shadow-xl">
-        {/* Top Filter: 360° Market Selector */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-background-border/60">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-mono text-slate-400 font-bold uppercase tracking-wider">
-              Piață 360°:
-            </span>
-            <div className="flex flex-wrap items-center bg-background-surface border border-background-border rounded-xl p-0.5">
-              {marketClasses.map(mc => (
-                <button
-                  key={mc.id}
-                  onClick={() => setSelectedMarketClass(mc.id as any)}
-                  className={`px-3 py-1.5 text-xs font-mono rounded-lg transition-all flex items-center gap-1.5 ${
-                    selectedMarketClass === mc.id
-                      ? 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-300 border border-cyan-500/40 font-bold shadow-glow-cyan'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <mc.icon className="w-3.5 h-3.5" />
-                  <span>{mc.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onToggleWatchlistOnly}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-xl border transition-all ${
-                watchlistOnly
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold shadow-glow-gold'
-                  : 'bg-background-surface text-slate-400 border-background-border hover:text-slate-200'
-              }`}
-            >
-              <Star className={`w-3.5 h-3.5 ${watchlistOnly ? 'fill-amber-400 text-amber-400' : 'text-slate-400'}`} />
-              <span>Watchlist ({cleanWatchlist.length})</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Bottom Filter: Tier Status Chips & Sort Indicator */}
+      <div className="card-base p-4 space-y-3">
+        {/* Tier Status Chips & Sort Indicator */}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 text-xs text-slate-400 mr-2 font-mono">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <div className="flex items-center gap-1.5 text-xs text-slate-400 mr-1 font-mono">
               <Filter className="w-3.5 h-3.5 text-cyan-400" />
-              <span>FILTRU TIER:</span>
+              <span>Semnale:</span>
             </div>
             {tiers.map(t => (
               <button
@@ -418,7 +379,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                 className={`px-3 py-1 text-xs font-mono rounded-lg transition-all border ${
                   selectedTier === t.id
                     ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-glow-cyan font-bold'
-                    : 'bg-background-surface text-slate-400 border-background-border hover:border-slate-700 hover:text-slate-200'
+                    : 'bg-white/[0.03] text-slate-400 border-white/[0.06] hover:bg-white/[0.06] hover:text-slate-200'
                 }`}
               >
                 {t.label}
@@ -426,40 +387,52 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
             ))}
           </div>
 
-          {/* Active Sort Pill with Reset Button */}
-          {sortField && (
-            <div className="flex items-center gap-2 text-xs font-mono bg-background-surface px-3 py-1 rounded-xl border border-cyan-500/30">
-              <span className="text-slate-400">Sortat după:</span>
-              <span className="text-cyan-300 font-bold uppercase">{sortField === 'marketCap' ? 'Market Cap' : sortField} ({sortDirection.toUpperCase()})</span>
-              <button
-                onClick={() => { setSortField('marketCap'); setSortDirection('desc'); }}
-                className="text-slate-500 hover:text-rose-400 transition-colors ml-1"
-                title="Resetează la ordinea Market Cap"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onToggleWatchlistOnly}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono rounded-xl border transition-all ${
+                watchlistOnly
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold shadow-glow-gold'
+                  : 'bg-white/[0.03] text-slate-400 border-white/[0.06] hover:text-slate-200 hover:bg-white/[0.06]'
+              }`}
+            >
+              <Star className={`w-3.5 h-3.5 ${watchlistOnly ? 'fill-amber-400 text-amber-400' : 'text-slate-400'}`} />
+              <span>Watchlist ({cleanWatchlist.length})</span>
+            </button>
+
+            {/* Active Sort Pill with Reset Button */}
+            {sortField && (
+              <div className="flex items-center gap-1.5 text-xs font-mono bg-white/[0.04] px-2.5 py-1 rounded-xl border border-white/[0.08]">
+                <span className="text-slate-500">Sort:</span>
+                <span className="text-cyan-300 font-semibold uppercase">{sortField === 'marketCap' ? 'Market Cap' : sortField} ({sortDirection.toUpperCase()})</span>
+                <button
+                  onClick={() => { setSortField('marketCap'); setSortDirection('desc'); }}
+                  className="text-slate-500 hover:text-rose-400 transition-colors ml-0.5"
+                  title="Resetează la ordinea Market Cap"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Interactive Watchlist Reorder Quick-Bar (Drag & Drop Chips) */}
       {cleanWatchlist.length > 0 && (
-        <div className="p-3.5 bg-background-card/80 border border-background-border rounded-2xl cyber-glass space-y-2">
+        <div className="card-base p-3.5 space-y-2">
           <div className="flex items-center justify-between text-xs font-mono">
             <span className="text-slate-400 flex items-center gap-1.5">
-              <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-              <span>Ordinea Mea în Watchlist (Trage cu Click &amp; Hold pentru a rearanja ordinea):</span>
-            </span>
-            <span className="text-slate-500 text-[11px] hidden sm:inline">
-              ⇄ Drag &amp; drop active
+              <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400/20" />
+              <span>Watchlist Activ ({cleanWatchlist.length} active)</span>
+              <span className="text-[10px] text-slate-500 hidden sm:inline">(trage pentru a reordona prioritățile)</span>
             </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             {cleanWatchlist.map((sym) => {
-              const row = rows.find(r => r.symbol.toUpperCase() === sym);
-              const isUp = (row?.change24h || 0) >= 0;
+              const row = rows.find(r => r.symbol.replace(/^[$#]/, '').trim().toUpperCase() === sym);
+              const isUp = row && row.change24h >= 0;
               const isDragging = draggedSymbol === sym;
               const isOver = dragOverSymbol === sym;
 
@@ -472,9 +445,8 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                   onDrop={(e) => handleDrop(e, sym)}
                   onDragEnd={() => { setDraggedSymbol(null); setDragOverSymbol(null); }}
                   onClick={() => onSelectAsset(sym)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all cursor-grab active:cursor-grabbing text-xs font-mono select-none ${
-                    isDragging ? 'opacity-40 scale-95 border-dashed border-cyan-400' :
-                    (isOver ? 'bg-cyan-500/20 border-cyan-400 scale-105 shadow-glow-cyan' : 'bg-background-surface hover:bg-slate-800 border-background-border hover:border-cyan-500/40')
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-mono transition-all cursor-grab active:cursor-grabbing select-none ${
+                    isDragging ? 'opacity-30 border-cyan-400' : (isOver ? 'border-cyan-400 bg-cyan-500/20' : 'bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 border-white/[0.06]')
                   }`}
                 >
                   <GripVertical className="w-3.5 h-3.5 text-slate-500" />
@@ -490,7 +462,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                       onToggleWatchlist(sym);
                     }}
                     title="Șterge din Watchlist"
-                    className="text-slate-600 hover:text-rose-400 ml-0.5"
+                    className="text-slate-500 hover:text-rose-400 ml-0.5"
                   >
                     ×
                   </button>
@@ -502,14 +474,14 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
       )}
 
       {/* Cyber Table with Interactive Sortable Column Headers */}
-      <div className="overflow-x-auto rounded-2xl border border-background-border cyber-glass shadow-2xl">
+      <div className="overflow-x-auto rounded-2xl border border-white/[0.06] card-base shadow-xl">
         <table className="w-full text-left text-xs">
-          <thead className="bg-background-surface/80 border-b border-background-border text-[11px] font-mono uppercase tracking-wider text-slate-400 select-none">
+          <thead className="bg-white/[0.02] border-b border-white/[0.06] text-[11px] font-mono uppercase tracking-wider text-slate-400 select-none">
             <tr>
               {/* Asset Name & Symbol Header */}
               <th
                 onClick={() => handleSort('symbol')}
-                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+                className="py-4 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
               >
                 <div className="flex items-center gap-1.5">
                   <span>Asset</span>
@@ -631,7 +603,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
               <th className="py-3.5 px-4 text-right">Acțiuni</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-background-border/50">
+          <tbody className="divide-y divide-white/[0.04]">
             {filteredRows.length > 0 ? (
               filteredRows.map((row) => {
                 const sym = row.symbol.replace(/^[$#]/, '').trim().toUpperCase();
@@ -651,12 +623,12 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                     onDrop={(e) => handleDrop(e, sym)}
                     onDragEnd={() => { setDraggedSymbol(null); setDragOverSymbol(null); }}
                     onClick={() => onSelectAsset(row.symbol)}
-                    className={`hover:bg-background-surface/60 transition-colors cursor-pointer group ${
-                      isDragging ? 'opacity-40 bg-slate-900' : (isOver ? 'bg-cyan-500/10 border-cyan-400' : '')
+                    className={`hover:bg-white/[0.03] transition-colors cursor-pointer group ${
+                      isDragging ? 'opacity-30 bg-white/[0.02]' : (isOver ? 'bg-cyan-500/10 border-cyan-400' : '')
                     }`}
                   >
                     {/* Symbol & Name with Drag Handle */}
-                    <td className="py-3.5 px-4">
+                    <td className="py-4 px-4">
                       <div className="flex items-center gap-2 sm:gap-3">
                         {isWatch ? (
                           <div
