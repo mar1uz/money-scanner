@@ -15,7 +15,7 @@ import {
 
 export const BacktestView: React.FC = () => {
   const [selectedSymbol, setSelectedSymbol] = useState('BTC');
-  const [timeframe, setTimeframe] = useState<Timeframe>('1h');
+  const [timeframe, setTimeframe] = useState<Timeframe>('1w');
   const [entryTier, setEntryTier] = useState('Bullish');
   const [exitTier, setExitTier] = useState('Bearish');
   const [result, setResult] = useState<BacktestResult | null>(null);

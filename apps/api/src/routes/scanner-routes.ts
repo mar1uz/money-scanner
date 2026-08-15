@@ -7,7 +7,7 @@ export const scannerRouter = Router();
 
 scannerRouter.get('/scanner', async (req, res) => {
   try {
-    const timeframe = (req.query.timeframe as Timeframe) || '1h';
+    const timeframe = (req.query.timeframe as Timeframe) || '1w';
     const tier = req.query.tier as string;
     const rawSearch = (req.query.search as string || '').trim();
     const search = rawSearch.replace(/^[$#]/, '').toUpperCase();
@@ -42,7 +42,7 @@ scannerRouter.get('/scanner', async (req, res) => {
 scannerRouter.get('/assets/:symbol', async (req, res) => {
   try {
     const symbol = req.params.symbol.toUpperCase();
-    const timeframe = (req.query.timeframe as Timeframe) || '1h';
+    const timeframe = (req.query.timeframe as Timeframe) || '1w';
 
     let assetInfo = TOP_50_CRYPTO_ASSETS.find(a => a.symbol === symbol);
     if (!assetInfo) {

@@ -47,6 +47,8 @@ export interface MoneyLineSignal {
   previousTier?: MoneyLineTier;
   isTransition: boolean; // true if tier changed on this closed candle
   transitionTime?: number;
+  transitionPrice?: number; // Price when current trend/tier started
+  roiPercent?: number;      // % ROI since transition or over timeframe period
   rawIndicators: IndicatorRawValues;
   contributions: IndicatorContributions;
   candleTimestamp: number;

@@ -344,12 +344,17 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
             const mtfSignal = data?.multiTimeframe?.[tf as keyof typeof data.multiTimeframe] as any;
             const tfIsBull = mtfSignal?.tier?.includes('Bullish');
             const tfIsBear = mtfSignal?.tier?.includes('Bearish');
+            const rawRoi = mtfSignal?.roiPercent !== undefined 
+              ? mtfSignal.roiPercent 
+              : (mtfSignal?.rawIndicators?.roc9 !== undefined ? Number(mtfSignal.rawIndicators.roc9.toFixed(2)) : 0);
+            const isRoiPos = rawRoi > 0;
+            const isRoiNeg = rawRoi < 0;
 
             return (
               <div
                 key={tf}
                 onClick={() => onTimeframeChange(tf as Timeframe)}
-                className={`cyber-glass rounded-xl p-3.5 border transition-all cursor-pointer space-y-2 ${
+                className={`cyber-glass rounded-xl p-3.5 border transition-all cursor-pointer space-y-2.5 ${
                   timeframe === tf
                     ? 'border-cyan-500/60 bg-cyan-500/10 shadow-glow-cyan'
                     : 'border-background-border hover:border-slate-700'
@@ -364,9 +369,22 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
                     {mtfSignal?.tier || 'Neutral'}
                   </span>
                 </div>
+
+                {/* ROI % Prominent Metric */}
+                <div className="flex items-center justify-between text-xs font-mono bg-background-surface/70 px-2 py-1 rounded-lg border border-background-border/60">
+                  <span className="text-slate-400 text-[10px] uppercase">ROI {tf}:</span>
+                  <span className={`font-bold text-[11px] ${
+                    isRoiPos ? 'text-emerald-400' : (isRoiNeg ? 'text-rose-400' : 'text-slate-300')
+                  }`}>
+                    {isRoiPos ? `+${rawRoi}%` : `${rawRoi}%`}
+                  </span>
+                </div>
+
                 <div className="flex items-center justify-between text-xs font-mono">
                   <span className="text-slate-400 text-[11px]">Scor:</span>
-                  <span className="font-bold text-slate-200">
+                  <span className={`font-bold ${
+                    tfIsBull ? 'text-emerald-300' : (tfIsBear ? 'text-rose-300' : 'text-slate-300')
+                  }`}>
                     {mtfSignal?.score > 0 ? `+${mtfSignal.score}` : (mtfSignal?.score !== undefined ? mtfSignal.score : '-')}
                   </span>
                 </div>

@@ -18,7 +18,7 @@ export async function fetchMarketOverview(): Promise<MarketOverviewSummary> {
 }
 
 export async function fetchScanner(
-  timeframe: Timeframe = '1h',
+  timeframe: Timeframe = '1w',
   tier?: string,
   search?: string,
   watchlistOnly?: boolean
@@ -36,7 +36,7 @@ export async function fetchScanner(
 
 export async function fetchAssetDetail(
   symbol: string,
-  timeframe: Timeframe = '1h'
+  timeframe: Timeframe = '1w'
 ): Promise<AssetDetailResponse> {
   const res = await fetch(`${API_BASE}/assets/${symbol}?timeframe=${timeframe}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch asset detail for ${symbol}`);

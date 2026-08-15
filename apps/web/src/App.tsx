@@ -25,7 +25,7 @@ import { Zap, BellRing, Sparkles, CheckCircle2, RefreshCw } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
-  const [timeframe, setTimeframe] = useState<Timeframe>('1h');
+  const [timeframe, setTimeframe] = useState<Timeframe>('1w');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTier, setSelectedTier] = useState('ALL');
   const [watchlistOnly, setWatchlistOnly] = useState(false);

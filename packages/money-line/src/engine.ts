@@ -139,6 +139,12 @@ export class MoneyLineEngine {
         mtfConfirmationScore: 0 // populated if multi-timeframe engine runs
       };
 
+      const transitionTime = isTransition ? candle.timestamp : (prevSignal?.transitionTime || candle.timestamp);
+      const transitionPrice = isTransition ? price : (prevSignal?.transitionPrice || price);
+      const roiPercent = transitionPrice > 0
+        ? Number((((price - transitionPrice) / transitionPrice) * 100).toFixed(2))
+        : Number((((price - candle.open) / candle.open) * 100).toFixed(2));
+
       const signal: MoneyLineSignal = {
         symbol,
         timeframe,
@@ -146,7 +152,9 @@ export class MoneyLineEngine {
         tier: currentTier,
         previousTier: prevTier,
         isTransition,
-        transitionTime: isTransition ? candle.timestamp : prevSignal?.transitionTime || candle.timestamp,
+        transitionTime,
+        transitionPrice,
+        roiPercent,
         rawIndicators,
         contributions,
         candleTimestamp: candle.timestamp,

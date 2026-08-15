@@ -125,46 +125,58 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
           </div>
         ) : (
           <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
-            {/* Multi-Timeframe Confluence Bar */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <div className="cyber-glass rounded-xl p-3 border border-background-border">
-                <span className="text-[10px] uppercase font-mono text-slate-400">1H Money Line</span>
-                <div className="flex items-baseline justify-between mt-1">
-                  <span className="font-bold text-sm font-mono text-cyan-300">
-                    {data?.multiTimeframe?.['1h']?.score > 0 ? `+${data?.multiTimeframe?.['1h']?.score}` : data?.multiTimeframe?.['1h']?.score}
-                  </span>
-                  <span className="text-xs font-mono text-slate-300">{data?.multiTimeframe?.['1h']?.tier}</span>
-                </div>
-              </div>
-              <div className="cyber-glass rounded-xl p-3 border border-background-border">
-                <span className="text-[10px] uppercase font-mono text-slate-400">4H Money Line</span>
-                <div className="flex items-baseline justify-between mt-1">
-                  <span className="font-bold text-sm font-mono text-cyan-300">
-                    {data?.multiTimeframe?.['4h']?.score > 0 ? `+${data?.multiTimeframe?.['4h']?.score}` : data?.multiTimeframe?.['4h']?.score}
-                  </span>
-                  <span className="text-xs font-mono text-slate-300">{data?.multiTimeframe?.['4h']?.tier}</span>
-                </div>
-              </div>
-              <div className="cyber-glass rounded-xl p-3 border border-background-border">
-                <span className="text-[10px] uppercase font-mono text-slate-400">1D Money Line</span>
-                <div className="flex items-baseline justify-between mt-1">
-                  <span className="font-bold text-sm font-mono text-cyan-300">
-                    {data?.multiTimeframe?.['1d']?.score > 0 ? `+${data?.multiTimeframe?.['1d']?.score}` : data?.multiTimeframe?.['1d']?.score}
-                  </span>
-                  <span className="text-xs font-mono text-slate-300">{data?.multiTimeframe?.['1d']?.tier}</span>
-                </div>
-              </div>
-              <div className="cyber-glass rounded-xl p-3 border border-cyan-500/30 bg-cyan-500/10">
-                <span className="text-[10px] uppercase font-mono text-cyan-400 font-bold">MTF Confluence</span>
-                <div className="flex items-baseline justify-between mt-1">
-                  <span className="font-bold text-sm font-mono text-cyan-200">
-                    {data?.multiTimeframe?.compositeMtfScore > 0 ? `+${data?.multiTimeframe?.compositeMtfScore}` : data?.multiTimeframe?.compositeMtfScore}
-                  </span>
-                  <span className="text-xs font-mono font-bold text-cyan-300">
-                    {data?.multiTimeframe?.confluenceTier}
-                  </span>
-                </div>
-              </div>
+            {/* Multi-Timeframe Confluence Grid (6 Timeframes) */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+              {(['1h', '4h', '8h', '1d', '1w', '1m'] as Timeframe[]).map((tf) => {
+                const sig = data?.multiTimeframe?.[tf as keyof typeof data.multiTimeframe] as any;
+                const isBull = sig?.tier?.includes('Bullish');
+                const isBear = sig?.tier?.includes('Bearish');
+                const rawRoi = sig?.roiPercent !== undefined 
+                  ? sig.roiPercent 
+                  : (sig?.rawIndicators?.roc9 !== undefined ? Number(sig.rawIndicators.roc9.toFixed(2)) : 0);
+                const isRoiPos = rawRoi > 0;
+                const isRoiNeg = rawRoi < 0;
+
+                return (
+                  <div
+                    key={tf}
+                    onClick={() => setActiveTf(tf)}
+                    className={`cyber-glass rounded-xl p-3 border transition-all cursor-pointer space-y-1.5 ${
+                      activeTf === tf
+                        ? 'border-cyan-500/60 bg-cyan-500/10 shadow-glow-cyan'
+                        : 'border-background-border hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-[10px] font-mono">
+                      <span className="font-bold text-slate-200 uppercase">{tf}</span>
+                      <span className={`px-1.5 py-0.2 rounded font-bold ${
+                        isBull ? 'bg-emerald-500/20 text-emerald-300' :
+                        (isBear ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-800 text-slate-400')
+                      }`}>
+                        {sig?.tier || 'Neutral'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs font-mono">
+                      <span className="text-[10px] text-slate-400">ROI:</span>
+                      <span className={`font-bold text-[11px] ${
+                        isRoiPos ? 'text-emerald-400' : (isRoiNeg ? 'text-rose-400' : 'text-slate-300')
+                      }`}>
+                        {isRoiPos ? `+${rawRoi}%` : `${rawRoi}%`}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs font-mono">
+                      <span className="text-[10px] text-slate-400">Scor:</span>
+                      <span className={`font-bold ${
+                        isBull ? 'text-emerald-300' : (isBear ? 'text-rose-300' : 'text-slate-300')
+                      }`}>
+                        {sig?.score > 0 ? `+${sig.score}` : (sig?.score !== undefined ? sig.score : '-')}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Interactive Chart */}
