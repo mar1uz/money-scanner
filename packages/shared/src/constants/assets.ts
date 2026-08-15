@@ -1,6 +1,151 @@
 import { AssetInfo } from '../types/market.js';
 
 export const TRADING_360_ASSETS: AssetInfo[] = [
+  // --- MACRO INDICES & CRYPTO DOMINANCE (TradingView Power Tickers) ---
+  {
+    symbol: 'BTC.D',
+    name: 'Bitcoin Dominance',
+    category: 'Macro / Index',
+    marketClass: 'crypto',
+    quoteCurrency: '%',
+    aliases: ['btc.d', 'bitcoin dominance', 'btc dominance', 'dominance', 'btcd', 'crypto dominance'],
+    marketCap: 1350000000000,
+    rank: 0,
+    decimals: 2
+  },
+  {
+    symbol: 'ETH.D',
+    name: 'Ethereum Dominance',
+    category: 'Macro / Index',
+    marketClass: 'crypto',
+    quoteCurrency: '%',
+    aliases: ['eth.d', 'ethereum dominance', 'eth dominance', 'ethd'],
+    marketCap: 350000000000,
+    rank: 0,
+    decimals: 2
+  },
+  {
+    symbol: 'USDT.D',
+    name: 'Tether Dominance',
+    category: 'Macro / Index',
+    marketClass: 'crypto',
+    quoteCurrency: '%',
+    aliases: ['usdt.d', 'tether dominance', 'usdt dominance', 'stables dominance'],
+    marketCap: 120000000000,
+    rank: 0,
+    decimals: 2
+  },
+  {
+    symbol: 'TOTAL',
+    name: 'Crypto Total Market Cap',
+    category: 'Macro / Index',
+    marketClass: 'crypto',
+    quoteCurrency: 'USD',
+    aliases: ['total', 'crypto total', 'total market cap', 'market cap total', 'cryptocap:total'],
+    marketCap: 2450000000000,
+    rank: 0,
+    decimals: 0
+  },
+  {
+    symbol: 'TOTAL2',
+    name: 'Total Market Cap (Excl. BTC)',
+    category: 'Macro / Index',
+    marketClass: 'crypto',
+    quoteCurrency: 'USD',
+    aliases: ['total2', 'total 2', 'altcoin market cap', 'alts cap', 'cryptocap:total2'],
+    marketCap: 1100000000000,
+    rank: 0,
+    decimals: 0
+  },
+  {
+    symbol: 'TOTAL3',
+    name: 'Total Altcoins (Excl. BTC & ETH)',
+    category: 'Macro / Index',
+    marketClass: 'crypto',
+    quoteCurrency: 'USD',
+    aliases: ['total3', 'total 3', 'pure altcoins', 'cryptocap:total3'],
+    marketCap: 750000000000,
+    rank: 0,
+    decimals: 0
+  },
+  {
+    symbol: 'DXY',
+    name: 'US Dollar Currency Index',
+    category: 'Macro / Index',
+    marketClass: 'stocks',
+    quoteCurrency: 'USD',
+    aliases: ['dxy', 'dyxy', 'dollar index', 'us dollar', 'dolar index', 'dolar', 'usd index', 'tvc:dxy'],
+    marketCap: 25000000000000,
+    rank: 0,
+    decimals: 2
+  },
+  {
+    symbol: 'VIX',
+    name: 'CBOE Volatility Fear Index',
+    category: 'Macro / Index',
+    marketClass: 'stocks',
+    quoteCurrency: 'USD',
+    aliases: ['vix', 'volatility index', 'fear index', 'cboe vix', 'cboe:vix', 'volatilitate'],
+    marketCap: 0,
+    rank: 0,
+    decimals: 2
+  },
+  {
+    symbol: 'US10Y',
+    name: 'US 10-Year Treasury Yield',
+    category: 'Macro / Index',
+    marketClass: 'stocks',
+    quoteCurrency: '%',
+    aliases: ['us10y', '10y yield', 'titluri trezorerie', 'treasury 10y', 'dobanda 10 ani', 'tvc:us10y'],
+    marketCap: 0,
+    rank: 0,
+    decimals: 3
+  },
+  {
+    symbol: 'US02Y',
+    name: 'US 2-Year Treasury Yield',
+    category: 'Macro / Index',
+    marketClass: 'stocks',
+    quoteCurrency: '%',
+    aliases: ['us02y', '2y yield', 'treasury 2y', 'dobanda 2 ani', 'tvc:us02y'],
+    marketCap: 0,
+    rank: 0,
+    decimals: 3
+  },
+  {
+    symbol: 'EURUSD',
+    name: 'Euro / US Dollar FX',
+    category: 'Forex / Currency',
+    marketClass: 'stocks',
+    quoteCurrency: 'USD',
+    aliases: ['eurusd', 'eur/usd', 'euro', 'euro dolar', 'fx:eurusd'],
+    marketCap: 0,
+    rank: 0,
+    decimals: 4
+  },
+  {
+    symbol: 'GBPUSD',
+    name: 'British Pound / US Dollar FX',
+    category: 'Forex / Currency',
+    marketClass: 'stocks',
+    quoteCurrency: 'USD',
+    aliases: ['gbpusd', 'gbp/usd', 'lira', 'pound', 'fx:gbpusd'],
+    marketCap: 0,
+    rank: 0,
+    decimals: 4
+  },
+  {
+    symbol: 'USDJPY',
+    name: 'US Dollar / Japanese Yen FX',
+    category: 'Forex / Currency',
+    marketClass: 'stocks',
+    quoteCurrency: 'JPY',
+    aliases: ['usdjpy', 'usd/jpy', 'yen', 'yen japonez', 'fx:usdjpy'],
+    marketCap: 0,
+    rank: 0,
+    decimals: 2
+  },
+
   // --- METALS & COMMODITIES ---
   {
     symbol: 'XAU',
@@ -8,7 +153,7 @@ export const TRADING_360_ASSETS: AssetInfo[] = [
     category: 'Precious Metal',
     marketClass: 'metals',
     quoteCurrency: 'USD',
-    aliases: ['gold', 'aur', 'gold spot', 'aur spot', 'precious metal', 'metal', 'bullion', 'xauusd'],
+    aliases: ['gold', 'aur', 'gold spot', 'aur spot', 'precious metal', 'metal', 'bullion', 'xauusd', 'tvc:gold'],
     marketCap: 16800000000000, // $16.8T
     rank: 1,
     decimals: 2

@@ -24,6 +24,8 @@ export type AssetCategory =
   | 'Tech Stock'
   | 'Mega-Cap'
   | 'Index / ETF'
+  | 'Macro / Index'
+  | 'Forex / Currency'
   | 'Precious Metal'
   | 'Commodity';
 

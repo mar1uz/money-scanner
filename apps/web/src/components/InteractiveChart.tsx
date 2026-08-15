@@ -242,23 +242,45 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
 
   // Helper to map symbol to TradingView symbol with exchange prefix
   const getTradingViewSymbol = (sym: string) => {
-    const s = sym.toUpperCase();
-    if (['NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'AMD', 'PLTR', 'QQQ'].includes(s)) {
+    const s = sym.toUpperCase().trim();
+    if (s.includes(':')) return s;
+    if (s === 'BTC.D' || s === 'BTCD') return 'CRYPTOCAP:BTC.D';
+    if (s === 'ETH.D' || s === 'ETHD') return 'CRYPTOCAP:ETH.D';
+    if (s === 'USDT.D' || s === 'USDTD') return 'CRYPTOCAP:USDT.D';
+    if (s === 'TOTAL') return 'CRYPTOCAP:TOTAL';
+    if (s === 'TOTAL2') return 'CRYPTOCAP:TOTAL2';
+    if (s === 'TOTAL3') return 'CRYPTOCAP:TOTAL3';
+    if (s === 'DXY' || s === 'DYXY') return 'TVC:DXY';
+    if (s === 'VIX') return 'CBOE:VIX';
+    if (s === 'US10Y' || s === 'TNX') return 'TVC:US10Y';
+    if (s === 'US02Y') return 'TVC:US02Y';
+    if (s === 'EURUSD' || s === 'EUR/USD') return 'FX:EURUSD';
+    if (s === 'GBPUSD' || s === 'GBP/USD') return 'FX:GBPUSD';
+    if (s === 'USDJPY' || s === 'USD/JPY') return 'FX:USDJPY';
+    if (s === 'XAU' || s === 'GOLD') return 'TVC:GOLD';
+    if (s === 'XAG' || s === 'SILVER') return 'TVC:SILVER';
+    if (s === 'OIL' || s === 'USOIL') return 'TVC:USOIL';
+    if (s === 'BRENT' || s === 'UKOIL') return 'TVC:UKOIL';
+    if (s === 'NATGAS') return 'TVC:NATGAS';
+    if (s === 'COPPER') return 'CAPITALCOM:COPPER';
+    if (s === 'PLATINUM' || s === 'PL') return 'TVC:PLATINUM';
+    if (s === 'PALLADIUM' || s === 'PA') return 'TVC:PALLADIUM';
+    if (s === 'SPACEX') return 'NASDAQ:ARKX';
+    if (['NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'AMD', 'PLTR', 'QQQ', 'NFLX', 'SMCI', 'ARM', 'AVGO', 'QCOM', 'INTC', 'TSM', 'ORCL', 'IBM', 'HOOD'].includes(s)) {
       return `NASDAQ:${s}`;
     }
-    if (['SPY', 'MSTR', 'COIN'].includes(s)) {
+    if (['SPY', 'MSTR', 'COIN', 'DJI', 'DIA', 'IWM', 'JPM', 'V', 'MA', 'LLY', 'XOM', 'BA'].includes(s)) {
       return `NYSE:${s}`;
     }
-    if (s === 'XAU') return 'TVC:GOLD';
-    if (s === 'XAG') return 'TVC:SILVER';
-    if (s === 'OIL') return 'TVC:USOIL';
-    if (s === 'COPPER') return 'CAPITALCOM:COPPER';
-    if (s === 'SPACEX') return 'NASDAQ:ARKX';
+    if (s.endsWith('USDT') || s.endsWith('USD') || s.endsWith('BTC')) {
+      return `BINANCE:${s}`;
+    }
     return `BINANCE:${s}USDT`;
   };
 
-  const isStockOrMetal = ['SPACEX', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'PLTR', 'AMD', 'MSTR', 'COIN', 'SPY', 'QQQ', 'XAU', 'XAG', 'OIL', 'COPPER'].includes(symbol.toUpperCase());
-  const quoteCurrency = isStockOrMetal ? 'USD' : 'USDT';
+  const isDominanceOrRatio = ['BTC.D', 'ETH.D', 'USDT.D', 'US10Y', 'US02Y'].includes(symbol.toUpperCase());
+  const isStockOrMetal = ['SPACEX', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'PLTR', 'AMD', 'MSTR', 'COIN', 'SPY', 'QQQ', 'XAU', 'XAG', 'OIL', 'COPPER', 'DXY', 'DYXY', 'VIX', 'EURUSD', 'GBPUSD', 'USDJPY', 'BRENT', 'NATGAS', 'SILVER', 'GOLD', 'PLATINUM', 'PALLADIUM'].includes(symbol.toUpperCase());
+  const quoteCurrency = isDominanceOrRatio ? '%' : (isStockOrMetal ? 'USD' : 'USDT');
   const tvSymbol = getTradingViewSymbol(symbol);
 
   // 1. Primary Lightweight Charts Engine with MoneyLine Overlay Force v1

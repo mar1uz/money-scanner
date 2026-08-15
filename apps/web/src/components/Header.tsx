@@ -137,7 +137,15 @@ export const Header: React.FC<HeaderProps> = ({
               setIsDropdownOpen(true);
             }}
             onFocus={() => setIsDropdownOpen(true)}
-            placeholder="Caută generic ex: 'SpaceX', 'Gold', 'Aur', 'Tesla', 'Nvidia', '$BTC'..."
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && rawQuery) {
+                e.preventDefault();
+                const targetSymbol = matchingAssets.length > 0 ? matchingAssets[0].symbol : rawQuery.toUpperCase();
+                if (onSelectAsset) onSelectAsset(targetSymbol);
+                setIsDropdownOpen(false);
+              }
+            }}
+            placeholder="Caută orice activ: BTC.D, DXY, TOTAL, SpaceX, Gold, Tesla, NVDA, EURUSD..."
             className="w-full bg-background-surface border border-background-border rounded-xl pl-9 pr-8 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/60 focus:ring-1 focus:ring-cyan-500/30 transition-all font-mono"
           />
           {searchQuery && (
@@ -158,8 +166,39 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="absolute left-0 right-0 top-full mt-2 bg-background-card/95 backdrop-blur-xl border border-cyan-500/30 rounded-xl shadow-2xl overflow-hidden z-50 animate-fade-in max-h-96 overflow-y-auto divide-y divide-background-border">
             <div className="p-2.5 bg-background-surface/80 text-[10px] font-mono text-slate-400 flex items-center justify-between">
               <span>REZULTATE CĂUTARE INTELIGENTĂ ({matchingAssets.length})</span>
-              <span className="text-cyan-400">Apasă pe activ pentru Deep Dive</span>
+              <span className="text-cyan-400">Apasă Enter sau pe activ</span>
             </div>
+
+            {/* Direct TradingView Lookup Quick-Action (Supports ANY symbol e.g. BTC.D, DXY, etc.) */}
+            {rawQuery && (
+              <div
+                onClick={() => {
+                  if (onSelectAsset) onSelectAsset(rawQuery.toUpperCase());
+                  setIsDropdownOpen(false);
+                }}
+                className="p-3 bg-gradient-to-r from-cyan-500/15 via-blue-500/10 to-transparent hover:from-cyan-500/25 transition-all flex items-center justify-between cursor-pointer border-b border-cyan-500/20 group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center font-mono font-bold text-xs text-cyan-300 border border-cyan-500/40 shadow-glow-cyan">
+                    <Sparkles className="w-4 h-4 text-cyan-400" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-xs text-cyan-200 group-hover:text-cyan-100 font-mono">
+                        Deschide ${rawQuery.toUpperCase()}
+                      </span>
+                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 font-mono font-bold">
+                        TradingView Direct
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-mono">
+                      Analiză completă, grafic oficial TradingView și indicator Money Line
+                    </p>
+                  </div>
+                </div>
+                <ArrowUpRight className="w-4 h-4 text-cyan-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+              </div>
+            )}
 
             {matchingAssets.length > 0 ? (
               <div className="divide-y divide-background-border/50">

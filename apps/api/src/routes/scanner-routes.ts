@@ -44,9 +44,18 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
     const symbol = req.params.symbol.toUpperCase();
     const timeframe = (req.query.timeframe as Timeframe) || '1h';
 
-    const assetInfo = TOP_50_CRYPTO_ASSETS.find(a => a.symbol === symbol);
+    let assetInfo = TOP_50_CRYPTO_ASSETS.find(a => a.symbol === symbol);
     if (!assetInfo) {
-      return res.status(404).json({ error: `Asset ${symbol} not found in top 50 assets universe` });
+      assetInfo = {
+        symbol,
+        name: `${symbol} (TradingView Asset)`,
+        category: symbol.includes('.') || symbol === 'TOTAL' || symbol === 'DXY' ? 'Macro / Index' : 'Tech Stock',
+        marketClass: symbol.includes('.D') || symbol.startsWith('TOTAL') ? 'crypto' : 'stocks',
+        quoteCurrency: symbol.includes('.D') ? '%' : 'USD',
+        aliases: [symbol.toLowerCase()],
+        rank: 999,
+        decimals: 2
+      };
     }
 
     const appState = AppState.getInstance();
