@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Activity,
   Shield,
@@ -12,10 +12,11 @@ import {
   Plus,
   Star,
   Check,
-  RefreshCw
+  RefreshCw,
+  CornerDownLeft
 } from 'lucide-react';
 import { Timeframe, AssetScannerRow } from '../types.js';
-import { TOP_50_CRYPTO_ASSETS } from '@money-scanner/shared';
+import { buildSearchUniverse, performAISearchMatch, SearchMatchResult } from '../services/ai-search.js';
 
 interface HeaderProps {
   timeframe: Timeframe;
@@ -50,8 +51,24 @@ export const Header: React.FC<HeaderProps> = ({
   onLogoClick
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState<number>(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  // Build semantic searchable asset universe
+  const searchUniverse = useMemo(() => buildSearchUniverse(allAssets), [allAssets]);
+
+  // AI Semantic Approximate Matcher
+  const matchingAssets: SearchMatchResult[] = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    return performAISearchMatch(searchQuery, searchUniverse);
+  }, [searchQuery, searchUniverse]);
+
+  // Reset highlighted index when search changes
+  useEffect(() => {
+    setHighlightedIndex(0);
+  }, [searchQuery]);
 
   // Global Type-to-Search Listener: Typing anywhere in app opens and types in search
   useEffect(() => {
@@ -80,6 +97,7 @@ export const Header: React.FC<HeaderProps> = ({
           searchInputRef.current.focus();
           onSearchChange(e.key);
           setIsDropdownOpen(true);
+          setHighlightedIndex(0);
           e.preventDefault();
         }
       }
@@ -89,40 +107,7 @@ export const Header: React.FC<HeaderProps> = ({
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [onSearchChange]);
 
-  // Sanitize query by removing $, #, leading/trailing whitespace
-  const rawQuery = searchQuery.trim().toLowerCase().replace(/^[$#]/, '');
-
-  // Combine static 360 universe with live signal data
-  const searchUniverse = TOP_50_CRYPTO_ASSETS.map(base => {
-    const live = allAssets.find(a => a.symbol.toUpperCase() === base.symbol.toUpperCase());
-    return {
-      symbol: base.symbol,
-      name: base.name,
-      category: base.category,
-      aliases: (base as any).aliases || [],
-      price: live ? live.price : 0,
-      change24h: live ? live.change24h : 0,
-      tier: live ? live.tier : 'Bullish',
-      moneyLineScore: live ? live.moneyLineScore : 0
-    };
-  });
-
-  // Instant matching assets for live dropdown with fuzzy and alias matching
-  const matchingAssets = rawQuery
-    ? searchUniverse.filter(a => {
-        const sym = a.symbol.toLowerCase();
-        const nm = a.name.toLowerCase();
-        const cat = a.category.toLowerCase();
-        const aliases: string[] = (a.aliases || []).map((al: string) => al.toLowerCase());
-
-        return (
-          sym.includes(rawQuery) ||
-          nm.includes(rawQuery) ||
-          cat.includes(rawQuery) ||
-          aliases.some((al: string) => al.includes(rawQuery) || rawQuery.includes(al))
-        );
-      })
-    : [];
+  const rawQuery = searchQuery.trim().replace(/^[$#]/, '');
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -133,6 +118,48 @@ export const Header: React.FC<HeaderProps> = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Keyboard navigation handler for Search Input
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!isDropdownOpen) {
+        setIsDropdownOpen(true);
+        setHighlightedIndex(0);
+        return;
+      }
+      if (matchingAssets.length === 0) return;
+      const nextIndex = (highlightedIndex + 1) % matchingAssets.length;
+      setHighlightedIndex(nextIndex);
+      itemRefs.current[nextIndex]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!isDropdownOpen) {
+        setIsDropdownOpen(true);
+        setHighlightedIndex(matchingAssets.length - 1);
+        return;
+      }
+      if (matchingAssets.length === 0) return;
+      const prevIndex = (highlightedIndex - 1 + matchingAssets.length) % matchingAssets.length;
+      setHighlightedIndex(prevIndex);
+      itemRefs.current[prevIndex]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (matchingAssets.length > 0) {
+        const target = matchingAssets[highlightedIndex] || matchingAssets[0];
+        if (onSelectAsset) onSelectAsset(target.symbol);
+        setIsDropdownOpen(false);
+        if (searchInputRef.current) searchInputRef.current.blur();
+      } else if (rawQuery) {
+        if (onSelectAsset) onSelectAsset(rawQuery.toUpperCase());
+        setIsDropdownOpen(false);
+        if (searchInputRef.current) searchInputRef.current.blur();
+      }
+    } else if (e.key === 'Escape') {
+      setIsDropdownOpen(false);
+      if (searchInputRef.current) searchInputRef.current.blur();
+    }
+  };
 
   return (
     <header className="sticky top-0 z-40 bg-background/90 backdrop-blur-md border-b border-background-border px-4 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-4">
@@ -162,7 +189,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Global Search Bar with Live Suggestions Dropdown (Always visible on mobile & desktop) */}
+      {/* Global AI Semantic Search Bar with Keyboard Navigation (Arrow Up / Down / Enter) */}
       <div ref={dropdownRef} className="w-full order-3 md:order-2 md:w-auto md:flex-1 max-w-md relative block">
         <div className="relative">
           <Search className="absolute left-3 top-2.5 w-4 h-4 text-cyan-400/70" />
@@ -175,15 +202,8 @@ export const Header: React.FC<HeaderProps> = ({
               setIsDropdownOpen(true);
             }}
             onFocus={() => setIsDropdownOpen(true)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && rawQuery) {
-                e.preventDefault();
-                const targetSymbol = matchingAssets.length > 0 ? matchingAssets[0].symbol : rawQuery.toUpperCase();
-                if (onSelectAsset) onSelectAsset(targetSymbol);
-                setIsDropdownOpen(false);
-              }
-            }}
-            placeholder="Scrie direct pentru căutare: BTC.D, DXY, TOTAL, SpaceX, Gold, Tesla, NVDA..."
+            onKeyDown={handleKeyDown}
+            placeholder="Căutare AI: monedă Vitalik, aur, mașini electrice, plăci video, DXY..."
             className="w-full bg-background-surface border border-background-border rounded-xl pl-9 pr-8 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/60 focus:ring-1 focus:ring-cyan-500/30 transition-all font-mono"
           />
           {searchQuery && (
@@ -199,60 +219,42 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
 
-        {/* Live Search Suggestions Dropdown */}
+        {/* Live Search Suggestions Dropdown with AI Ranking & Arrow Navigation */}
         {isDropdownOpen && searchQuery.trim() && (
-          <div className="absolute left-0 right-0 top-full mt-2 bg-background-card/95 backdrop-blur-xl border border-cyan-500/30 rounded-xl shadow-2xl overflow-hidden z-50 animate-fade-in max-h-96 overflow-y-auto divide-y divide-background-border">
-            <div className="p-2.5 bg-background-surface/80 text-[10px] font-mono text-slate-400 flex items-center justify-between">
-              <span>REZULTATE CĂUTARE INTELIGENTĂ ({matchingAssets.length})</span>
-              <span className="text-cyan-400">Apasă Enter sau pe activ</span>
+          <div className="absolute left-0 right-0 top-full mt-2 bg-background-card/95 backdrop-blur-xl border border-cyan-500/30 rounded-xl shadow-2xl overflow-hidden z-50 animate-fade-in max-h-[420px] overflow-y-auto divide-y divide-background-border">
+            <div className="p-2.5 bg-background-surface/90 text-[10px] font-mono text-slate-400 flex items-center justify-between border-b border-background-border">
+              <span className="flex items-center gap-1 text-cyan-300 font-bold">
+                <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                POTRIVIRE AI INTELIGENTĂ ({matchingAssets.length})
+              </span>
+              <span className="text-slate-400 flex items-center gap-1.5">
+                <span>Navighează cu <strong className="text-cyan-300">↑ / ↓</strong></span>
+                <span>•</span>
+                <span>Selectează cu <strong className="text-emerald-400">Enter ↵</strong></span>
+              </span>
             </div>
-
-            {/* Direct TradingView Lookup Quick-Action (Supports ANY symbol e.g. BTC.D, DXY, etc.) */}
-            {rawQuery && (
-              <div
-                onClick={() => {
-                  const targetSymbol = matchingAssets.length > 0 ? matchingAssets[0].symbol : rawQuery.toUpperCase();
-                  if (onSelectAsset) onSelectAsset(targetSymbol);
-                  setIsDropdownOpen(false);
-                }}
-                className="p-3 bg-gradient-to-r from-cyan-500/15 via-blue-500/10 to-transparent hover:from-cyan-500/25 transition-all flex items-center justify-between cursor-pointer border-b border-cyan-500/20 group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center font-mono font-bold text-xs text-cyan-300 border border-cyan-500/40 shadow-glow-cyan">
-                    <Sparkles className="w-4 h-4 text-cyan-400" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-xs text-cyan-200 group-hover:text-cyan-100 font-mono">
-                        Deschide ${matchingAssets.length > 0 ? matchingAssets[0].symbol : rawQuery.toUpperCase()}
-                      </span>
-                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 font-mono font-bold">
-                        TradingView Direct
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-slate-400 font-mono">
-                      Analiză completă, grafic oficial TradingView și indicator Money Line
-                    </p>
-                  </div>
-                </div>
-                <ArrowUpRight className="w-4 h-4 text-cyan-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-              </div>
-            )}
 
             {matchingAssets.length > 0 ? (
               <div className="divide-y divide-background-border/50">
-                {matchingAssets.map(asset => {
+                {matchingAssets.map((asset, index) => {
                   const isInWatchlist = watchlist.map(w => w.replace(/^[$#]/, '').trim().toUpperCase()).includes(asset.symbol.toUpperCase());
                   const isUp = asset.change24h >= 0;
+                  const isHighlighted = highlightedIndex === index;
 
                   return (
                     <div
                       key={asset.symbol}
+                      ref={el => itemRefs.current[index] = el}
+                      onMouseEnter={() => setHighlightedIndex(index)}
                       onClick={() => {
                         if (onSelectAsset) onSelectAsset(asset.symbol);
                         setIsDropdownOpen(false);
                       }}
-                      className="p-3 hover:bg-background-surface/90 transition-all flex items-center justify-between cursor-pointer group"
+                      className={`p-3 transition-all flex items-center justify-between cursor-pointer group border-l-2 ${
+                        isHighlighted
+                          ? 'bg-cyan-500/15 border-cyan-400 text-slate-100 shadow-inner'
+                          : 'hover:bg-background-surface/80 border-transparent text-slate-300'
+                      }`}
                     >
                       <div className="flex items-center gap-3">
                         <button
@@ -270,27 +272,45 @@ export const Header: React.FC<HeaderProps> = ({
                           {isInWatchlist ? <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" /> : <Plus className="w-3.5 h-3.5" />}
                         </button>
 
-                        <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center font-mono font-bold text-xs text-cyan-300 border border-slate-700">
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-mono font-bold text-xs border transition-all ${
+                          asset.isTopMatch
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-glow-emerald'
+                            : 'bg-slate-800 text-cyan-300 border-slate-700'
+                        }`}>
                           ${asset.symbol}
                         </div>
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
                             <span className="font-bold text-xs text-slate-100 group-hover:text-cyan-300 font-mono">
                               {asset.name}
                             </span>
                             <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 font-mono">
                               {asset.category}
                             </span>
+                            {asset.isTopMatch && (
+                              <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-bold font-mono shadow-glow-emerald flex items-center gap-0.5">
+                                <Sparkles className="w-2.5 h-2.5 text-emerald-400" />
+                                ✨ AI TOP MATCH
+                              </span>
+                            )}
                           </div>
-                          {asset.price > 0 && (
-                            <span className="text-[11px] font-mono text-slate-400">
-                              ${asset.price < 1 ? asset.price.toFixed(4) : asset.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                            </span>
-                          )}
+                          
+                          <div className="flex items-center gap-2 mt-0.5 text-[11px] font-mono">
+                            {asset.price > 0 && (
+                              <span className="text-slate-300 font-semibold">
+                                ${asset.price < 1 ? asset.price.toFixed(4) : asset.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </span>
+                            )}
+                            {asset.matchReason && (
+                              <span className="text-[10px] text-cyan-400/80 italic">
+                                • {asset.matchReason}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 font-mono text-xs">
+                      <div className="flex items-center gap-2.5 font-mono text-xs">
                         {asset.price > 0 && (
                           <span className={`flex items-center font-semibold text-[11px] ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
                             {isUp ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
@@ -303,14 +323,24 @@ export const Header: React.FC<HeaderProps> = ({
                         }`}>
                           {asset.moneyLineScore > 0 ? `+${asset.moneyLineScore}` : asset.moneyLineScore}
                         </span>
+
+                        {isHighlighted && (
+                          <span className="hidden sm:flex items-center gap-1 text-[10px] font-bold text-cyan-300 bg-cyan-500/20 border border-cyan-500/40 px-1.5 py-0.5 rounded animate-pulse">
+                            <CornerDownLeft className="w-3 h-3" />
+                            <span>Selectează</span>
+                          </span>
+                        )}
                       </div>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <div className="p-6 text-center text-xs font-mono text-slate-400">
-                Niciun activ găsit pentru "{searchQuery}". Încearcă <span className="text-cyan-400">SpaceX</span>, <span className="text-cyan-400">Gold</span>, <span className="text-cyan-400">Aur</span>, <span className="text-cyan-400">Tesla</span>, <span className="text-cyan-400">Nvidia</span>, sau <span className="text-cyan-400">BTC</span>.
+              <div className="p-6 text-center text-xs font-mono text-slate-400 space-y-2">
+                <p>Niciun activ potrivit pentru <span className="text-cyan-300 font-bold">"{searchQuery}"</span>.</p>
+                <p className="text-[11px] text-slate-500">
+                  Încearcă termeni precum: <span className="text-cyan-400">moneda Vitalik</span>, <span className="text-cyan-400">aur</span>, <span className="text-cyan-400">mașini electrice</span>, <span className="text-cyan-400">plăci video</span>, <span className="text-cyan-400">SpaceX</span>, sau <span className="text-cyan-400">DXY</span>.
+                </p>
               </div>
             )}
           </div>
