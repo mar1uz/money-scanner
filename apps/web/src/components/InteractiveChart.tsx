@@ -327,14 +327,14 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       'NKE', 'GS', 'MS', 'UNH', 'CVX', 'PFE', 'ABBV', 'CAT', 'GE', 'MCD',
       'HD', 'PG', 'JNJ', 'MRK', 'BAC', 'WFC', 'C', 'IBM', 'ORCL', 'CRM',
       'NOW', 'UBER', 'SNOW', 'PLTR', 'SPOT', 'NET', 'DDOG', 'SHOP', 'SQ',
-      'NU', 'COIN', 'MSTR', 'RACE', 'NIO', 'BABA', 'TSM', 'ASML', 'SAP'
+      'NU', 'COIN', 'MSTR', 'RACE', 'NIO', 'BABA', 'TSM', 'SAP', 'LMT', 'RTX', 'DE'
     ];
     if (nyseStocks.includes(clean)) return `NYSE:${clean}`;
 
     // US Tech Equities (NASDAQ)
     const nasdaqStocks = [
       'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'META', 'AMD',
-      'QQQ', 'NFLX', 'SMCI', 'ARM', 'AVGO', 'QCOM', 'INTC', 'HOOD', 'CRWD',
+      'ASML', 'QQQ', 'NFLX', 'SMCI', 'ARM', 'AVGO', 'QCOM', 'INTC', 'HOOD', 'CRWD',
       'PANW', 'ZS', 'PYPL', 'ADBE', 'CSCO', 'TXN', 'MU', 'ABNB', 'MELI',
       'PDD', 'BIDU', 'JD', 'GME', 'AMC', 'SOFI', 'RIVN', 'LCID', 'DJT',
       'DKNG', 'CELH', 'ELF', 'APP', 'DUOL', 'ROKU', 'EA', 'TTWO', 'RBLX', 'MRNA'
@@ -349,8 +349,13 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       return `COINBASE:${clean}`;
     }
 
-    // Default Crypto Ticker on Binance
-    return `BINANCE:${clean}USDT`;
+    const commonCryptos = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE', 'ADA', 'AVAX', 'SUI', 'DOT', 'NEAR', 'APT', 'SEI', 'FTM', 'PEPE', 'SHIB', 'WIF', 'BONK', 'UNI', 'AAVE', 'LINK', 'FET', 'RENDER', 'TAO', 'ICP', 'KAS', 'INJ', 'TIA', 'MATIC', 'POL', 'TON', 'TRX'];
+    if (commonCryptos.includes(clean)) {
+      return `BINANCE:${clean}USDT`;
+    }
+
+    // Default: Return raw symbol which TradingView resolves across global exchanges
+    return clean;
   };
 
   const isDominanceOrRatio = ['BTC.D', 'ETH.D', 'USDT.D', 'US10Y', 'US02Y', 'US30Y', 'US05Y'].includes(symbol.toUpperCase());

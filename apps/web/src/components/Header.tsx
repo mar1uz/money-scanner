@@ -27,6 +27,7 @@ interface HeaderProps {
   onToggleWatchlist?: (symbol: string) => void;
   onRefreshMarket?: () => void;
   isRefreshing?: boolean;
+  onOpenSearchModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -41,7 +42,8 @@ export const Header: React.FC<HeaderProps> = ({
   watchlist = [],
   onToggleWatchlist,
   onRefreshMarket,
-  isRefreshing = false
+  isRefreshing = false,
+  onOpenSearchModal
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState<number>(0);
@@ -66,6 +68,30 @@ export const Header: React.FC<HeaderProps> = ({
   // Global Type-to-Search Listener
   useEffect(() => {
     function handleGlobalKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        if (onOpenSearchModal) {
+          onOpenSearchModal();
+          return;
+        }
+      }
+
+      if (e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const activeEl = document.activeElement;
+        const isInputActive = activeEl && (
+          activeEl.tagName === 'INPUT' ||
+          activeEl.tagName === 'TEXTAREA' ||
+          activeEl.tagName === 'SELECT'
+        );
+        if (!isInputActive) {
+          e.preventDefault();
+          if (onOpenSearchModal) {
+            onOpenSearchModal();
+            return;
+          }
+        }
+      }
+
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       
       const activeEl = document.activeElement;
@@ -84,20 +110,14 @@ export const Header: React.FC<HeaderProps> = ({
         return;
       }
 
-      if (e.key.length === 1 && !e.repeat) {
-        if (searchInputRef.current) {
-          searchInputRef.current.focus();
-          onSearchChange(e.key);
-          setIsDropdownOpen(true);
-          setHighlightedIndex(0);
-          e.preventDefault();
-        }
+      if (e.key.length === 1 && !e.repeat && onOpenSearchModal) {
+        onOpenSearchModal();
       }
     }
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [onSearchChange]);
+  }, [onSearchChange, onOpenSearchModal]);
 
   const rawQuery = searchQuery.trim().replace(/^[$#]/, '');
 
@@ -153,27 +173,40 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-xl border-b border-white/[0.04] px-4 lg:px-8 py-2.5 flex items-center justify-between gap-4">
-      {/* Central AI Search Bar */}
-      <div ref={dropdownRef} className="flex-1 max-w-xl relative">
-        <div className="relative">
-          <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-cyan-400/60" />
+    <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-xl border-b border-white/[0.04] px-3 sm:px-6 lg:px-8 py-2 sm:py-2.5 flex items-center justify-between gap-2 sm:gap-4">
+      {/* Central AI Search Bar (Mobile & Desktop Central Spotlight Trigger) */}
+      <div ref={dropdownRef} className="flex-1 max-w-xl mx-auto relative">
+        <div 
+          onClick={() => {
+            if (onOpenSearchModal) onOpenSearchModal();
+          }}
+          className="relative cursor-pointer group"
+        >
+          <Search className="absolute left-3 sm:left-3.5 top-2.5 w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
+          
           <input
             ref={searchInputRef}
             type="text"
+            readOnly={Boolean(onOpenSearchModal)}
             value={searchQuery}
+            onClick={(e) => {
+              if (onOpenSearchModal) {
+                e.preventDefault();
+                onOpenSearchModal();
+              }
+            }}
             onChange={(e) => {
               onSearchChange(e.target.value);
               setIsDropdownOpen(true);
             }}
-            onFocus={() => setIsDropdownOpen(true)}
-            onKeyDown={handleKeyDown}
-            placeholder="Căutare AI: monedă Vitalik, aur, mașini electrice, plăci video, DXY..."
-            className="w-full bg-white/[0.03] hover:bg-white/[0.05] focus:bg-white/[0.06] border border-white/[0.06] focus:border-cyan-500/50 rounded-xl pl-10 pr-9 py-2 text-xs font-mono text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/20 transition-all shadow-inner"
+            placeholder="Caută orice asset mondial: ASML, NVDA, BTC, BABA, Aur..."
+            className="w-full bg-white/[0.03] group-hover:bg-white/[0.06] border border-white/[0.07] group-hover:border-cyan-500/40 rounded-xl sm:rounded-2xl pl-9 sm:pl-10 pr-9 py-2 text-xs font-mono text-slate-100 placeholder-slate-400 focus:outline-none transition-all shadow-inner cursor-pointer"
           />
+
           {searchQuery ? (
             <button
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 onSearchChange('');
                 setIsDropdownOpen(false);
               }}
@@ -182,8 +215,8 @@ export const Header: React.FC<HeaderProps> = ({
               <X className="w-3.5 h-3.5" />
             </button>
           ) : (
-            <div className="absolute right-3 top-2.5 hidden sm:flex items-center gap-1 text-[10px] font-mono text-slate-500 bg-white/[0.04] px-1.5 py-0.5 rounded border border-white/[0.04] pointer-events-none">
-              <span>/</span>
+            <div className="absolute right-2.5 top-2 hidden sm:flex items-center gap-1 text-[10px] font-mono text-slate-400 bg-white/[0.04] px-1.5 py-0.5 rounded border border-white/[0.06]">
+              <span>⌘K</span>
             </div>
           )}
         </div>

@@ -55,10 +55,14 @@ export class PublicStockMarketAdapter {
   public isStockOrMetal(symbol: string): boolean {
     const sym = symbol.toUpperCase();
     const asset = TOP_50_CRYPTO_ASSETS.find(a => a.symbol.toUpperCase() === sym);
-    if (asset && (asset.marketClass === 'stocks' || asset.marketClass === 'metals')) {
-      return true;
+    if (asset) {
+      return asset.marketClass === 'stocks' || asset.marketClass === 'metals';
     }
-    return Boolean(this.tickerMap[sym]);
+    if (Boolean(this.tickerMap[sym])) return true;
+    // If symbol does not look like a crypto coin (or is a custom stock search), query Yahoo
+    const commonCryptos = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE', 'ADA', 'AVAX', 'SUI', 'DOT', 'NEAR', 'APT', 'SEI', 'FTM', 'PEPE', 'SHIB', 'WIF', 'BONK', 'UNI', 'AAVE', 'LINK', 'FET', 'RENDER', 'TAO'];
+    if (commonCryptos.includes(sym)) return false;
+    return true;
   }
 
   public mapTimeframeToYahoo(timeframe: Timeframe): { interval: string; range: string } {

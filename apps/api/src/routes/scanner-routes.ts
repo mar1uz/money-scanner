@@ -5,6 +5,163 @@ import { calculateMTFConfluence } from '@money-scanner/money-line';
 
 export const scannerRouter = Router();
 
+scannerRouter.get('/search', async (req, res) => {
+  try {
+    const rawQuery = (req.query.q as string || '').trim();
+    if (!rawQuery) {
+      return res.json([]);
+    }
+
+    const cleanQ = rawQuery.replace(/^[$#]/, '').trim();
+    const cleanQLower = cleanQ.toLowerCase();
+    const appState = AppState.getInstance();
+    const latestRows = await appState.refreshSignals('1w');
+
+    const results: Array<{
+      symbol: string;
+      name: string;
+      category: string;
+      marketClass: string;
+      exchange: string;
+      price: number;
+      change24h: number;
+      changeYtd: number;
+      moneyLineScore: number;
+      tier: string;
+      matchType: 'local' | 'yahoo' | 'custom';
+    }> = [];
+
+    const seenSymbols = new Set<string>();
+
+    // 1. Search Local High-Speed Catalog
+    for (const asset of TOP_50_CRYPTO_ASSETS) {
+      const sym = asset.symbol.toUpperCase();
+      const symLower = sym.toLowerCase();
+      const nameLower = asset.name.toLowerCase();
+      const catLower = asset.category.toLowerCase();
+      const aliasesLower = (asset.aliases || []).map(a => a.toLowerCase());
+
+      const isMatch = 
+        symLower === cleanQLower ||
+        symLower.startsWith(cleanQLower) ||
+        nameLower.includes(cleanQLower) ||
+        catLower.includes(cleanQLower) ||
+        aliasesLower.some(al => al.includes(cleanQLower) || cleanQLower.includes(al));
+
+      if (isMatch && !seenSymbols.has(sym)) {
+        seenSymbols.add(sym);
+        const live = latestRows.find(r => r.symbol.toUpperCase() === sym);
+        results.push({
+          symbol: asset.symbol,
+          name: asset.name,
+          category: asset.category,
+          marketClass: asset.marketClass || 'crypto',
+          exchange: asset.marketClass === 'stocks' ? 'NASDAQ/NYSE' : (asset.marketClass === 'crypto' ? 'BINANCE' : 'GLOBAL'),
+          price: live?.price || 0,
+          change24h: live?.change24h || 0,
+          changeYtd: live?.changeYtd || 0,
+          moneyLineScore: live?.moneyLineScore || 0,
+          tier: live?.tier || 'Neutral',
+          matchType: 'local'
+        });
+      }
+    }
+
+    // 2. Query Global Yahoo Finance Public Search (TradingView-style global coverage)
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2800);
+      const yahooUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(cleanQ)}&quotesCount=10&newsCount=0`;
+      
+      const yahooRes = await fetch(yahooUrl, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+      clearTimeout(timeoutId);
+
+      if (yahooRes.ok) {
+        const yahooData = await yahooRes.json() as any;
+        const quotes = yahooData?.quotes || [];
+
+        for (const q of quotes) {
+          if (!q.symbol) continue;
+          let sym = q.symbol.toUpperCase();
+          // Normalize crypto pairs like BTC-USD -> BTC if not present
+          if (q.quoteType === 'CRYPTOCURRENCY' && sym.endsWith('-USD')) {
+            const baseCrypto = sym.replace('-USD', '');
+            if (!seenSymbols.has(baseCrypto)) {
+              sym = baseCrypto;
+            }
+          }
+
+          if (seenSymbols.has(sym)) continue;
+          seenSymbols.add(sym);
+
+          let marketClass = 'stocks';
+          let category = q.sectorDisp || q.industryDisp || q.typeDisp || 'Equities';
+
+          if (q.quoteType === 'CRYPTOCURRENCY') {
+            marketClass = 'crypto';
+            category = 'Crypto Token';
+          } else if (q.quoteType === 'CURRENCY') {
+            marketClass = 'forex';
+            category = 'Forex Pair';
+          } else if (q.quoteType === 'COMMODITY') {
+            marketClass = 'metals';
+            category = 'Commodity';
+          } else if (q.quoteType === 'ETF') {
+            marketClass = 'stocks';
+            category = 'ETF Fund';
+          } else if (q.quoteType === 'INDEX') {
+            marketClass = 'macro';
+            category = 'Index';
+          }
+
+          const live = latestRows.find(r => r.symbol.toUpperCase() === sym);
+
+          results.push({
+            symbol: sym,
+            name: q.shortname || q.longname || q.symbol,
+            category,
+            marketClass,
+            exchange: q.exchDisp || q.exchange || 'GLOBAL',
+            price: live?.price || 0,
+            change24h: live?.change24h || 0,
+            changeYtd: live?.changeYtd || 0,
+            moneyLineScore: live?.moneyLineScore || 0,
+            tier: live?.tier || 'Neutral',
+            matchType: 'yahoo'
+          });
+        }
+      }
+    } catch (e) {}
+
+    // 3. Guarantee Direct Custom TradingView Fallback (User can always open ANY ticker directly)
+    const upperTicker = cleanQ.toUpperCase();
+    if (!seenSymbols.has(upperTicker) && upperTicker.length >= 2 && upperTicker.length <= 10) {
+      results.push({
+        symbol: upperTicker,
+        name: `${upperTicker} (TradingView & MoneyLine)`,
+        category: 'Direct Asset Search',
+        marketClass: 'stocks',
+        exchange: 'TRADINGVIEW',
+        price: 0,
+        change24h: 0,
+        changeYtd: 0,
+        moneyLineScore: 0,
+        tier: 'Active',
+        matchType: 'custom'
+      });
+    }
+
+    res.json(results);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Search failed', details: err.message });
+  }
+});
+
 scannerRouter.get('/scanner', async (req, res) => {
   try {
     const timeframe = (req.query.timeframe as Timeframe) || '1w';

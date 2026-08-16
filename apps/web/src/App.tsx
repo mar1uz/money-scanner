@@ -18,6 +18,7 @@ import { Sidebar } from './components/Sidebar.js';
 import { MarketRegimeGauge } from './components/MarketRegimeGauge.js';
 import { NarrativeBar } from './components/NarrativeBar.js';
 import { NarrativeDetailModal } from './components/NarrativeDetailModal.js';
+import { UniversalSearchModal } from './components/UniversalSearchModal.js';
 import { ScannerTable } from './components/ScannerTable.js';
 import { AssetDeepDiveView } from './components/AssetDeepDiveView.js';
 import { XTrendsView } from './components/XTrendsView.js';
@@ -32,6 +33,7 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AppTab>('market');
   const [timeframe, setTimeframe] = useState<Timeframe>('1w');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [selectedTier, setSelectedTier] = useState('ALL');
   const [selectedNarrative, setSelectedNarrative] = useState<MarketNarrativeId | 'ALL'>('ALL');
   const [inspectedNarrative, setInspectedNarrative] = useState<NarrativeSummary | null>(null);
@@ -134,6 +136,7 @@ export const App: React.FC = () => {
             setSelectedAssetSymbol(null);
             setActiveTab('market');
           }}
+          onOpenSearchModal={() => setIsSearchModalOpen(true)}
         />
       )}
 
@@ -155,6 +158,7 @@ export const App: React.FC = () => {
           onToggleWatchlist={toggleWatchlist}
           onRefreshMarket={refreshData}
           isRefreshing={loading}
+          onOpenSearchModal={() => setIsSearchModalOpen(true)}
         />
 
         {/* Notification Banner */}
@@ -290,6 +294,19 @@ export const App: React.FC = () => {
           )}
         </main>
       </div>
+
+      {/* Universal TradingView-Style Search Spotlight Modal */}
+      <UniversalSearchModal
+        isOpen={isSearchModalOpen}
+        onClose={() => setIsSearchModalOpen(false)}
+        onSelectAsset={(sym) => {
+          setSelectedAssetSymbol(sym);
+          setIsSearchModalOpen(false);
+        }}
+        allAssets={scannerRows}
+        watchlist={watchlist}
+        onToggleWatchlist={toggleWatchlist}
+      />
     </div>
   );
 };

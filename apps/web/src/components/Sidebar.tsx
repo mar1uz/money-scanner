@@ -11,7 +11,8 @@ import {
   ChevronRight,
   Zap,
   Star,
-  Settings
+  Settings,
+  Search
 } from 'lucide-react';
 import { AppTab } from '../types.js';
 
@@ -20,13 +21,15 @@ interface SidebarProps {
   onTabChange: (tab: AppTab) => void;
   watchlistCount: number;
   onLogoClick?: () => void;
+  onOpenSearchModal?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   onTabChange,
   watchlistCount,
-  onLogoClick
+  onLogoClick,
+  onOpenSearchModal
 }) => {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -162,9 +165,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </aside>
 
       {/* ─── Mobile Bottom Navigation ─── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background-card/95 backdrop-blur-xl border-t border-white/[0.06] px-2 pb-[env(safe-area-inset-bottom)]">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background-card/95 backdrop-blur-xl border-t border-white/[0.06] px-1.5 pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-center justify-around py-1.5">
-          {navItems.slice(0, 5).map((item) => {
+          {/* Market Tab */}
+          <button
+            onClick={() => onTabChange('market')}
+            className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all min-w-[50px] ${
+              activeTab === 'market' ? 'text-cyan-400' : 'text-slate-500'
+            }`}
+          >
+            <LayoutGrid className="w-4 h-4" />
+            <span className={`text-[9px] font-medium ${activeTab === 'market' ? 'text-cyan-300' : 'text-slate-500'}`}>
+              Market
+            </span>
+            {activeTab === 'market' && <div className="w-4 h-0.5 rounded-full bg-cyan-400 mt-0.5" />}
+          </button>
+
+          {/* Dedicated Universal Search Button */}
+          {onOpenSearchModal && (
+            <button
+              onClick={onOpenSearchModal}
+              className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl text-cyan-400 hover:text-cyan-300 transition-all min-w-[50px]"
+            >
+              <div className="p-1 rounded-lg bg-cyan-500/15 border border-cyan-500/30">
+                <Search className="w-4 h-4 text-cyan-300" />
+              </div>
+              <span className="text-[9px] font-bold text-cyan-300">
+                Caută
+              </span>
+            </button>
+          )}
+
+          {/* Other Nav Items */}
+          {navItems.slice(1, 4).map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
 
@@ -172,13 +205,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 key={item.id}
                 onClick={() => onTabChange(item.id)}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all min-w-[56px] ${
-                  isActive
-                    ? 'text-cyan-400'
-                    : 'text-slate-500'
+                className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl transition-all min-w-[50px] ${
+                  isActive ? 'text-cyan-400' : 'text-slate-500'
                 }`}
               >
-                <Icon className={`w-5 h-5 ${isActive ? 'text-cyan-400' : ''}`} />
+                <Icon className={`w-4 h-4 ${isActive ? 'text-cyan-400' : ''}`} />
                 <span className={`text-[9px] font-medium ${isActive ? 'text-cyan-300' : 'text-slate-500'}`}>
                   {item.label.split(' ')[0]}
                 </span>

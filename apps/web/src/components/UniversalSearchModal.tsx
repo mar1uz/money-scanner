@@ -1,0 +1,556 @@
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import {
+  Search,
+  X,
+  Sparkles,
+  ArrowUpRight,
+  TrendingUp,
+  Star,
+  Plus,
+  Globe,
+  Coins,
+  Building2,
+  Gem,
+  CornerDownLeft,
+  Loader2,
+  Clock,
+  ExternalLink
+} from 'lucide-react';
+import { AssetScannerRow } from '../types.js';
+import { searchUniversalAssets, SearchAssetItem } from '../services/api.js';
+import { buildSearchUniverse, performAISearchMatch } from '../services/ai-search.js';
+
+interface UniversalSearchModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSelectAsset: (symbol: string) => void;
+  allAssets: AssetScannerRow[];
+  watchlist: string[];
+  onToggleWatchlist: (symbol: string) => void;
+}
+
+type MarketCategoryTab = 'ALL' | 'stocks' | 'crypto' | 'metals' | 'forex';
+
+const RECENT_SEARCHES_KEY = 'money_scanner_recent_searches_v2';
+
+export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
+  isOpen,
+  onClose,
+  onSelectAsset,
+  allAssets = [],
+  watchlist = [],
+  onToggleWatchlist
+}) => {
+  const [query, setQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<MarketCategoryTab>('ALL');
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const [remoteResults, setRemoteResults] = useState<SearchAssetItem[]>([]);
+  const [isLoadingRemote, setIsLoadingRemote] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  // Load recent searches from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(RECENT_SEARCHES_KEY);
+      if (saved) {
+        setRecentSearches(JSON.parse(saved));
+      } else {
+        setRecentSearches(['NVDA', 'BTC', 'ASML', 'SOL', 'TSLA', 'AAPL', 'XAU']);
+      }
+    } catch (e) {
+      setRecentSearches(['NVDA', 'BTC', 'ASML', 'SOL', 'TSLA', 'AAPL', 'XAU']);
+    }
+  }, []);
+
+  const saveRecentSearch = (sym: string) => {
+    const cleanSym = sym.replace(/^[$#]/, '').trim().toUpperCase();
+    const updated = [cleanSym, ...recentSearches.filter(s => s !== cleanSym)].slice(0, 8);
+    setRecentSearches(updated);
+    try {
+      localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+    } catch (e) {}
+  };
+
+  // Focus input automatically when opened
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      }, 50);
+    }
+  }, [isOpen]);
+
+  // Local semantic AI search for instant 0ms results
+  const searchUniverse = useMemo(() => buildSearchUniverse(allAssets), [allAssets]);
+  const localAIMatches = useMemo(() => {
+    if (!query.trim()) return [];
+    return performAISearchMatch(query, searchUniverse);
+  }, [query, searchUniverse]);
+
+  // Asynchronous remote universal symbol search (Yahoo Finance / Binance / Global)
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) {
+      setRemoteResults([]);
+      setIsLoadingRemote(false);
+      return;
+    }
+
+    setIsLoadingRemote(true);
+    const timer = setTimeout(async () => {
+      try {
+        const results = await searchUniversalAssets(q);
+        setRemoteResults(results);
+      } catch (err) {
+        setRemoteResults([]);
+      } finally {
+        setIsLoadingRemote(false);
+      }
+    }, 180);
+
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  // Combine and deduplicate local AI matches + remote results
+  const unifiedResults: SearchAssetItem[] = useMemo(() => {
+    const q = query.trim();
+    if (!q) return [];
+
+    const map = new Map<string, SearchAssetItem>();
+
+    // 1. Add Local AI Matches first (high precision)
+    for (const local of localAIMatches) {
+      const sym = local.symbol.toUpperCase();
+      const live = allAssets.find(a => a.symbol.toUpperCase() === sym);
+      map.set(sym, {
+        symbol: local.symbol,
+        name: local.name,
+        category: local.category,
+        marketClass: (live?.marketClass || (sym === 'XAU' || sym === 'XAG' || sym === 'OIL' ? 'metals' : (local.category.includes('Stock') || local.category.includes('Equity') ? 'stocks' : 'crypto'))),
+        exchange: local.category.includes('Stock') ? 'NASDAQ/NYSE' : (local.category.includes('Crypto') ? 'BINANCE' : 'TVC'),
+        price: local.price || live?.price || 0,
+        change24h: local.change24h || live?.change24h || 0,
+        changeYtd: live?.changeYtd || 0,
+        moneyLineScore: local.moneyLineScore || live?.moneyLineScore || 0,
+        tier: local.tier || live?.tier || 'Neutral',
+        matchType: 'local'
+      });
+    }
+
+    // 2. Add Remote / Yahoo Global Results
+    for (const rem of remoteResults) {
+      const sym = rem.symbol.toUpperCase();
+      if (!map.has(sym)) {
+        map.set(sym, rem);
+      } else {
+        const existing = map.get(sym)!;
+        if (rem.exchange && rem.exchange !== 'GLOBAL') {
+          existing.exchange = rem.exchange;
+        }
+      }
+    }
+
+    // 3. If user typed an exact ticker not yet in list, guarantee direct TradingView entry
+    const cleanUpper = q.replace(/^[$#]/, '').trim().toUpperCase();
+    if (!map.has(cleanUpper) && cleanUpper.length >= 2 && cleanUpper.length <= 12) {
+      map.set(cleanUpper, {
+        symbol: cleanUpper,
+        name: `${cleanUpper} (Direct TradingView Asset)`,
+        category: 'Global Market Ticker',
+        marketClass: 'stocks',
+        exchange: 'TRADINGVIEW',
+        price: 0,
+        change24h: 0,
+        changeYtd: 0,
+        moneyLineScore: 0,
+        tier: 'Active',
+        matchType: 'custom'
+      });
+    }
+
+    let list = Array.from(map.values());
+
+    // Filter by selected category tab
+    if (selectedCategory !== 'ALL') {
+      list = list.filter(item => {
+        if (selectedCategory === 'stocks') return item.marketClass === 'stocks' || item.category.toLowerCase().includes('stock') || item.category.toLowerCase().includes('tech');
+        if (selectedCategory === 'crypto') return item.marketClass === 'crypto' || item.category.toLowerCase().includes('crypto') || item.category.toLowerCase().includes('l1') || item.category.toLowerCase().includes('defi');
+        if (selectedCategory === 'metals') return item.marketClass === 'metals' || item.category.toLowerCase().includes('metal') || item.category.toLowerCase().includes('commodity') || item.category.toLowerCase().includes('gold') || item.category.toLowerCase().includes('oil');
+        if (selectedCategory === 'forex') return item.marketClass === 'forex' || item.marketClass === 'macro' || item.category.toLowerCase().includes('forex') || item.category.toLowerCase().includes('index') || item.category.toLowerCase().includes('dxy');
+        return true;
+      });
+    }
+
+    return list;
+  }, [query, localAIMatches, remoteResults, allAssets, selectedCategory]);
+
+  // Reset highlight index when results or query changes
+  useEffect(() => {
+    setHighlightedIndex(0);
+  }, [unifiedResults.length, query]);
+
+  // Keyboard navigation
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (unifiedResults.length === 0) return;
+      const next = (highlightedIndex + 1) % unifiedResults.length;
+      setHighlightedIndex(next);
+      itemRefs.current[next]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (unifiedResults.length === 0) return;
+      const prev = (highlightedIndex - 1 + unifiedResults.length) % unifiedResults.length;
+      setHighlightedIndex(prev);
+      itemRefs.current[prev]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (unifiedResults.length > 0) {
+        const target = unifiedResults[highlightedIndex] || unifiedResults[0];
+        handleSelect(target.symbol);
+      } else if (query.trim()) {
+        handleSelect(query.trim().replace(/^[$#]/, '').toUpperCase());
+      }
+    } else if (e.key === 'Escape') {
+      onClose();
+    }
+  };
+
+  const handleSelect = (symbol: string) => {
+    const sym = symbol.replace(/^[$#]/, '').trim().toUpperCase();
+    saveRecentSearch(sym);
+    onSelectAsset(sym);
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div 
+      className="fixed inset-0 z-50 flex items-start justify-center pt-3 sm:pt-14 px-2.5 sm:px-4 bg-background/85 backdrop-blur-xl animate-fade-in"
+      onClick={onClose}
+    >
+      <div 
+        className="relative w-full max-w-2xl flex flex-col bg-background-card border border-white/[0.1] rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden max-h-[92vh] sm:max-h-[85vh]"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={handleKeyDown}
+      >
+        {/* Search Header Input */}
+        <div className="relative p-3.5 sm:p-4 border-b border-white/[0.06] bg-background-surface/40 flex items-center gap-2.5 sm:gap-3">
+          <Search className="w-5 h-5 text-cyan-400 shrink-0" />
+          
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Caută orice asset mondial: ASML, NVDA, BTC, BABA, Aur, DXY..."
+            className="w-full bg-transparent text-sm sm:text-base font-mono text-slate-100 placeholder-slate-500 focus:outline-none"
+          />
+
+          {isLoadingRemote && (
+            <Loader2 className="w-4 h-4 text-cyan-400 animate-spin shrink-0" />
+          )}
+
+          {query && (
+            <button
+              onClick={() => {
+                setQuery('');
+                inputRef.current?.focus();
+              }}
+              className="p-1 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/[0.05] transition-colors shrink-0"
+              title="Șterge textul"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+
+          <button
+            onClick={onClose}
+            className="px-2.5 py-1 text-xs font-mono text-slate-400 hover:text-slate-200 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] rounded-xl transition-all shrink-0"
+          >
+            ESC
+          </button>
+        </div>
+
+        {/* Category Tabs */}
+        <div className="flex items-center gap-1.5 px-3 sm:px-4 py-2 border-b border-white/[0.04] bg-white/[0.01] overflow-x-auto no-scrollbar text-xs font-mono">
+          <button
+            onClick={() => setSelectedCategory('ALL')}
+            className={`px-3 py-1 rounded-xl transition-all shrink-0 flex items-center gap-1.5 ${
+              selectedCategory === 'ALL'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span>Toate</span>
+          </button>
+
+          <button
+            onClick={() => setSelectedCategory('stocks')}
+            className={`px-3 py-1 rounded-xl transition-all shrink-0 flex items-center gap-1.5 ${
+              selectedCategory === 'stocks'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
+            }`}
+          >
+            <Building2 className="w-3.5 h-3.5" />
+            <span>Stocks 📈</span>
+          </button>
+
+          <button
+            onClick={() => setSelectedCategory('crypto')}
+            className={`px-3 py-1 rounded-xl transition-all shrink-0 flex items-center gap-1.5 ${
+              selectedCategory === 'crypto'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
+            }`}
+          >
+            <Coins className="w-3.5 h-3.5" />
+            <span>Crypto 🪙</span>
+          </button>
+
+          <button
+            onClick={() => setSelectedCategory('metals')}
+            className={`px-3 py-1 rounded-xl transition-all shrink-0 flex items-center gap-1.5 ${
+              selectedCategory === 'metals'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
+            }`}
+          >
+            <Gem className="w-3.5 h-3.5" />
+            <span>Metale & Marfuri 🥇</span>
+          </button>
+
+          <button
+            onClick={() => setSelectedCategory('forex')}
+            className={`px-3 py-1 rounded-xl transition-all shrink-0 flex items-center gap-1.5 ${
+              selectedCategory === 'forex'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
+            }`}
+          >
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span>Macro / Forex 🌐</span>
+          </button>
+        </div>
+
+        {/* Results List or Recent Searches */}
+        <div ref={listRef} className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-1">
+          {query.trim() ? (
+            unifiedResults.length > 0 ? (
+              <div className="divide-y divide-white/[0.03]">
+                {unifiedResults.map((item, index) => {
+                  const isHighlighted = highlightedIndex === index;
+                  const isInWatchlist = watchlist.includes(item.symbol.toUpperCase());
+                  const isPos = item.change24h >= 0;
+                  const isBull = item.tier?.includes('Bullish');
+                  const isBear = item.tier?.includes('Bearish');
+
+                  return (
+                    <div
+                      key={`${item.symbol}-${index}`}
+                      ref={el => itemRefs.current[index] = el}
+                      onMouseEnter={() => setHighlightedIndex(index)}
+                      onClick={() => handleSelect(item.symbol)}
+                      className={`p-3 rounded-xl transition-all flex items-center justify-between cursor-pointer group border-l-2 ${
+                        isHighlighted
+                          ? 'bg-cyan-500/15 border-cyan-400 text-slate-100 shadow-inner'
+                          : 'hover:bg-white/[0.03] border-transparent text-slate-300'
+                      }`}
+                    >
+                      {/* Left: Star + Symbol Badge + Name */}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleWatchlist(item.symbol);
+                          }}
+                          className={`p-1.5 rounded-lg border transition-all ${
+                            isInWatchlist
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-glow-gold'
+                              : 'bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-cyan-300 border-white/[0.06]'
+                          }`}
+                          title={isInWatchlist ? 'Scoate din Watchlist' : 'Adaugă în Watchlist'}
+                        >
+                          {isInWatchlist ? <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" /> : <Plus className="w-3.5 h-3.5" />}
+                        </button>
+
+                        <div className="w-10 h-10 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center font-mono font-bold text-xs text-cyan-300 shrink-0">
+                          ${item.symbol}
+                        </div>
+
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="font-bold text-sm text-slate-100 group-hover:text-cyan-300 transition-colors font-mono">
+                              ${item.symbol}
+                            </span>
+                            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-white/[0.04] text-slate-400 border border-white/[0.04]">
+                              {item.exchange || 'GLOBAL'}
+                            </span>
+                            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-800/80 text-slate-400">
+                              {item.category}
+                            </span>
+                          </div>
+
+                          <div className="text-xs text-slate-400 truncate font-sans mt-0.5">
+                            {item.name}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right: Price + 24h + YTD + Action */}
+                      <div className="flex items-center gap-3 sm:gap-4 shrink-0 font-mono">
+                        {item.price > 0 && (
+                          <div className="flex flex-col items-end text-right">
+                            <span className="text-xs font-bold text-slate-200">
+                              ${item.price < 1 ? item.price.toFixed(4) : item.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </span>
+                            <div className="flex items-center gap-1.5 text-[10px]">
+                              <span className={isPos ? 'text-emerald-400' : 'text-rose-400'}>
+                                {isPos ? `+${item.change24h}%` : `${item.change24h}%`}
+                              </span>
+                              {item.changeYtd !== undefined && item.changeYtd !== 0 && (
+                                <span className={`hidden sm:inline ${item.changeYtd >= 0 ? 'text-emerald-400/80' : 'text-rose-400/80'}`}>
+                                  YTD: {item.changeYtd >= 0 ? `+${item.changeYtd}%` : `${item.changeYtd}%`}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {item.tier && item.tier !== 'Active' && item.tier !== 'Neutral' && (
+                          <span className={`hidden md:inline-flex px-2 py-0.5 rounded text-[10px] font-bold border ${
+                            isBull ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' :
+                            (isBear ? 'bg-rose-500/10 text-rose-300 border-rose-500/30' : 'bg-white/[0.04] text-slate-300 border-white/[0.06]')
+                          }`}>
+                            {item.tier}
+                          </span>
+                        )}
+
+                        {isHighlighted ? (
+                          <div className="flex items-center gap-1 text-[11px] font-bold text-cyan-300 bg-cyan-500/20 border border-cyan-500/40 px-2 py-1 rounded-lg animate-pulse">
+                            <CornerDownLeft className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Deschide</span>
+                          </div>
+                        ) : (
+                          <div className="p-1 rounded text-slate-500 group-hover:text-cyan-300">
+                            <ArrowUpRight className="w-4 h-4" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="p-8 text-center space-y-3 font-mono">
+                <p className="text-sm text-slate-300">
+                  Deschide direct activul <strong className="text-cyan-300">${query.toUpperCase()}</strong> pe TradingView
+                </p>
+                <button
+                  onClick={() => handleSelect(query.toUpperCase())}
+                  className="px-4 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs font-bold transition-all flex items-center gap-2 mx-auto"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span>Deschide Grafic & Analiză MoneyLine</span>
+                </button>
+              </div>
+            )
+          ) : (
+            /* Empty State: Recent Searches & Trending */
+            <div className="p-4 space-y-5">
+              {/* Recent Searches */}
+              <div>
+                <div className="flex items-center gap-1.5 text-xs font-mono text-slate-400 mb-2.5">
+                  <Clock className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>CĂUTĂRI RECENTE & RAPIDE</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {recentSearches.map(sym => (
+                    <button
+                      key={sym}
+                      onClick={() => handleSelect(sym)}
+                      className="px-3 py-1.5 rounded-xl bg-white/[0.03] hover:bg-cyan-500/15 border border-white/[0.06] hover:border-cyan-500/30 text-xs font-mono text-slate-200 hover:text-cyan-300 transition-all flex items-center gap-1.5"
+                    >
+                      <span className="font-bold">${sym}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Suggestions Categories */}
+              <div>
+                <div className="flex items-center gap-1.5 text-xs font-mono text-slate-400 mb-2.5">
+                  <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>EXEMPLE DE CĂUTARE INTELIGENTĂ</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
+                  <button
+                    onClick={() => { setQuery('ASML'); inputRef.current?.focus(); }}
+                    className="p-2.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.04] text-left transition-all flex items-center justify-between group"
+                  >
+                    <div>
+                      <span className="font-bold text-slate-200 group-hover:text-cyan-300">$ASML</span>
+                      <span className="block text-[11px] text-slate-500">Lider mondial litografie cipuri</span>
+                    </div>
+                    <ArrowUpRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-cyan-300" />
+                  </button>
+
+                  <button
+                    onClick={() => { setQuery('NVDA'); inputRef.current?.focus(); }}
+                    className="p-2.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.04] text-left transition-all flex items-center justify-between group"
+                  >
+                    <div>
+                      <span className="font-bold text-slate-200 group-hover:text-cyan-300">$NVDA</span>
+                      <span className="block text-[11px] text-slate-500">Nvidia AI Hardware & GPU</span>
+                    </div>
+                    <ArrowUpRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-cyan-300" />
+                  </button>
+
+                  <button
+                    onClick={() => { setQuery('moneda vitalik'); inputRef.current?.focus(); }}
+                    className="p-2.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.04] text-left transition-all flex items-center justify-between group"
+                  >
+                    <div>
+                      <span className="font-bold text-slate-200 group-hover:text-cyan-300">"moneda vitalik"</span>
+                      <span className="block text-[11px] text-slate-500">Căutare semantică AI → Ethereum</span>
+                    </div>
+                    <ArrowUpRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-cyan-300" />
+                  </button>
+
+                  <button
+                    onClick={() => { setQuery('aur spot'); inputRef.current?.focus(); }}
+                    className="p-2.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.04] text-left transition-all flex items-center justify-between group"
+                  >
+                    <div>
+                      <span className="font-bold text-slate-200 group-hover:text-cyan-300">"aur spot"</span>
+                      <span className="block text-[11px] text-slate-500">Metal prețios refugiu ($XAU)</span>
+                    </div>
+                    <ArrowUpRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-cyan-300" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Modal Footer Hints */}
+        <div className="flex items-center justify-between px-4 py-2.5 border-t border-white/[0.06] bg-background-surface/50 text-[11px] font-mono text-slate-500">
+          <div className="flex items-center gap-3">
+            <span className="hidden sm:inline">Navighează: <strong className="text-slate-400">↑ / ↓</strong></span>
+            <span>Selectează: <strong className="text-emerald-400">Enter ↵</strong></span>
+            <span>Închide: <strong className="text-slate-400">ESC</strong></span>
+          </div>
+          <span className="text-cyan-400/80">Agregator Universal TradingView</span>
+        </div>
+      </div>
+    </div>
+  );
+};

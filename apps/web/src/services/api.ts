@@ -129,3 +129,25 @@ export async function fetchUSAStatus(): Promise<any> {
   return res.json();
 }
 
+export interface SearchAssetItem {
+  symbol: string;
+  name: string;
+  category: string;
+  marketClass: 'stocks' | 'crypto' | 'metals' | 'forex' | 'macro' | string;
+  exchange: string;
+  price: number;
+  change24h: number;
+  changeYtd: number;
+  moneyLineScore: number;
+  tier: string;
+  matchType: 'local' | 'yahoo' | 'custom';
+}
+
+export async function searchUniversalAssets(query: string): Promise<SearchAssetItem[]> {
+  if (!query.trim()) return [];
+  const res = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query.trim())}`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+

@@ -90,6 +90,30 @@ const SEMANTIC_CONCEPTS: Record<string, { concepts: string[]; roTerms: string[];
     enTerms: ['graphics cards', 'ai accelerators', 'jensen huang', 'gpu maker', 'chipmaker', 'ai hardware', 'blackwell'],
     aliases: ['nvda', 'nvidia', 'placi video', 'cipuri ai', 'jensen huang', 'gpu', 'h100', 'blackwell', 'placi grafice', 'inteligenta artificiala']
   },
+  'ASML': {
+    concepts: ['euv lithography', 'semiconductor equipment', 'chip manufacturing', 'photolithography', 'monopoly chips', 'dutch tech'],
+    roTerms: ['litografie cipuri', 'echipamente semiconductoare', 'masini cipuri', 'asml holding', 'litografie euv', 'olanda tech'],
+    enTerms: ['euv lithography systems', 'semiconductor equipment', 'chipmaking monopoly', 'asml holding nv'],
+    aliases: ['asml', 'asml holding', 'litografie', 'masini cipuri', 'semiconductor equipment', 'euv']
+  },
+  'TSM': {
+    concepts: ['taiwan semiconductor', 'foundry', 'tsmc', 'fab', 'morris chang', '3nm', '2nm', 'chip contract maker'],
+    roTerms: ['producator cipuri taiwan', 'tsmc', 'fabricatie procesoare', 'fabrica cipuri', 'taiwan semiconductor'],
+    enTerms: ['taiwan semiconductor manufacturing', 'tsmc', 'chip foundry', 'pure play foundry'],
+    aliases: ['tsm', 'tsmc', 'taiwan semiconductor', 'morris chang', 'foundry']
+  },
+  'AVGO': {
+    concepts: ['broadcom', 'hock tan', 'custom silicon', 'networking chips', 'vmware', 'datacenter connectivity'],
+    roTerms: ['broadcom', 'cipuri retea', 'hock tan', 'vmware cloud', 'semiconductoare centre date'],
+    enTerms: ['broadcom inc', 'networking silicon', 'custom asic chips', 'vmware'],
+    aliases: ['avgo', 'broadcom', 'hock tan', 'vmware']
+  },
+  'ARM': {
+    concepts: ['arm architecture', 'risc', 'mobile processors', 'softbank', 'masayoshi son', 'power efficient chips'],
+    roTerms: ['arhitectura arm', 'procesoare mobile', 'licenta cipuri', 'softbank arm'],
+    enTerms: ['arm holdings', 'chip architecture', 'risc processors', 'mobile silicon design'],
+    aliases: ['arm', 'arm holdings', 'arhitectura arm', 'softbank']
+  },
   'TSLA': {
     concepts: ['electric vehicles', 'ev', 'elon musk', 'cybertruck', 'robotaxi', 'autopilot', 'fsd', 'energy storage', 'gigafactory'],
     roTerms: ['masini electrice', 'masina lui elon', 'elon musk', 'cybertruck', 'robotaxi', 'gigafactory', 'tesla'],
