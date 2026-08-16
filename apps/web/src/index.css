@@ -141,3 +141,53 @@
 .divider-subtle {
   border-top: 1px solid rgba(255, 255, 255, 0.04);
 }
+
+/* ─── Asset Deep Dive: Sticky Header ─── */
+.asset-header-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: rgba(10, 14, 23, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ─── Tab Navigation ─── */
+.tab-nav {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.tab-item {
+  padding: 0.625rem 1.25rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #64748b;
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s ease, border-color 0.2s ease;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.tab-item:hover {
+  color: #94a3b8;
+}
+
+.tab-item.tab-active {
+  color: #22d3ee;
+  border-bottom-color: #22d3ee;
+  font-weight: 600;
+}
+
+/* ─── Tab Content Fade ─── */
+@keyframes tab-fade-in {
+  0% { opacity: 0; transform: translateY(4px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.tab-content-enter {
+  animation: tab-fade-in 0.25s ease-out forwards;
+}
