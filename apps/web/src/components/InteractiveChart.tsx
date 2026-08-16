@@ -644,6 +644,71 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     return { x, y };
   };
 
+  // Helper to compute percentage, price delta, and time in days/hours
+  const getRulerStats = (
+    p1: { timeIndex: number; price: number },
+    p2: { timeIndex: number; price: number }
+  ) => {
+    const priceDiff = p2.price - p1.price;
+    const pct = p1.price !== 0 ? ((p2.price - p1.price) / p1.price) * 100 : 0;
+    const isUp = pct >= 0;
+
+    if (!candles || candles.length === 0) {
+      return { pct, priceDiff, isUp, barsCount: 1, timeFormatted: '1 zi' };
+    }
+
+    const idx1 = Math.max(0, Math.min(candles.length - 1, p1.timeIndex));
+    const idx2 = Math.max(0, Math.min(candles.length - 1, p2.timeIndex));
+    const startIdx = Math.min(idx1, idx2);
+    const endIdx = Math.max(idx1, idx2);
+
+    const cStart = candles[startIdx];
+    const cEnd = candles[endIdx];
+    const barsCount = Math.max(1, endIdx - startIdx);
+
+    let timeDiffMs = 0;
+    if (cStart?.timestamp && cEnd?.timestamp) {
+      timeDiffMs = Math.abs(cEnd.timestamp - cStart.timestamp);
+    }
+
+    // Fallback based on selected timeframe if timestamps are unpopulated
+    if (timeDiffMs === 0) {
+      const tfHours: Record<string, number> = {
+        '1h': 1,
+        '4h': 4,
+        '8h': 8,
+        '1d': 24,
+        '1w': 168,
+        '1m': 720
+      };
+      const hoursPerBar = tfHours[activeInterval.toLowerCase()] || 24;
+      timeDiffMs = barsCount * hoursPerBar * 3600000;
+    }
+
+    const hours = timeDiffMs / 3600000;
+    const days = timeDiffMs / 86400000;
+
+    let timeFormatted = '';
+    if (days >= 1) {
+      const roundedDays = Math.round(days * 10) / 10;
+      timeFormatted = `${roundedDays === Math.floor(roundedDays) ? Math.floor(roundedDays) : roundedDays.toFixed(1)} ${roundedDays === 1 ? 'zi' : 'zile'}`;
+    } else if (hours >= 1) {
+      const roundedHours = Math.round(hours);
+      timeFormatted = `${roundedHours} ${roundedHours === 1 ? 'oră' : 'ore'}`;
+    } else {
+      const mins = Math.max(1, Math.round(timeDiffMs / 60000));
+      timeFormatted = `${mins} min`;
+    }
+
+    return {
+      pct,
+      priceDiff,
+      isUp,
+      barsCount,
+      timeFormatted
+    };
+  };
+
   const getPointFromMouse = (e: React.MouseEvent<SVGSVGElement>): { x: number; y: number; timeIndex: number; price: number } | null => {
     if (!svgOverlayRef.current || !chartApiRef.current || !candleSeriesRef.current || !candles || candles.length === 0) return null;
     const rect = svgOverlayRef.current.getBoundingClientRect();
@@ -1157,6 +1222,35 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                 </button>
               </div>
             )}
+
+            {/* Latest Measurement HUD on Mobile */}
+            {(() => {
+              const latestRuler = drawings.filter(d => d.type === 'ruler' && d.p2).slice(-1)[0];
+              if (!latestRuler || !latestRuler.p2) return null;
+              const stats = getRulerStats(latestRuler.p1, latestRuler.p2);
+              return (
+                <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-[#091124] border border-cyan-500/40 text-xs font-mono animate-fade-in shadow-md">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                    <span className="text-cyan-400 font-bold">📏 Rezultat:</span>
+                    <span className={`font-black ${stats.isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {stats.isUp ? `+${stats.pct.toFixed(2)}%` : `${stats.pct.toFixed(2)}%`} ({stats.priceDiff > 0 ? `+${stats.priceDiff.toFixed(2)}` : stats.priceDiff.toFixed(2)})
+                    </span>
+                    <span className="text-slate-300">
+                      • ⏱️ <strong className="text-amber-300">{stats.timeFormatted}</strong> ({stats.barsCount} bare)
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setDrawings(prev => prev.filter(d => d.id !== latestRuler.id));
+                    }}
+                    className="p-1 rounded-lg text-slate-400 hover:text-rose-400 bg-white/[0.04] border border-white/[0.06] ml-2 shrink-0"
+                    title="Șterge Măsurătoare"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Chart View Container with Floating Drawing Tools & SVG Overlay */}
@@ -1598,44 +1692,74 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                 if (d.type === 'ruler' && c2 && d.p2) {
                   const left = Math.min(c1.x, c2.x);
                   const top = Math.min(c1.y, c2.y);
-                  const width = Math.abs(c2.x - c1.x);
-                  const height = Math.abs(c2.y - c1.y);
-                  const priceDiff = d.p2.price - d.p1.price;
-                  const pct = ((d.p2.price - d.p1.price) / d.p1.price) * 100;
-                  const isUp = pct >= 0;
+                  const width = Math.max(10, Math.abs(c2.x - c1.x));
+                  const height = Math.max(10, Math.abs(c2.y - c1.y));
+                  const stats = getRulerStats(d.p1, d.p2);
+
+                  const badgeWidth = 176;
+                  const badgeHeight = 36;
+                  const badgeX = Math.max(left, left + width / 2 - badgeWidth / 2);
+                  const badgeY = Math.max(8, top + height / 2 - badgeHeight / 2);
 
                   return (
                     <g key={d.id}>
+                      {/* Bounding measurement box */}
                       <rect
                         x={left}
                         y={top}
                         width={width}
                         height={height}
-                        fill={isUp ? 'rgba(16, 185, 129, 0.15)' : 'rgba(244, 63, 94, 0.15)'}
-                        stroke={isUp ? '#10b981' : '#f43f5e'}
+                        fill={stats.isUp ? 'rgba(16, 185, 129, 0.18)' : 'rgba(244, 63, 94, 0.18)'}
+                        stroke={stats.isUp ? '#10b981' : '#f43f5e'}
                         strokeWidth="1.5"
                         strokeDasharray="4 4"
+                        rx="4"
                       />
+                      {/* Diagonal measurement trajectory line */}
+                      <line
+                        x1={c1.x}
+                        y1={c1.y}
+                        x2={c2.x}
+                        y2={c2.y}
+                        stroke={stats.isUp ? '#34d399' : '#fb7185'}
+                        strokeWidth="1.5"
+                        strokeDasharray="2 2"
+                      />
+                      {/* High-contrast solid badge card */}
                       <rect
-                        x={left + width / 2 - 60}
-                        y={top + height / 2 - 12}
-                        width="120"
-                        height="24"
-                        rx="6"
-                        fill="#080c14"
-                        stroke={isUp ? '#10b981' : '#f43f5e'}
-                        strokeWidth="1"
+                        x={badgeX}
+                        y={badgeY}
+                        width={badgeWidth}
+                        height={badgeHeight}
+                        rx="8"
+                        fill="#070c17"
+                        stroke={stats.isUp ? '#10b981' : '#f43f5e'}
+                        strokeWidth="1.5"
+                        filter="drop-shadow(0 4px 10px rgba(0,0,0,0.85))"
                       />
+                      {/* Row 1: Percentage return & Price Difference */}
                       <text
-                        x={left + width / 2}
-                        y={top + height / 2 + 4}
-                        fill={isUp ? '#34d399' : '#fb7185'}
+                        x={badgeX + badgeWidth / 2}
+                        y={badgeY + 14}
+                        fill={stats.isUp ? '#34d399' : '#fb7185'}
+                        textAnchor="middle"
+                        fontFamily="monospace"
+                        fontSize="11"
+                        fontWeight="bold"
+                      >
+                        {stats.isUp ? `+${stats.pct.toFixed(2)}%` : `${stats.pct.toFixed(2)}%`} ({stats.priceDiff > 0 ? `+${stats.priceDiff.toFixed(2)}` : stats.priceDiff.toFixed(2)})
+                      </text>
+                      {/* Row 2: Elapsed Time in Days & Bars Count */}
+                      <text
+                        x={badgeX + badgeWidth / 2}
+                        y={badgeY + 28}
+                        fill="#cbd5e1"
                         textAnchor="middle"
                         fontFamily="monospace"
                         fontSize="10"
                         fontWeight="bold"
                       >
-                        {isUp ? `+${pct.toFixed(2)}%` : `${pct.toFixed(2)}%`} (${priceDiff > 0 ? `+${priceDiff.toFixed(2)}` : priceDiff.toFixed(2)})
+                        ⏱️ {stats.timeFormatted} • {stats.barsCount} {stats.barsCount === 1 ? 'bară' : 'bare'}
                       </text>
                     </g>
                   );
@@ -1710,28 +1834,82 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                         y={Math.min(currentStart.y, mousePos.y)}
                         width={Math.abs(mousePos.x - currentStart.x)}
                         height={Math.abs(mousePos.y - currentStart.y)}
-                        fill="rgba(56, 189, 248, 0.15)"
+                        fill="rgba(56, 189, 248, 0.18)"
                         stroke="#38bdf8"
                         strokeWidth="1.5"
                         strokeDasharray="4 4"
+                        rx="4"
+                      />
+                      <line
+                        x1={currentStart.x}
+                        y1={currentStart.y}
+                        x2={mousePos.x}
+                        y2={mousePos.y}
+                        stroke="#38bdf8"
+                        strokeWidth="1.5"
+                        strokeDasharray="2 2"
                       />
                       {candleSeriesRef.current && (
-                        <text
-                          x={(currentStart.x + mousePos.x) / 2}
-                          y={Math.max(16, Math.min(currentStart.y, mousePos.y) - 8)}
-                          fill="#38bdf8"
-                          textAnchor="middle"
-                          fontFamily="monospace"
-                          fontSize="11"
-                          fontWeight="bold"
-                        >
-                          {(() => {
-                            const p1 = currentStart.price;
-                            const p2 = candleSeriesRef.current.coordinateToPrice(mousePos.y) || p1;
-                            const pct = ((p2 - p1) / p1) * 100;
-                            return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}% (${(p2 - p1) >= 0 ? '+' : ''}${(p2 - p1).toFixed(2)})`;
-                          })()}
-                        </text>
+                        (() => {
+                          const p1 = currentStart.price;
+                          const p2 = candleSeriesRef.current.coordinateToPrice(mousePos.y) || p1;
+                          
+                          let targetTimeIndex = candles.length - 1;
+                          if (chartApiRef.current) {
+                            const timeVal = chartApiRef.current.timeScale().coordinateToTime(mousePos.x) as any;
+                            if (typeof timeVal === 'number') {
+                              const foundIdx = candles.findIndex((c, idx) => {
+                                const tSec = Math.floor(c.timestamp / 1000) + idx * 60;
+                                return tSec >= timeVal;
+                              });
+                              if (foundIdx !== -1) targetTimeIndex = foundIdx;
+                            }
+                          }
+                          const stats = getRulerStats(currentStart, { timeIndex: targetTimeIndex, price: p2 });
+
+                          const badgeW = 176;
+                          const badgeH = 34;
+                          const bX = Math.max(8, (currentStart.x + mousePos.x) / 2 - badgeW / 2);
+                          const bY = Math.max(10, Math.min(currentStart.y, mousePos.y) - badgeH - 6);
+
+                          return (
+                            <g>
+                              <rect
+                                x={bX}
+                                y={bY}
+                                width={badgeW}
+                                height={badgeH}
+                                rx="6"
+                                fill="#070c17"
+                                stroke="#38bdf8"
+                                strokeWidth="1"
+                                filter="drop-shadow(0 4px 8px rgba(0,0,0,0.8))"
+                              />
+                              <text
+                                x={bX + badgeW / 2}
+                                y={bY + 13}
+                                fill="#38bdf8"
+                                textAnchor="middle"
+                                fontFamily="monospace"
+                                fontSize="10"
+                                fontWeight="bold"
+                              >
+                                {stats.pct >= 0 ? '+' : ''}{stats.pct.toFixed(2)}% ({stats.priceDiff >= 0 ? '+' : ''}{stats.priceDiff.toFixed(2)})
+                              </text>
+                              <text
+                                x={bX + badgeW / 2}
+                                y={bY + 26}
+                                fill="#cbd5e1"
+                                textAnchor="middle"
+                                fontFamily="monospace"
+                                fontSize="9"
+                                fontWeight="bold"
+                              >
+                                ⏱️ {stats.timeFormatted} • {stats.barsCount} {stats.barsCount === 1 ? 'bară' : 'bare'}
+                              </text>
+                            </g>
+                          );
+                        })()
                       )}
                     </g>
                   )}
