@@ -140,9 +140,9 @@ export const App: React.FC = () => {
         />
       )}
 
-      {/* Main Wrapper with responsive margin for desktop sidebar */}
-      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${!selectedAssetSymbol ? 'md:pl-[260px] pb-16 md:pb-0' : ''}`}>
-        {/* Minimal Search & Control Header */}
+      {/* Main Wrapper with responsive margin for desktop sidebar and top padding for fixed header */}
+      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${!selectedAssetSymbol ? 'md:pl-[260px] pb-16 md:pb-0' : ''} pt-[56px]`}>
+        {/* Minimal Search & Control Header (Fixed at top of viewport) */}
         <Header
           timeframe={timeframe}
           onTimeframeChange={setTimeframe}
@@ -159,6 +159,7 @@ export const App: React.FC = () => {
           onRefreshMarket={refreshData}
           isRefreshing={loading}
           onOpenSearchModal={() => setIsSearchModalOpen(true)}
+          hasSidebar={!selectedAssetSymbol}
         />
 
         {/* Notification Banner */}

@@ -28,6 +28,7 @@ interface HeaderProps {
   onRefreshMarket?: () => void;
   isRefreshing?: boolean;
   onOpenSearchModal?: () => void;
+  hasSidebar?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -43,7 +44,8 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleWatchlist,
   onRefreshMarket,
   isRefreshing = false,
-  onOpenSearchModal
+  onOpenSearchModal,
+  hasSidebar = false
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState<number>(0);
@@ -173,7 +175,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-[#0a0e17]/95 backdrop-blur-2xl border-b border-white/[0.08] px-2.5 sm:px-6 lg:px-8 py-2 sm:py-2.5 flex items-center justify-between gap-2 sm:gap-4 shadow-2xl transition-all">
+    <header className={`fixed top-0 right-0 ${hasSidebar ? 'left-0 md:left-[260px]' : 'left-0'} z-40 bg-[#0a0e17]/95 backdrop-blur-2xl border-b border-white/[0.08] px-2.5 sm:px-6 lg:px-8 h-[56px] flex items-center justify-between gap-2 sm:gap-4 shadow-2xl transition-all`}>
       {/* Central AI Search Bar (Mobile & Desktop Central Spotlight Trigger) */}
       <div ref={dropdownRef} className="flex-1 max-w-xl mx-auto relative min-w-0">
         <div 
