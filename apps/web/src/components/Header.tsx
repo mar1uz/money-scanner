@@ -173,9 +173,9 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-xl border-b border-white/[0.04] px-3 sm:px-6 lg:px-8 py-2 sm:py-2.5 flex items-center justify-between gap-2 sm:gap-4">
+    <header className="sticky top-0 z-40 bg-[#0a0e17]/95 backdrop-blur-2xl border-b border-white/[0.08] px-2.5 sm:px-6 lg:px-8 py-2 sm:py-2.5 flex items-center justify-between gap-2 sm:gap-4 shadow-2xl transition-all">
       {/* Central AI Search Bar (Mobile & Desktop Central Spotlight Trigger) */}
-      <div ref={dropdownRef} className="flex-1 max-w-xl mx-auto relative">
+      <div ref={dropdownRef} className="flex-1 max-w-xl mx-auto relative min-w-0">
         <div 
           onClick={() => {
             if (onOpenSearchModal) onOpenSearchModal();
@@ -360,12 +360,12 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Right Controls: Timeframe Pills, Live Status, Refresh */}
       <div className="flex items-center gap-2.5">
         {/* Timeframe Selector */}
-        <div className="flex items-center bg-white/[0.03] border border-white/[0.06] rounded-xl p-0.5">
+        <div className="flex items-center bg-white/[0.03] border border-white/[0.06] rounded-xl p-0.5 shrink-0">
           {(['1h', '4h', '8h', '1d', '1w', '1m'] as Timeframe[]).map((tf) => (
             <button
               key={tf}
               onClick={() => onTimeframeChange(tf)}
-              className={`px-2.5 py-1 text-[11px] font-mono rounded-lg transition-all ${
+              className={`px-2 sm:px-2.5 py-1 text-[10px] sm:text-[11px] font-mono rounded-lg transition-all ${
                 timeframe === tf
                   ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold shadow-sm'
                   : 'text-slate-400 hover:text-slate-200'
