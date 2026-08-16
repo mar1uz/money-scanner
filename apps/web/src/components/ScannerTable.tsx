@@ -24,7 +24,9 @@ import {
   GripVertical,
   SlidersHorizontal,
   X,
-  DollarSign
+  DollarSign,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 
 export type SortField =
@@ -281,6 +283,24 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
     setDragOverSymbol(null);
   };
 
+  // Move watchlist item UP or DOWN in the vertical list
+  const handleMoveWatchlist = (e: React.MouseEvent, symbol: string, direction: 'up' | 'down') => {
+    e.stopPropagation();
+    const sym = symbol.toUpperCase();
+    const currentList = [...cleanWatchlist];
+    const idx = currentList.indexOf(sym);
+    if (idx === -1) return;
+
+    const newIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (newIdx < 0 || newIdx >= currentList.length) return;
+
+    currentList.splice(idx, 1);
+    currentList.splice(newIdx, 0, sym);
+    if (onReorderWatchlist) {
+      onReorderWatchlist(currentList);
+    }
+  };
+
   // Filter rows based on tier, watchlist, narrative and 360° market class
   let filteredRows = rows.filter(r => {
     const sym = r.symbol.replace(/^[$#]/, '').trim().toUpperCase();
@@ -428,61 +448,6 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Interactive Watchlist Reorder Quick-Bar (Drag & Drop Chips) */}
-      {cleanWatchlist.length > 0 && (
-        <div className="card-base p-3.5 space-y-2">
-          <div className="flex items-center justify-between text-xs font-mono">
-            <span className="text-slate-400 flex items-center gap-1.5">
-              <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400/20" />
-              <span>Watchlist Activ ({cleanWatchlist.length} active)</span>
-              <span className="text-[10px] text-slate-500 hidden sm:inline">(trage pentru a reordona prioritățile)</span>
-            </span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {cleanWatchlist.map((sym) => {
-              const row = rows.find(r => r.symbol.replace(/^[$#]/, '').trim().toUpperCase() === sym);
-              const isUp = row && row.change24h >= 0;
-              const isDragging = draggedSymbol === sym;
-              const isOver = dragOverSymbol === sym;
-
-              return (
-                <div
-                  key={sym}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, sym)}
-                  onDragOver={(e) => handleDragOver(e, sym)}
-                  onDrop={(e) => handleDrop(e, sym)}
-                  onDragEnd={() => { setDraggedSymbol(null); setDragOverSymbol(null); }}
-                  onClick={() => onSelectAsset(sym)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-mono transition-all cursor-grab active:cursor-grabbing select-none ${
-                    isDragging ? 'opacity-30 border-cyan-400' : (isOver ? 'border-cyan-400 bg-cyan-500/20' : 'bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 border-white/[0.06]')
-                  }`}
-                >
-                  <GripVertical className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="font-bold text-slate-100">${sym}</span>
-                  {row && (
-                    <span className={`text-[10px] font-bold ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {isUp ? `+${row.change24h}%` : `${row.change24h}%`}
-                    </span>
-                  )}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggleWatchlist(sym);
-                    }}
-                    title="Șterge din Watchlist"
-                    className="text-slate-500 hover:text-rose-400 ml-0.5"
-                  >
-                    ×
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {/* Cyber Table with Interactive Sortable Column Headers */}
       <div className="overflow-x-auto rounded-2xl border border-white/[0.06] card-base shadow-xl">
@@ -651,16 +616,36 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                   >
                     {/* Symbol & Name with Drag Handle */}
                     <td className="py-4 px-4">
-                      <div className="flex items-center gap-2 sm:gap-3">
+                      <div className="flex items-center gap-1.5 sm:gap-2.5">
                         {isWatch ? (
-                          <div
-                            title="Apasă și trage în sus/jos pentru a rearanja în Watchlist"
-                            className="cursor-grab active:cursor-grabbing text-slate-500 hover:text-amber-400 p-0.5"
-                          >
-                            <GripVertical className="w-4 h-4" />
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            <div
+                              title="Apasă și trage în sus/jos pentru a rearanja în Watchlist"
+                              className="cursor-grab active:cursor-grabbing text-slate-500 hover:text-amber-400 p-0.5 transition-colors"
+                            >
+                              <GripVertical className="w-4 h-4" />
+                            </div>
+                            <div className="flex flex-col -space-y-1">
+                              <button
+                                onClick={(e) => handleMoveWatchlist(e, sym, 'up')}
+                                disabled={cleanWatchlist.indexOf(sym) === 0}
+                                title="Mută în sus în Watchlist"
+                                className="p-0.5 text-slate-500 hover:text-cyan-300 disabled:opacity-20 disabled:hover:text-slate-500 transition-colors"
+                              >
+                                <ChevronUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={(e) => handleMoveWatchlist(e, sym, 'down')}
+                                disabled={cleanWatchlist.indexOf(sym) === cleanWatchlist.length - 1}
+                                title="Mută în jos în Watchlist"
+                                className="p-0.5 text-slate-500 hover:text-cyan-300 disabled:opacity-20 disabled:hover:text-slate-500 transition-colors"
+                              >
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
                         ) : (
-                          <div className="w-4" />
+                          <div className="w-7 shrink-0" />
                         )}
 
                         <button
@@ -669,7 +654,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                             onToggleWatchlist(row.symbol);
                           }}
                           title={isWatch ? "Elimină din Watchlist" : "Adaugă în Watchlist"}
-                          className="text-slate-600 hover:text-amber-400 transition-colors p-1"
+                          className="text-slate-600 hover:text-amber-400 transition-colors p-1 shrink-0"
                         >
                           <Star className={`w-4 h-4 ${isWatch ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
                         </button>
