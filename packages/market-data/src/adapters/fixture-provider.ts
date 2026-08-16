@@ -78,19 +78,45 @@ export class FixtureMarketProvider {
     ['BEAM', 0.018]
   ]);
 
+  public getBasePrice(symbol: string): number {
+    const direct = this.basePrices.get(symbol);
+    if (direct !== undefined) return direct;
+
+    const asset = TOP_50_CRYPTO_ASSETS.find(a => a.symbol === symbol);
+    if (asset?.marketCap) {
+      if (asset.marketClass === 'stocks') {
+        // Realistic stock price based on market cap range
+        const mcapB = asset.marketCap / 1e9;
+        if (mcapB > 500) return 220.0 + ((symbol.charCodeAt(0) * 13) % 200);
+        if (mcapB > 100) return 120.0 + ((symbol.charCodeAt(0) * 11) % 120);
+        if (mcapB > 30) return 60.0 + ((symbol.charCodeAt(0) * 7) % 60);
+        return 25.0 + ((symbol.charCodeAt(0) * 5) % 30);
+      }
+      if (asset.marketClass === 'crypto') {
+        const mcapB = asset.marketCap / 1e9;
+        if (mcapB > 100) return 300.0 + ((symbol.charCodeAt(0) * 17) % 300);
+        if (mcapB > 10) return 15.0 + ((symbol.charCodeAt(0) * 11) % 25);
+        if (mcapB > 1) return 1.5 + ((symbol.charCodeAt(0) * 3) % 8);
+        return 0.25 + ((symbol.charCodeAt(0) * 2) % 1.5);
+      }
+    }
+
+    return 50.0 + (symbol.charCodeAt(0) % 50);
+  }
+
   public getCandles(symbol: string, count = 250, timeframeHours = 1): Candle[] {
-    const basePrice = this.basePrices.get(symbol) || 10.0;
+    const basePrice = this.getBasePrice(symbol);
     const candles: Candle[] = [];
     const now = Date.now();
     const intervalMs = timeframeHours * 3600 * 1000;
 
     let currentPrice = basePrice;
-    const isBull = symbol === 'BTC' || symbol === 'SOL' || symbol === 'NVDA' || symbol === 'XAU' || symbol === 'SUI';
+    const isBull = (symbol.charCodeAt(0) + (symbol.charCodeAt(1) || 0)) % 3 !== 0;
 
     for (let i = count; i >= 0; i--) {
       const timestamp = now - i * intervalMs;
-      const drift = isBull ? 0.0008 : -0.0004;
-      const noise = (Math.sin(i * 0.15) * 0.012) + ((Math.random() - 0.5) * 0.008);
+      const drift = isBull ? 0.0006 : -0.0003;
+      const noise = (Math.sin(i * 0.15 + symbol.charCodeAt(0)) * 0.012) + ((Math.random() - 0.5) * 0.008);
       const change = drift + noise;
 
       const open = currentPrice;
@@ -116,9 +142,9 @@ export class FixtureMarketProvider {
   }
 
   public getPriceQuote(symbol: string): AssetPriceQuote {
-    const basePrice = this.basePrices.get(symbol) || 10.0;
-    const isBull = symbol === 'BTC' || symbol === 'SOL' || symbol === 'NVDA' || symbol === 'XAU' || symbol === 'SUI';
-    const change24h = isBull ? Number((Math.random() * 4 + 1.2).toFixed(2)) : Number((Math.random() * -3 - 0.5).toFixed(2));
+    const basePrice = this.getBasePrice(symbol);
+    const isBull = (symbol.charCodeAt(0) + (symbol.charCodeAt(1) || 0)) % 3 !== 0;
+    const change24h = isBull ? Number((Math.random() * 3.8 + 0.8).toFixed(2)) : Number((Math.random() * -2.8 - 0.4).toFixed(2));
     const price = Number((basePrice * (1 + change24h / 100)).toFixed(4));
 
     return {

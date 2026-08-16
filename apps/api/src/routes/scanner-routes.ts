@@ -9,12 +9,17 @@ scannerRouter.get('/scanner', async (req, res) => {
   try {
     const timeframe = (req.query.timeframe as Timeframe) || '1w';
     const tier = req.query.tier as string;
+    const narrative = req.query.narrative as string;
     const rawSearch = (req.query.search as string || '').trim();
     const search = rawSearch.replace(/^[$#]/, '').toUpperCase();
     const watchlistOnly = req.query.watchlist === 'true';
 
     const appState = AppState.getInstance();
     let rows = await appState.refreshSignals(timeframe);
+
+    if (narrative && narrative !== 'ALL') {
+      rows = rows.filter(r => r.narratives?.includes(narrative as any));
+    }
 
     if (search) {
       const q = search.toLowerCase();
@@ -36,6 +41,17 @@ scannerRouter.get('/scanner', async (req, res) => {
     res.json(rows);
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to execute scanner', details: err.message });
+  }
+});
+
+scannerRouter.get('/narratives', async (req, res) => {
+  try {
+    const timeframe = (req.query.timeframe as Timeframe) || '1w';
+    const appState = AppState.getInstance();
+    const narratives = await appState.getNarrativeSummaries(timeframe);
+    res.json(narratives);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to compute narrative summaries', details: err.message });
   }
 });
 

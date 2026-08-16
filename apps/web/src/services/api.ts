@@ -21,16 +21,26 @@ export async function fetchScanner(
   timeframe: Timeframe = '1w',
   tier?: string,
   search?: string,
-  watchlistOnly?: boolean
+  watchlistOnly?: boolean,
+  narrative?: string
 ): Promise<AssetScannerRow[]> {
   const params = new URLSearchParams();
   params.set('timeframe', timeframe);
   if (tier && tier !== 'ALL') params.set('tier', tier);
   if (search) params.set('search', search);
   if (watchlistOnly) params.set('watchlist', 'true');
+  if (narrative && narrative !== 'ALL') params.set('narrative', narrative);
 
   const res = await fetch(`${API_BASE}/scanner?${params.toString()}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch scanner`);
+  return res.json();
+}
+
+export async function fetchNarratives(
+  timeframe: Timeframe = '1w'
+): Promise<import('@money-scanner/shared').NarrativeSummary[]> {
+  const res = await fetch(`${API_BASE}/narratives?timeframe=${timeframe}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch narratives`);
   return res.json();
 }
 

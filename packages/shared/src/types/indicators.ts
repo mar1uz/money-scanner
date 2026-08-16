@@ -71,6 +71,8 @@ export interface AssetScannerRow {
   symbol: string;
   name: string;
   category: string;
+  marketClass?: 'crypto' | 'stocks' | 'metals';
+  narratives?: import('./market.js').MarketNarrativeId[];
   price: number;
   change24h: number;
   marketCap?: number;

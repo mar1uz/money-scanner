@@ -54,6 +54,8 @@ interface ScannerTableProps {
   onToggleWatchlistOnly: () => void;
   selectedMarketClass?: 'ALL' | 'crypto' | 'stocks' | 'metals';
   onSelectMarketClass?: (market: 'ALL' | 'crypto' | 'stocks' | 'metals') => void;
+  selectedNarrative?: string;
+  onSelectNarrative?: (narrative: string) => void;
   loading?: boolean;
 }
 
@@ -69,6 +71,8 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
   onToggleWatchlistOnly,
   selectedMarketClass: controlledMarketClass,
   onSelectMarketClass: controlledSetMarketClass,
+  selectedNarrative,
+  onSelectNarrative,
   loading = false
 }) => {
   const [internalMarketClass, setInternalMarketClass] = useState<'ALL' | 'crypto' | 'stocks' | 'metals'>('ALL');
@@ -276,11 +280,14 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
     setDragOverSymbol(null);
   };
 
-  // Filter rows based on tier, watchlist, and 360° market class
+  // Filter rows based on tier, watchlist, narrative and 360° market class
   let filteredRows = rows.filter(r => {
     const sym = r.symbol.replace(/^[$#]/, '').trim().toUpperCase();
     if (watchlistOnly && !cleanWatchlist.includes(sym)) return false;
     if (selectedTier !== 'ALL' && r.tier !== selectedTier) return false;
+    if (selectedNarrative && selectedNarrative !== 'ALL') {
+      if (!r.narratives?.includes(selectedNarrative as any)) return false;
+    }
 
     if (selectedMarketClass !== 'ALL') {
       const isStock = ['SPACEX', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'PLTR', 'AMD', 'MSTR', 'COIN', 'SPY', 'QQQ'].includes(sym) || r.category?.includes('Stock') || r.category?.includes('Index') || r.category?.includes('Mega-Cap');
@@ -319,7 +326,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
           comparison = getTierWeight(a.tier) - getTierWeight(b.tier);
           break;
         case 'flipAge':
-          comparison = (a.lastSignalChangeTime || 0) - (b.lastSignalChangeTime || 0);
+          comparison = (b.lastSignalChangeTime || 0) - (a.lastSignalChangeTime || 0);
           break;
         case 'rvol':
           comparison = a.rvol - b.rvol;

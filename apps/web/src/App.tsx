@@ -3,16 +3,21 @@ import {
   AppTab,
   Timeframe,
   MarketOverviewSummary,
-  AssetScannerRow
+  AssetScannerRow,
+  NarrativeSummary,
+  MarketNarrativeId
 } from './types.js';
 import {
   fetchMarketOverview,
   fetchScanner,
+  fetchNarratives,
   triggerTestAlert
 } from './services/api.js';
 import { Header } from './components/Header.js';
 import { Sidebar } from './components/Sidebar.js';
 import { MarketRegimeGauge } from './components/MarketRegimeGauge.js';
+import { NarrativeBar } from './components/NarrativeBar.js';
+import { NarrativeDetailModal } from './components/NarrativeDetailModal.js';
 import { ScannerTable } from './components/ScannerTable.js';
 import { AssetDeepDiveView } from './components/AssetDeepDiveView.js';
 import { XTrendsView } from './components/XTrendsView.js';
@@ -28,6 +33,8 @@ export const App: React.FC = () => {
   const [timeframe, setTimeframe] = useState<Timeframe>('1w');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTier, setSelectedTier] = useState('ALL');
+  const [selectedNarrative, setSelectedNarrative] = useState<MarketNarrativeId | 'ALL'>('ALL');
+  const [inspectedNarrative, setInspectedNarrative] = useState<NarrativeSummary | null>(null);
   const [watchlistOnly, setWatchlistOnly] = useState(false);
   
   // Persistent Watchlist from localStorage
@@ -42,6 +49,7 @@ export const App: React.FC = () => {
   const [selectedAssetSymbol, setSelectedAssetSymbol] = useState<string | null>(null);
   const [selectedMarketCategory, setSelectedMarketCategory] = useState<'ALL' | 'crypto' | 'stocks' | 'metals'>('ALL');
   const [overview, setOverview] = useState<MarketOverviewSummary | null>(null);
+  const [narratives, setNarratives] = useState<NarrativeSummary[]>([]);
   const [scannerRows, setScannerRows] = useState<AssetScannerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [bannerAlert, setBannerAlert] = useState<string | null>(null);
@@ -49,15 +57,19 @@ export const App: React.FC = () => {
   const refreshData = async () => {
     setLoading(true);
     try {
-      const [ovRes, rowsRes] = await Promise.allSettled([
+      const [ovRes, rowsRes, narrRes] = await Promise.allSettled([
         fetchMarketOverview(),
-        fetchScanner(timeframe)
+        fetchScanner(timeframe),
+        fetchNarratives(timeframe)
       ]);
       if (ovRes.status === 'fulfilled') {
         setOverview(ovRes.value);
       }
       if (rowsRes.status === 'fulfilled' && rowsRes.value && rowsRes.value.length > 0) {
         setScannerRows(rowsRes.value);
+      }
+      if (narrRes.status === 'fulfilled' && narrRes.value && narrRes.value.length > 0) {
+        setNarratives(narrRes.value);
       }
     } catch (err) {
       console.error('Data refresh error:', err);
@@ -175,7 +187,7 @@ export const App: React.FC = () => {
             />
           ) : (
             <>
-              {/* Tab 1: Market Intelligence (Gauges + Scanner Table) */}
+              {/* Tab 1: Market Intelligence (Gauges + Narrative Bar + Scanner Table) */}
               {activeTab === 'market' && (
                 <div className="space-y-6">
                   {/* Top Market Intelligence Gauges */}
@@ -186,6 +198,15 @@ export const App: React.FC = () => {
                     onSelectCategory={setSelectedMarketCategory}
                   />
 
+                  {/* Interactive Narrative & Sector Alpha Bar */}
+                  <NarrativeBar
+                    narratives={narratives}
+                    selectedNarrative={selectedNarrative}
+                    onSelectNarrative={(narr) => setSelectedNarrative(narr)}
+                    onInspectNarrative={(narr) => setInspectedNarrative(narr)}
+                    loading={loading}
+                  />
+
                   {/* Scanner Signals Header & Table */}
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
@@ -193,6 +214,11 @@ export const App: React.FC = () => {
                         <Zap className="w-4 h-4 text-cyan-400" />
                         <h2 className="text-xs font-bold tracking-wider uppercase font-mono text-slate-300">
                           Semnale Live Market Scanner 360 ({timeframe.toUpperCase()})
+                          {selectedNarrative !== 'ALL' && (
+                            <span className="text-cyan-400 font-bold ml-2">
+                              • Filtrat: {narratives.find(n => n.id === selectedNarrative)?.shortName || selectedNarrative}
+                            </span>
+                          )}
                         </h2>
                       </div>
 
@@ -220,9 +246,26 @@ export const App: React.FC = () => {
                       onToggleWatchlistOnly={() => setWatchlistOnly(!watchlistOnly)}
                       selectedMarketClass={selectedMarketCategory}
                       onSelectMarketClass={setSelectedMarketCategory}
+                      selectedNarrative={selectedNarrative}
+                      onSelectNarrative={(narr) => setSelectedNarrative(narr as any)}
                       loading={loading}
                     />
                   </div>
+
+                  {/* Narrative Details Modal */}
+                  {inspectedNarrative && (
+                    <NarrativeDetailModal
+                      narrative={inspectedNarrative}
+                      rows={scannerRows}
+                      onClose={() => setInspectedNarrative(null)}
+                      onSelectAsset={(sym) => {
+                        setInspectedNarrative(null);
+                        setSelectedAssetSymbol(sym);
+                      }}
+                      watchlist={watchlist}
+                      onToggleWatchlist={toggleWatchlist}
+                    />
+                  )}
                 </div>
               )}
 

@@ -144,6 +144,19 @@ export class PublicStockMarketAdapter {
     return this.generateRealisticStockCandles(sym, timeframe, limit);
   }
 
+  public getBaseStockPrice(sym: string): number {
+    if (this.baseStockPrices[sym]) return this.baseStockPrices[sym];
+    const asset = TOP_50_CRYPTO_ASSETS.find(a => a.symbol === sym);
+    if (asset?.marketCap) {
+      const mcapB = asset.marketCap / 1e9;
+      if (mcapB > 500) return 220.0 + ((sym.charCodeAt(0) * 13) % 200);
+      if (mcapB > 100) return 120.0 + ((sym.charCodeAt(0) * 11) % 120);
+      if (mcapB > 30) return 60.0 + ((sym.charCodeAt(0) * 7) % 60);
+      return 25.0 + ((sym.charCodeAt(0) * 5) % 30);
+    }
+    return 100.0 + (sym.charCodeAt(0) % 80);
+  }
+
   public async fetchQuote(symbol: string): Promise<AssetPriceQuote> {
     const sym = symbol.toUpperCase();
     const yahooTicker = this.tickerMap[sym] || sym;
@@ -188,7 +201,7 @@ export class PublicStockMarketAdapter {
     } catch (err) {}
 
     // Deterministic fallback
-    const base = this.baseStockPrices[sym] || 150.0;
+    const base = this.getBaseStockPrice(sym);
     const change24h = Number((Math.sin(sym.charCodeAt(0)) * 2.5 + 0.8).toFixed(2));
     const price = Number((base * (1 + change24h / 100)).toFixed(4));
 
@@ -210,7 +223,7 @@ export class PublicStockMarketAdapter {
     timeframe: Timeframe,
     count = 350
   ): Candle[] {
-    const base = this.baseStockPrices[symbol] || 150.0;
+    const base = this.getBaseStockPrice(symbol);
     const hours = timeframe === '4h' ? 4 : (timeframe === '8h' ? 8 : (timeframe === '1d' ? 24 : (timeframe === '1w' ? 168 : (timeframe === '1m' ? 720 : 1))));
     const intervalMs = hours * 3600 * 1000;
     const now = Date.now();

@@ -29,11 +29,48 @@ export type AssetCategory =
   | 'Precious Metal'
   | 'Commodity';
 
+export type MarketNarrativeId =
+  | 'ai_ecosystem'
+  | 'semiconductors'
+  | 'consumer_staples'
+  | 'cloud_enterprise'
+  | 'energy_commodities'
+  | 'space_defense'
+  | 'crypto_l1'
+  | 'crypto_defi';
+
+export interface NarrativeDefinition {
+  id: MarketNarrativeId;
+  name: string;
+  shortName: string;
+  tagline: string;
+  icon: string; // Lucide icon or emoji
+  category: 'tech' | 'defense_staples' | 'energy' | 'crypto';
+}
+
+export interface NarrativeSummary {
+  id: MarketNarrativeId;
+  name: string;
+  shortName: string;
+  tagline: string;
+  icon: string;
+  category: 'tech' | 'defense_staples' | 'energy' | 'crypto';
+  assetCount: number;
+  avgChange24h: number;
+  weightedChange24h: number;
+  bullishPercent: number;
+  totalMarketCap: number;
+  topGainer: { symbol: string; name: string; change24h: number; price: number };
+  topLoser: { symbol: string; name: string; change24h: number; price: number };
+  symbols: string[];
+}
+
 export interface AssetInfo {
   symbol: string;         // e.g. "BTC", "NVDA", "XAU"
   name: string;           // e.g. "Bitcoin", "Nvidia Corp", "Gold (Aur)"
   category: AssetCategory;
   marketClass?: AssetMarketClass;
+  narratives?: MarketNarrativeId[];
   quoteCurrency: string;  // e.g. "USDT", "USD"
   aliases?: string[];     // e.g. ["spacex", "elon musk", "gold", "aur", "nvidia", "ai chips"]
   marketCap?: number;
@@ -79,6 +116,7 @@ export interface MarketOverviewSummary {
     classification: string;
     source: string;
   };
+  narratives?: NarrativeSummary[];
   lastUpdated: number;
   providerStatus: {
     primary: 'operational' | 'degraded' | 'offline';

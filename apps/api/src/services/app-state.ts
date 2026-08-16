@@ -1,5 +1,8 @@
 import {
   TOP_50_CRYPTO_ASSETS,
+  NARRATIVE_DEFINITIONS,
+  NarrativeSummary,
+  MarketNarrativeId,
   Timeframe,
   AssetScannerRow,
   MoneyLineSignal,
@@ -33,9 +36,6 @@ export class AppState {
   }
 
   /**
-   * Scans all assets and updates calculated signals.
-   */
-  /**
    * Scans all assets and updates calculated signals in parallel for sub-second response.
    */
   public async refreshSignals(timeframe: Timeframe = '1h'): Promise<AssetScannerRow[]> {
@@ -65,7 +65,7 @@ export class AppState {
         const atrPct = signal?.rawIndicators.atrPercent || 2.5;
 
         // Dynamic, distinct social momentum score (12.0 - 99.0)
-        const basePop = asset.rank <= 5 ? 75 : (asset.rank <= 15 ? 60 : (asset.rank <= 30 ? 42 : 25));
+        const basePop = asset.rank <= 15 ? 75 : (asset.rank <= 45 ? 60 : (asset.rank <= 90 ? 42 : 25));
         const moveBoost = Math.min(30, Math.abs(quote.change24h) * 2.8);
         const rvolBoost = Math.min(25, (rvol - 1.0) * 12);
         const hashBonus = (asset.symbol.charCodeAt(0) * 7 + (asset.symbol.charCodeAt(1) || 0) * 3) % 15;
@@ -91,6 +91,8 @@ export class AppState {
           symbol: asset.symbol,
           name: asset.name,
           category: asset.category,
+          marketClass: asset.marketClass,
+          narratives: asset.narratives,
           price: quote.price,
           change24h: quote.change24h,
           marketCap,
@@ -115,5 +117,81 @@ export class AppState {
     );
 
     return rows;
+  }
+
+  /**
+   * Computes comprehensive narrative summaries including % change, market cap and top movers.
+   */
+  public async getNarrativeSummaries(timeframe: Timeframe = '1w'): Promise<NarrativeSummary[]> {
+    const rows = await this.refreshSignals(timeframe);
+
+    return NARRATIVE_DEFINITIONS.map(def => {
+      const matchingRows = rows.filter(r => r.narratives?.includes(def.id));
+      const count = matchingRows.length;
+
+      if (count === 0) {
+        return {
+          id: def.id,
+          name: def.name,
+          shortName: def.shortName,
+          tagline: def.tagline,
+          icon: def.icon,
+          category: def.category,
+          assetCount: 0,
+          avgChange24h: 0,
+          weightedChange24h: 0,
+          bullishPercent: 50,
+          totalMarketCap: 0,
+          topGainer: { symbol: '-', name: '-', change24h: 0, price: 0 },
+          topLoser: { symbol: '-', name: '-', change24h: 0, price: 0 },
+          symbols: []
+        };
+      }
+
+      const totalCap = matchingRows.reduce((sum, r) => sum + (r.marketCap || 0), 0);
+      const sumChange = matchingRows.reduce((sum, r) => sum + r.change24h, 0);
+      const avgChange24h = Number((sumChange / count).toFixed(2));
+
+      let weightedSum = 0;
+      for (const r of matchingRows) {
+        const weight = totalCap > 0 ? (r.marketCap || 0) / totalCap : 1 / count;
+        weightedSum += r.change24h * weight;
+      }
+      const weightedChange24h = Number(weightedSum.toFixed(2));
+
+      const bullishCount = matchingRows.filter(r => r.tier.includes('Bullish') || r.moneyLineScore > 0).length;
+      const bullishPercent = Number(((bullishCount / count) * 100).toFixed(1));
+
+      const sortedByChange = [...matchingRows].sort((a, b) => b.change24h - a.change24h);
+      const topGainerRow = sortedByChange[0];
+      const topLoserRow = sortedByChange[sortedByChange.length - 1];
+
+      return {
+        id: def.id,
+        name: def.name,
+        shortName: def.shortName,
+        tagline: def.tagline,
+        icon: def.icon,
+        category: def.category,
+        assetCount: count,
+        avgChange24h,
+        weightedChange24h,
+        bullishPercent,
+        totalMarketCap: totalCap,
+        topGainer: {
+          symbol: topGainerRow.symbol,
+          name: topGainerRow.name,
+          change24h: topGainerRow.change24h,
+          price: topGainerRow.price
+        },
+        topLoser: {
+          symbol: topLoserRow.symbol,
+          name: topLoserRow.name,
+          change24h: topLoserRow.change24h,
+          price: topLoserRow.price
+        },
+        symbols: matchingRows.map(r => r.symbol)
+      };
+    });
   }
 }
