@@ -28,8 +28,43 @@ export interface AIAnalysisPayload {
   dataFreshness: string;
 }
 
+export interface AssetEconomicReport {
+  title: string;
+  period: string;
+  summary: string;
+  metrics: { label: string; value: string; sentiment?: 'positive' | 'neutral' | 'negative' }[];
+}
+
+export interface InvestmentGuidance {
+  verdict: 'Strong Buy' | 'Accumulate' | 'Hold & Watch' | 'Trim / Caution' | 'High Risk';
+  verdictLabelRo: string;
+  whyInvest: string[];
+  keyRisks: string[];
+  targetHorizon: string;
+  recommendedAction: string;
+}
+
 export interface AssetAIExplanation {
   symbol: string;
+  assetName?: string;
+  assetClass?: 'stocks' | 'crypto' | 'metals' | 'forex' | 'macro';
+  sectorOrNarrative?: string;
+  
+  // Forward Economic & Strategic Outlook
+  economicForward: {
+    industryOutlook: string;
+    macroTailwinds: string[];
+    macroHeadwinds: string[];
+    growthCatalysts: string[];
+  };
+  
+  // Recent Economic & Financial Reports
+  recentReports: AssetEconomicReport[];
+  
+  // Actionable Investment Guidance & Verdict
+  investmentGuidance: InvestmentGuidance;
+
+  // Technical & Money Line Context
   moneyLineContext: string;
   technicalThesis: string;
   socialNarrativeContext: string;

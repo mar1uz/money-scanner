@@ -14,9 +14,17 @@ import {
   Compass,
   CheckCircle2,
   AlertTriangle,
+  BadgeCheck,
+  TrendingUp,
+  Target,
+  ShieldAlert,
+  FileText,
+  Lightbulb,
+  Calendar,
+  ChevronRight,
+  TrendingDown,
   RefreshCw,
-  Twitter,
-  BadgeCheck
+  Twitter
 } from 'lucide-react';
 
 interface AssetDeepDiveViewProps {
@@ -404,83 +412,263 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
             )}
 
 
-            {/* ─── TAB: AI Analysis ─── */}
+            {/* ─── TAB: AI Analysis & Economic Forward Guidance ─── */}
             {activeInfoTab === 'ai' && (
-              <div className="space-y-5">
+              <div className="space-y-6">
                 {explanation ? (
                   <>
-                    {/* Thesis + Confidence */}
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-sm font-semibold text-slate-200 font-sans">Teză Tehnică</h3>
-                        <span className="text-[11px] font-mono text-slate-500">
-                          {(explanation.confidence * 100).toFixed(0)}% încredere
+                    {/* 1. 🎯 GHID DE INVESTIȚIE & VERDICT STRATEGIC */}
+                    <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-b from-[#0c142b] to-[#070b16] border border-cyan-500/30 shadow-xl space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/[0.06]">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300">
+                            <Target className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-sm font-bold text-slate-100 font-sans">Ghid de Investiție & Verdict AI</h3>
+                              {explanation.sectorOrNarrative && (
+                                <span className="px-2 py-0.5 rounded-md bg-white/[0.05] border border-white/[0.08] text-[10px] font-mono text-cyan-300">
+                                  {explanation.sectorOrNarrative}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-400 font-sans mt-0.5">
+                              {explanation.investmentGuidance?.verdictLabelRo || 'Analiză strategică bazată pe fundamente economice și impuls Money Line.'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className={`px-3 py-1.5 rounded-xl text-xs font-mono font-black border tracking-wide uppercase shadow-sm ${
+                            (explanation.investmentGuidance?.verdict === 'Strong Buy' || explanation.overallBias.includes('Bullish'))
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-glow-emerald'
+                              : ((explanation.investmentGuidance?.verdict === 'Trim / Caution' || explanation.overallBias.includes('Bearish'))
+                                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-glow-rose'
+                                : 'bg-amber-500/20 text-amber-300 border-amber-500/40')
+                          }`}>
+                            {explanation.investmentGuidance?.verdict || explanation.overallBias}
+                          </span>
+                          {explanation.investmentGuidance?.targetHorizon && (
+                            <span className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-[11px] font-mono text-slate-300">
+                              <Calendar className="w-3 h-3 text-cyan-400" />
+                              <span>{explanation.investmentGuidance.targetHorizon}</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Recommended Action Card */}
+                      {explanation.investmentGuidance?.recommendedAction && (
+                        <div className="p-3.5 rounded-xl bg-cyan-950/30 border border-cyan-500/20 text-xs text-cyan-200 leading-relaxed font-sans flex items-start gap-2.5">
+                          <Lightbulb className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
+                          <div>
+                            <strong className="text-cyan-300">Recomandare Acțiune: </strong>
+                            <span>{explanation.investmentGuidance.recommendedAction}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 2 Columns: Why Invest vs Key Risks */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                        {/* Why Invest */}
+                        <div className="p-3.5 rounded-xl bg-emerald-950/15 border border-emerald-500/20 space-y-2.5">
+                          <h4 className="text-xs font-bold text-emerald-400 flex items-center gap-1.5 font-mono">
+                            <CheckCircle2 className="w-4 h-4" /> De ce merită investit (Catalizatori)
+                          </h4>
+                          <ul className="space-y-2">
+                            {(explanation.investmentGuidance?.whyInvest || explanation.bullishCatalysts).map((item: string, i: number) => (
+                              <li key={i} className="flex items-start gap-2 text-xs text-slate-200 leading-relaxed font-sans">
+                                <span className="text-emerald-400 font-bold mt-0.5 shrink-0">✓</span>
+                                <span>{item}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        {/* Key Risks */}
+                        <div className="p-3.5 rounded-xl bg-rose-950/15 border border-rose-500/20 space-y-2.5">
+                          <h4 className="text-xs font-bold text-rose-400 flex items-center gap-1.5 font-mono">
+                            <AlertTriangle className="w-4 h-4" /> Riscuri Specifice de Monitorizat
+                          </h4>
+                          <ul className="space-y-2">
+                            {(explanation.investmentGuidance?.keyRisks || explanation.downsideRisks).map((risk: string, i: number) => (
+                              <li key={i} className="flex items-start gap-2 text-xs text-slate-200 leading-relaxed font-sans">
+                                <span className="text-rose-400 font-bold mt-0.5 shrink-0">✕</span>
+                                <span>{risk}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 2. 🔮 PERSPECTIVĂ & FORWARD ECONOMIC */}
+                    {explanation.economicForward && (
+                      <div className="p-4 sm:p-5 rounded-2xl bg-white/[0.02] border border-white/[0.06] space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <TrendingUp className="w-4 h-4 text-cyan-400" />
+                            <h3 className="text-sm font-bold text-slate-100 font-sans">Perspectivă & Forward Economic ({explanation.assetName || symbol})</h3>
+                          </div>
+                          <span className="text-[11px] font-mono text-slate-400">
+                            Analiză Sectorială & Macro
+                          </span>
+                        </div>
+
+                        <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans bg-black/20 p-3.5 rounded-xl border border-white/[0.04]">
+                          {explanation.economicForward.industryOutlook}
+                        </p>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                          {/* Growth Catalysts */}
+                          <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] space-y-2">
+                            <span className="text-[11px] font-bold text-cyan-300 font-mono flex items-center gap-1">
+                              <span>⚡</span> Catalizatori de Creștere
+                            </span>
+                            <ul className="space-y-1.5">
+                              {explanation.economicForward.growthCatalysts.map((c: string, i: number) => (
+                                <li key={i} className="text-[11px] text-slate-300 leading-snug flex items-start gap-1.5">
+                                  <span className="text-cyan-400 shrink-0">•</span>
+                                  <span>{c}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          {/* Macro Tailwinds */}
+                          <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] space-y-2">
+                            <span className="text-[11px] font-bold text-emerald-300 font-mono flex items-center gap-1">
+                              <span>🌤️</span> Vânturi Macro Favorabile
+                            </span>
+                            <ul className="space-y-1.5">
+                              {explanation.economicForward.macroTailwinds.map((t: string, i: number) => (
+                                <li key={i} className="text-[11px] text-slate-300 leading-snug flex items-start gap-1.5">
+                                  <span className="text-emerald-400 shrink-0">•</span>
+                                  <span>{t}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          {/* Macro Headwinds */}
+                          <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] space-y-2">
+                            <span className="text-[11px] font-bold text-amber-300 font-mono flex items-center gap-1">
+                              <span>🌧️</span> Presiuni & Vânturi Contrare
+                            </span>
+                            <ul className="space-y-1.5">
+                              {explanation.economicForward.macroHeadwinds.map((h: string, i: number) => (
+                                <li key={i} className="text-[11px] text-slate-300 leading-snug flex items-start gap-1.5">
+                                  <span className="text-amber-400 shrink-0">•</span>
+                                  <span>{h}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 3. 📊 REZUMAT ULTIMELE RAPOARTE ECONOMICE & FINANCIARE */}
+                    {explanation.recentReports && explanation.recentReports.length > 0 && (
+                      <div className="p-4 sm:p-5 rounded-2xl bg-white/[0.02] border border-white/[0.06] space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-emerald-400" />
+                            <h3 className="text-sm font-bold text-slate-100 font-sans">Sinteză Ultimele Rapoarte Economice & Financiare</h3>
+                          </div>
+                          <span className="text-[11px] font-mono text-emerald-400/80 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                            Rezultate Oficiale
+                          </span>
+                        </div>
+
+                        <div className="space-y-3">
+                          {explanation.recentReports.map((report: any, idx: number) => (
+                            <div key={idx} className="p-3.5 rounded-xl bg-black/30 border border-white/[0.05] space-y-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <h4 className="text-xs font-bold text-slate-100 font-mono flex items-center gap-1.5">
+                                  <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
+                                  <span>{report.title}</span>
+                                </h4>
+                                <span className="text-[10px] font-mono text-slate-400 px-2 py-0.5 rounded bg-white/[0.04]">
+                                  {report.period}
+                                </span>
+                              </div>
+
+                              <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                                {report.summary}
+                              </p>
+
+                              {/* KPI Metric Badges */}
+                              {report.metrics && report.metrics.length > 0 && (
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                                  {report.metrics.map((m: any, mIdx: number) => (
+                                    <div key={mIdx} className={`p-2 rounded-lg border flex flex-col ${
+                                      m.sentiment === 'positive'
+                                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                                        : (m.sentiment === 'negative'
+                                          ? 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                                          : 'bg-white/[0.03] border-white/[0.06] text-slate-300')
+                                    }`}>
+                                      <span className="text-[9px] text-slate-400 font-mono uppercase">{m.label}</span>
+                                      <span className="text-xs font-bold font-mono mt-0.5">{m.value}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 4. 🛡️ TEZĂ TEHNICĂ & SUPORT / REZISTENȚĂ */}
+                    <div className="p-4 sm:p-5 rounded-2xl bg-white/[0.02] border border-white/[0.06] space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Compass className="w-4 h-4 text-cyan-400" />
+                          <h3 className="text-sm font-bold text-slate-100 font-sans">Teză Tehnică & Niveluri S/R</h3>
+                        </div>
+                        <span className="text-[11px] font-mono text-slate-400">
+                          {(explanation.confidence * 100).toFixed(0)}% încredere tehnică
                         </span>
                       </div>
-                      <p className="text-sm text-slate-300 leading-relaxed font-sans">
+
+                      <p className="text-xs text-slate-300 leading-relaxed font-sans">
                         {explanation.technicalThesis}
                       </p>
-                    </div>
 
-                    {/* S/R Inline Widget */}
-                    <div className="flex flex-wrap items-center gap-3 py-3 px-4 rounded-lg bg-white/[0.02] border border-white/[0.04] font-mono text-xs">
-                      <Compass className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-emerald-400/70">S2</span>
-                        <span className="text-emerald-300 font-semibold">${explanation.keySupportResistance.supportLevels[1]}</span>
-                      </div>
-                      <span className="text-slate-700">|</span>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-emerald-400/70">S1</span>
-                        <span className="text-emerald-300 font-semibold">${explanation.keySupportResistance.supportLevels[0]}</span>
-                      </div>
-                      <span className="text-slate-700">|</span>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-cyan-400/70">Preț</span>
-                        <span className="text-cyan-300 font-semibold">
-                          ${quote?.price < 1 ? quote?.price?.toFixed(4) : quote?.price?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </span>
-                      </div>
-                      <span className="text-slate-700">|</span>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-rose-400/70">R1</span>
-                        <span className="text-rose-300 font-semibold">${explanation.keySupportResistance.resistanceLevels[0]}</span>
-                      </div>
-                      <span className="text-slate-700">|</span>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-rose-400/70">R2</span>
-                        <span className="text-rose-300 font-semibold">${explanation.keySupportResistance.resistanceLevels[1]}</span>
-                      </div>
-                    </div>
+                      {/* S/R Inline Widget */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 py-2.5 px-3.5 rounded-xl bg-black/40 border border-white/[0.05] font-mono text-xs">
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-emerald-400/70">S2</span>
+                            <span className="text-emerald-300 font-semibold">${explanation.keySupportResistance.supportLevels[1]}</span>
+                          </div>
+                          <span className="text-slate-700">|</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-emerald-400/70">S1</span>
+                            <span className="text-emerald-300 font-semibold">${explanation.keySupportResistance.supportLevels[0]}</span>
+                          </div>
+                        </div>
 
-                    {/* Bullish / Bearish Catalysts in 2 columns */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <h4 className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5 font-mono">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Catalizatori Bullish
-                        </h4>
-                        <ul className="space-y-1.5">
-                          {explanation.bullishCatalysts.map((c: string, i: number) => (
-                            <li key={i} className="flex items-start gap-2 text-xs text-slate-300 leading-relaxed">
-                              <span className="text-emerald-500 mt-1 shrink-0">•</span>
-                              <span>{c}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-500/15 border border-cyan-500/30">
+                          <span className="text-cyan-300 font-bold">
+                            Preț: ${quote?.price < 1 ? quote?.price?.toFixed(4) : quote?.price?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
 
-                      <div className="space-y-2">
-                        <h4 className="text-xs font-semibold text-rose-400 flex items-center gap-1.5 font-mono">
-                          <AlertTriangle className="w-3.5 h-3.5" /> Riscuri & Invalidation
-                        </h4>
-                        <ul className="space-y-1.5">
-                          {explanation.downsideRisks.map((r: string, i: number) => (
-                            <li key={i} className="flex items-start gap-2 text-xs text-slate-300 leading-relaxed">
-                              <span className="text-rose-500 mt-1 shrink-0">•</span>
-                              <span>{r}</span>
-                            </li>
-                          ))}
-                        </ul>
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-rose-400/70">R1</span>
+                            <span className="text-rose-300 font-semibold">${explanation.keySupportResistance.resistanceLevels[0]}</span>
+                          </div>
+                          <span className="text-slate-700">|</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-rose-400/70">R2</span>
+                            <span className="text-rose-300 font-semibold">${explanation.keySupportResistance.resistanceLevels[1]}</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </>
