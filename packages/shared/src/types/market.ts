@@ -82,6 +82,7 @@ export interface AssetPriceQuote {
   symbol: string;
   price: number;
   change24h: number;
+  changeYtd?: number;
   high24h: number;
   low24h: number;
   volume24h: number;

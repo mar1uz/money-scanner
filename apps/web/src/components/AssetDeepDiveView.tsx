@@ -163,6 +163,16 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
               <span className={`text-xs font-bold font-mono shrink-0 ${quote?.change24h >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {quote?.change24h >= 0 ? `+${quote?.change24h}%` : `${quote?.change24h}%`}
               </span>
+              {quote?.changeYtd !== undefined && (
+                <span className={`text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md border shrink-0 hidden md:inline-flex items-center gap-1 ${
+                  quote.changeYtd >= 0 
+                    ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' 
+                    : 'bg-rose-500/10 text-rose-300 border-rose-500/20'
+                }`}>
+                  <span className="text-slate-400 font-normal">YTD:</span>
+                  <span>{quote.changeYtd >= 0 ? `+${quote.changeYtd}%` : `${quote.changeYtd}%`}</span>
+                </span>
+              )}
             </div>
 
             {/* Bias Badge with Flip Tooltip */}

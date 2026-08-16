@@ -141,16 +141,81 @@ export class FixtureMarketProvider {
     return candles;
   }
 
+  public calculateYtd(symbol: string, change24h: number): number {
+    const knownYtd: Record<string, number> = {
+      'NVDA': 148.5,
+      'BTC': 68.4,
+      'SOL': 84.2,
+      'SUI': 192.0,
+      'PLTR': 114.5,
+      'TSLA': -12.4,
+      'AAPL': 18.6,
+      'MSFT': 22.4,
+      'GOOGL': 28.5,
+      'AMZN': 32.0,
+      'META': 58.2,
+      'TSM': 74.5,
+      'ASML': 38.2,
+      'AMD': 16.4,
+      'AVGO': 62.8,
+      'ARM': 88.4,
+      'WMT': 46.2,
+      'COST': 38.5,
+      'PG': 14.2,
+      'KO': 12.8,
+      'PEP': 3.4,
+      'MCD': 5.2,
+      'XOM': 18.2,
+      'CVX': 6.5,
+      'XAU': 28.4,
+      'XAG': 34.2,
+      'OIL': -2.4,
+      'ETH': 48.2,
+      'BNB': 85.0,
+      'FET': 140.2,
+      'RENDER': 125.0,
+      'TAO': 95.0,
+      'NEAR': 65.4,
+      'LMT': 34.2,
+      'RTX': 44.5,
+      'SPACEX': 75.0,
+      'SPY': 19.8,
+      'QQQ': 22.4,
+      'DOGE': 42.1,
+      'SHIB': 36.5,
+      'PEPE': 185.0,
+      'AAVE': 78.4,
+      'UNI': 32.1,
+      'INJ': 64.2,
+      'ICP': 45.0,
+      'DOT': 8.5,
+      'ADA': 12.4,
+      'XRP': 24.6
+    };
+
+    if (knownYtd[symbol] !== undefined) {
+      return Number((knownYtd[symbol] + change24h * 0.2).toFixed(2));
+    }
+
+    const isPositive = (symbol.charCodeAt(0) * 7 + (symbol.charCodeAt(1) || 0) * 11) % 100 > 25;
+    const base = isPositive 
+      ? ((symbol.charCodeAt(0) * 13) % 75 + 8.5) 
+      : -((symbol.charCodeAt(0) * 9) % 30 + 2.5);
+    return Number((base + (change24h * 0.3)).toFixed(2));
+  }
+
   public getPriceQuote(symbol: string): AssetPriceQuote {
     const basePrice = this.getBasePrice(symbol);
     const isBull = (symbol.charCodeAt(0) + (symbol.charCodeAt(1) || 0)) % 3 !== 0;
     const change24h = isBull ? Number((Math.random() * 3.8 + 0.8).toFixed(2)) : Number((Math.random() * -2.8 - 0.4).toFixed(2));
     const price = Number((basePrice * (1 + change24h / 100)).toFixed(4));
+    const changeYtd = this.calculateYtd(symbol, change24h);
 
     return {
       symbol,
       price,
       change24h,
+      changeYtd,
       high24h: Number((price * 1.03).toFixed(4)),
       low24h: Number((price * 0.97).toFixed(4)),
       volume24h: Math.floor(Math.random() * 10000000 + 500000),

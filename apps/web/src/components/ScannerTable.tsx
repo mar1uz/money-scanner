@@ -31,6 +31,7 @@ export type SortField =
   | 'symbol'
   | 'price'
   | 'change24h'
+  | 'changeYtd'
   | 'marketCap'
   | 'moneyLineScore'
   | 'tier'
@@ -316,6 +317,9 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
         case 'change24h':
           comparison = a.change24h - b.change24h;
           break;
+        case 'changeYtd':
+          comparison = (a.changeYtd || 0) - (b.changeYtd || 0);
+          break;
         case 'marketCap':
           comparison = (a.marketCap || 0) - (b.marketCap || 0);
           break;
@@ -513,8 +517,19 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                 className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
               >
                 <div className="flex items-center gap-1.5">
-                  <span>Variație 24h</span>
+                  <span>Var. 24h</span>
                   {renderSortIcon('change24h')}
+                </div>
+              </th>
+
+              {/* YTD % Change Header */}
+              <th
+                onClick={() => handleSort('changeYtd')}
+                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>YTD %</span>
+                  {renderSortIcon('changeYtd')}
                 </div>
               </th>
 
@@ -685,6 +700,20 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                         {isPositiveChange ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
                         {isPositiveChange ? `+${row.change24h}%` : `${row.change24h}%`}
                       </span>
+                    </td>
+
+                    {/* YTD % */}
+                    <td className="py-3.5 px-4 font-mono">
+                      {row.changeYtd !== undefined ? (
+                        <span className={`inline-flex items-center gap-0.5 font-bold ${
+                          row.changeYtd >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                        }`}>
+                          {row.changeYtd >= 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
+                          {row.changeYtd >= 0 ? `+${row.changeYtd}%` : `${row.changeYtd}%`}
+                        </span>
+                      ) : (
+                        <span className="text-slate-500">-</span>
+                      )}
                     </td>
 
                     {/* Market Cap Column */}

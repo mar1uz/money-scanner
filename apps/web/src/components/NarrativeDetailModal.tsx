@@ -32,7 +32,7 @@ export const NarrativeDetailModal: React.FC<NarrativeDetailModalProps> = ({
   onToggleWatchlist
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortField, setSortField] = useState<'marketCap' | 'change24h' | 'moneyLineScore' | 'name'>('marketCap');
+  const [sortField, setSortField] = useState<'marketCap' | 'change24h' | 'changeYtd' | 'moneyLineScore' | 'name'>('marketCap');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   if (!narrative) return null;
@@ -180,6 +180,19 @@ export const NarrativeDetailModal: React.FC<NarrativeDetailModalProps> = ({
             </button>
             <button
               onClick={() => {
+                if (sortField === 'changeYtd') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                else { setSortField('changeYtd'); setSortOrder('desc'); }
+              }}
+              className={`px-2.5 py-1 rounded-lg border transition-all ${
+                sortField === 'changeYtd'
+                  ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30 font-bold'
+                  : 'bg-white/[0.02] border-white/[0.04] text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              YTD % {sortField === 'changeYtd' && (sortOrder === 'desc' ? '▼' : '▲')}
+            </button>
+            <button
+              onClick={() => {
                 if (sortField === 'moneyLineScore') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
                 else { setSortField('moneyLineScore'); setSortOrder('desc'); }
               }}
@@ -253,13 +266,18 @@ export const NarrativeDetailModal: React.FC<NarrativeDetailModalProps> = ({
                       </span>
                     </div>
 
-                    {/* Right: 24h Change & Tier & Drilldown */}
+                    {/* Right: 24h & YTD Performance + Tier + Drilldown */}
                     <div className="flex items-center gap-4">
-                      {/* 24h Change Badge */}
-                      <div className={`font-mono text-xs font-bold text-right min-w-[65px] ${
-                        isChangePos ? 'text-emerald-400' : 'text-rose-400'
-                      }`}>
-                        {isChangePos ? `+${asset.change24h}%` : `${asset.change24h}%`}
+                      {/* Performance Badges */}
+                      <div className="flex flex-col items-end font-mono text-xs font-bold min-w-[75px]">
+                        <span className={isChangePos ? 'text-emerald-400' : 'text-rose-400'}>
+                          {isChangePos ? `+${asset.change24h}%` : `${asset.change24h}%`} <span className="text-[10px] text-slate-500 font-normal">24h</span>
+                        </span>
+                        {asset.changeYtd !== undefined && (
+                          <span className={`text-[11px] ${asset.changeYtd >= 0 ? 'text-emerald-400/90' : 'text-rose-400/90'}`}>
+                            {asset.changeYtd >= 0 ? `+${asset.changeYtd}%` : `${asset.changeYtd}%`} <span className="text-[10px] text-slate-500 font-normal">YTD</span>
+                          </span>
+                        )}
                       </div>
 
                       {/* Tier Badge */}

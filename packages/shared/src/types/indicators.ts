@@ -75,6 +75,7 @@ export interface AssetScannerRow {
   narratives?: import('./market.js').MarketNarrativeId[];
   price: number;
   change24h: number;
+  changeYtd?: number;
   marketCap?: number;
   high24h: number;
   low24h: number;

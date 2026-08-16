@@ -95,6 +95,7 @@ export class AppState {
           narratives: asset.narratives,
           price: quote.price,
           change24h: quote.change24h,
+          changeYtd: quote.changeYtd || 0,
           marketCap,
           high24h: quote.high24h,
           low24h: quote.low24h,
