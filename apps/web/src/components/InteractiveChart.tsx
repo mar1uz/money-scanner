@@ -665,6 +665,30 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     return { x, y, timeIndex, price };
   };
 
+  // Point coordinate resolver from Touch Event
+  const getPointFromTouch = (e: React.TouchEvent<SVGSVGElement>): { x: number; y: number; timeIndex: number; price: number } | null => {
+    if (!svgOverlayRef.current || !chartApiRef.current || !candleSeriesRef.current || !candles || candles.length === 0) return null;
+    if (!e.touches || e.touches.length === 0) return null;
+    const touch = e.touches[0];
+    const rect = svgOverlayRef.current.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+
+    const price = candleSeriesRef.current.coordinateToPrice(y) || candles[candles.length - 1].close;
+    const timeVal = chartApiRef.current.timeScale().coordinateToTime(x) as any;
+
+    let timeIndex = candles.length - 1;
+    if (typeof timeVal === 'number') {
+      const foundIdx = candles.findIndex((c, idx) => {
+        const tSec = Math.floor(c.timestamp / 1000) + idx * 60;
+        return tSec >= timeVal;
+      });
+      if (foundIdx !== -1) timeIndex = foundIdx;
+    }
+
+    return { x, y, timeIndex, price };
+  };
+
   // SVG Mouse Event Handlers
   const handleSvgMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
     if (activeTool === 'select') return;
@@ -695,7 +719,29 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       return;
     }
 
-    setCurrentStart(pt);
+    // Two-click mode (e.g. click 1 to start, click 2 to finish)
+    if (currentStart) {
+      const newDrawing: ChartDrawing = {
+        id: `${activeTool}_${Date.now()}`,
+        type: activeTool,
+        p1: { timeIndex: currentStart.timeIndex, price: currentStart.price },
+        p2: { timeIndex: pt.timeIndex, price: pt.price },
+        color: activeTool === 'fibonacci' 
+          ? '#fbbf24' 
+          : (activeTool === 'ruler' 
+            ? '#10b981' 
+            : (activeTool === 'long_position' 
+              ? '#10b981' 
+              : (activeTool === 'short_position' 
+                ? '#f43f5e' 
+                : (activeTool === 'rectangle' ? '#06b6d4' : (activeTool === 'channel' ? '#06b6d4' : (activeTool === 'ray' ? '#38bdf8' : '#06b6d4'))))))
+      };
+      setDrawings(prev => [...prev, newDrawing]);
+      setCurrentStart(null);
+      setActiveTool('select');
+    } else {
+      setCurrentStart(pt);
+    }
   };
 
   const handleSvgMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -707,30 +753,117 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   const handleSvgMouseUp = (e: React.MouseEvent<SVGSVGElement>) => {
     if (!currentStart) return;
     const pt = getPointFromMouse(e);
-    if (!pt) {
+    if (!pt) return;
+
+    // If user dragged a significant distance (>15px), finish drawing on mouseUp
+    const dist = Math.hypot(pt.x - currentStart.x, pt.y - currentStart.y);
+    if (dist > 15) {
+      const newDrawing: ChartDrawing = {
+        id: `${activeTool}_${Date.now()}`,
+        type: activeTool,
+        p1: { timeIndex: currentStart.timeIndex, price: currentStart.price },
+        p2: { timeIndex: pt.timeIndex, price: pt.price },
+        color: activeTool === 'fibonacci' 
+          ? '#fbbf24' 
+          : (activeTool === 'ruler' 
+            ? '#10b981' 
+            : (activeTool === 'long_position' 
+              ? '#10b981' 
+              : (activeTool === 'short_position' 
+                ? '#f43f5e' 
+                : (activeTool === 'rectangle' ? '#06b6d4' : (activeTool === 'channel' ? '#06b6d4' : (activeTool === 'ray' ? '#38bdf8' : '#06b6d4'))))))
+      };
+      setDrawings(prev => [...prev, newDrawing]);
       setCurrentStart(null);
+      setActiveTool('select');
+    }
+  };
+
+  // Mobile Touch Event Handlers
+  const handleSvgTouchStart = (e: React.TouchEvent<SVGSVGElement>) => {
+    if (activeTool === 'select') return;
+    e.stopPropagation();
+    const pt = getPointFromTouch(e);
+    if (!pt) return;
+
+    if (activeTool === 'horizontal') {
+      const newDrawing: ChartDrawing = {
+        id: `h_${Date.now()}`,
+        type: 'horizontal',
+        p1: { timeIndex: pt.timeIndex, price: pt.price },
+        color: '#38bdf8'
+      };
+      setDrawings(prev => [...prev, newDrawing]);
+      setActiveTool('select');
       return;
     }
 
-    const newDrawing: ChartDrawing = {
-      id: `${activeTool}_${Date.now()}`,
-      type: activeTool,
-      p1: { timeIndex: currentStart.timeIndex, price: currentStart.price },
-      p2: { timeIndex: pt.timeIndex, price: pt.price },
-      color: activeTool === 'fibonacci' 
-        ? '#fbbf24' 
-        : (activeTool === 'ruler' 
-          ? '#38bdf8' 
-          : (activeTool === 'long_position' 
-            ? '#10b981' 
-            : (activeTool === 'short_position' 
-              ? '#f43f5e' 
-              : (activeTool === 'rectangle' ? '#06b6d4' : (activeTool === 'channel' ? '#06b6d4' : (activeTool === 'ray' ? '#38bdf8' : '#06b6d4'))))))
-    };
-    setDrawings(prev => [...prev, newDrawing]);
+    if (activeTool === 'vertical') {
+      const newDrawing: ChartDrawing = {
+        id: `v_${Date.now()}`,
+        type: 'vertical',
+        p1: { timeIndex: pt.timeIndex, price: pt.price },
+        color: '#a855f7'
+      };
+      setDrawings(prev => [...prev, newDrawing]);
+      setActiveTool('select');
+      return;
+    }
 
-    setCurrentStart(null);
-    setActiveTool('select');
+    // Touch tap-to-tap or tap-to-start
+    if (currentStart) {
+      const newDrawing: ChartDrawing = {
+        id: `${activeTool}_${Date.now()}`,
+        type: activeTool,
+        p1: { timeIndex: currentStart.timeIndex, price: currentStart.price },
+        p2: { timeIndex: pt.timeIndex, price: pt.price },
+        color: activeTool === 'ruler' ? '#10b981' : '#06b6d4'
+      };
+      setDrawings(prev => [...prev, newDrawing]);
+      setCurrentStart(null);
+      setActiveTool('select');
+    } else {
+      setCurrentStart(pt);
+      setMousePos({ x: pt.x, y: pt.y });
+    }
+  };
+
+  const handleSvgTouchMove = (e: React.TouchEvent<SVGSVGElement>) => {
+    if (activeTool === 'select' || !currentStart || !svgOverlayRef.current) return;
+    e.stopPropagation();
+    if (!e.touches || e.touches.length === 0) return;
+    const touch = e.touches[0];
+    const rect = svgOverlayRef.current.getBoundingClientRect();
+    setMousePos({ x: touch.clientX - rect.left, y: touch.clientY - rect.top });
+  };
+
+  const handleSvgTouchEnd = (e: React.TouchEvent<SVGSVGElement>) => {
+    if (activeTool === 'select' || !currentStart || !mousePos) return;
+    e.stopPropagation();
+    const dist = Math.hypot(mousePos.x - currentStart.x, mousePos.y - currentStart.y);
+    if (dist > 25 && chartApiRef.current && candleSeriesRef.current) {
+      const price = candleSeriesRef.current.coordinateToPrice(mousePos.y) || candles[candles.length - 1].close;
+      const timeVal = chartApiRef.current.timeScale().coordinateToTime(mousePos.x) as any;
+      let timeIndex = candles.length - 1;
+      if (typeof timeVal === 'number') {
+        const foundIdx = candles.findIndex((c, idx) => {
+          const tSec = Math.floor(c.timestamp / 1000) + idx * 60;
+          return tSec >= timeVal;
+        });
+        if (foundIdx !== -1) timeIndex = foundIdx;
+      }
+
+      const newDrawing: ChartDrawing = {
+        id: `${activeTool}_${Date.now()}`,
+        type: activeTool,
+        p1: { timeIndex: currentStart.timeIndex, price: currentStart.price },
+        p2: { timeIndex, price },
+        color: activeTool === 'ruler' ? '#10b981' : '#06b6d4'
+      };
+      setDrawings(prev => [...prev, newDrawing]);
+      setCurrentStart(null);
+      setActiveTool('select');
+    }
   };
 
   const handleUndo = () => {
@@ -937,11 +1070,100 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
             </div>
           </div>
 
+          {/* Mobile Quick TA & Percentage Measurement Bar (Optimized for touch) */}
+          <div className="md:hidden flex flex-col gap-2 p-2.5 bg-[#090e1c] border border-cyan-500/30 rounded-2xl shadow-xl">
+            <div className="flex items-center justify-between gap-2 overflow-x-auto pb-0.5">
+              {/* 1. Pointer Mode */}
+              <button
+                onClick={() => { setActiveTool('select'); setCurrentStart(null); }}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-mono font-bold transition-all shrink-0 ${
+                  activeTool === 'select'
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-cyan'
+                    : 'bg-white/[0.03] text-slate-400 border border-white/[0.06]'
+                }`}
+              >
+                <MousePointer className="w-4 h-4" />
+                <span>Pan</span>
+              </button>
+
+              {/* 2. Big Touch-Friendly % Measurement Button (AL DOILEA INSTRUMENT) */}
+              <button
+                onClick={() => {
+                  setActiveTool(activeTool === 'ruler' ? 'select' : 'ruler');
+                  setCurrentStart(null);
+                }}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-mono font-bold transition-all shrink-0 ${
+                  activeTool === 'ruler'
+                    ? 'bg-emerald-500 text-slate-950 font-black shadow-[0_0_20px_rgba(16,185,129,0.6)] ring-2 ring-emerald-300 animate-pulse'
+                    : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/25'
+                }`}
+              >
+                <Maximize2 className="w-4 h-4" />
+                <span>{activeTool === 'ruler' ? '📏 MĂSURARE % ACTIVĂ' : '📏 Măsoară %'}</span>
+              </button>
+
+              {/* 3. Trendline */}
+              <button
+                onClick={() => { setActiveTool(activeTool === 'trendline' ? 'select' : 'trendline'); setCurrentStart(null); }}
+                className={`p-2 rounded-xl text-xs font-mono transition-all shrink-0 ${
+                  activeTool === 'trendline' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' : 'bg-white/[0.03] text-slate-400 border border-white/[0.06]'
+                }`}
+                title="Linie Trend"
+              >
+                <TrendingUp className="w-4 h-4" />
+              </button>
+
+              {/* 4. Horizontal */}
+              <button
+                onClick={() => { setActiveTool(activeTool === 'horizontal' ? 'select' : 'horizontal'); setCurrentStart(null); }}
+                className={`p-2 rounded-xl text-xs font-mono transition-all shrink-0 ${
+                  activeTool === 'horizontal' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' : 'bg-white/[0.03] text-slate-400 border border-white/[0.06]'
+                }`}
+                title="Suport / Rezistență"
+              >
+                <Minus className="w-4 h-4" />
+              </button>
+
+              {/* Undo & Clear */}
+              <div className="flex items-center gap-1 ml-auto shrink-0">
+                <button
+                  onClick={handleUndo}
+                  disabled={drawings.length === 0}
+                  className="p-2 rounded-xl bg-white/[0.03] text-slate-400 border border-white/[0.06] disabled:opacity-30"
+                  title="Undo"
+                >
+                  <Undo2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={handleClearAll}
+                  disabled={drawings.length === 0}
+                  className="p-2 rounded-xl bg-white/[0.03] text-slate-400 hover:text-rose-400 border border-white/[0.06] disabled:opacity-30"
+                  title="Clear All"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Active Measurement Guidance / Tips Banner for Mobile */}
+            {activeTool === 'ruler' && (
+              <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[11px] font-mono text-emerald-300 animate-fade-in">
+                <span>👆 Atinge prima lumânare (Start), apoi a 2-a lumânare (Target)</span>
+                <button 
+                  onClick={() => { setActiveTool('select'); setCurrentStart(null); }}
+                  className="text-[10px] text-slate-400 hover:text-slate-200 underline ml-2 shrink-0"
+                >
+                  Anulează
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* Chart View Container with Floating Drawing Tools & SVG Overlay */}
           <div className="relative w-full rounded-2xl overflow-hidden bg-background-card border border-background-border">
-            {/* Left Floating Technical Drawing Toolbar (Full TradingView Suite) */}
-            <div className="absolute left-3 top-3 z-30 flex flex-col items-center gap-1 p-1.5 bg-background-card/95 backdrop-blur-md border border-background-border rounded-xl shadow-2xl max-h-[500px] overflow-y-auto">
-              {/* Pointer / Cursor Mode */}
+            {/* Left Floating Technical Drawing Toolbar (Full TradingView Suite - Hidden on mobile, shown on md+) */}
+            <div className="hidden md:flex absolute left-3 top-3 z-30 flex-col items-center gap-1 p-1.5 bg-background-card/95 backdrop-blur-md border border-background-border rounded-xl shadow-2xl max-h-[500px] overflow-y-auto">
+              {/* 1. Pointer / Cursor Mode */}
               <button
                 onClick={() => { setActiveTool('select'); setCurrentStart(null); }}
                 title="Mod Cursor (Pan & Zoom normal)"
@@ -954,9 +1176,25 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                 <MousePointer className="w-4 h-4" />
               </button>
 
+              {/* 2. Measurement Ruler Tool (% Variație & Diferență Preț) - AL DOILEA INSTRUMENT */}
+              <button
+                onClick={() => { 
+                  setActiveTool(activeTool === 'ruler' ? 'select' : 'ruler'); 
+                  setCurrentStart(null); 
+                }}
+                title="Riglă de Măsurat Procente (% Variație & Diferență Preț) - Al 2-lea instrument"
+                className={`p-2 rounded-lg transition-all ${
+                  activeTool === 'ruler'
+                    ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/50 shadow-glow-emerald'
+                    : 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10'
+                }`}
+              >
+                <Maximize2 className="w-4 h-4" />
+              </button>
+
               <div className="w-4 h-[1px] bg-slate-800 my-0.5" />
 
-              {/* Trendline Tool */}
+              {/* 3. Trendline Tool */}
               <button
                 onClick={() => { setActiveTool('trendline'); setCurrentStart(null); }}
                 title="Linie de Trend (Click pe start, trage și lasă)"
@@ -969,7 +1207,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                 <TrendingUp className="w-4 h-4" />
               </button>
 
-              {/* Extended Ray Tool */}
+              {/* 4. Extended Ray Tool */}
               <button
                 onClick={() => { setActiveTool('ray'); setCurrentStart(null); }}
                 title="Rază Extinsă / Ray Line (Trage linia spre infinit la dreapta)"
@@ -982,7 +1220,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                 <ArrowUpRight className="w-4 h-4" />
               </button>
 
-              {/* Horizontal Support/Resistance Line */}
+              {/* 5. Horizontal Support/Resistance Line */}
               <button
                 onClick={() => { setActiveTool('horizontal'); setCurrentStart(null); }}
                 title="Nivel Orizontal Suport / Rezistență (Click pentru a plasa)"
@@ -995,7 +1233,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                 <Minus className="w-4 h-4" />
               </button>
 
-              {/* Vertical Time Line */}
+              {/* 6. Vertical Time Line */}
               <button
                 onClick={() => { setActiveTool('vertical'); setCurrentStart(null); }}
                 title="Linie Verticală Marcaj Timp / Sesiune (Click pentru a plasa)"
@@ -1008,7 +1246,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                 <MoveVertical className="w-4 h-4" />
               </button>
 
-              {/* Fibonacci Retracement Tool */}
+              {/* 7. Fibonacci Retracement Tool */}
               <button
                 onClick={() => { setActiveTool('fibonacci'); setCurrentStart(null); }}
                 title="Fibonacci Retracement (Niveluri 23.6%, 38.2%, 50%, 61.8% Golden Pocket, 78.6%)"
@@ -1021,7 +1259,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                 <Layers className="w-4 h-4" />
               </button>
 
-              {/* Parallel Channel Tool */}
+              {/* 8. Parallel Channel Tool */}
               <button
                 onClick={() => { setActiveTool('channel'); setCurrentStart(null); }}
                 title="Canal de Trend Paralel (Click & Trage)"
@@ -1034,7 +1272,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                 <Split className="w-4 h-4" />
               </button>
 
-              {/* Rectangle / Order Block Box */}
+              {/* 9. Rectangle / Order Block Box */}
               <button
                 onClick={() => { setActiveTool('rectangle'); setCurrentStart(null); }}
                 title="Dreptunghi / Zonă de Consolidare & Order Block"
@@ -1049,7 +1287,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
 
               <div className="w-4 h-[1px] bg-slate-800 my-0.5" />
 
-              {/* Long Position Tool (R:R) */}
+              {/* 10. Long Position Tool (R:R) */}
               <button
                 onClick={() => { setActiveTool('long_position'); setCurrentStart(null); }}
                 title="Poziție Long (Target Verde, Stop Loss Roșu & Raport Risc:Recompensă)"
@@ -1062,7 +1300,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                 <ArrowUpCircle className="w-4 h-4" />
               </button>
 
-              {/* Short Position Tool (R:R) */}
+              {/* 11. Short Position Tool (R:R) */}
               <button
                 onClick={() => { setActiveTool('short_position'); setCurrentStart(null); }}
                 title="Poziție Short (Target Verde, Stop Loss Roșu & Raport Risc:Recompensă)"
@@ -1073,19 +1311,6 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                 }`}
               >
                 <ArrowDownCircle className="w-4 h-4" />
-              </button>
-
-              {/* Measurement Ruler Tool */}
-              <button
-                onClick={() => { setActiveTool('ruler'); setCurrentStart(null); }}
-                title="Riglă de Măsurat (% Variație & Diferență Preț)"
-                className={`p-2 rounded-lg transition-all ${
-                  activeTool === 'ruler'
-                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-cyan'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                }`}
-              >
-                <Maximize2 className="w-4 h-4" />
               </button>
 
               <div className="w-4 h-[1px] bg-slate-800 my-0.5" />
@@ -1112,7 +1337,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
             </div>
 
             {/* TradingView Lightweight Charts DOM Canvas */}
-            <div ref={chartContainerRef} className="w-full h-[540px]" />
+            <div ref={chartContainerRef} className="w-full h-[460px] md:h-[540px]" />
 
             {/* Synchronized Vector SVG Drawing Overlay Layer */}
             <svg
@@ -1120,8 +1345,11 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
               onMouseDown={handleSvgMouseDown}
               onMouseMove={handleSvgMouseMove}
               onMouseUp={handleSvgMouseUp}
+              onTouchStart={handleSvgTouchStart}
+              onTouchMove={handleSvgTouchMove}
+              onTouchEnd={handleSvgTouchEnd}
               className={`absolute inset-0 w-full h-full z-20 ${
-                activeTool === 'select' ? 'pointer-events-none' : 'cursor-crosshair'
+                activeTool === 'select' ? 'pointer-events-none' : 'cursor-crosshair touch-none'
               }`}
             >
               {/* Render Saved User Drawings */}
@@ -1476,16 +1704,36 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                     />
                   )}
                   {activeTool === 'ruler' && (
-                    <rect
-                      x={Math.min(currentStart.x, mousePos.x)}
-                      y={Math.min(currentStart.y, mousePos.y)}
-                      width={Math.abs(mousePos.x - currentStart.x)}
-                      height={Math.abs(mousePos.y - currentStart.y)}
-                      fill="rgba(56, 189, 248, 0.15)"
-                      stroke="#38bdf8"
-                      strokeWidth="1.5"
-                      strokeDasharray="4 4"
-                    />
+                    <g>
+                      <rect
+                        x={Math.min(currentStart.x, mousePos.x)}
+                        y={Math.min(currentStart.y, mousePos.y)}
+                        width={Math.abs(mousePos.x - currentStart.x)}
+                        height={Math.abs(mousePos.y - currentStart.y)}
+                        fill="rgba(56, 189, 248, 0.15)"
+                        stroke="#38bdf8"
+                        strokeWidth="1.5"
+                        strokeDasharray="4 4"
+                      />
+                      {candleSeriesRef.current && (
+                        <text
+                          x={(currentStart.x + mousePos.x) / 2}
+                          y={Math.max(16, Math.min(currentStart.y, mousePos.y) - 8)}
+                          fill="#38bdf8"
+                          textAnchor="middle"
+                          fontFamily="monospace"
+                          fontSize="11"
+                          fontWeight="bold"
+                        >
+                          {(() => {
+                            const p1 = currentStart.price;
+                            const p2 = candleSeriesRef.current.coordinateToPrice(mousePos.y) || p1;
+                            const pct = ((p2 - p1) / p1) * 100;
+                            return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}% (${(p2 - p1) >= 0 ? '+' : ''}${(p2 - p1).toFixed(2)})`;
+                          })()}
+                        </text>
+                      )}
+                    </g>
                   )}
                 </g>
               )}

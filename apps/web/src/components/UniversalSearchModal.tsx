@@ -232,16 +232,16 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-start justify-center pt-3 sm:pt-14 px-2.5 sm:px-4 bg-background/85 backdrop-blur-xl animate-fade-in"
+      className="fixed inset-0 z-[100] flex items-start justify-center pt-3 sm:pt-14 px-2.5 sm:px-4 bg-black/90 backdrop-blur-2xl animate-fade-in"
       onClick={onClose}
     >
       <div 
-        className="relative w-full max-w-2xl flex flex-col bg-background-card border border-white/[0.1] rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden max-h-[92vh] sm:max-h-[85vh]"
+        className="relative w-full max-w-2xl flex flex-col bg-[#080d1a] border border-cyan-500/40 rounded-2xl sm:rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.95)] overflow-hidden max-h-[92vh] sm:max-h-[85vh]"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
         {/* Search Header Input */}
-        <div className="relative p-3.5 sm:p-4 border-b border-white/[0.06] bg-background-surface/40 flex items-center gap-2.5 sm:gap-3">
+        <div className="relative p-3.5 sm:p-4 border-b border-white/[0.08] bg-[#0c1324] flex items-center gap-2.5 sm:gap-3">
           <Search className="w-5 h-5 text-cyan-400 shrink-0" />
           
           <input

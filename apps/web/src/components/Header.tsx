@@ -221,20 +221,28 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
 
-        {/* AI Dropdown with Suggestions */}
+        {/* AI Dropdown with Full-Screen Dark Backdrop Overlay (Guarantees zero bleed-through) */}
         {isDropdownOpen && searchQuery.trim() && (
-          <div className="absolute left-0 right-0 top-full mt-2 bg-background-card/95 backdrop-blur-2xl border border-cyan-500/30 rounded-2xl shadow-elevated overflow-hidden z-50 animate-fade-in max-h-[420px] overflow-y-auto divide-y divide-white/[0.04]">
-            <div className="p-2.5 bg-white/[0.02] text-[10px] font-mono text-slate-400 flex items-center justify-between border-b border-white/[0.04]">
-              <span className="flex items-center gap-1 text-cyan-300 font-bold">
-                <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                REZULTATE AI ({matchingAssets.length})
-              </span>
-              <span className="text-slate-400 flex items-center gap-1.5">
-                <span><strong className="text-cyan-300">↑ / ↓</strong></span>
-                <span>•</span>
-                <span>Selectează: <strong className="text-emerald-400">Enter ↵</strong></span>
-              </span>
-            </div>
+          <>
+            {/* Backdrop overlay covering all screen elements */}
+            <div 
+              className="fixed inset-0 bg-black/80 backdrop-blur-md z-40 animate-fade-in"
+              onClick={() => setIsDropdownOpen(false)}
+            />
+
+            {/* Dropdown Container */}
+            <div className="absolute left-0 right-0 top-full mt-2 bg-[#090e1a] border border-cyan-500/40 rounded-2xl shadow-2xl overflow-hidden z-50 animate-fade-in max-h-[440px] overflow-y-auto divide-y divide-white/[0.04]">
+              <div className="p-2.5 bg-white/[0.04] text-[10px] font-mono text-slate-400 flex items-center justify-between border-b border-white/[0.06]">
+                <span className="flex items-center gap-1 text-cyan-300 font-bold">
+                  <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                  REZULTATE AI ({matchingAssets.length})
+                </span>
+                <span className="text-slate-400 flex items-center gap-1.5">
+                  <span><strong className="text-cyan-300">↑ / ↓</strong></span>
+                  <span>•</span>
+                  <span>Selectează: <strong className="text-emerald-400">Enter ↵</strong></span>
+                </span>
+              </div>
 
             {matchingAssets.length > 0 ? (
               <div className="divide-y divide-white/[0.03]">
@@ -338,15 +346,16 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             ) : (
               <div className="p-6 text-center text-xs font-mono text-slate-400 space-y-2">
-                <p>Niciun activ potrivit pentru <span className="text-cyan-300 font-bold">"{searchQuery}"</span>.</p>
+                <p>Niciun activ găsit pentru <span className="text-cyan-300 font-bold">"{searchQuery}"</span>.</p>
                 <p className="text-[11px] text-slate-500">
-                  Încearcă termeni precum: <span className="text-cyan-400">moneda Vitalik</span>, <span className="text-cyan-400">aur</span>, <span className="text-cyan-400">mașini electrice</span>, <span className="text-cyan-400">plăci video</span>, sau <span className="text-cyan-400">DXY</span>.
+                  Încearcă: <span className="text-cyan-400">ASML</span>, <span className="text-cyan-400">aur</span>, <span className="text-cyan-400">NVDA</span>, <span className="text-cyan-400">BTC</span> sau <span className="text-cyan-400">DXY</span>.
                 </p>
               </div>
             )}
           </div>
-        )}
-      </div>
+        </>
+      )}
+    </div>
 
       {/* Right Controls: Timeframe Pills, Live Status, Refresh */}
       <div className="flex items-center gap-2.5">
