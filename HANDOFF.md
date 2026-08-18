@@ -1,13 +1,17 @@
 # Money Scanner — Project Handoff
 
 > [!IMPORTANT]
-> ### 🛡️ MANDATORY GOLDEN DIRECTIVE: 100% REAL & VERIFIED DATA ONLY (ZERO INVENTED NUMBERS)
-> **NO APPROXIMATIONS, FICTIONAL DATA, OR PLACEHOLDERS ARE PERMITTED ANYWHERE IN THIS APPLICATION.**
-> Every single metric, percentage, price, macroeconomic figure, indicator score, and index across the platform:
+> ### 🛡️ MANDATORY GOLDEN DIRECTIVE #1: 100% REAL & VERIFIED DATA ONLY (ZERO INVENTED NUMBERS)
+> **NO APPROXIMATIONS, FICTIONAL DATA, PLACEHOLDERS, HARDCODED TABLES, OR ARTIFICIAL OFFSETS ARE PERMITTED ANYWHERE IN THIS CODEBASE.**
+> Every single metric, percentage, timestamp, score, and indicator across the entire platform MUST be computed strictly and exclusively from 100% real historical and live market feeds:
+> - **De Când este Flip (Flip Age / `lastSignalChangeTime`)**: MUST be derived directly from the exact closed candle timestamp (`transitionTime`) where the Money Line trend flipped between Bullish, Bearish, or Neutral. No artificial timestamps or placeholders permitted.
+> - **Preț & Var. 24h (Price & 24h Delta)**: 100% live price and 24h percent delta from Binance Public API (`/ticker/24hr`) and Yahoo Finance v8 (`/v8/finance/chart`).
+> - **YTD % (Year-To-Date Return)**: MUST be calculated dynamically from the exact Jan 1st 00:00 UTC opening candle price (`startTime = Date.UTC(currentYear, 0, 1)`) vs current price: `((currentPrice - jan1OpenPrice) / jan1OpenPrice) * 100`. Zero static lookup tables allowed.
+> - **ML 1D % & ML 1W % (MoneyLine ROI)**: Calculated strictly from the transition candle price to the latest closed candle price across 1D and 1W timeframes.
+> - **Money Line Score & Tier**: Deterministic, non-repainting weighted composite calculated across real technical indicators: EMA Alignment (20/50/200), EMA Slope, ROC (9/21), MACD (12/26/9), RSI (14), RVOL (20 MA), and ATR (14).
 > - **Crypto Fear & Greed Index**: MUST be fetched directly from Alternative.me official public API (`https://api.alternative.me/fng/?limit=1`).
-> - **USA Economic Status**: Real official U.S. Treasury National Debt ($36.2T+), BLS Consumer Price Index (CPI/PCE), Federal Reserve Funds Rate, and Treasury Yield Curve.
-> - **Market Prices & Candlesticks**: Real OHLCV feeds from Binance API and Public Stock/Commodity market adapters (Yahoo Finance v8 / NASDAQ / TVC).
-> - **News & Social Intelligence**: 100% verified news from Bloomberg, Reuters, CoinDesk, Decrypt, and authentic tweets from verified analysts.
+> - **USA Macro & Economic Status**: Real official U.S. Treasury National Debt ($36.2T+), BLS Consumer Price Index (CPI/PCE), Federal Reserve Funds Rate, and Treasury Yield Curve.
+> - **News & Social Intelligence**: 100% verified news from Bloomberg, Reuters, CoinDesk, Decrypt, and authentic posts from verified analysts.
 
 ## 1. Project purpose
 
@@ -507,6 +511,7 @@ Rough implementation estimate: four to six weeks for the functional MVP, followe
 | **Step 39** | `apps/web` | **Vertical Watchlist Reordering & Horizontal Pill Bar Removal** (Removed the horizontal Watchlist Activ chip bar; enabled direct vertical drag-and-drop on table rows and added 1-click vertical `ChevronUp` / `ChevronDown` reorder buttons directly into the Symbol cell for intuitive up/down rearrangement stored in persistent state and localStorage). | **Completed** | `af02af1` |
 | **Step 40** | `apps/web`, `apps/api`, `packages/shared` | **Multi-Timeframe 1D & 1W MoneyLine Percentage Columns & Cloud Run Deployment** (Added dedicated interactive and sortable `ML 1D %` and `ML 1W %` columns on the central Scanner 360 table, displaying exact percentage growth/decline since Money Line transition with formatted indicator tier badges, and integrated parallel 1D & 1W signal calculation into the backend ingestion engine). | **Completed** | `ffe81ae` |
 | **Step 41** | `packages/market-data` | **100% Real Dynamic Year-To-Date (YTD) Engine** (Replaced obsolete static mapping tables with live dynamic Jan 1st open price queries from Binance klines API and Yahoo Finance `range=ytd`, accurately resolving $FET YTD to -38.5% and fixing real-time YTD metrics across all 160+ assets). | **Completed** | `3b326d7` |
+| **Step 42** | `apps/api`, `packages/money-line`, `infra` | **100% Real Flip Age & Zero-Invented-Data Directive Enforcement** (Deep historical candle scanning with 500-candle Lookback ensuring exact closed candle `transitionTime` calculations for 'De Când este Flip', codified Mandatory Golden Directive #1 in project core documentation, full test verification, and Cloud Run production deployment). | **Completed** | `Pending` |
 
 ---
 

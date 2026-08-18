@@ -45,7 +45,8 @@ export class AppState {
     const rows: AssetScannerRow[] = await Promise.all(
       TOP_50_CRYPTO_ASSETS.map(async (asset) => {
         const quote = quotes.find(q => q.symbol === asset.symbol) || await this.marketData.getPriceQuote(asset.symbol);
-        const candles = await this.marketData.getCandles(asset.symbol, timeframe, 150);
+        const candleLimit = timeframe === '1w' ? 300 : (timeframe === '1d' ? 500 : (timeframe === '1m' ? 150 : 500));
+        const candles = await this.marketData.getCandles(asset.symbol, timeframe, candleLimit);
         const signal = this.moneyLine.calculateLatest(asset.symbol, timeframe, candles);
 
         if (signal) {
@@ -64,13 +65,13 @@ export class AppState {
         let signal1w = timeframe === '1w' ? signal : this.cachedSignals.get(`${asset.symbol}_1w`);
 
         if (!signal1d) {
-          const candles1d = timeframe === '1d' ? candles : await this.marketData.getCandles(asset.symbol, '1d', 150);
+          const candles1d = timeframe === '1d' ? candles : await this.marketData.getCandles(asset.symbol, '1d', 500);
           signal1d = this.moneyLine.calculateLatest(asset.symbol, '1d', candles1d) || undefined;
           if (signal1d) this.cachedSignals.set(`${asset.symbol}_1d`, signal1d);
         }
 
         if (!signal1w) {
-          const candles1w = timeframe === '1w' ? candles : await this.marketData.getCandles(asset.symbol, '1w', 150);
+          const candles1w = timeframe === '1w' ? candles : await this.marketData.getCandles(asset.symbol, '1w', 300);
           signal1w = this.moneyLine.calculateLatest(asset.symbol, '1w', candles1w) || undefined;
           if (signal1w) this.cachedSignals.set(`${asset.symbol}_1w`, signal1w);
         }
