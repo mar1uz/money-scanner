@@ -143,65 +143,64 @@ export class FixtureMarketProvider {
 
   public calculateYtd(symbol: string, change24h: number): number {
     const knownYtd: Record<string, number> = {
-      'NVDA': 148.5,
-      'BTC': 68.4,
-      'SOL': 84.2,
-      'SUI': 192.0,
-      'PLTR': 114.5,
-      'TSLA': -12.4,
-      'AAPL': 18.6,
-      'MSFT': 22.4,
-      'GOOGL': 28.5,
-      'AMZN': 32.0,
-      'META': 58.2,
-      'TSM': 74.5,
-      'ASML': 38.2,
-      'AMD': 16.4,
-      'AVGO': 62.8,
-      'ARM': 88.4,
-      'WMT': 46.2,
-      'COST': 38.5,
-      'PG': 14.2,
-      'KO': 12.8,
-      'PEP': 3.4,
-      'MCD': 5.2,
-      'XOM': 18.2,
-      'CVX': 6.5,
-      'XAU': 28.4,
-      'XAG': 34.2,
-      'OIL': -2.4,
-      'ETH': 48.2,
-      'BNB': 85.0,
-      'FET': 140.2,
-      'RENDER': 125.0,
-      'TAO': 95.0,
-      'NEAR': 65.4,
-      'LMT': 34.2,
-      'RTX': 44.5,
-      'SPACEX': 75.0,
-      'SPY': 19.8,
-      'QQQ': 22.4,
-      'DOGE': 42.1,
-      'SHIB': 36.5,
-      'PEPE': 185.0,
-      'AAVE': 78.4,
-      'UNI': 32.1,
-      'INJ': 64.2,
-      'ICP': 45.0,
-      'DOT': 8.5,
-      'ADA': 12.4,
-      'XRP': 24.6
+      'NVDA': 18.53,
+      'BTC': -26.59,
+      'ETH': -35.96,
+      'SOL': -38.66,
+      'BNB': -30.35,
+      'SUI': -53.58,
+      'FET': -38.50,
+      'RENDER': -1.79,
+      'TAO': -12.23,
+      'NEAR': 7.60,
+      'INJ': -42.50,
+      'AAVE': -38.96,
+      'PEPE': -36.14,
+      'DOGE': -40.43,
+      'SHIB': -32.50,
+      'UNI': -28.40,
+      'ICP': -35.20,
+      'AVAX': -48.69,
+      'ADA': -47.93,
+      'XRP': -45.78,
+      'DOT': -58.64,
+      'PLTR': 24.50,
+      'TSLA': -25.88,
+      'AAPL': 12.24,
+      'MSFT': 4.40,
+      'GOOGL': 8.50,
+      'AMZN': 6.00,
+      'META': 8.20,
+      'TSM': 14.50,
+      'AVGO': 12.80,
+      'ARM': 18.40,
+      'WMT': 16.20,
+      'COST': 8.50,
+      'PG': 4.20,
+      'KO': 2.80,
+      'PEP': -1.40,
+      'MCD': 1.20,
+      'XOM': 4.20,
+      'CVX': -2.50,
+      'XAU': 2.23,
+      'XAG': 4.10,
+      'OIL': -4.40,
+      'LMT': 14.20,
+      'RTX': 14.50,
+      'SPACEX': 25.00,
+      'SPY': 5.80,
+      'QQQ': 6.40
     };
 
     if (knownYtd[symbol] !== undefined) {
-      return Number((knownYtd[symbol] + change24h * 0.2).toFixed(2));
+      return Number((knownYtd[symbol] + change24h * 0.1).toFixed(2));
     }
 
-    const isPositive = (symbol.charCodeAt(0) * 7 + (symbol.charCodeAt(1) || 0) * 11) % 100 > 25;
+    const isPositive = (symbol.charCodeAt(0) * 7 + (symbol.charCodeAt(1) || 0) * 11) % 100 > 60;
     const base = isPositive 
-      ? ((symbol.charCodeAt(0) * 13) % 75 + 8.5) 
-      : -((symbol.charCodeAt(0) * 9) % 30 + 2.5);
-    return Number((base + (change24h * 0.3)).toFixed(2));
+      ? ((symbol.charCodeAt(0) * 13) % 25 + 2.5) 
+      : -((symbol.charCodeAt(0) * 9) % 40 + 5.0);
+    return Number((base + (change24h * 0.1)).toFixed(2));
   }
 
   public getPriceQuote(symbol: string): AssetPriceQuote {

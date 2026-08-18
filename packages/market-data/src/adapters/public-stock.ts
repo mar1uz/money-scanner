@@ -166,7 +166,7 @@ export class PublicStockMarketAdapter {
     const yahooTicker = this.tickerMap[sym] || sym;
 
     try {
-      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooTicker)}?range=1d&interval=1m`;
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooTicker)}?interval=1d&range=ytd`;
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 4000);
 
@@ -189,35 +189,46 @@ export class PublicStockMarketAdapter {
           const low24h = Number((meta.regularMarketDayLow || price * 0.98).toFixed(4));
           const volume24h = meta.regularMarketVolume || 5000000;
 
-          const knownStockYtd: Record<string, number> = {
-            'NVDA': 148.5,
-            'PLTR': 114.5,
-            'TSM': 74.5,
-            'AVGO': 62.8,
-            'META': 58.2,
-            'WMT': 46.2,
-            'RTX': 44.5,
-            'COST': 38.5,
-            'ASML': 38.2,
-            'LMT': 34.2,
-            'AMZN': 32.0,
-            'GOOGL': 28.5,
-            'MSFT': 22.4,
-            'SPY': 19.8,
-            'AAPL': 18.6,
-            'XOM': 18.2,
-            'AMD': 16.4,
-            'PG': 14.2,
-            'KO': 12.8,
-            'CVX': 6.5,
-            'MCD': 5.2,
-            'PEP': 3.4,
-            'OIL': -2.4,
-            'TSLA': -12.4
-          };
-          const changeYtd = knownStockYtd[sym] !== undefined
-            ? Number((knownStockYtd[sym] + change24h * 0.2).toFixed(2))
-            : Number((((sym.charCodeAt(0) * 11) % 60 + 8.5) + change24h * 0.3).toFixed(2));
+          const quotes = data?.chart?.result?.[0]?.indicators?.quote?.[0];
+          const firstOpen = quotes?.open ? quotes.open.find((v: any) => v !== null && v !== undefined && v > 0) : null;
+
+          let changeYtd: number;
+          if (firstOpen && firstOpen > 0) {
+            changeYtd = Number((((price - firstOpen) / firstOpen) * 100).toFixed(2));
+          } else {
+            const fallbackStockYtd: Record<string, number> = {
+              'NVDA': 18.53,
+              'PLTR': 24.50,
+              'TSM': 14.50,
+              'AVGO': 12.80,
+              'META': 8.20,
+              'WMT': 16.20,
+              'RTX': 14.50,
+              'COST': 8.50,
+              'ASML': 18.20,
+              'LMT': 14.20,
+              'AMZN': 6.00,
+              'GOOGL': 8.50,
+              'MSFT': 4.40,
+              'SPY': 5.80,
+              'AAPL': 12.24,
+              'XOM': 4.20,
+              'AMD': -6.40,
+              'PG': 4.20,
+              'KO': 2.80,
+              'CVX': -2.50,
+              'MCD': 1.20,
+              'PEP': -1.40,
+              'OIL': -4.40,
+              'TSLA': -25.88,
+              'XAU': 2.23,
+              'XAG': 4.10,
+              'PAXG': 2.20
+            };
+            changeYtd = fallbackStockYtd[sym] !== undefined
+              ? Number((fallbackStockYtd[sym] + change24h * 0.1).toFixed(2))
+              : Number((change24h * 1.2).toFixed(2));
+          }
 
           return {
             symbol: sym,
@@ -239,35 +250,38 @@ export class PublicStockMarketAdapter {
     const base = this.getBaseStockPrice(sym);
     const change24h = Number((Math.sin(sym.charCodeAt(0)) * 2.5 + 0.8).toFixed(2));
     const price = Number((base * (1 + change24h / 100)).toFixed(4));
-    const knownStockYtd: Record<string, number> = {
-      'NVDA': 148.5,
-      'PLTR': 114.5,
-      'TSM': 74.5,
-      'AVGO': 62.8,
-      'META': 58.2,
-      'WMT': 46.2,
-      'RTX': 44.5,
-      'COST': 38.5,
-      'ASML': 38.2,
-      'LMT': 34.2,
-      'AMZN': 32.0,
-      'GOOGL': 28.5,
-      'MSFT': 22.4,
-      'SPY': 19.8,
-      'AAPL': 18.6,
-      'XOM': 18.2,
-      'AMD': 16.4,
-      'PG': 14.2,
-      'KO': 12.8,
-      'CVX': 6.5,
-      'MCD': 5.2,
-      'PEP': 3.4,
-      'OIL': -2.4,
-      'TSLA': -12.4
+    const fallbackStockYtd: Record<string, number> = {
+      'NVDA': 18.53,
+      'PLTR': 24.50,
+      'TSM': 14.50,
+      'AVGO': 12.80,
+      'META': 8.20,
+      'WMT': 16.20,
+      'RTX': 14.50,
+      'COST': 8.50,
+      'ASML': 18.20,
+      'LMT': 14.20,
+      'AMZN': 6.00,
+      'GOOGL': 8.50,
+      'MSFT': 4.40,
+      'SPY': 5.80,
+      'AAPL': 12.24,
+      'XOM': 4.20,
+      'AMD': -6.40,
+      'PG': 4.20,
+      'KO': 2.80,
+      'CVX': -2.50,
+      'MCD': 1.20,
+      'PEP': -1.40,
+      'OIL': -4.40,
+      'TSLA': -25.88,
+      'XAU': 2.23,
+      'XAG': 4.10,
+      'PAXG': 2.20
     };
-    const changeYtd = knownStockYtd[sym] !== undefined
-      ? Number((knownStockYtd[sym] + change24h * 0.2).toFixed(2))
-      : Number((((sym.charCodeAt(0) * 11) % 60 + 8.5) + change24h * 0.3).toFixed(2));
+    const changeYtd = fallbackStockYtd[sym] !== undefined
+      ? Number((fallbackStockYtd[sym] + change24h * 0.1).toFixed(2))
+      : Number((change24h * 1.2).toFixed(2));
 
     return {
       symbol: sym,
