@@ -90,6 +90,8 @@ export interface AssetScannerRow {
   moneyLine1dPercent?: number;
   moneyLine1dScore?: number;
   moneyLine1dTier?: MoneyLineTier;
+  moneyLine1dFlipTime?: number;
+  moneyLine1dIsTransition?: boolean;
   moneyLine1wPercent?: number;
   moneyLine1wScore?: number;
   moneyLine1wTier?: MoneyLineTier;

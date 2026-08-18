@@ -139,6 +139,8 @@ export class AppState {
           moneyLine1dPercent,
           moneyLine1dScore: signal1d?.score,
           moneyLine1dTier: signal1d?.tier,
+          moneyLine1dFlipTime: signal1d?.transitionTime || quote.timestamp,
+          moneyLine1dIsTransition: signal1d?.isTransition || false,
           moneyLine1wPercent,
           moneyLine1wScore: signal1w?.score,
           moneyLine1wTier: signal1w?.tier,

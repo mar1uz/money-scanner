@@ -35,7 +35,6 @@ export type SortField =
   | 'change24h'
   | 'changeYtd'
   | 'moneyLine1dPercent'
-  | 'moneyLine1wPercent'
   | 'marketCap'
   | 'moneyLineScore'
   | 'tier'
@@ -345,9 +344,6 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
         case 'moneyLine1dPercent':
           comparison = (a.moneyLine1dPercent || 0) - (b.moneyLine1dPercent || 0);
           break;
-        case 'moneyLine1wPercent':
-          comparison = (a.moneyLine1wPercent || 0) - (b.moneyLine1wPercent || 0);
-          break;
         case 'marketCap':
           comparison = (a.marketCap || 0) - (b.marketCap || 0);
           break;
@@ -447,9 +443,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                   {sortField === 'marketCap'
                     ? 'Market Cap'
                     : sortField === 'moneyLine1dPercent'
-                    ? 'ML 1D %'
-                    : sortField === 'moneyLine1wPercent'
-                    ? 'ML 1W %'
+                    ? 'ML 1D'
                     : sortField} ({sortDirection.toUpperCase()})
                 </span>
                 <button
@@ -514,25 +508,14 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                 </div>
               </th>
 
-              {/* ML 1D % Change Header */}
+              {/* ML 1D (Daily Flip & %) Header */}
               <th
                 onClick={() => handleSort('moneyLine1dPercent')}
                 className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
               >
                 <div className="flex items-center gap-1.5">
-                  <span>ML 1D %</span>
+                  <span>ML 1D</span>
                   {renderSortIcon('moneyLine1dPercent')}
-                </div>
-              </th>
-
-              {/* ML 1W % Change Header */}
-              <th
-                onClick={() => handleSort('moneyLine1wPercent')}
-                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
-              >
-                <div className="flex items-center gap-1.5">
-                  <span>ML 1W %</span>
-                  {renderSortIcon('moneyLine1wPercent')}
                 </div>
               </th>
 
@@ -652,66 +635,58 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                       isDragging ? 'opacity-30 bg-white/[0.02]' : (isOver ? 'bg-cyan-500/10 border-cyan-400' : '')
                     }`}
                   >
-                    {/* Symbol & Name with Drag Handle */}
-                    <td className="py-4 px-4">
-                      <div className="flex items-center gap-1.5 sm:gap-2.5">
-                        {isWatch ? (
-                          <div className="flex items-center gap-0.5 shrink-0">
-                            <div
-                              title="Apasă și trage în sus/jos pentru a rearanja în Watchlist"
-                              className="cursor-grab active:cursor-grabbing text-slate-500 hover:text-amber-400 p-0.5 transition-colors"
+                    {/* Symbol & Name Column with 1-Click Vertical Reorder for Watchlist */}
+                    <td className="py-3.5 px-4 font-mono font-bold">
+                      <div className="flex items-center gap-2">
+                        {watchlistOnly && onReorderWatchlist && (
+                          <div className="flex flex-col gap-0.5 text-slate-500 hover:text-slate-300 transition-colors">
+                            <button
+                              onClick={(e) => handleMoveWatchlist(e, sym, 'up')}
+                              disabled={cleanWatchlist.indexOf(sym) === 0}
+                              className="p-0.5 hover:text-cyan-300 hover:bg-white/[0.08] disabled:opacity-20 rounded transition-colors"
+                              title="Mută mai sus în Watchlist"
                             >
-                              <GripVertical className="w-4 h-4" />
-                            </div>
-                            <div className="flex flex-col -space-y-1">
-                              <button
-                                onClick={(e) => handleMoveWatchlist(e, sym, 'up')}
-                                disabled={cleanWatchlist.indexOf(sym) === 0}
-                                title="Mută în sus în Watchlist"
-                                className="p-0.5 text-slate-500 hover:text-cyan-300 disabled:opacity-20 disabled:hover:text-slate-500 transition-colors"
-                              >
-                                <ChevronUp className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={(e) => handleMoveWatchlist(e, sym, 'down')}
-                                disabled={cleanWatchlist.indexOf(sym) === cleanWatchlist.length - 1}
-                                title="Mută în jos în Watchlist"
-                                className="p-0.5 text-slate-500 hover:text-cyan-300 disabled:opacity-20 disabled:hover:text-slate-500 transition-colors"
-                              >
-                                <ChevronDown className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
+                              <ChevronUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => handleMoveWatchlist(e, sym, 'down')}
+                              disabled={cleanWatchlist.indexOf(sym) === cleanWatchlist.length - 1}
+                              className="p-0.5 hover:text-cyan-300 hover:bg-white/[0.08] disabled:opacity-20 rounded transition-colors"
+                              title="Mută mai jos în Watchlist"
+                            >
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            </button>
                           </div>
-                        ) : (
-                          <div className="w-7 shrink-0" />
                         )}
-
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onToggleWatchlist(row.symbol);
-                          }}
-                          title={isWatch ? "Elimină din Watchlist" : "Adaugă în Watchlist"}
-                          className="text-slate-600 hover:text-amber-400 transition-colors p-1 shrink-0"
+                          onClick={(e) => { e.stopPropagation(); onToggleWatchlist(row.symbol); }}
+                          className="text-slate-500 hover:text-amber-400 transition-colors p-1"
+                          title={isWatch ? 'Elimină din Watchlist' : 'Adaugă la Watchlist'}
                         >
-                          <Star className={`w-4 h-4 ${isWatch ? 'fill-amber-400 text-amber-400' : 'text-slate-600'}`} />
+                          <Star className={`w-3.5 h-3.5 ${isWatch ? 'fill-amber-400 text-amber-400' : ''}`} />
                         </button>
                         <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-sm text-slate-100 group-hover:text-cyan-300 transition-colors font-mono">
-                              ${row.symbol}
-                            </span>
-                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 font-mono border border-slate-700">
-                              {row.category}
-                            </span>
+                          <div className="text-white group-hover:text-cyan-300 transition-colors text-sm font-bold flex items-center gap-1.5">
+                            <span>${row.symbol}</span>
+                            {row.marketClass && (
+                              <span className={`text-[9px] font-mono px-1 py-0.2 rounded uppercase border font-semibold ${
+                                row.marketClass === 'stocks'
+                                  ? 'bg-blue-500/10 text-blue-300 border-blue-500/20'
+                                  : 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                              }`}>
+                                {row.marketClass === 'stocks' ? 'STK' : 'MET'}
+                              </span>
+                            )}
                           </div>
-                          <span className="text-[11px] text-slate-400">{row.name}</span>
+                          <div className="text-[11px] text-slate-400 font-sans font-normal truncate max-w-[120px]">
+                            {row.name}
+                          </div>
                         </div>
                       </div>
                     </td>
 
                     {/* Price */}
-                    <td className="py-3.5 px-4 font-mono font-semibold text-slate-200">
+                    <td className="py-3.5 px-4 font-mono font-medium">
                       ${row.price < 1 ? row.price.toFixed(4) : row.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
 
@@ -739,18 +714,36 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                       )}
                     </td>
 
-                    {/* ML 1D % */}
+                    {/* ML 1D: De când este flip pe daily + Procentul dedesubt */}
                     <td className="py-3.5 px-4 font-mono">
-                      {row.moneyLine1dPercent !== undefined ? (
-                        <div className="flex flex-col gap-0.5">
-                          <span className={`inline-flex items-center gap-0.5 font-bold ${
-                            row.moneyLine1dPercent >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                      <div className="flex flex-col gap-0.5">
+                        {row.moneyLine1dIsTransition ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 animate-pulse w-fit">
+                            <Zap className="w-3 h-3" /> FLIP NOU 1D
+                          </span>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <Clock className={`w-3.5 h-3.5 ${
+                              row.moneyLine1dTier?.includes('Bullish') ? 'text-emerald-400' : (row.moneyLine1dTier?.includes('Bearish') ? 'text-rose-400' : 'text-slate-400')
+                            }`} />
+                            <span className={`font-semibold ${
+                              row.moneyLine1dTier?.includes('Bullish') ? 'text-emerald-300' : (row.moneyLine1dTier?.includes('Bearish') ? 'text-rose-300' : 'text-slate-300')
+                            }`}>
+                              {formatFlipAge(row.moneyLine1dFlipTime)}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Procentul dedesubt */}
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className={`inline-flex items-center gap-0.5 font-bold text-[11px] ${
+                            (row.moneyLine1dPercent || 0) > 0 ? 'text-emerald-400' : ((row.moneyLine1dPercent || 0) < 0 ? 'text-rose-400' : 'text-slate-400')
                           }`}>
-                            {row.moneyLine1dPercent >= 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
-                            {row.moneyLine1dPercent >= 0 ? `+${row.moneyLine1dPercent.toFixed(2)}%` : `${row.moneyLine1dPercent.toFixed(2)}%`}
+                            {(row.moneyLine1dPercent || 0) > 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : ((row.moneyLine1dPercent || 0) < 0 ? <ArrowDownRight className="w-3.5 h-3.5" /> : null)}
+                            {(row.moneyLine1dPercent || 0) > 0 ? `+${(row.moneyLine1dPercent || 0).toFixed(2)}%` : `${(row.moneyLine1dPercent || 0).toFixed(2)}%`}
                           </span>
                           {row.moneyLine1dTier && (
-                            <span className={`inline-block text-[9px] px-1.5 py-0.2 rounded border w-fit font-semibold ${
+                            <span className={`inline-block text-[9px] px-1.5 py-0.2 rounded border font-semibold ${
                               row.moneyLine1dTier.includes('Bullish')
                                 ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
                                 : (row.moneyLine1dTier.includes('Bearish')
@@ -761,36 +754,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                             </span>
                           )}
                         </div>
-                      ) : (
-                        <span className="text-slate-500">-</span>
-                      )}
-                    </td>
-
-                    {/* ML 1W % */}
-                    <td className="py-3.5 px-4 font-mono">
-                      {row.moneyLine1wPercent !== undefined ? (
-                        <div className="flex flex-col gap-0.5">
-                          <span className={`inline-flex items-center gap-0.5 font-bold ${
-                            row.moneyLine1wPercent >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                          }`}>
-                            {row.moneyLine1wPercent >= 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
-                            {row.moneyLine1wPercent >= 0 ? `+${row.moneyLine1wPercent.toFixed(2)}%` : `${row.moneyLine1wPercent.toFixed(2)}%`}
-                          </span>
-                          {row.moneyLine1wTier && (
-                            <span className={`inline-block text-[9px] px-1.5 py-0.2 rounded border w-fit font-semibold ${
-                              row.moneyLine1wTier.includes('Bullish')
-                                ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
-                                : (row.moneyLine1wTier.includes('Bearish')
-                                  ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
-                                  : 'bg-slate-800 text-slate-400 border-slate-700')
-                            }`}>
-                              {row.moneyLine1wTier.replace('Strong ', 'S. ')}
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-slate-500">-</span>
-                      )}
+                      </div>
                     </td>
 
                     {/* Market Cap Column */}
@@ -819,20 +783,37 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                       </div>
                     </td>
 
-                    {/* Dedicated Column: De Când este Flip (Flip Age) */}
+                    {/* Dedicated Column: De Când este Flip (Flip Age + Procent ROI dedesubt) */}
                     <td className="py-3.5 px-4 font-mono">
-                      {row.isTransition ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 animate-pulse shadow-glow-cyan">
-                          <Zap className="w-3.5 h-3.5" /> FLIP NOU (Acum)
-                        </span>
-                      ) : (
-                        <div className="flex items-center gap-1.5 text-xs">
-                          <Clock className={`w-3.5 h-3.5 ${isBull ? 'text-emerald-400' : (isBear ? 'text-rose-400' : 'text-cyan-400')}`} />
-                          <span className={`font-semibold ${isBull ? 'text-emerald-300' : (isBear ? 'text-rose-300' : 'text-slate-300')}`}>
-                            {formatFlipAge(row.lastSignalChangeTime)}
+                      <div className="flex flex-col gap-0.5">
+                        {row.isTransition ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 animate-pulse shadow-glow-cyan w-fit">
+                            <Zap className="w-3.5 h-3.5" /> FLIP NOU (Acum)
                           </span>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <Clock className={`w-3.5 h-3.5 ${isBull ? 'text-emerald-400' : (isBear ? 'text-rose-400' : 'text-cyan-400')}`} />
+                            <span className={`font-semibold ${isBull ? 'text-emerald-300' : (isBear ? 'text-rose-300' : 'text-slate-300')}`}>
+                              {formatFlipAge(row.lastSignalChangeTime)}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Procentul cât a fost Bullish sau Bearish de la Flip */}
+                        <div className="text-[11px] font-mono font-bold mt-0.5">
+                          {row.roiPercent !== undefined ? (
+                            <span className={`inline-flex items-center gap-0.5 ${
+                              row.roiPercent > 0 ? 'text-emerald-400' : (row.roiPercent < 0 ? 'text-rose-400' : 'text-slate-400')
+                            }`}>
+                              {row.roiPercent > 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : (row.roiPercent < 0 ? <ArrowDownRight className="w-3.5 h-3.5" /> : null)}
+                              {row.roiPercent > 0 ? `+${row.roiPercent.toFixed(2)}%` : `${row.roiPercent.toFixed(2)}%`}
+                              <span className="text-[10px] text-slate-500 font-normal ml-0.5">ROI</span>
+                            </span>
+                          ) : (
+                            <span className="text-slate-500 text-[10px]">0.00% ROI</span>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </td>
 
                     {/* RVOL */}
@@ -864,8 +845,8 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                           e.stopPropagation();
                           onSelectAsset(row.symbol);
                         }}
-                        className="p-1.5 rounded-xl bg-background-surface hover:bg-slate-800 text-slate-400 hover:text-cyan-300 border border-transparent hover:border-cyan-500/30 transition-all shadow-sm"
-                        title="Deschide Analiza Deep Dive"
+                        className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-300 border border-white/[0.06] hover:border-cyan-500/30 transition-all"
+                        title="Deschide Panoul de Analiză Detaliată"
                       >
                         <Eye className="w-4 h-4" />
                       </button>
@@ -875,7 +856,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
               })
             ) : (
               <tr>
-                <td colSpan={14} className="py-14 text-center text-slate-400 font-mono space-y-3">
+                <td colSpan={13} className="py-14 text-center text-slate-400 font-mono space-y-3">
                   {loading ? (
                     <div className="space-y-2">
                       <RefreshCw className="w-6 h-6 mx-auto animate-spin text-cyan-400" />
