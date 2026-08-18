@@ -144,6 +144,8 @@ export class AppState {
           moneyLine1wPercent,
           moneyLine1wScore: signal1w?.score,
           moneyLine1wTier: signal1w?.tier,
+          moneyLine1wFlipTime: signal1w?.transitionTime || quote.timestamp,
+          moneyLine1wIsTransition: signal1w?.isTransition || false,
           rvol,
           volatilityAtrPercent: atrPct,
           xTrendScore,

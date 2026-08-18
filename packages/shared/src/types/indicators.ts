@@ -95,6 +95,8 @@ export interface AssetScannerRow {
   moneyLine1wPercent?: number;
   moneyLine1wScore?: number;
   moneyLine1wTier?: MoneyLineTier;
+  moneyLine1wFlipTime?: number;
+  moneyLine1wIsTransition?: boolean;
   rvol: number;
   volatilityAtrPercent: number;
   xTrendScore: number;

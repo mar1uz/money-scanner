@@ -35,10 +35,10 @@ export type SortField =
   | 'change24h'
   | 'changeYtd'
   | 'moneyLine1dPercent'
+  | 'moneyLine1wPercent'
   | 'marketCap'
   | 'moneyLineScore'
   | 'tier'
-  | 'flipAge'
   | 'rvol'
   | 'volatilityAtrPercent'
   | 'xTrendScore'
@@ -344,6 +344,9 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
         case 'moneyLine1dPercent':
           comparison = (a.moneyLine1dPercent || 0) - (b.moneyLine1dPercent || 0);
           break;
+        case 'moneyLine1wPercent':
+          comparison = (a.moneyLine1wPercent || 0) - (b.moneyLine1wPercent || 0);
+          break;
         case 'marketCap':
           comparison = (a.marketCap || 0) - (b.marketCap || 0);
           break;
@@ -352,9 +355,6 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
           break;
         case 'tier':
           comparison = getTierWeight(a.tier) - getTierWeight(b.tier);
-          break;
-        case 'flipAge':
-          comparison = (b.lastSignalChangeTime || 0) - (a.lastSignalChangeTime || 0);
           break;
         case 'rvol':
           comparison = a.rvol - b.rvol;
@@ -444,6 +444,8 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                     ? 'Market Cap'
                     : sortField === 'moneyLine1dPercent'
                     ? 'ML 1D'
+                    : sortField === 'moneyLine1wPercent'
+                    ? 'ML 1W'
                     : sortField} ({sortDirection.toUpperCase()})
                 </span>
                 <button
@@ -519,6 +521,17 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                 </div>
               </th>
 
+              {/* ML 1W (Weekly Flip & %) Header */}
+              <th
+                onClick={() => handleSort('moneyLine1wPercent')}
+                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>ML 1W</span>
+                  {renderSortIcon('moneyLine1wPercent')}
+                </div>
+              </th>
+
               {/* Market Cap Header */}
               <th
                 onClick={() => handleSort('marketCap')}
@@ -553,17 +566,6 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                 </div>
               </th>
 
-              {/* Flip Age (Time) Header */}
-              <th
-                onClick={() => handleSort('flipAge')}
-                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
-              >
-                <div className="flex items-center gap-1.5">
-                  <span>De Când este Flip</span>
-                  {renderSortIcon('flipAge')}
-                </div>
-              </th>
-
               {/* RVOL Header */}
               <th
                 onClick={() => handleSort('rvol')}
@@ -592,6 +594,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                 className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
               >
                 <div className="flex items-center gap-1.5">
+                  <Flame className="w-3.5 h-3.5 text-amber-400" />
                   <span>X Momentum</span>
                   {renderSortIcon('xTrendScore')}
                 </div>
@@ -757,6 +760,49 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                       </div>
                     </td>
 
+                    {/* ML 1W: De când este flip pe weekly + Procentul dedesubt */}
+                    <td className="py-3.5 px-4 font-mono">
+                      <div className="flex flex-col gap-0.5">
+                        {row.moneyLine1wIsTransition ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 animate-pulse w-fit">
+                            <Zap className="w-3 h-3" /> FLIP NOU 1W
+                          </span>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <Clock className={`w-3.5 h-3.5 ${
+                              row.moneyLine1wTier?.includes('Bullish') ? 'text-emerald-400' : (row.moneyLine1wTier?.includes('Bearish') ? 'text-rose-400' : 'text-slate-400')
+                            }`} />
+                            <span className={`font-semibold ${
+                              row.moneyLine1wTier?.includes('Bullish') ? 'text-emerald-300' : (row.moneyLine1wTier?.includes('Bearish') ? 'text-rose-300' : 'text-slate-300')
+                            }`}>
+                              {formatFlipAge(row.moneyLine1wFlipTime)}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Procentul dedesubt */}
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className={`inline-flex items-center gap-0.5 font-bold text-[11px] ${
+                            (row.moneyLine1wPercent || 0) > 0 ? 'text-emerald-400' : ((row.moneyLine1wPercent || 0) < 0 ? 'text-rose-400' : 'text-slate-400')
+                          }`}>
+                            {(row.moneyLine1wPercent || 0) > 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : ((row.moneyLine1wPercent || 0) < 0 ? <ArrowDownRight className="w-3.5 h-3.5" /> : null)}
+                            {(row.moneyLine1wPercent || 0) > 0 ? `+${(row.moneyLine1wPercent || 0).toFixed(2)}%` : `${(row.moneyLine1wPercent || 0).toFixed(2)}%`}
+                          </span>
+                          {row.moneyLine1wTier && (
+                            <span className={`inline-block text-[9px] px-1.5 py-0.2 rounded border font-semibold ${
+                              row.moneyLine1wTier.includes('Bullish')
+                                ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                                : (row.moneyLine1wTier.includes('Bearish')
+                                  ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                                  : 'bg-slate-800 text-slate-400 border-slate-700')
+                            }`}>
+                              {row.moneyLine1wTier.replace('Strong ', 'S. ')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+
                     {/* Market Cap Column */}
                     <td className="py-3.5 px-4 font-mono font-bold text-cyan-300">
                       {formatMarketCap(row.marketCap)}
@@ -780,39 +826,6 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                             NEW
                           </span>
                         )}
-                      </div>
-                    </td>
-
-                    {/* Dedicated Column: De Când este Flip (Flip Age + Procent ROI dedesubt) */}
-                    <td className="py-3.5 px-4 font-mono">
-                      <div className="flex flex-col gap-0.5">
-                        {row.isTransition ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 animate-pulse shadow-glow-cyan w-fit">
-                            <Zap className="w-3.5 h-3.5" /> FLIP NOU (Acum)
-                          </span>
-                        ) : (
-                          <div className="flex items-center gap-1.5 text-xs">
-                            <Clock className={`w-3.5 h-3.5 ${isBull ? 'text-emerald-400' : (isBear ? 'text-rose-400' : 'text-cyan-400')}`} />
-                            <span className={`font-semibold ${isBull ? 'text-emerald-300' : (isBear ? 'text-rose-300' : 'text-slate-300')}`}>
-                              {formatFlipAge(row.lastSignalChangeTime)}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Procentul cât a fost Bullish sau Bearish de la Flip */}
-                        <div className="text-[11px] font-mono font-bold mt-0.5">
-                          {row.roiPercent !== undefined ? (
-                            <span className={`inline-flex items-center gap-0.5 ${
-                              row.roiPercent > 0 ? 'text-emerald-400' : (row.roiPercent < 0 ? 'text-rose-400' : 'text-slate-400')
-                            }`}>
-                              {row.roiPercent > 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : (row.roiPercent < 0 ? <ArrowDownRight className="w-3.5 h-3.5" /> : null)}
-                              {row.roiPercent > 0 ? `+${row.roiPercent.toFixed(2)}%` : `${row.roiPercent.toFixed(2)}%`}
-                              <span className="text-[10px] text-slate-500 font-normal ml-0.5">ROI</span>
-                            </span>
-                          ) : (
-                            <span className="text-slate-500 text-[10px]">0.00% ROI</span>
-                          )}
-                        </div>
                       </div>
                     </td>
 
