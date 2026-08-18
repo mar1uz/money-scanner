@@ -34,6 +34,8 @@ export type SortField =
   | 'price'
   | 'change24h'
   | 'changeYtd'
+  | 'moneyLine1dPercent'
+  | 'moneyLine1wPercent'
   | 'marketCap'
   | 'moneyLineScore'
   | 'tier'
@@ -340,6 +342,12 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
         case 'changeYtd':
           comparison = (a.changeYtd || 0) - (b.changeYtd || 0);
           break;
+        case 'moneyLine1dPercent':
+          comparison = (a.moneyLine1dPercent || 0) - (b.moneyLine1dPercent || 0);
+          break;
+        case 'moneyLine1wPercent':
+          comparison = (a.moneyLine1wPercent || 0) - (b.moneyLine1wPercent || 0);
+          break;
         case 'marketCap':
           comparison = (a.marketCap || 0) - (b.marketCap || 0);
           break;
@@ -435,7 +443,15 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
             {sortField && (
               <div className="flex items-center gap-1.5 text-xs font-mono bg-white/[0.04] px-2.5 py-1 rounded-xl border border-white/[0.08]">
                 <span className="text-slate-500">Sort:</span>
-                <span className="text-cyan-300 font-semibold uppercase">{sortField === 'marketCap' ? 'Market Cap' : sortField} ({sortDirection.toUpperCase()})</span>
+                <span className="text-cyan-300 font-semibold uppercase">
+                  {sortField === 'marketCap'
+                    ? 'Market Cap'
+                    : sortField === 'moneyLine1dPercent'
+                    ? 'ML 1D %'
+                    : sortField === 'moneyLine1wPercent'
+                    ? 'ML 1W %'
+                    : sortField} ({sortDirection.toUpperCase()})
+                </span>
                 <button
                   onClick={() => { setSortField('marketCap'); setSortDirection('desc'); }}
                   className="text-slate-500 hover:text-rose-400 transition-colors ml-0.5"
@@ -495,6 +511,28 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                 <div className="flex items-center gap-1.5">
                   <span>YTD %</span>
                   {renderSortIcon('changeYtd')}
+                </div>
+              </th>
+
+              {/* ML 1D % Change Header */}
+              <th
+                onClick={() => handleSort('moneyLine1dPercent')}
+                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>ML 1D %</span>
+                  {renderSortIcon('moneyLine1dPercent')}
+                </div>
+              </th>
+
+              {/* ML 1W % Change Header */}
+              <th
+                onClick={() => handleSort('moneyLine1wPercent')}
+                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>ML 1W %</span>
+                  {renderSortIcon('moneyLine1wPercent')}
                 </div>
               </th>
 
@@ -701,6 +739,60 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                       )}
                     </td>
 
+                    {/* ML 1D % */}
+                    <td className="py-3.5 px-4 font-mono">
+                      {row.moneyLine1dPercent !== undefined ? (
+                        <div className="flex flex-col gap-0.5">
+                          <span className={`inline-flex items-center gap-0.5 font-bold ${
+                            row.moneyLine1dPercent >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                          }`}>
+                            {row.moneyLine1dPercent >= 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
+                            {row.moneyLine1dPercent >= 0 ? `+${row.moneyLine1dPercent.toFixed(2)}%` : `${row.moneyLine1dPercent.toFixed(2)}%`}
+                          </span>
+                          {row.moneyLine1dTier && (
+                            <span className={`inline-block text-[9px] px-1.5 py-0.2 rounded border w-fit font-semibold ${
+                              row.moneyLine1dTier.includes('Bullish')
+                                ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                                : (row.moneyLine1dTier.includes('Bearish')
+                                  ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                                  : 'bg-slate-800 text-slate-400 border-slate-700')
+                            }`}>
+                              {row.moneyLine1dTier.replace('Strong ', 'S. ')}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-slate-500">-</span>
+                      )}
+                    </td>
+
+                    {/* ML 1W % */}
+                    <td className="py-3.5 px-4 font-mono">
+                      {row.moneyLine1wPercent !== undefined ? (
+                        <div className="flex flex-col gap-0.5">
+                          <span className={`inline-flex items-center gap-0.5 font-bold ${
+                            row.moneyLine1wPercent >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                          }`}>
+                            {row.moneyLine1wPercent >= 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
+                            {row.moneyLine1wPercent >= 0 ? `+${row.moneyLine1wPercent.toFixed(2)}%` : `${row.moneyLine1wPercent.toFixed(2)}%`}
+                          </span>
+                          {row.moneyLine1wTier && (
+                            <span className={`inline-block text-[9px] px-1.5 py-0.2 rounded border w-fit font-semibold ${
+                              row.moneyLine1wTier.includes('Bullish')
+                                ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                                : (row.moneyLine1wTier.includes('Bearish')
+                                  ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                                  : 'bg-slate-800 text-slate-400 border-slate-700')
+                            }`}>
+                              {row.moneyLine1wTier.replace('Strong ', 'S. ')}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-slate-500">-</span>
+                      )}
+                    </td>
+
                     {/* Market Cap Column */}
                     <td className="py-3.5 px-4 font-mono font-bold text-cyan-300">
                       {formatMarketCap(row.marketCap)}
@@ -783,7 +875,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
               })
             ) : (
               <tr>
-                <td colSpan={12} className="py-14 text-center text-slate-400 font-mono space-y-3">
+                <td colSpan={14} className="py-14 text-center text-slate-400 font-mono space-y-3">
                   {loading ? (
                     <div className="space-y-2">
                       <RefreshCw className="w-6 h-6 mx-auto animate-spin text-cyan-400" />

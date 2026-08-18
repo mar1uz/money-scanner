@@ -38,6 +38,8 @@ describe('API Server Integration Tests', () => {
     assert.ok(btc.price > 0);
     assert.ok(typeof btc.moneyLineScore === 'number');
     assert.ok(['Strong Bullish', 'Bullish', 'Neutral', 'Bearish', 'Strong Bearish'].includes(btc.tier));
+    assert.ok(typeof btc.moneyLine1dPercent === 'number');
+    assert.ok(typeof btc.moneyLine1wPercent === 'number');
 
     await new Promise<void>(resolve => server.close(() => resolve()));
   });

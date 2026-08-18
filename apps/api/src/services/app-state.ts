@@ -59,6 +59,34 @@ export class AppState {
           }
         }
 
+        // Compute 1D and 1W MoneyLine signals for multi-timeframe ROI columns
+        let signal1d = timeframe === '1d' ? signal : this.cachedSignals.get(`${asset.symbol}_1d`);
+        let signal1w = timeframe === '1w' ? signal : this.cachedSignals.get(`${asset.symbol}_1w`);
+
+        if (!signal1d) {
+          const candles1d = timeframe === '1d' ? candles : await this.marketData.getCandles(asset.symbol, '1d', 150);
+          signal1d = this.moneyLine.calculateLatest(asset.symbol, '1d', candles1d) || undefined;
+          if (signal1d) this.cachedSignals.set(`${asset.symbol}_1d`, signal1d);
+        }
+
+        if (!signal1w) {
+          const candles1w = timeframe === '1w' ? candles : await this.marketData.getCandles(asset.symbol, '1w', 150);
+          signal1w = this.moneyLine.calculateLatest(asset.symbol, '1w', candles1w) || undefined;
+          if (signal1w) this.cachedSignals.set(`${asset.symbol}_1w`, signal1w);
+        }
+
+        const moneyLine1dPercent = signal1d?.roiPercent !== undefined
+          ? signal1d.roiPercent
+          : (signal1d?.rawIndicators?.roc9 !== undefined ? Number(signal1d.rawIndicators.roc9.toFixed(2)) : 0);
+
+        const moneyLine1wPercent = signal1w?.roiPercent !== undefined
+          ? signal1w.roiPercent
+          : (signal1w?.rawIndicators?.roc9 !== undefined ? Number(signal1w.rawIndicators.roc9.toFixed(2)) : 0);
+
+        const activeRoiPercent = signal?.roiPercent !== undefined
+          ? signal.roiPercent
+          : (signal?.rawIndicators?.roc9 !== undefined ? Number(signal.rawIndicators.roc9.toFixed(2)) : 0);
+
         const score = signal?.score || 0;
         const tier = signal?.tier || 'Neutral';
         const rvol = signal?.rawIndicators.rvol || 1.0;
@@ -106,6 +134,13 @@ export class AppState {
           previousTier: signal?.previousTier,
           isTransition: signal?.isTransition || false,
           lastSignalChangeTime: signal?.transitionTime || quote.timestamp,
+          roiPercent: activeRoiPercent,
+          moneyLine1dPercent,
+          moneyLine1dScore: signal1d?.score,
+          moneyLine1dTier: signal1d?.tier,
+          moneyLine1wPercent,
+          moneyLine1wScore: signal1w?.score,
+          moneyLine1wTier: signal1w?.tier,
           rvol,
           volatilityAtrPercent: atrPct,
           xTrendScore,

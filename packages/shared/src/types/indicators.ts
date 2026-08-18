@@ -86,6 +86,13 @@ export interface AssetScannerRow {
   previousTier?: MoneyLineTier;
   isTransition: boolean;
   lastSignalChangeTime: number;
+  roiPercent?: number;
+  moneyLine1dPercent?: number;
+  moneyLine1dScore?: number;
+  moneyLine1dTier?: MoneyLineTier;
+  moneyLine1wPercent?: number;
+  moneyLine1wScore?: number;
+  moneyLine1wTier?: MoneyLineTier;
   rvol: number;
   volatilityAtrPercent: number;
   xTrendScore: number;
