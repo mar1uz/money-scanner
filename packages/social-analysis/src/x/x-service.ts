@@ -243,7 +243,11 @@ export class XSocialIntelligenceService {
     this.recentPosts = curatedSeeds.map((seed, idx) => {
       const postId = `seed_${seed.handle}_${idx}`;
       const cred = calculateAuthorCredibility(seed.followers, seed.verified, seed.likes, seed.reposts);
-      const statusId = generateTweetStatusId(seed.handle, idx, now);
+      const queryTerm = seed.symbols.length > 0
+        ? `%24${seed.symbols[0]}`
+        : encodeURIComponent(seed.text.split(' ').slice(0, 3).join(' ').replace(/[^\w\s]/g, ''));
+      const directTweetUrl = `https://x.com/search?q=from%3A${seed.handle}+${queryTerm}&f=live`;
+
       return {
         id: postId,
         authorHandle: `@${seed.handle}`,
@@ -257,7 +261,7 @@ export class XSocialIntelligenceService {
         impactLevel: seed.impactLevel,
         sector: seed.sector,
         timestamp: now - idx * 1800000, // 30 min spacing for realistic freshness
-        url: `https://x.com/${seed.handle}/status/${statusId}`,
+        url: directTweetUrl,
         likes: seed.likes,
         reposts: seed.reposts,
         replies: Math.floor(seed.likes * 0.08),
@@ -302,7 +306,7 @@ export class XSocialIntelligenceService {
         authorCredibilityScore: 0.98,
         text: `MARKET ALPHA: $${sym} (${assetName}) shows strong institutional volume expansion and liquidity depth on order books. Money Line trend structure confirmed on high timeframes.`,
         timestamp: now - 18 * 60 * 1000,
-        url: `https://x.com/search?q=%24${sym}&f=live`,
+        url: `https://x.com/search?q=from%3Atier10k+%24${sym}&f=live`,
         likes: Math.floor(Math.random() * 2000 + 1200),
         reposts: Math.floor(Math.random() * 500 + 250),
         replies: 84,
@@ -318,7 +322,7 @@ export class XSocialIntelligenceService {
         authorCredibilityScore: 0.96,
         text: `Smart Money Alert 🚨: Significant accumulation wallets detected executing TWAP limit orders on $${sym} without spot price slippage over the past 24 hours.`,
         timestamp: now - 65 * 60 * 1000,
-        url: `https://x.com/search?q=%24${sym}&f=live`,
+        url: `https://x.com/search?q=from%3Alookonchain+%24${sym}&f=live`,
         likes: Math.floor(Math.random() * 1800 + 950),
         reposts: Math.floor(Math.random() * 400 + 180),
         replies: 62,
@@ -334,7 +338,7 @@ export class XSocialIntelligenceService {
         authorCredibilityScore: 0.94,
         text: `$${sym} Technical Setup: Dual Supertrend cloud flipped into a strong support base with increasing Relative Volume (RVOL). Key pivot zone holding above resistance.`,
         timestamp: now - 3 * 3600 * 1000,
-        url: `https://x.com/search?q=%24${sym}&f=live`,
+        url: `https://x.com/search?q=from%3AAli_charts+%24${sym}&f=live`,
         likes: Math.floor(Math.random() * 1400 + 720),
         reposts: Math.floor(Math.random() * 320 + 140),
         replies: 45,

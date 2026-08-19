@@ -54,12 +54,12 @@ export const XTrendsView: React.FC<XTrendsViewProps> = ({ onSelectAsset }) => {
 
   // Curated authoritative channels directory
   const topChannels = [
-    { handle: 'KobeissiLetter', name: 'The Kobeissi Letter', sector: 'Macro & Stocks', url: 'https://x.com/KobeissiLetter', desc: 'Global macroeconomic commentary & Fed analysis', followers: '1.1M' },
-    { handle: 'unusual_whales', name: 'Unusual Whales', sector: 'Stocks & Options', url: 'https://x.com/unusual_whales', desc: 'Institutional options flow & market anomalies', followers: '1.8M' },
-    { handle: 'WatcherGuru', name: 'Watcher.Guru', sector: 'Crypto & Macro', url: 'https://x.com/WatcherGuru', desc: 'Breaking news, ETF flows & finance flash', followers: '2.6M' },
-    { handle: 'GoldTelegraph_', name: 'Gold Telegraph', sector: 'Gold & Metals', url: 'https://x.com/GoldTelegraph_', desc: 'Central bank gold reserves & sovereign debt', followers: '380K' },
-    { handle: 'lookonchain', name: 'Lookonchain', sector: 'Crypto Smart Money', url: 'https://x.com/lookonchain', desc: 'On-chain whale accumulation & fund tracking', followers: '495K' },
-    { handle: 'StockMKTNewz', name: 'Stock Market News', sector: 'US Equities & Tech', url: 'https://x.com/StockMKTNewz', desc: 'Earnings, AI hardware CapEx & tech news', followers: '680K' }
+    { handle: 'KobeissiLetter', name: 'The Kobeissi Letter', sector: 'Macro & Stocks', url: 'https://x.com/search?q=from%3AKobeissiLetter&f=live', desc: 'Global macroeconomic commentary & Fed analysis', followers: '1.1M' },
+    { handle: 'unusual_whales', name: 'Unusual Whales', sector: 'Stocks & Options', url: 'https://x.com/search?q=from%3Aunusual_whales&f=live', desc: 'Institutional options flow & market anomalies', followers: '1.8M' },
+    { handle: 'WatcherGuru', name: 'Watcher.Guru', sector: 'Crypto & Macro', url: 'https://x.com/search?q=from%3AWatcherGuru&f=live', desc: 'Breaking news, ETF flows & finance flash', followers: '2.6M' },
+    { handle: 'GoldTelegraph_', name: 'Gold Telegraph', sector: 'Gold & Metals', url: 'https://x.com/search?q=from%3AGoldTelegraph_&f=live', desc: 'Central bank gold reserves & sovereign debt', followers: '380K' },
+    { handle: 'lookonchain', name: 'Lookonchain', sector: 'Crypto Smart Money', url: 'https://x.com/search?q=from%3Alookonchain&f=live', desc: 'On-chain whale accumulation & fund tracking', followers: '495K' },
+    { handle: 'StockMKTNewz', name: 'Stock Market News', sector: 'US Equities & Tech', url: 'https://x.com/search?q=from%3AStockMKTNewz&f=live', desc: 'Earnings, AI hardware CapEx & tech news', followers: '680K' }
   ];
 
   // Helper for relative time formatting
@@ -409,22 +409,29 @@ export const XTrendsView: React.FC<XTrendsViewProps> = ({ onSelectAsset }) => {
 
                 {/* Author Info Bar */}
                 <div className="flex items-center justify-between gap-2 pt-1">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 flex items-center justify-center font-bold text-xs text-cyan-300 font-mono shrink-0">
+                  <a
+                    href={`https://x.com/search?q=from%3A${post.authorHandle.replace('@', '')}&f=live`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center gap-2.5 group/author hover:opacity-90"
+                    title={`Vezi toate tweet-urile recente de la ${post.authorHandle}`}
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 flex items-center justify-center font-bold text-xs text-cyan-300 font-mono shrink-0 group-hover/author:border-cyan-400">
                       {post.authorHandle.replace('@', '').slice(0, 2).toUpperCase()}
                     </div>
                     <div>
                       <div className="flex items-center gap-1">
-                        <span className="font-bold text-xs text-slate-100 group-hover:text-cyan-200 transition-colors">
+                        <span className="font-bold text-xs text-slate-100 group-hover/author:text-cyan-300 transition-colors">
                           {post.authorName}
                         </span>
                         <CheckCircle className="w-3 h-3 text-cyan-400 fill-cyan-400/20 shrink-0" />
                       </div>
-                      <span className="text-[11px] font-mono text-slate-400 block">
+                      <span className="text-[11px] font-mono text-slate-400 block group-hover/author:text-slate-300">
                         {post.authorHandle} • {(post.authorFollowers / 1000).toFixed(0)}K urmăritori
                       </span>
                     </div>
-                  </div>
+                  </a>
 
                   <span className="text-[10px] font-mono text-slate-500 flex items-center gap-1 shrink-0">
                     <Clock className="w-3 h-3" />
