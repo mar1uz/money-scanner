@@ -1,81 +1,254 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { AIAnalysisPayload } from '../types.js';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { AIAnalysisPayload, XPostItem } from '../types.js';
 import { fetchAIBriefing, askAIAnalyst, fetchXPosts } from '../services/api.js';
 import {
   BrainCircuit,
   Sparkles,
-  CheckCircle,
-  AlertTriangle,
-  Compass,
-  Link as LinkIcon,
-  RefreshCw,
   Send,
   MessageSquare,
   Bot,
   User,
   ExternalLink,
-  ChevronRight,
-  Twitter,
+  Plus,
+  Search,
   BadgeCheck,
-  Flame,
-  Layers
+  Heart,
+  Repeat2,
+  MessageCircle,
+  Trash2,
+  Clock,
+  Lightbulb,
+  FileText
 } from 'lucide-react';
 
+/* ─── Types ─── */
 interface ChatMessage {
   id: string;
   sender: 'user' | 'ai';
   text: string;
   evidence?: { sourceType: string; title: string; url: string }[];
+  xPosts?: XPostItem[];
   timestamp: number;
 }
 
-export const AIBriefingView: React.FC = () => {
-  const [briefing, setBriefing] = useState<AIAnalysisPayload | null>(null);
-  const [xPosts, setXPosts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+interface SavedChat {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  createdAt: number;
+}
 
-  // Interactive AI Analyst Chat State
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      sender: 'ai',
-      text: 'Salut! Sunt analistul tău AI pentru piața crypto. Sintetizez în timp real semnalele Money Line pentru cele 50 de active, tranzacțiile balenelor de pe X (ex: @lookonchain, @whale_alert) și știrile verificate. Ce dorești să analizăm?',
-      timestamp: Date.now()
-    }
-  ]);
+/* ─── Helpers ─── */
+const STORAGE_KEY = 'ms360_ai_chats';
+
+function loadChats(): SavedChat[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveChats(chats: SavedChat[]) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(chats.slice(0, 30))); } catch {}
+}
+
+function generateChatTitle(firstMsg: string): string {
+  const clean = firstMsg.replace(/[\n\r]/g, ' ').trim();
+  return clean.length > 40 ? clean.slice(0, 40) + '...' : clean;
+}
+
+function formatTimeAgo(ts: number): string {
+  const diff = Math.floor((Date.now() - ts) / 1000);
+  if (diff < 60) return 'acum';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  return `${Math.floor(diff / 86400)}z`;
+}
+
+/** Simple markdown-to-HTML: bold, headers, lists, tables, line breaks */
+function renderMarkdown(text: string): string {
+  let html = text
+    // Escape HTML
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    // Headers
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    // Bold
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    // Tables: detect | separated lines
+    .replace(/^(\|.+\|)\n(\|[-:| ]+\|)\n((?:\|.+\|\n?)+)/gm, (_match, header: string, _sep: string, body: string) => {
+      const ths = header.split('|').filter((c: string) => c.trim()).map((c: string) => `<th>${c.trim()}</th>`).join('');
+      const rows = body.trim().split('\n').map((row: string) => {
+        const tds = row.split('|').filter((c: string) => c.trim()).map((c: string) => `<td>${c.trim()}</td>`).join('');
+        return `<tr>${tds}</tr>`;
+      }).join('');
+      return `<table><thead><tr>${ths}</tr></thead><tbody>${rows}</tbody></table>`;
+    })
+    // Bullet lists
+    .replace(/^[•\-\*] (.+)$/gm, '<li>$1</li>')
+    // Wrap consecutive <li> in <ul>
+    .replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>')
+    // Line breaks (double newline = paragraph)
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/\n/g, '<br/>');
+
+  return `<p>${html}</p>`;
+}
+
+/* ─── Quick Inspiration Questions ─── */
+const inspirationQuestions = [
+  'Cum arată $BTC pe Money Line?',
+  'Ce fac balenele pe $ETH?',
+  'Top 5 cele mai bullish active acum',
+  'Analizează $SOL: sentiment și momentum',
+  'Ce spun @lookonchain și @whale_alert?',
+  'Care sunt riscurile macro pentru crypto?',
+];
+
+/* ─── Main Component ─── */
+export const AIBriefingView: React.FC = () => {
+  // Chat state
+  const [chats, setChats] = useState<SavedChat[]>(() => loadChats());
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputQuestion, setInputQuestion] = useState('');
   const [askingAI, setAskingAI] = useState(false);
+  const [thinkingStep, setThinkingStep] = useState(0); // 0=none, 1=Thought, 2=Searched, 3=Composed
+  const [xPostsCache, setXPostsCache] = useState<XPostItem[]>([]);
+  const [briefingLoaded, setBriefingLoaded] = useState(false);
+
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const quickQuestions = [
-    'Cum arată $BTC pe Money Line și ce fac balenele?',
-    'Analizează $SOL: momentum tehnic și sentiment pe X',
-    'Care sunt cele mai bullish active din Top 50 acum?',
-    'Ce spun @lookonchain și @WuBlockchain despre piață?'
-  ];
-
-  const loadBriefing = () => {
-    setLoading(true);
-    Promise.all([
-      fetchAIBriefing(),
-      fetchXPosts().catch(() => [])
-    ])
-      .then(([briefingRes, postsRes]) => {
-        setBriefing(briefingRes);
-        setXPosts(postsRes);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  };
-
+  // Load X posts once
   useEffect(() => {
-    loadBriefing();
+    fetchXPosts().then(setXPostsCache).catch(() => {});
   }, []);
 
+  // Auto-scroll to bottom
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatMessages, askingAI]);
+  }, [messages, askingAI, thinkingStep]);
 
+  // Auto-load initial briefing
+  useEffect(() => {
+    if (briefingLoaded) return;
+    setBriefingLoaded(true);
+
+    fetchAIBriefing().then((briefing: AIAnalysisPayload) => {
+      const summaryParts = [
+        `## 📊 Sinteză de Piață — ${new Date().toLocaleDateString('ro-RO', { weekday: 'long', day: 'numeric', month: 'long' })}`,
+        '',
+        briefing.executiveSummary,
+        '',
+        '### Factori Structurali Cheie',
+        ...briefing.keyDrivers.map((d, i) => `- **0${i + 1}.** ${d}`),
+        '',
+        '### ✅ Factori Bullish',
+        ...briefing.bullishFactors.map(f => `- ${f}`),
+        '',
+        '### ⚠️ Factori Bearish & Riscuri',
+        ...briefing.bearishFactors.map(f => `- ${f}`),
+        '',
+        '### 🎯 Active de Urmărit',
+        ...briefing.assetsToWatch.map(a => `- **$${a.symbol}** (${a.bias}): ${a.thesis}`),
+      ];
+
+      const welcomeMsg: ChatMessage = {
+        id: 'briefing_auto',
+        sender: 'ai',
+        text: summaryParts.join('\n'),
+        xPosts: xPostsCache.slice(0, 6),
+        timestamp: Date.now()
+      };
+
+      setMessages([welcomeMsg]);
+    }).catch(err => {
+      setMessages([{
+        id: 'welcome_fallback',
+        sender: 'ai',
+        text: '## 🧠 Market Scanner AI Analyst\n\nSalut! Sunt analistul tău AI. Întreabă-mă orice despre piața crypto, acțiuni sau commodities — sintetizez semnalele Money Line, postările de pe X și știrile verificate.\n\nÎncearcă una din întrebările de inspirație din stânga sau scrie-mi direct.',
+        timestamp: Date.now()
+      }]);
+    });
+  }, [briefingLoaded, xPostsCache]);
+
+  // Persist chats to localStorage
+  const persistChat = useCallback((chatId: string, msgs: ChatMessage[]) => {
+    setChats(prev => {
+      const existing = prev.find(c => c.id === chatId);
+      let updated: SavedChat[];
+      if (existing) {
+        updated = prev.map(c => c.id === chatId ? { ...c, messages: msgs } : c);
+      } else {
+        const firstUserMsg = msgs.find(m => m.sender === 'user');
+        const title = firstUserMsg ? generateChatTitle(firstUserMsg.text) : 'Conversație nouă';
+        updated = [{ id: chatId, title, messages: msgs, createdAt: Date.now() }, ...prev];
+      }
+      saveChats(updated);
+      return updated;
+    });
+  }, []);
+
+  // Create new chat
+  const handleNewChat = () => {
+    const newId = `chat_${Date.now()}`;
+    setActiveChatId(newId);
+    setMessages([]);
+    setBriefingLoaded(false);
+    setTimeout(() => setBriefingLoaded(false), 50); // Force reload briefing
+    // Re-trigger briefing load
+    fetchAIBriefing().then((briefing) => {
+      const summaryParts = [
+        `## 📊 Sinteză de Piață — ${new Date().toLocaleDateString('ro-RO', { weekday: 'long', day: 'numeric', month: 'long' })}`,
+        '',
+        briefing.executiveSummary,
+        '',
+        '### Factori Structurali Cheie',
+        ...briefing.keyDrivers.map((d: string, i: number) => `- **0${i + 1}.** ${d}`),
+      ];
+      setMessages([{
+        id: 'briefing_auto',
+        sender: 'ai',
+        text: summaryParts.join('\n'),
+        xPosts: xPostsCache.slice(0, 6),
+        timestamp: Date.now()
+      }]);
+    }).catch(() => {
+      setMessages([{
+        id: 'welcome',
+        sender: 'ai',
+        text: '## 🧠 Market Scanner AI Analyst\n\nSalut! Întreabă-mă orice despre piața crypto, acțiuni sau commodities.',
+        timestamp: Date.now()
+      }]);
+    });
+  };
+
+  // Load saved chat
+  const handleLoadChat = (chatId: string) => {
+    const chat = chats.find(c => c.id === chatId);
+    if (chat) {
+      setActiveChatId(chatId);
+      setMessages(chat.messages);
+    }
+  };
+
+  // Delete saved chat
+  const handleDeleteChat = (chatId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setChats(prev => {
+      const updated = prev.filter(c => c.id !== chatId);
+      saveChats(updated);
+      return updated;
+    });
+    if (activeChatId === chatId) {
+      setActiveChatId(null);
+      setMessages([]);
+    }
+  };
+
+  // Ask AI
   const handleAskQuestion = async (qText?: string) => {
     const question = (qText || inputQuestion).trim();
     if (!question || askingAI) return;
@@ -87,326 +260,337 @@ export const AIBriefingView: React.FC = () => {
       timestamp: Date.now()
     };
 
-    setChatMessages(prev => [...prev, userMsg]);
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
     setInputQuestion('');
     setAskingAI(true);
+    setThinkingStep(1);
+
+    // Ensure we have a chat ID
+    const chatId = activeChatId || `chat_${Date.now()}`;
+    if (!activeChatId) setActiveChatId(chatId);
+
+    // Simulate thinking steps
+    const thinkTimer1 = setTimeout(() => setThinkingStep(2), 800);
+    const thinkTimer2 = setTimeout(() => setThinkingStep(3), 1800);
 
     try {
       const res = await askAIAnalyst(question);
+
+      clearTimeout(thinkTimer1);
+      clearTimeout(thinkTimer2);
+      setThinkingStep(0);
+
+      // Find relevant X posts for this answer
+      const relatedPosts = xPostsCache.filter(p =>
+        res.relatedSymbols?.some((s: string) =>
+          p.mentionedSymbols?.includes(s) ||
+          p.text?.toUpperCase().includes(`$${s}`)
+        )
+      ).slice(0, 4);
+
       const aiMsg: ChatMessage = {
         id: `ai_${Date.now()}`,
         sender: 'ai',
         text: res.answer,
         evidence: res.evidenceCitations,
+        xPosts: relatedPosts.length > 0 ? relatedPosts : undefined,
         timestamp: Date.now()
       };
-      setChatMessages(prev => [...prev, aiMsg]);
+
+      const finalMessages = [...newMessages, aiMsg];
+      setMessages(finalMessages);
+      persistChat(chatId, finalMessages);
     } catch (err: any) {
-      setChatMessages(prev => [
-        ...prev,
-        {
-          id: `ai_err_${Date.now()}`,
-          sender: 'ai',
-          text: `Nu am putut finaliza analiza în acest moment: ${err.message}. Te rog încearcă din nou.`,
-          timestamp: Date.now()
-        }
-      ]);
+      clearTimeout(thinkTimer1);
+      clearTimeout(thinkTimer2);
+      setThinkingStep(0);
+
+      const errMsg: ChatMessage = {
+        id: `ai_err_${Date.now()}`,
+        sender: 'ai',
+        text: `Nu am putut finaliza analiza: ${err.message}. Te rog încearcă din nou.`,
+        timestamp: Date.now()
+      };
+
+      const finalMessages = [...newMessages, errMsg];
+      setMessages(finalMessages);
     } finally {
       setAskingAI(false);
     }
   };
 
-  if (loading && !briefing) {
+  /* ─── Render: Thinking Indicators ─── */
+  const renderThinkingSteps = () => {
+    if (thinkingStep === 0) return null;
+
+    const steps = [
+      { icon: '🧠', label: 'Thought', active: thinkingStep >= 1 },
+      { icon: '🔍', label: `Searched posts (${xPostsCache.length}x)`, active: thinkingStep >= 2 },
+      { icon: '📄', label: 'Composed response', active: thinkingStep >= 3 },
+    ];
+
     return (
-      <div className="p-16 text-center text-slate-400 font-mono space-y-3">
-        <BrainCircuit className="w-8 h-8 mx-auto animate-pulse text-purple-400" />
-        <p className="text-sm">Generare sinteză AI Market Analyst &amp; Agregare X Intelligence...</p>
-      </div>
-    );
-  }
-
-  if (!briefing) return null;
-
-  return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-purple-400" />
-            <h1 className="text-xl font-bold font-mono text-slate-100">AI Market Analyst &amp; X Intelligence</h1>
-          </div>
-          <p className="text-xs text-slate-400 font-mono">
-            Sinteză automată multi-timeframe • Agregare Alpha de la top conturi Crypto X • Q&amp;A Interactiv
-          </p>
-        </div>
-
-        <button
-          onClick={loadBriefing}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background-surface hover:bg-background-hover text-slate-300 border border-background-border transition-colors text-xs font-mono"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          <span>Regenerează Sinteza</span>
-        </button>
-      </div>
-
-      {/* Interactive AI Analyst Studio & Chat */}
-      <div className="cyber-glass rounded-2xl border border-purple-500/30 bg-purple-500/5 shadow-2xl overflow-hidden">
-        <div className="p-4 bg-background-surface/80 border-b border-background-border flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm font-mono">
-            <MessageSquare className="w-4 h-4 text-purple-400" />
-            <span className="font-bold text-slate-100">Ask AI Market Analyst (Q&amp;A Live cu Citări de pe X)</span>
-          </div>
-          <span className="text-[10px] font-mono text-purple-300 bg-purple-500/20 px-2 py-0.5 rounded border border-purple-500/30">
-            Money Line + Top Conturi X + Știri Reale
-          </span>
-        </div>
-
-        {/* Chat History Messages */}
-        <div className="p-4 sm:p-6 space-y-4 max-h-[400px] overflow-y-auto">
-          {chatMessages.map(msg => (
+      <div className="flex flex-col gap-2 py-3 pl-2">
+        {steps.map((step, idx) => (
+          step.active && (
             <div
-              key={msg.id}
-              className={`flex gap-3 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+              key={idx}
+              className="flex items-center gap-2.5 text-sm text-slate-400 animate-think-step"
+              style={{ animationDelay: `${idx * 0.15}s` }}
             >
-              {msg.sender === 'ai' && (
-                <div className="w-8 h-8 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-300 shrink-0">
-                  <Bot className="w-4 h-4" />
+              <span className="text-base">{step.icon}</span>
+              <span className="font-mono text-[13px]">{step.label}</span>
+              {idx === thinkingStep - 1 && (
+                <div className="flex gap-1 ml-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
               )}
+            </div>
+          )
+        ))}
+      </div>
+    );
+  };
 
-              <div className={`max-w-2xl rounded-2xl p-4 text-xs font-sans leading-relaxed space-y-2.5 ${
-                msg.sender === 'user'
-                  ? 'bg-gradient-to-r from-cyan-600/30 to-blue-600/30 border border-cyan-500/40 text-slate-100 rounded-tr-none'
-                  : 'bg-background-surface/90 border border-background-border text-slate-200 rounded-tl-none shadow-lg'
-              }`}>
-                <div className="whitespace-pre-wrap leading-relaxed">
-                  {msg.text}
-                </div>
+  /* ─── Render: Clickable X Post Card ─── */
+  const renderXPostCard = (post: XPostItem) => (
+    <div
+      key={post.id}
+      onClick={() => window.open(post.url, '_blank', 'noopener,noreferrer')}
+      className="ai-post-card rounded-xl bg-[#161b22] p-3.5 space-y-2"
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-full bg-[#1DA1F2]/15 flex items-center justify-center text-[#1DA1F2] text-[11px] font-bold shrink-0">
+            𝕏
+          </div>
+          <div>
+            <div className="flex items-center gap-1">
+              <span className="font-semibold text-[13px] text-slate-200">{post.authorName}</span>
+              {post.authorVerified && <BadgeCheck className="w-3.5 h-3.5 text-[#1DA1F2]" />}
+            </div>
+            <span className="text-[11px] text-slate-500">{post.authorHandle} · {formatTimeAgo(post.timestamp)}</span>
+          </div>
+        </div>
+        <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+      </div>
 
-                {/* Evidence Citations if present */}
-                {msg.evidence && msg.evidence.length > 0 && (
-                  <div className="pt-2 border-t border-slate-800 text-[11px] font-mono space-y-1">
-                    <span className="text-slate-400 font-bold block">Surse &amp; Linkuri Verificabile de pe X / Știri:</span>
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      {msg.evidence.map((cite, idx) => (
-                        <a
-                          key={idx}
-                          href={cite.url || '#'}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 hover:border-cyan-500/40 transition-all text-[10px]"
-                        >
-                          <ExternalLink className="w-2.5 h-2.5 text-cyan-400" />
-                          <span className="line-clamp-1">{cite.title}</span>
-                        </a>
-                      ))}
-                    </div>
+      <p className="text-[13px] text-slate-300 leading-relaxed line-clamp-3">{post.text}</p>
+
+      <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-white/[0.04]">
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1"><Heart className="w-3 h-3" /> {post.likes?.toLocaleString()}</span>
+          <span className="flex items-center gap-1"><Repeat2 className="w-3 h-3" /> {post.reposts?.toLocaleString()}</span>
+          <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {post.replies?.toLocaleString()}</span>
+        </div>
+        {post.mentionedSymbols && post.mentionedSymbols.length > 0 && (
+          <div className="flex gap-1">
+            {post.mentionedSymbols.slice(0, 3).map(s => (
+              <span key={s} className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 text-[10px] font-mono font-semibold">
+                ${s}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  /* ─── Render: AI Message ─── */
+  const renderAIMessage = (msg: ChatMessage) => (
+    <div className="space-y-4 animate-fade-slide-up">
+      {/* Rich formatted response */}
+      <div
+        className="ai-chat-prose text-[13.5px] font-sans leading-relaxed"
+        dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }}
+      />
+
+      {/* Embedded X Post Cards (clickable to tweet source) */}
+      {msg.xPosts && msg.xPosts.length > 0 && (
+        <div className="space-y-2 pt-2">
+          <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-500 uppercase tracking-wider">
+            <span className="text-[#1DA1F2]">𝕏</span>
+            <span>Postări relevante de pe X — click pentru sursă</span>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+            {msg.xPosts.map(renderXPostCard)}
+          </div>
+        </div>
+      )}
+
+      {/* Evidence citations */}
+      {msg.evidence && msg.evidence.length > 0 && (
+        <div className="pt-2 border-t border-white/[0.04] space-y-1.5">
+          <span className="text-[11px] font-mono text-slate-500 uppercase tracking-wider block">Surse verificate</span>
+          <div className="flex flex-wrap gap-1.5">
+            {msg.evidence.map((cite, idx) => (
+              <a
+                key={idx}
+                href={cite.url || '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#161b22] hover:bg-[#1c2333] text-slate-300 hover:text-purple-300 border border-white/[0.06] hover:border-purple-500/30 text-[11px] transition-all"
+              >
+                <ExternalLink className="w-2.5 h-2.5 text-purple-400" />
+                <span className="line-clamp-1 max-w-[200px]">{cite.title}</span>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="flex h-[calc(100vh-var(--header-height)-2rem)] rounded-2xl overflow-hidden border border-white/[0.06] bg-[#0d1117]">
+      {/* ═══ Left Sidebar ═══ */}
+      <aside className="hidden lg:flex flex-col w-[240px] bg-[#161b22] border-r border-white/[0.06] shrink-0">
+        {/* Logo Area */}
+        <div className="px-4 py-4 border-b border-white/[0.06]">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-purple-500/30 to-cyan-500/30 flex items-center justify-center">
+              <BrainCircuit className="w-4 h-4 text-purple-400" />
+            </div>
+            <span className="font-semibold text-sm bg-gradient-to-r from-purple-300 to-cyan-300 bg-clip-text text-transparent">
+              AI Analyst
+            </span>
+          </div>
+
+          <button
+            onClick={handleNewChat}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/[0.08] hover:border-purple-500/30 transition-all text-sm font-medium"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New chat</span>
+          </button>
+        </div>
+
+        {/* Inspiration */}
+        <div className="px-3 py-3 border-b border-white/[0.06]">
+          <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-500 uppercase tracking-wider mb-2 px-1">
+            <Lightbulb className="w-3 h-3 text-amber-400" />
+            <span>Inspirație</span>
+          </div>
+          <div className="space-y-0.5">
+            {inspirationQuestions.slice(0, 4).map((q, idx) => (
+              <button
+                key={idx}
+                onClick={() => handleAskQuestion(q)}
+                disabled={askingAI}
+                className="w-full text-left px-2.5 py-1.5 text-[12px] text-slate-400 hover:text-slate-200 hover:bg-white/[0.04] rounded-lg transition-all truncate disabled:opacity-50"
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Chat History */}
+        <div className="flex-1 overflow-y-auto px-3 py-3">
+          <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-500 uppercase tracking-wider mb-2 px-1">
+            <Clock className="w-3 h-3" />
+            <span>Chats</span>
+          </div>
+          {chats.length === 0 ? (
+            <p className="text-[11px] text-slate-600 px-1">Nicio conversație salvată</p>
+          ) : (
+            <div className="space-y-0.5">
+              {chats.map(chat => (
+                <div
+                  key={chat.id}
+                  onClick={() => handleLoadChat(chat.id)}
+                  className={`ai-sidebar-chat-item group flex items-center justify-between px-2.5 py-2 rounded-lg cursor-pointer ${
+                    activeChatId === chat.id ? 'active' : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <MessageSquare className="w-3 h-3 text-slate-500 shrink-0" />
+                    <span className="text-[12px] text-slate-400 truncate">{chat.title}</span>
                   </div>
-                )}
-              </div>
+                  <button
+                    onClick={(e) => handleDeleteChat(chat.id, e)}
+                    className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-600 hover:text-rose-400 transition-all shrink-0"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </aside>
 
-              {msg.sender === 'user' && (
-                <div className="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-300 shrink-0">
-                  <User className="w-4 h-4" />
+      {/* ═══ Main Chat Area ═══ */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Chat Messages */}
+        <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 space-y-6">
+          {messages.map(msg => (
+            <div key={msg.id}>
+              {msg.sender === 'user' ? (
+                /* User message — right-aligned purple bubble */
+                <div className="flex justify-end">
+                  <div className="max-w-[70%] bg-gradient-to-r from-purple-600/30 to-violet-600/25 border border-purple-500/30 rounded-2xl rounded-tr-sm px-5 py-3">
+                    <p className="text-[13.5px] text-slate-100 leading-relaxed">{msg.text}</p>
+                  </div>
+                </div>
+              ) : (
+                /* AI message — full-width, rich content */
+                <div className="max-w-4xl">
+                  {renderAIMessage(msg)}
                 </div>
               )}
             </div>
           ))}
 
-          {askingAI && (
-            <div className="flex gap-3 items-center text-xs font-mono text-purple-300">
-              <div className="w-8 h-8 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-300 shrink-0 animate-pulse">
-                <Bot className="w-4 h-4" />
-              </div>
-              <div className="bg-background-surface/90 border border-background-border px-4 py-2.5 rounded-xl flex items-center gap-2">
-                <BrainCircuit className="w-3.5 h-3.5 animate-spin text-purple-400" />
-                <span>Analizez datele Money Line, postările top conturilor de pe X și fluxurile de știri...</span>
-              </div>
-            </div>
-          )}
+          {/* Thinking indicators */}
+          {askingAI && renderThinkingSteps()}
+
           <div ref={chatEndRef} />
         </div>
 
-        {/* Quick Question Chips */}
-        <div className="px-4 py-2 bg-background-surface/40 border-t border-background-border/60 flex flex-wrap items-center gap-2 text-[11px] font-mono">
-          <span className="text-slate-500">Întrebări rapide:</span>
-          {quickQuestions.map((q, idx) => (
-            <button
-              key={idx}
-              onClick={() => handleAskQuestion(q)}
-              disabled={askingAI}
-              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-cyan-300 border border-slate-700 transition-all flex items-center gap-1"
-            >
-              <span>{q}</span>
-              <ChevronRight className="w-3 h-3 text-slate-500" />
-            </button>
-          ))}
-        </div>
-
-        {/* Input Bar */}
-        <div className="p-3 bg-background-surface/80 border-t border-background-border flex items-center gap-2">
-          <input
-            type="text"
-            value={inputQuestion}
-            onChange={(e) => setInputQuestion(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleAskQuestion();
-            }}
-            placeholder="Întreabă AI-ul despre orice monedă (ex: $BTC, $SOL), tweet-uri balene sau regim de piață..."
-            className="flex-1 bg-background-card border border-background-border rounded-xl px-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500/60 focus:ring-1 focus:ring-purple-500/30 transition-all font-mono"
-          />
-          <button
-            onClick={() => handleAskQuestion()}
-            disabled={askingAI || !inputQuestion.trim()}
-            className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-cyan-500 text-slate-950 font-bold text-xs flex items-center gap-1.5 hover:opacity-90 disabled:opacity-50 transition-all shadow-glow-cyan"
-          >
-            <Send className="w-3.5 h-3.5" />
-            <span>Trimite</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Top Crypto Twitter (X) Alpha Feeds */}
-      <div className="cyber-glass rounded-2xl p-6 border border-background-border space-y-4 shadow-xl">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 font-mono">
-            <Twitter className="w-5 h-5 text-[#1DA1F2]" />
-            <h2 className="font-bold text-base text-slate-100">Top Postări &amp; Alpha de la Conturi Crypto Verificate</h2>
+        {/* ═══ Bottom Input Bar ═══ */}
+        <div className="shrink-0 border-t border-white/[0.06] bg-[#0d1117] px-4 sm:px-8 py-3">
+          {/* Mobile quick questions */}
+          <div className="lg:hidden flex gap-1.5 mb-2.5 overflow-x-auto pb-1 scrollbar-hide">
+            {inspirationQuestions.slice(0, 3).map((q, idx) => (
+              <button
+                key={idx}
+                onClick={() => handleAskQuestion(q)}
+                disabled={askingAI}
+                className="shrink-0 px-2.5 py-1 text-[11px] text-slate-400 bg-white/[0.04] hover:bg-white/[0.08] rounded-lg border border-white/[0.06] transition-all whitespace-nowrap disabled:opacity-50"
+              >
+                {q}
+              </button>
+            ))}
           </div>
-          <span className="text-xs font-mono text-slate-400">
-            Surse: @lookonchain, @WuBlockchain, @whale_alert, @tier10k, @WatcherGuru, @Ali_charts
-          </span>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {xPosts.map((post: any) => (
-            <div
-              key={post.id}
-              className="p-4 rounded-xl bg-background-surface/90 border border-background-border hover:border-[#1DA1F2]/40 transition-all space-y-2.5 flex flex-col justify-between"
+          <div className="flex items-center gap-3 max-w-4xl">
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputQuestion}
+              onChange={(e) => setInputQuestion(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleAskQuestion();
+                }
+              }}
+              placeholder='Întreabă despre o monedă... ex: "Ce se întâmplă cu Solana?"'
+              className="flex-1 bg-[#161b22] border border-white/[0.08] rounded-xl px-4 py-2.5 text-[13.5px] text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/20 transition-all"
+              disabled={askingAI}
+            />
+            <button
+              onClick={() => handleAskQuestion()}
+              disabled={askingAI || !inputQuestion.trim()}
+              className="w-10 h-10 rounded-xl bg-gradient-to-r from-purple-500 to-violet-500 text-white flex items-center justify-center hover:opacity-90 disabled:opacity-40 transition-all shadow-lg shadow-purple-500/20 shrink-0"
             >
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-6 h-6 rounded-full bg-[#1DA1F2]/20 flex items-center justify-center text-[#1DA1F2] text-[10px] font-bold">
-                      𝕏
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1">
-                        <span className="font-bold text-xs text-slate-200 font-mono">{post.authorName}</span>
-                        <BadgeCheck className="w-3.5 h-3.5 text-cyan-400" />
-                      </div>
-                      <span className="text-[10px] text-slate-500 font-mono">{post.authorHandle}</span>
-                    </div>
-                  </div>
-
-                  <a
-                    href={post.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#1DA1F2]/10 hover:bg-[#1DA1F2]/20 text-[#1DA1F2] border border-[#1DA1F2]/30 text-[10px] font-mono font-bold transition-all"
-                  >
-                    <span>Citește Tweet</span>
-                    <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
-                </div>
-
-                <p className="text-xs text-slate-300 font-sans leading-relaxed">
-                  {post.text}
-                </p>
-              </div>
-
-              <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 pt-2 border-t border-slate-800">
-                <div className="flex items-center gap-2">
-                  <span>❤️ {post.likeCount?.toLocaleString()}</span>
-                  <span>🔁 {post.repostCount?.toLocaleString()}</span>
-                </div>
-                <span className="px-1.5 py-0.2 rounded bg-cyan-500/10 text-cyan-400 font-semibold">
-                  {post.symbols?.join(', ') || 'Macro'}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Executive Summary Card */}
-      <div className="cyber-glass rounded-xl p-5 border border-background-border space-y-3">
-        <div className="flex items-center gap-2 text-xs font-mono uppercase text-slate-400">
-          <Sparkles className="w-4 h-4 text-cyan-400" />
-          <span>Sinteza Executivă a Regimului de Piață</span>
-        </div>
-        <p className="text-sm text-slate-200 leading-relaxed font-sans font-medium">
-          {briefing.executiveSummary}
-        </p>
-      </div>
-
-      {/* Key Drivers */}
-      <div className="cyber-glass rounded-xl p-5 border border-background-border space-y-3">
-        <div className="flex items-center gap-2 text-xs font-mono uppercase text-slate-400">
-          <Compass className="w-4 h-4 text-emerald-400" />
-          <span>Factori Structurali Cheie</span>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 font-mono text-xs">
-          {briefing.keyDrivers.map((driver, idx) => (
-            <div key={idx} className="bg-background-surface/80 p-3.5 rounded-lg border border-background-border text-slate-300">
-              <span className="text-cyan-400 font-bold block mb-1">0{idx + 1}.</span>
-              <span>{driver}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Bullish vs Bearish Factors */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Bullish */}
-        <div className="cyber-glass rounded-xl p-5 border border-emerald-500/20 bg-emerald-500/5 space-y-3">
-          <h3 className="font-bold text-sm text-emerald-400 flex items-center gap-2">
-            <CheckCircle className="w-4 h-4" /> Factori Bullish &amp; Oportunități
-          </h3>
-          <ul className="space-y-2 text-xs text-slate-300">
-            {briefing.bullishFactors.map((item, idx) => (
-              <li key={idx} className="flex items-start gap-2">
-                <span className="text-emerald-400 font-bold">•</span>
-                <span>{item}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Bearish / Risks */}
-        <div className="cyber-glass rounded-xl p-5 border border-rose-500/20 bg-rose-500/5 space-y-3">
-          <h3 className="font-bold text-sm text-rose-400 flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4" /> Factori Bearish &amp; Riscuri
-          </h3>
-          <ul className="space-y-2 text-xs text-slate-300">
-            {briefing.bearishFactors.map((item, idx) => (
-              <li key={idx} className="flex items-start gap-2">
-                <span className="text-rose-400 font-bold">•</span>
-                <span>{item}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-
-      {/* Assets To Watch */}
-      <div className="cyber-glass rounded-xl p-5 border border-background-border space-y-4">
-        <h3 className="text-xs font-mono uppercase text-slate-400">Active de Urmărit</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {briefing.assetsToWatch.map((item) => (
-            <div key={item.symbol} className="p-3.5 rounded-lg bg-background-surface border border-background-border space-y-1.5">
-              <div className="flex items-center justify-between font-mono">
-                <span className="font-bold text-sm text-cyan-300">${item.symbol}</span>
-                <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
-                  item.bias === 'Bullish' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-400'
-                }`}>
-                  {item.bias}
-                </span>
-              </div>
-              <p className="text-xs text-slate-300">{item.thesis}</p>
-            </div>
-          ))}
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
     </div>
