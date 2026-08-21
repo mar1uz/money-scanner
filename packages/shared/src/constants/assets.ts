@@ -2119,5 +2119,15 @@ export const TRADING_360_ASSETS: AssetInfo[] = [
   }
 ];
 
-export const TOP_50_CRYPTO_ASSETS: AssetInfo[] = TRADING_360_ASSETS;
+// Production scanner universe: exactly 50 spot-crypto assets. The broader
+// catalog remains available for search, but unsupported assets are never
+// silently filled with synthetic quotes.
+export const TOP_50_CRYPTO_ASSETS: AssetInfo[] = TRADING_360_ASSETS
+  .filter(asset =>
+    asset.marketClass === 'crypto' &&
+    asset.quoteCurrency === 'USDT' &&
+    !asset.symbol.includes('.') &&
+    !asset.symbol.startsWith('TOTAL')
+  )
+  .slice(0, 50);
 export const ASSET_SYMBOLS_SET = new Set(TRADING_360_ASSETS.map(a => a.symbol));

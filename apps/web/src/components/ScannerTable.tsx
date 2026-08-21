@@ -156,7 +156,10 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
   };
 
   // Helper for X Social Momentum badge
-  const renderXMomentum = (score: number) => {
+  const renderXMomentum = (score?: number) => {
+    if (typeof score !== 'number') {
+      return <span className="text-xs text-slate-500">—</span>;
+    }
     if (score >= 70) {
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-glow-gold">
@@ -182,7 +185,10 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
   };
 
   // Helper for Actionable AI Verdict Badge
-  const renderAIVerdict = (conf: number) => {
+  const renderAIVerdict = (conf?: number) => {
+    if (typeof conf !== 'number') {
+      return <span className="text-xs text-slate-500">—</span>;
+    }
     const pct = (conf * 100).toFixed(0);
     if (conf >= 0.80) {
       return (
@@ -363,10 +369,10 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
           comparison = a.volatilityAtrPercent - b.volatilityAtrPercent;
           break;
         case 'xTrendScore':
-          comparison = a.xTrendScore - b.xTrendScore;
+          comparison = (a.xTrendScore ?? Number.NEGATIVE_INFINITY) - (b.xTrendScore ?? Number.NEGATIVE_INFINITY);
           break;
         case 'aiConfidence':
-          comparison = a.aiConfidence - b.aiConfidence;
+          comparison = (a.aiConfidence ?? Number.NEGATIVE_INFINITY) - (b.aiConfidence ?? Number.NEGATIVE_INFINITY);
           break;
         default:
           comparison = 0;

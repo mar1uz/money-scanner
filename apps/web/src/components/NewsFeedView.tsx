@@ -67,11 +67,13 @@ export const NewsFeedView: React.FC = () => {
                     <span>•</span>
                     <span>{new Date(item.publishedAt).toLocaleTimeString()}</span>
                   </div>
-                  <span className={`px-2 py-0.5 rounded font-bold ${
-                    item.sentiment === 'Bullish' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-400'
-                  }`}>
-                    {item.sentiment}
-                  </span>
+                  {item.sentiment && (
+                    <span className={`px-2 py-0.5 rounded font-bold ${
+                      item.sentiment === 'Bullish' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-400'
+                    }`}>
+                      {item.sentiment}
+                    </span>
+                  )}
                 </div>
 
                 <h3 className="font-bold text-sm text-slate-100 group-hover:text-cyan-300 transition-colors flex items-start justify-between gap-2 mb-2">
@@ -92,10 +94,12 @@ export const NewsFeedView: React.FC = () => {
                     </span>
                   ))}
                 </div>
-                <div className="flex items-center gap-1 text-slate-400">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Credibility: {(item.credibilityScore * 100).toFixed(0)}%</span>
-                </div>
+                {typeof item.credibilityScore === 'number' && (
+                  <div className="flex items-center gap-1 text-slate-400">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Credibility: {(item.credibilityScore * 100).toFixed(0)}%</span>
+                  </div>
+                )}
               </div>
             </a>
           ))}

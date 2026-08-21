@@ -516,6 +516,7 @@ Rough implementation estimate: four to six weeks for the functional MVP, followe
 | **Step 44** | `apps/web`, `apps/api`, `packages/shared` | **Side-by-Side ML 1D & ML 1W Multi-Timeframe Flip Columns** (Renamed Weekly Flip column to ML 1W and repositioned ML 1D immediately in front of ML 1W side-by-side, displaying dual-row layout with exact flip elapsed age, real ROI % return since flip, and color-coded indicator tier badges). | **Completed** | `49b821b` |
 | **Step 45** | `apps/web` | **Bullmania AI Chat Interface Redesign** (Complete rewrite of AI Analyst page from dashboard layout to conversational chat interface inspired by Bullmania AI: left sidebar with persistent chat history in localStorage, animated thinking indicators (Thought → Searched posts → Composed response), rich markdown rendering in AI responses with tables/headers/bold, clickable embedded X post cards linking directly to exact tweet source URLs, auto-loaded executive market briefing as first AI message, sticky bottom input bar, and mobile-responsive design). | **Completed** | `dc7545a` |
 | **Step 46** | `packages/social-analysis`, `apps/web` | **100% Real Live X Intelligence Links & Tweet Source Verification** (Enforced Golden Directive #1 across X Intelligence by eliminating broken synthetic status IDs and routing every post, card click, and author link directly to real live search streams on X filtered by author and cashtag (`https://x.com/search?q=from%3A...&f=live`), ensuring zero 404s, direct tweet source access, and non-invented live news feeds). | **Completed** | `a240326` |
+| **Step 47** | `apps/api`, `apps/web`, `packages/market-data`, `packages/social-analysis` | **Live-Only Data Integrity & Crypto Bubble Heatmap** (Removed synthetic market, news, social, confidence, YTD and flip-time fallbacks; scanner now renders only assets with verified live quote/candle data and marks unavailable intelligence as such. Added Top 100 Crypto Bubble heatmap from live CoinGecko market-cap and 1D/1W/1M performance feeds, with 60-second API caching.) | **Completed** | `251d51b` |
 
 ---
 
@@ -554,5 +555,3 @@ This document is the implementation baseline. Update it whenever architecture, A
 
 
 ---
-
-

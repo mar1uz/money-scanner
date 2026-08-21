@@ -34,6 +34,22 @@ describe('Social & News Intelligence Engine', () => {
 
   it('clusters X topics and ignores high probability spam', () => {
     const xService = new XSocialIntelligenceService();
+    xService.ingestPost({
+      id: '20',
+      authorHandle: 'jack',
+      authorName: 'jack',
+      authorFollowers: 1_000_000,
+      authorVerified: true,
+      authorCredibilityScore: 0,
+      text: 'Recorded fixture: $BTC network activity remains constructive.',
+      timestamp: Date.now(),
+      url: 'https://x.com/jack/status/20',
+      likes: 500,
+      reposts: 200,
+      replies: 20,
+      isSpamProbability: 0,
+      mentionedSymbols: ['BTC']
+    });
     const topics = xService.getTrendingTopics();
 
     assert.ok(topics.length > 0);

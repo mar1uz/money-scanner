@@ -2,7 +2,8 @@ import { Candle, AssetPriceQuote, Timeframe } from '@money-scanner/shared';
 import { MarketHealthMonitor } from '../health-monitor.js';
 
 export class BinanceMarketAdapter {
-  private baseUrl = 'https://api.binance.com/api/v3';
+  // Binance recommends this host for public, market-data-only requests.
+  private baseUrl = process.env.BINANCE_API_URL || 'https://data-api.binance.vision/api/v3';
   private healthMonitor: MarketHealthMonitor;
 
   constructor(healthMonitor: MarketHealthMonitor) {
@@ -171,35 +172,9 @@ export class BinanceMarketAdapter {
       
       // Calculate 100% Real Dynamic YTD from Jan 1st Open Price
       const startOfYearPrice = await this.getStartOfYearPrice(symbol);
-      let changeYtd: number;
+      let changeYtd: number | undefined;
       if (startOfYearPrice && startOfYearPrice > 0) {
         changeYtd = Number((((currentPrice - startOfYearPrice) / startOfYearPrice) * 100).toFixed(2));
-      } else {
-        const fallbackYtdMap: Record<string, number> = {
-          'BTC': -26.59,
-          'ETH': -35.96,
-          'SOL': -38.66,
-          'BNB': -30.35,
-          'SUI': -53.58,
-          'FET': -38.50,
-          'RENDER': -1.79,
-          'TAO': -12.23,
-          'NEAR': 7.60,
-          'INJ': -42.50,
-          'AAVE': -38.96,
-          'PEPE': -36.14,
-          'DOGE': -40.43,
-          'SHIB': -32.50,
-          'UNI': -28.40,
-          'ICP': -35.20,
-          'AVAX': -48.69,
-          'ADA': -47.93,
-          'XRP': -45.78,
-          'DOT': -58.64
-        };
-        changeYtd = fallbackYtdMap[symbol] !== undefined
-          ? Number((fallbackYtdMap[symbol] + change24h * 0.1).toFixed(2))
-          : Number((change24h * 1.5).toFixed(2));
       }
 
       return {

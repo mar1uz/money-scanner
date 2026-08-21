@@ -116,6 +116,8 @@ export interface MarketOverviewSummary {
     value: number;
     classification: string;
     source: string;
+    sourceUrl?: string;
+    timestamp?: number;
   };
   narratives?: NarrativeSummary[];
   lastUpdated: number;

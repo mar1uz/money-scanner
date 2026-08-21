@@ -16,6 +16,6 @@ export interface NewsItem {
   publishedAt: number;
   category: NewsCategory;
   mentionedSymbols: string[];
-  credibilityScore: number;  // 0 to 1.0
-  sentiment: 'Bullish' | 'Neutral' | 'Bearish';
+  credibilityScore?: number; // Only set when supplied by a verifiable rating source
+  sentiment?: 'Bullish' | 'Neutral' | 'Bearish';
 }

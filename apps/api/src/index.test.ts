@@ -21,27 +21,27 @@ describe('API Server Integration Tests', () => {
     await new Promise<void>(resolve => server.close(() => resolve()));
   });
 
-  it('serves scanner results with 50 assets and Money Line calculations', async () => {
+  it('serves only currently verified scanner rows and their Money Line calculations', async (t) => {
     const app = createServer();
     const server = http.createServer(app);
 
     await new Promise<void>(resolve => server.listen(0, resolve));
+    t.after(() => new Promise<void>(resolve => server.close(() => resolve())));
     const port = (server.address() as any).port;
 
     const res = await fetch(`http://localhost:${port}/api/scanner?timeframe=1h`);
     assert.equal(res.status, 200);
     const rows = await res.json() as any[];
-    assert.ok(rows.length >= 50);
+    assert.ok(rows.length > 0);
 
-    const btc = rows.find(r => r.symbol === 'BTC');
-    assert.ok(btc !== undefined);
-    assert.ok(btc.price > 0);
-    assert.ok(typeof btc.moneyLineScore === 'number');
-    assert.ok(['Strong Bullish', 'Bullish', 'Neutral', 'Bearish', 'Strong Bearish'].includes(btc.tier));
-    assert.ok(typeof btc.moneyLine1dPercent === 'number');
-    assert.ok(typeof btc.moneyLine1wPercent === 'number');
-
-    await new Promise<void>(resolve => server.close(() => resolve()));
+    for (const row of rows) {
+      assert.ok(row.price > 0);
+      assert.equal(typeof row.moneyLineScore, 'number');
+      assert.ok(['Strong Bullish', 'Bullish', 'Neutral', 'Bearish', 'Strong Bearish'].includes(row.tier));
+      assert.equal(typeof row.dataSource, 'string');
+      assert.equal(row.xTrendScore, undefined);
+      assert.equal(row.aiConfidence, undefined);
+    }
   });
 
   it('serves asset deep-dive with candles, MTF confluence, and AI thesis', async () => {

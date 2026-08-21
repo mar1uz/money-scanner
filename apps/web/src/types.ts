@@ -3,6 +3,7 @@ export { TOP_50_CRYPTO_ASSETS } from '@money-scanner/shared';
 
 export type AppTab = 
   | 'market'
+  | 'crypto_bubbles'
   | 'usa_status'
   | 'trends'
   | 'news'

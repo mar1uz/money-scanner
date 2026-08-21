@@ -40,24 +40,24 @@ export class AppState {
    */
   public async refreshSignals(timeframe: Timeframe = '1h'): Promise<AssetScannerRow[]> {
     const quotes = await this.marketData.getAllQuotes();
-    const trends = this.social.getTrendingTopics();
+    const quoteBySymbol = new Map(quotes.map(quote => [quote.symbol, quote]));
+    const marketCaps = await this.marketData.getCryptoMarketCaps();
 
-    const rows: AssetScannerRow[] = await Promise.all(
+    const settledRows = await Promise.allSettled(
       TOP_50_CRYPTO_ASSETS.map(async (asset) => {
-        const quote = quotes.find(q => q.symbol === asset.symbol) || await this.marketData.getPriceQuote(asset.symbol);
+        const quote = quoteBySymbol.get(asset.symbol);
+        if (!quote) throw new Error(`No verified quote available for ${asset.symbol}`);
         const candleLimit = timeframe === '1w' ? 300 : (timeframe === '1d' ? 500 : (timeframe === '1m' ? 150 : 500));
         const candles = await this.marketData.getCandles(asset.symbol, timeframe, candleLimit);
         const signal = this.moneyLine.calculateLatest(asset.symbol, timeframe, candles);
 
-        if (signal) {
-          this.cachedSignals.set(`${asset.symbol}_${timeframe}`, signal);
+        if (!signal) throw new Error(`Insufficient verified candles for ${asset.symbol}`);
+        this.cachedSignals.set(`${asset.symbol}_${timeframe}`, signal);
 
-          // Check for alert dispatch
-          const alert = this.alertDispatcher.evaluateSignal(signal, quote.price);
-          if (alert) {
-            this.alertHistory.unshift(alert);
-            if (this.alertHistory.length > 100) this.alertHistory.pop();
-          }
+        const alert = this.alertDispatcher.evaluateSignal(signal, quote.price);
+        if (alert) {
+          this.alertHistory.unshift(alert);
+          if (this.alertHistory.length > 100) this.alertHistory.pop();
         }
 
         // Compute 1D and 1W MoneyLine signals for multi-timeframe ROI columns
@@ -76,45 +76,13 @@ export class AppState {
           if (signal1w) this.cachedSignals.set(`${asset.symbol}_1w`, signal1w);
         }
 
-        const moneyLine1dPercent = signal1d?.roiPercent !== undefined
-          ? signal1d.roiPercent
-          : (signal1d?.rawIndicators?.roc9 !== undefined ? Number(signal1d.rawIndicators.roc9.toFixed(2)) : 0);
-
-        const moneyLine1wPercent = signal1w?.roiPercent !== undefined
-          ? signal1w.roiPercent
-          : (signal1w?.rawIndicators?.roc9 !== undefined ? Number(signal1w.rawIndicators.roc9.toFixed(2)) : 0);
-
-        const activeRoiPercent = signal?.roiPercent !== undefined
-          ? signal.roiPercent
-          : (signal?.rawIndicators?.roc9 !== undefined ? Number(signal.rawIndicators.roc9.toFixed(2)) : 0);
-
-        const score = signal?.score || 0;
-        const tier = signal?.tier || 'Neutral';
-        const rvol = signal?.rawIndicators.rvol || 1.0;
-        const atrPct = signal?.rawIndicators.atrPercent || 2.5;
-
-        // Dynamic, distinct social momentum score (12.0 - 99.0)
-        const basePop = asset.rank <= 15 ? 75 : (asset.rank <= 45 ? 60 : (asset.rank <= 90 ? 42 : 25));
-        const moveBoost = Math.min(30, Math.abs(quote.change24h) * 2.8);
-        const rvolBoost = Math.min(25, (rvol - 1.0) * 12);
-        const hashBonus = (asset.symbol.charCodeAt(0) * 7 + (asset.symbol.charCodeAt(1) || 0) * 3) % 15;
-        const xTrendScore = Number(Math.min(98.9, Math.max(14.5, (basePop * 0.45) + moveBoost + rvolBoost + hashBonus)).toFixed(1));
-
-        // Dynamic, actionable AI Confidence based on MoneyLine Confluence & RSI
-        let aiConfidence = 0.50;
-        if (score >= 60) {
-          aiConfidence = Number(Math.min(0.96, 0.82 + (score - 60) * 0.003).toFixed(2));
-        } else if (score >= 20) {
-          aiConfidence = Number(Math.min(0.79, 0.65 + (score - 20) * 0.0035).toFixed(2));
-        } else if (score <= -60) {
-          aiConfidence = Number(Math.max(0.10, 0.20 + (score + 60) * 0.002).toFixed(2));
-        } else if (score <= -20) {
-          aiConfidence = Number(Math.max(0.22, 0.38 + (score + 20) * 0.003).toFixed(2));
-        } else {
-          aiConfidence = Number((0.50 + (quote.change24h * 0.015)).toFixed(2));
-        }
-
-        const marketCap = asset.marketCap || (quote.price * (asset.marketClass === 'crypto' ? 100000000 : 500000000));
+        const moneyLine1dPercent = signal1d?.roiPercent;
+        const moneyLine1wPercent = signal1w?.roiPercent;
+        const activeRoiPercent = signal.roiPercent;
+        const score = signal.score;
+        const tier = signal.tier;
+        const rvol = signal.rawIndicators.rvol;
+        const atrPct = signal.rawIndicators.atrPercent;
 
         return {
           symbol: asset.symbol,
@@ -124,8 +92,8 @@ export class AppState {
           narratives: asset.narratives,
           price: quote.price,
           change24h: quote.change24h,
-          changeYtd: quote.changeYtd || 0,
-          marketCap,
+          changeYtd: quote.changeYtd,
+          marketCap: marketCaps.get(asset.symbol),
           high24h: quote.high24h,
           low24h: quote.low24h,
           volume24h: quote.volume24h,
@@ -134,30 +102,27 @@ export class AppState {
           tier,
           previousTier: signal?.previousTier,
           isTransition: signal?.isTransition || false,
-          lastSignalChangeTime: signal?.transitionTime || quote.timestamp,
+          lastSignalChangeTime: signal.transitionTime,
           roiPercent: activeRoiPercent,
           moneyLine1dPercent,
           moneyLine1dScore: signal1d?.score,
           moneyLine1dTier: signal1d?.tier,
-          moneyLine1dFlipTime: signal1d?.transitionTime || quote.timestamp,
+          moneyLine1dFlipTime: signal1d?.transitionTime,
           moneyLine1dIsTransition: signal1d?.isTransition || false,
           moneyLine1wPercent,
           moneyLine1wScore: signal1w?.score,
           moneyLine1wTier: signal1w?.tier,
-          moneyLine1wFlipTime: signal1w?.transitionTime || quote.timestamp,
+          moneyLine1wFlipTime: signal1w?.transitionTime,
           moneyLine1wIsTransition: signal1w?.isTransition || false,
           rvol,
           volatilityAtrPercent: atrPct,
-          xTrendScore,
-          xMentionsVelocity: Number((xTrendScore * 0.85).toFixed(1)),
-          aiConfidence,
+          dataSource: quote.source,
           lastUpdated: quote.timestamp,
           isStale: this.marketData.getHealthMonitor().isDataStale(quote.timestamp)
         };
       })
     );
-
-    return rows;
+    return settledRows.flatMap(result => result.status === 'fulfilled' ? [result.value] : []);
   }
 
   /**

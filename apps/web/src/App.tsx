@@ -27,6 +27,7 @@ import { AIBriefingView } from './components/AIBriefingView.js';
 import { BacktestView } from './components/BacktestView.js';
 import { SystemStatusView } from './components/SystemStatusView.js';
 import { USAStatusView } from './components/USAStatusView.js';
+import { CryptoBubbleView } from './components/CryptoBubbleView.js';
 import { Zap, CheckCircle2, RefreshCw } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -272,6 +273,11 @@ export const App: React.FC = () => {
                     />
                   )}
                 </div>
+              )}
+
+              {/* Top 100 cryptocurrencies, sized by market capitalization */}
+              {activeTab === 'crypto_bubbles' && (
+                <CryptoBubbleView onSelectAsset={(symbol) => setSelectedAssetSymbol(symbol)} />
               )}
 
               {/* Tab 2: USA Economic Status & Macro Intelligence */}

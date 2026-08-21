@@ -17,6 +17,27 @@ export async function fetchMarketOverview(): Promise<MarketOverviewSummary> {
   return res.json();
 }
 
+export type CryptoBubbleTimeframe = '1d' | '1w' | '1m';
+
+export interface CryptoBubbleAsset {
+  id: string;
+  symbol: string;
+  name: string;
+  image: string;
+  rank: number;
+  price: number;
+  marketCap: number;
+  change: number | null;
+}
+
+export async function fetchCryptoBubbles(
+  timeframe: CryptoBubbleTimeframe = '1d'
+): Promise<CryptoBubbleAsset[]> {
+  const res = await fetch(`${API_BASE}/crypto/bubbles?timeframe=${timeframe}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch crypto bubbles`);
+  return res.json();
+}
+
 export async function fetchScanner(
   timeframe: Timeframe = '1w',
   tier?: string,
@@ -149,5 +170,4 @@ export async function searchUniversalAssets(query: string): Promise<SearchAssetI
   if (!res.ok) return [];
   return res.json();
 }
-
 

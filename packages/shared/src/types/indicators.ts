@@ -85,7 +85,7 @@ export interface AssetScannerRow {
   tier: MoneyLineTier;
   previousTier?: MoneyLineTier;
   isTransition: boolean;
-  lastSignalChangeTime: number;
+  lastSignalChangeTime?: number;
   roiPercent?: number;
   moneyLine1dPercent?: number;
   moneyLine1dScore?: number;
@@ -99,9 +99,12 @@ export interface AssetScannerRow {
   moneyLine1wIsTransition?: boolean;
   rvol: number;
   volatilityAtrPercent: number;
-  xTrendScore: number;
-  xMentionsVelocity: number;
-  aiConfidence: number;
+  /** Only present when backed by a licensed, live social-data provider. */
+  xTrendScore?: number;
+  xMentionsVelocity?: number;
+  /** Only present when an evidence-grounded model response is available. */
+  aiConfidence?: number;
+  dataSource?: string;
   isWatchlisted?: boolean;
   lastUpdated: number;
   isStale: boolean;
