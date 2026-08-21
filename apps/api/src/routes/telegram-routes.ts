@@ -12,6 +12,11 @@ telegramRouter.post('/telegram/webhook', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized secret token' });
   }
 
+  const socialPostIngested = appState.social.ingestTelegramUpdate(req.body);
+  if (req.body?.channel_post || req.body?.edited_channel_post) {
+    return res.json({ status: socialPostIngested ? 'social_post_ingested' : 'social_post_ignored' });
+  }
+
   const commandPayload = appState.telegramBot.parseUpdate(req.body);
   if (!commandPayload) {
     return res.json({ status: 'ignored' });

@@ -4,6 +4,7 @@ import {
   Timeframe,
   XTrendTopic,
   NewsItem,
+  NewsSynthesisPayload,
   AIAnalysisPayload,
   BacktestResult
 } from '@money-scanner/shared';
@@ -98,6 +99,17 @@ export async function fetchNews(limit = 20, category?: string): Promise<NewsItem
 
   const res = await fetch(`${API_BASE}/news?${params.toString()}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch news`);
+  return res.json();
+}
+
+export async function fetchNewsSynthesis(
+  language: 'ro' | 'en' = 'ro',
+  category?: string
+): Promise<NewsSynthesisPayload> {
+  const params = new URLSearchParams({ language });
+  if (category && category !== 'ALL') params.set('category', category);
+  const res = await fetch(`${API_BASE}/news/synthesis?${params.toString()}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch grounded news synthesis`);
   return res.json();
 }
 

@@ -12,9 +12,11 @@ export type NarrativeCategory =
 
 export type MarketSectorCategory = 'all' | 'macro' | 'stocks' | 'metals' | 'crypto';
 export type ImpactLevel = 'BREAKING' | 'HIGH' | 'MEDIUM' | 'ALPHA';
+export type SocialPlatform = 'X' | 'Bluesky' | 'Telegram' | 'Mastodon';
 
 export interface XPostItem {
   id: string;
+  platform?: SocialPlatform;
   authorHandle: string;
   authorName: string;
   authorFollowers: number;
@@ -26,7 +28,7 @@ export interface XPostItem {
   impactLevel?: ImpactLevel;
   sector?: MarketSectorCategory;
   timestamp: number;
-  url: string;                    // Direct exact link to post on X (Twitter)
+  url: string;                    // Direct exact link to the original social post
   likes: number;
   reposts: number;
   replies: number;

@@ -6,16 +6,21 @@ import {
   StructuredAIInput,
   MoneyLineSignal,
   XTrendTopic,
+  XPostItem,
   NewsItem,
   MarketOverviewSummary,
-  EvidenceLink
+  EvidenceLink,
+  NewsSynthesisPayload,
+  NewsSynthesisSource
 } from '@money-scanner/shared';
 
 export class AIMarketAnalystService {
   private geminiApiKey?: string;
+  private geminiModel: string;
 
   constructor(geminiApiKey?: string) {
     this.geminiApiKey = geminiApiKey || process.env.GEMINI_API_KEY;
+    this.geminiModel = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
   }
 
   /**
@@ -792,6 +797,166 @@ export class AIMarketAnalystService {
       evidence,
       generatedAt: Date.now()
     };
+  }
+
+  /**
+   * Produces a grounded news/social synthesis. The model only receives source
+   * IDs and can only cite those IDs; URLs are reattached from verified server
+   * data after the response is validated.
+   */
+  public async generateNewsSynthesis(
+    news: NewsItem[],
+    socialPosts: XPostItem[],
+    language: 'ro' | 'en' = 'ro'
+  ): Promise<NewsSynthesisPayload> {
+    const newsInput = news.slice(0, 12).map(item => ({
+      id: `news:${item.id}`,
+      sourceType: 'News' as const,
+      publisher: item.source,
+      title: item.title,
+      summary: item.summary,
+      publishedAt: item.publishedAt
+    }));
+    const socialInput = socialPosts.slice(0, 10).map(post => ({
+      id: `social:${post.platform || 'X'}:${post.id}`,
+      sourceType: (post.platform || 'X') as 'X' | 'Bluesky' | 'Telegram' | 'Mastodon',
+      publisher: post.authorName || post.authorHandle,
+      title: post.text.slice(0, 180),
+      summary: post.text.slice(0, 500),
+      publishedAt: post.timestamp
+    }));
+    const inputs = [...newsInput, ...socialInput].sort((a, b) => b.publishedAt - a.publishedAt);
+
+    const sources: NewsSynthesisSource[] = [
+      ...newsInput.map(item => {
+        const original = news.find(candidate => `news:${candidate.id}` === item.id)!;
+        return {
+          id: item.id,
+          sourceType: 'News' as const,
+          title: item.title,
+          url: original.url,
+          publishedAt: item.publishedAt,
+          author: item.publisher
+        };
+      }),
+      ...socialInput.map(item => {
+        const original = socialPosts.find(candidate => `social:${candidate.platform || 'X'}:${candidate.id}` === item.id)!;
+        return {
+          id: item.id,
+          sourceType: item.sourceType,
+          title: item.title,
+          url: original.url,
+          publishedAt: item.publishedAt,
+          author: item.publisher
+        };
+      })
+    ];
+
+    const fallback = (): NewsSynthesisPayload => {
+      const selected = inputs.slice(0, 5);
+      return {
+        headline: language === 'en' ? 'Verified news and social snapshot' : 'Rezumat verificabil News & Social',
+        segments: selected.map(item => ({
+          text: language === 'en'
+            ? `${item.title} — source: ${item.publisher}.`
+            : `${item.title} — sursa: ${item.publisher}.`,
+          sourceIds: [item.id]
+        })),
+        sources: sources.filter(source => selected.some(item => item.id === source.id)),
+        generatedAt: Date.now(),
+        mode: 'deterministic',
+        language
+      };
+    };
+
+    if (!inputs.length || !this.geminiApiKey) return fallback();
+
+    try {
+      const prompt = [
+        language === 'en'
+          ? 'Create a concise market synthesis in English from the verified source bundle below.'
+          : 'Creează o sinteză de piață concisă în limba română folosind exclusiv pachetul de surse verificate de mai jos.',
+        'Rules:',
+        '- Every segment must cite one or more exact source IDs from the bundle.',
+        '- Do not invent facts, prices, percentages, URLs, people, posts, or source IDs.',
+        '- If sources disagree, state the disagreement.',
+        '- Prefer recent and specific developments; clearly distinguish fact from interpretation.',
+        '- Return 3 to 6 short segments. Each segment must be understandable when clicked independently.',
+        JSON.stringify(inputs)
+      ].join('\n');
+
+      const safeModel = /^[a-zA-Z0-9._-]+$/.test(this.geminiModel)
+        ? this.geminiModel
+        : 'gemini-3.5-flash-lite';
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${safeModel}:generateContent`,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-goog-api-key': this.geminiApiKey
+          },
+          signal: AbortSignal.timeout(20_000),
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              responseSchema: {
+                type: 'OBJECT',
+                required: ['headline', 'segments'],
+                properties: {
+                  headline: { type: 'STRING' },
+                  segments: {
+                    type: 'ARRAY',
+                    minItems: 3,
+                    maxItems: 6,
+                    items: {
+                      type: 'OBJECT',
+                      required: ['text', 'sourceIds'],
+                      properties: {
+                        text: { type: 'STRING' },
+                        sourceIds: { type: 'ARRAY', items: { type: 'STRING' }, minItems: 1 }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          })
+        }
+      );
+      if (!response.ok) throw new Error(`Gemini HTTP ${response.status}`);
+
+      const body = await response.json() as any;
+      const rawText = body?.candidates?.[0]?.content?.parts
+        ?.map((part: any) => typeof part?.text === 'string' ? part.text : '')
+        .join('') || '';
+      const parsed = JSON.parse(rawText);
+      const sourceIds = new Set(sources.map(source => source.id));
+      const segments = (Array.isArray(parsed?.segments) ? parsed.segments : [])
+        .map((segment: any) => ({
+          text: String(segment?.text || '').trim().slice(0, 700),
+          sourceIds: (Array.isArray(segment?.sourceIds) ? segment.sourceIds : [])
+            .map(String)
+            .filter((id: string, index: number, list: string[]) => sourceIds.has(id) && list.indexOf(id) === index)
+        }))
+        .filter((segment: { text: string; sourceIds: string[] }) => segment.text.length > 15 && segment.sourceIds.length > 0)
+        .slice(0, 6);
+      if (segments.length < 2) throw new Error('Gemini response did not contain grounded segments');
+
+      const cited = new Set(segments.flatMap((segment: { sourceIds: string[] }) => segment.sourceIds));
+      return {
+        headline: String(parsed?.headline || fallback().headline).trim().slice(0, 180),
+        segments,
+        sources: sources.filter(source => cited.has(source.id)),
+        generatedAt: Date.now(),
+        mode: 'ai',
+        model: safeModel,
+        language
+      };
+    } catch {
+      return fallback();
+    }
   }
 
   /**

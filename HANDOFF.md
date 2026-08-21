@@ -523,6 +523,7 @@ Rough implementation estimate: four to six weeks for the functional MVP, followe
 | **Step 51** | `apps/web` | **Scanner ML Columns Prioritized After Price** (Moved ML 1D and ML 1W immediately after the Price column in both the sortable header and every data row, ahead of 24h and YTD performance, with browser verification of exact header/cell alignment.) | **Completed** | `d5c81a9` |
 | **Step 52** | `apps/web`, `apps/api` | **Persistent RO/EN Interface & Cache-Safe Delivery** (Added a global language selector beside Alert with persistent Romanian/English choice across the complete interface, renamed narrative performance to `Medie 24h` / `24h Average`, localized the AI briefing date and prompts, and configured non-cacheable SPA HTML with immutable hashed assets so new deployments appear immediately.) | **Completed** | `162efef` |
 | **Step 53** | `apps/web` | **Official TradingView + MoneyLine Integration & Flip Threshold Line** (Made the official TradingView chart the default asset view with its native left drawing-tools panel, automatically loaded native Supertrend plus SMA 200, synchronized the widget locale with RO/EN, exposed the exact MoneyLine BUY/SELL threshold beside the official chart, and replaced the circular flip marker in MoneyLine Cloud with a horizontal in-chart line and value label.) | **Completed** | `f340f26` |
+| **Step 54** | `apps/web`, `apps/api`, `packages/ai-analysis`, `packages/social-analysis`, `packages/shared` | **Grounded News & Social Synthesis** (Added a News Feed synthesis whose claims link to exact verified RSS/social sources, optional Gemini generation with strict server-side source-ID validation, deterministic zero-key fallback, free Bluesky public search ingestion, public `t.me/s` channel preview ingestion with exact message permalinks, and allowlisted Telegram webhook ingestion for owned channels.) | **Completed locally; deployment pending** | — |
 
 ---
 
@@ -554,6 +555,14 @@ npm run build
 # Start production API server
 npm start
 ```
+
+### News & Social Intelligence configuration
+
+- Keep `GEMINI_API_KEY` server-side only (Google Secret Manager in production). If absent, the News Feed uses the deterministic source-linked summary.
+- `GEMINI_MODEL` defaults to `gemini-3.5-flash-lite`.
+- `BLUESKY_SEARCH_QUERIES` is an optional comma-separated list of public Bluesky searches.
+- `TELEGRAM_SOURCE_CHANNELS` is a required comma-separated allowlist before public Telegram channel posts are accepted by the webhook.
+- Keep `TELEGRAM_BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` server-side only.
 
 ---
 

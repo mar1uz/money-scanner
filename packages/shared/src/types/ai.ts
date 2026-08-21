@@ -4,10 +4,36 @@ import { XTrendTopic } from './social.js';
 import { NewsItem } from './news.js';
 
 export interface EvidenceLink {
-  sourceType: 'MarketData' | 'MoneyLine' | 'XTrend' | 'News' | 'OnChain';
+  sourceType: 'MarketData' | 'MoneyLine' | 'XTrend' | 'News' | 'OnChain' | 'Bluesky' | 'Telegram' | 'Mastodon';
   title: string;
   url?: string;
   timestamp: number;
+}
+
+export type NewsSynthesisSourceType = 'News' | 'X' | 'Bluesky' | 'Telegram' | 'Mastodon';
+
+export interface NewsSynthesisSource {
+  id: string;
+  sourceType: NewsSynthesisSourceType;
+  title: string;
+  url: string;
+  publishedAt: number;
+  author?: string;
+}
+
+export interface NewsSynthesisSegment {
+  text: string;
+  sourceIds: string[];
+}
+
+export interface NewsSynthesisPayload {
+  headline: string;
+  segments: NewsSynthesisSegment[];
+  sources: NewsSynthesisSource[];
+  generatedAt: number;
+  mode: 'ai' | 'deterministic';
+  model?: string;
+  language: 'ro' | 'en';
 }
 
 export interface AIAnalysisPayload {

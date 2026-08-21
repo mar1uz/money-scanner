@@ -1,8 +1,41 @@
 import { Router } from 'express';
 import { AppState } from '../services/app-state.js';
-import { MoneyLineSignal } from '@money-scanner/shared';
+import { MoneyLineSignal, NewsCategory, NewsSynthesisPayload } from '@money-scanner/shared';
 
 export const aiRouter = Router();
+
+const synthesisCache = new Map<string, { payload: NewsSynthesisPayload; updatedAt: number }>();
+const SYNTHESIS_CACHE_MS = 5 * 60_000;
+
+aiRouter.get('/news/synthesis', async (req, res) => {
+  try {
+    const language: 'ro' | 'en' = req.query.language === 'en' ? 'en' : 'ro';
+    const category = req.query.category && req.query.category !== 'ALL'
+      ? req.query.category as NewsCategory
+      : undefined;
+    const cacheKey = `${language}:${category || 'ALL'}`;
+    const cached = synthesisCache.get(cacheKey);
+    if (cached && Date.now() - cached.updatedAt < SYNTHESIS_CACHE_MS) {
+      return res.json(cached.payload);
+    }
+
+    const appState = AppState.getInstance();
+    await Promise.all([
+      appState.news.fetchLiveNews(),
+      appState.social.refreshFreeSources()
+    ]);
+    const news = appState.news.getLatestNews(20, category);
+    const socialPosts = appState.social.getRecentVerifiedPosts()
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, 20);
+    const payload = await appState.ai.generateNewsSynthesis(news, socialPosts, language);
+    synthesisCache.set(cacheKey, { payload, updatedAt: Date.now() });
+    res.set('Cache-Control', 'public, max-age=60');
+    res.json(payload);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to generate grounded news synthesis', details: err.message });
+  }
+});
 
 aiRouter.get('/ai/briefing', async (req, res) => {
   try {

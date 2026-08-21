@@ -59,6 +59,74 @@ describe('Social & News Intelligence Engine', () => {
     assert.ok(btcTopic.velocityScore >= 0);
   });
 
+  it('ingests only allow-listed public Telegram channel posts with exact links', () => {
+    const social = new XSocialIntelligenceService();
+    const update = {
+      channel_post: {
+        message_id: 42,
+        date: Math.floor(Date.now() / 1000),
+        chat: { id: -100123, username: 'marketalpha', title: 'Market Alpha' },
+        text: 'Bitcoin and $ETH volume expanded after the market open.'
+      }
+    };
+
+    assert.equal(social.ingestTelegramUpdate(update, 'otherchannel'), false);
+    assert.equal(social.ingestTelegramUpdate(update, '@marketalpha'), true);
+    const [post] = social.getRecentVerifiedPosts();
+    assert.equal(post.platform, 'Telegram');
+    assert.equal(post.url, 'https://t.me/marketalpha/42');
+    assert.ok(post.mentionedSymbols.includes('BTC'));
+    assert.ok(post.mentionedSymbols.includes('ETH'));
+  });
+
+  it('parses recent posts from a public Telegram preview with exact permalinks', () => {
+    const social = new XSocialIntelligenceService();
+    const publishedAt = new Date(Date.now() - 60_000).toISOString();
+    const html = `
+      <div class="tgme_widget_message_wrap js-widget_message_wrap">
+        <div class="tgme_widget_message js-widget_message" data-post="cointelegraph/71726">
+          <a class="tgme_widget_message_owner_name"><span dir="auto">Cointelegraph</span></a>
+          <div class="tgme_widget_message_text js-message_text" dir="auto">
+            <b>MARKETS:</b> Bitcoin and $NVDA moved higher after the US market open.<br/>Gold consolidated.
+          </div>
+          <a class="tgme_widget_message_date"><time datetime="${publishedAt}">now</time></a>
+        </div>
+      </div>`;
+
+    assert.equal(social.ingestTelegramPublicPage('cointelegraph', html), 1);
+    const [post] = social.getRecentVerifiedPosts();
+    assert.equal(post.platform, 'Telegram');
+    assert.equal(post.url, 'https://t.me/cointelegraph/71726');
+    assert.equal(post.authorName, 'Cointelegraph');
+    assert.ok(post.mentionedSymbols.includes('BTC'));
+    assert.ok(post.mentionedSymbols.includes('NVDA'));
+    assert.ok(post.mentionedSymbols.includes('XAU'));
+  });
+
+  it('accepts verified-shape Bluesky post URLs without treating them as X URLs', () => {
+    const social = new XSocialIntelligenceService();
+    const accepted = social.ingestPost({
+      id: 'bsky_fixture',
+      platform: 'Bluesky',
+      authorHandle: 'analyst.bsky.social',
+      authorName: 'Analyst',
+      authorFollowers: 5000,
+      authorVerified: false,
+      authorCredibilityScore: 0,
+      text: 'Bitcoin liquidity improved while gold consolidated.',
+      timestamp: Date.now(),
+      url: 'https://bsky.app/profile/analyst.bsky.social/post/3fixture',
+      likes: 20,
+      reposts: 4,
+      replies: 2,
+      isSpamProbability: 0,
+      mentionedSymbols: ['BTC', 'XAU']
+    });
+
+    assert.equal(accepted, true);
+    assert.equal(social.getRecentVerifiedPosts()[0].platform, 'Bluesky');
+  });
+
   it('aggregates news, prevents duplicates and categorizes accurately', () => {
     const newsService = new NewsIntelligenceService();
     const initialCount = newsService.getLatestNews().length;

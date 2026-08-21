@@ -4,9 +4,10 @@ import { NewsCategory } from '@money-scanner/shared';
 
 export const socialNewsRouter = Router();
 
-socialNewsRouter.get('/social/trends', (req, res) => {
+socialNewsRouter.get('/social/trends', async (req, res) => {
   try {
     const appState = AppState.getInstance();
+    await appState.social.refreshFreeSources();
     const trends = appState.social.getTrendingTopics();
     res.json(trends);
   } catch (err: any) {
@@ -14,9 +15,10 @@ socialNewsRouter.get('/social/trends', (req, res) => {
   }
 });
 
-socialNewsRouter.get('/social/posts', (req, res) => {
+socialNewsRouter.get('/social/posts', async (req, res) => {
   try {
     const appState = AppState.getInstance();
+    await appState.social.refreshFreeSources();
     const posts = appState.social.getRecentVerifiedPosts();
     res.json(posts);
   } catch (err: any) {
@@ -24,12 +26,13 @@ socialNewsRouter.get('/social/posts', (req, res) => {
   }
 });
 
-socialNewsRouter.get('/news', (req, res) => {
+socialNewsRouter.get('/news', async (req, res) => {
   try {
     const category = req.query.category as NewsCategory | undefined;
     const limit = parseInt(req.query.limit as string) || 20;
 
     const appState = AppState.getInstance();
+    await appState.news.fetchLiveNews();
     const news = appState.news.getLatestNews(limit, category);
     res.json(news);
   } catch (err: any) {

@@ -119,4 +119,32 @@ describe('AI Market Analyst Engine', () => {
     assert.ok(explanation.keySupportResistance.resistanceLevels[0] > 152.5);
     assert.ok(explanation.evidence.length > 0);
   });
+
+  it('builds a deterministic cited news synthesis when no AI key is configured', async () => {
+    const previousKey = process.env.GEMINI_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+    try {
+      const analyst = new AIMarketAnalystService();
+      const synthesis = await analyst.generateNewsSynthesis([
+        {
+          id: 'real_story',
+          title: 'Bitcoin market liquidity improves',
+          summary: 'Verified market report.',
+          source: 'Example News',
+          url: 'https://example.com/bitcoin-liquidity',
+          publishedAt: Date.now(),
+          category: 'General',
+          mentionedSymbols: ['BTC']
+        }
+      ], [], 'ro');
+
+      assert.equal(synthesis.mode, 'deterministic');
+      assert.equal(synthesis.segments.length, 1);
+      assert.deepEqual(synthesis.segments[0].sourceIds, ['news:real_story']);
+      assert.equal(synthesis.sources[0].url, 'https://example.com/bitcoin-liquidity');
+    } finally {
+      if (previousKey === undefined) delete process.env.GEMINI_API_KEY;
+      else process.env.GEMINI_API_KEY = previousKey;
+    }
+  });
 });
