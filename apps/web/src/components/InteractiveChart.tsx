@@ -65,6 +65,14 @@ export interface ChartDrawing {
   color?: string;
 }
 
+const formatFlipPrice = (price: number): string => {
+  const maximumFractionDigits = price >= 1000 ? 2 : price >= 1 ? 4 : 8;
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: price >= 1000 ? 2 : 0,
+    maximumFractionDigits
+  }).format(price);
+};
+
 // Exact MoneyLine Overlay Force v1 Mathematical Computation
 export function calculateMoneyLineForce(candles: Candle[], timeframe: string) {
   if (!candles || candles.length === 0) {
@@ -514,7 +522,6 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
           position: 'belowBar',
           color: '#10b981',
           shape: 'arrowUp',
-          text: 'BUY',
           size: 2
         });
       } else if (moneyLine.sellSignals[idx]) {
@@ -523,7 +530,6 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
           position: 'aboveBar',
           color: '#f43f5e',
           shape: 'arrowDown',
-          text: 'SELL',
           size: 2
         });
       }
@@ -531,6 +537,29 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
 
     if (markers.length > 0) {
       createSeriesMarkers(candleSeries, markers);
+    }
+
+    // Exact asset price at every MoneyLine flip, anchored directly to the
+    // slow MoneyLine curve. This intentionally does not create a horizontal
+    // price line or a label on either lateral price scale.
+    const flipPriceMarkers: any[] = [];
+    candles.forEach((c, idx) => {
+      const isBuyFlip = moneyLine.buySignals[idx];
+      const isSellFlip = moneyLine.sellSignals[idx];
+      if (!isBuyFlip && !isSellFlip) return;
+
+      flipPriceMarkers.push({
+        time: Math.floor(c.timestamp / 1000) + idx * 60,
+        position: 'inBar',
+        color: isBuyFlip ? '#10b981' : '#f43f5e',
+        shape: 'circle',
+        text: `${isBuyFlip ? 'BUY' : 'SELL'} @ ${formatFlipPrice(c.close)}`,
+        size: 1.5
+      });
+    });
+
+    if (flipPriceMarkers.length > 0) {
+      createSeriesMarkers(slowLineSeries, flipPriceMarkers);
     }
 
     // Set latest state for summary header

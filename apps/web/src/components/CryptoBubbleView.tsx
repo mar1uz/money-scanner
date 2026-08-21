@@ -26,25 +26,6 @@ const formatPrice = (value: number) => new Intl.NumberFormat('en-US', {
   style: 'currency', currency: 'USD', maximumFractionDigits: value < 1 ? 4 : 2
 }).format(value);
 
-// A stable pseudo-random position keeps the cloud lively without making a coin
-// jump to another place whenever React re-renders or the user changes timeframe.
-const bubblePosition = (id: string) => {
-  let first = 2166136261;
-  let second = 5381;
-  for (let index = 0; index < id.length; index += 1) {
-    const code = id.charCodeAt(index);
-    first = Math.imul(first ^ code, 16777619);
-    second = Math.imul(second ^ code, 33);
-  }
-  const toPercent = (value: number) => ((value >>> 0) % 10_000) / 10_000;
-
-  // Keep bubbles away from the edge, even at their largest size.
-  return {
-    left: 7 + toPercent(first) * 86,
-    top: 6 + toPercent(second) * 88
-  };
-};
-
 export const CryptoBubbleView: React.FC<CryptoBubbleViewProps> = ({ onSelectAsset }) => {
   const [timeframe, setTimeframe] = useState<CryptoBubbleTimeframe>('1d');
   const [coins, setCoins] = useState<CryptoBubbleAsset[]>([]);
@@ -125,16 +106,15 @@ export const CryptoBubbleView: React.FC<CryptoBubbleViewProps> = ({ onSelectAsse
         </div>
       )}
 
-      <div className="crypto-bubble-canvas relative min-h-[1180px] overflow-hidden rounded-2xl border border-white/[0.06] bg-[radial-gradient(circle_at_50%_0%,rgba(192,38,211,0.10),transparent_42%),linear-gradient(135deg,rgba(15,20,32,0.95),rgba(7,10,19,0.95))] sm:min-h-[940px] lg:min-h-[760px]">
+      <div className="crypto-bubble-canvas min-h-[760px] overflow-hidden rounded-2xl border border-white/[0.06] bg-[radial-gradient(circle_at_50%_0%,rgba(192,38,211,0.10),transparent_42%),linear-gradient(135deg,rgba(15,20,32,0.95),rgba(7,10,19,0.95))]">
         {loading && coins.length === 0 ? (
           <div className="flex min-h-[540px] items-center justify-center gap-3 text-sm font-mono text-slate-400"><RefreshCw className="h-5 w-5 animate-spin text-fuchsia-400" />Se încarcă top 100...</div>
         ) : (
-          <div className="absolute inset-0">
+          <div className="flex min-h-[760px] flex-wrap content-center items-center justify-center gap-3 p-4 sm:gap-4 sm:p-6">
             {coins.map((coin) => {
               const positive = (coin.change ?? 0) >= 0;
               // The circle area, not merely its diameter, follows the market cap.
               const size = Math.round(66 + Math.sqrt(coin.marketCap / maxMarketCap) * 154);
-              const position = bubblePosition(coin.id);
               return (
                 <button
                   key={coin.id}
@@ -143,12 +123,9 @@ export const CryptoBubbleView: React.FC<CryptoBubbleViewProps> = ({ onSelectAsse
                   style={{
                     width: size,
                     height: size,
-                    left: `${position.left}%`,
-                    top: `${position.top}%`,
-                    translate: '-50% -50%',
-                    zIndex: Math.max(1, 101 - (coin.rank || 100))
+                    flex: `0 0 ${size}px`
                   }}
-                  className={`crypto-bubble absolute flex flex-col items-center justify-center overflow-hidden rounded-full border p-2 text-center transition-[transform,box-shadow] duration-200 hover:z-[110] hover:scale-110 hover:shadow-[0_0_28px_rgba(232,121,249,0.32)] focus:z-[110] focus:outline-none focus:ring-2 focus:ring-fuchsia-300 ${
+                  className={`crypto-bubble relative flex flex-col items-center justify-center overflow-hidden rounded-full border p-2 text-center transition-[box-shadow,border-color] duration-200 hover:shadow-[0_0_28px_rgba(232,121,249,0.32)] focus:outline-none focus:ring-2 focus:ring-fuchsia-300 ${
                     coin.change === null
                       ? 'border-slate-500/30 bg-slate-500/10 text-slate-300'
                       : positive
