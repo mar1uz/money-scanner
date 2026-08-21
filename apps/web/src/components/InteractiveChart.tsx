@@ -172,7 +172,10 @@ export function calculateMoneyLineForce(candles: Candle[], timeframe: string) {
       }
 
       const val = currentDir === -1 ? lowerBand : upperBand;
-      line.push(Number(val.toFixed(2)));
+      // Keep the full computed precision here. Formatting belongs to the UI;
+      // rounding the indicator itself would make flip thresholds wrong for
+      // low-priced assets.
+      line.push(val);
       dir.push(currentDir);
     }
 
@@ -192,7 +195,7 @@ export function calculateMoneyLineForce(candles: Candle[], timeframe: string) {
       sumClose += candles[j].close;
     }
     const count = i - windowStart + 1;
-    sma200.push(Number((sumClose / count).toFixed(2)));
+    sma200.push(sumClose / count);
   }
 
   // Buy & Sell signal identification (ta.change(dirSlow))
@@ -403,7 +406,10 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       timeScale: {
         borderColor: '#1e293b',
         timeVisible: true,
-        secondsVisible: false
+        secondsVisible: false,
+        // Keep room after the latest candle so the live flip-threshold label
+        // remains fully visible on desktop and narrow mobile charts.
+        rightOffset: 8
       }
     });
 
@@ -539,31 +545,36 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       createSeriesMarkers(candleSeries, markers);
     }
 
-    // Exact asset price at every MoneyLine flip, anchored directly to the
-    // slow MoneyLine curve. This intentionally does not create a horizontal
-    // price line or a label on either lateral price scale.
-    const flipPriceMarkers: any[] = [];
-    candles.forEach((c, idx) => {
-      const isBuyFlip = moneyLine.buySignals[idx];
-      const isSellFlip = moneyLine.sellSignals[idx];
-      if (!isBuyFlip && !isSellFlip) return;
+    // The active slow Supertrend band is the exact close-price threshold for
+    // the next flip. In a bearish regime a candle must close above it for BUY;
+    // in a bullish regime it must close below it for SELL. Anchor this label
+    // to the latest point of the MoneyLine itself so every timeframe shows its
+    // own live threshold without adding a lateral price-scale label.
+    const flipThresholdMarkers: any[] = [];
+    const lastIdx = candles.length - 1;
+    if (lastIdx >= 0) {
+      const threshold = moneyLine.lineSlow[lastIdx];
+      const isNextBuy = moneyLine.dirSlow[lastIdx] === 1;
 
-      flipPriceMarkers.push({
-        time: Math.floor(c.timestamp / 1000) + idx * 60,
-        position: 'inBar',
-        color: isBuyFlip ? '#10b981' : '#f43f5e',
-        shape: 'circle',
-        text: `${isBuyFlip ? 'BUY' : 'SELL'} @ ${formatFlipPrice(c.close)}`,
-        size: 1.5
-      });
-    });
+      if (Number.isFinite(threshold) && threshold > 0) {
+        flipThresholdMarkers.push({
+          time: Math.floor(candles[lastIdx].timestamp / 1000) + lastIdx * 60,
+          position: 'inBar',
+          color: isNextBuy ? '#34d399' : '#fb7185',
+          shape: 'circle',
+          // Put the operator and value first so the essential threshold stays
+          // readable even on very narrow charts.
+          text: `${isNextBuy ? '>' : '<'} ${formatFlipPrice(threshold)} · ${isNextBuy ? 'BUY' : 'SELL'} FLIP`,
+          size: 2
+        });
+      }
+    }
 
-    if (flipPriceMarkers.length > 0) {
-      createSeriesMarkers(slowLineSeries, flipPriceMarkers);
+    if (flipThresholdMarkers.length > 0) {
+      createSeriesMarkers(slowLineSeries, flipThresholdMarkers);
     }
 
     // Set latest state for summary header
-    const lastIdx = candles.length - 1;
     if (lastIdx >= 0) {
       const isBullFast = moneyLine.dirFast[lastIdx] < 0;
       const isBullSlow = moneyLine.dirSlow[lastIdx] < 0;
@@ -579,6 +590,10 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     }
 
     chart.timeScale().fitContent();
+    chart.timeScale().applyOptions({
+      rightOffset: 8,
+      rightOffsetPixels: Math.min(120, Math.max(88, container.clientWidth * 0.18))
+    });
 
     // Subscribe to pan/zoom changes to keep SVG drawings locked to chart coordinates
     chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
