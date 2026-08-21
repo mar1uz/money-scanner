@@ -494,28 +494,6 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                 </div>
               </th>
 
-              {/* 24h Change Header */}
-              <th
-                onClick={() => handleSort('change24h')}
-                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
-              >
-                <div className="flex items-center gap-1.5">
-                  <span>Var. 24h</span>
-                  {renderSortIcon('change24h')}
-                </div>
-              </th>
-
-              {/* YTD % Change Header */}
-              <th
-                onClick={() => handleSort('changeYtd')}
-                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
-              >
-                <div className="flex items-center gap-1.5">
-                  <span>YTD %</span>
-                  {renderSortIcon('changeYtd')}
-                </div>
-              </th>
-
               {/* ML 1D (Daily Flip & %) Header */}
               <th
                 onClick={() => handleSort('moneyLine1dPercent')}
@@ -535,6 +513,28 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                 <div className="flex items-center gap-1.5">
                   <span>ML 1W</span>
                   {renderSortIcon('moneyLine1wPercent')}
+                </div>
+              </th>
+
+              {/* 24h Change Header */}
+              <th
+                onClick={() => handleSort('change24h')}
+                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>Var. 24h</span>
+                  {renderSortIcon('change24h')}
+                </div>
+              </th>
+
+              {/* YTD % Change Header */}
+              <th
+                onClick={() => handleSort('changeYtd')}
+                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>YTD %</span>
+                  {renderSortIcon('changeYtd')}
                 </div>
               </th>
 
@@ -699,30 +699,6 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                       ${row.price < 1 ? row.price.toFixed(4) : row.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
 
-                    {/* 24h Change */}
-                    <td className="py-3.5 px-4 font-mono">
-                      <span className={`inline-flex items-center gap-0.5 font-bold ${
-                        isPositiveChange ? 'text-emerald-400' : 'text-rose-400'
-                      }`}>
-                        {isPositiveChange ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
-                        {isPositiveChange ? `+${row.change24h}%` : `${row.change24h}%`}
-                      </span>
-                    </td>
-
-                    {/* YTD % */}
-                    <td className="py-3.5 px-4 font-mono">
-                      {row.changeYtd !== undefined ? (
-                        <span className={`inline-flex items-center gap-0.5 font-bold ${
-                          row.changeYtd >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                        }`}>
-                          {row.changeYtd >= 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
-                          {row.changeYtd >= 0 ? `+${row.changeYtd}%` : `${row.changeYtd}%`}
-                        </span>
-                      ) : (
-                        <span className="text-slate-500">-</span>
-                      )}
-                    </td>
-
                     {/* ML 1D: De când este flip pe daily + Procentul dedesubt */}
                     <td className="py-3.5 px-4 font-mono">
                       <div className="flex flex-col gap-0.5">
@@ -807,6 +783,30 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                           )}
                         </div>
                       </div>
+                    </td>
+
+                    {/* 24h Change */}
+                    <td className="py-3.5 px-4 font-mono">
+                      <span className={`inline-flex items-center gap-0.5 font-bold ${
+                        isPositiveChange ? 'text-emerald-400' : 'text-rose-400'
+                      }`}>
+                        {isPositiveChange ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
+                        {isPositiveChange ? `+${row.change24h}%` : `${row.change24h}%`}
+                      </span>
+                    </td>
+
+                    {/* YTD % */}
+                    <td className="py-3.5 px-4 font-mono">
+                      {row.changeYtd !== undefined ? (
+                        <span className={`inline-flex items-center gap-0.5 font-bold ${
+                          row.changeYtd >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                        }`}>
+                          {row.changeYtd >= 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
+                          {row.changeYtd >= 0 ? `+${row.changeYtd}%` : `${row.changeYtd}%`}
+                        </span>
+                      ) : (
+                        <span className="text-slate-500">-</span>
+                      )}
                     </td>
 
                     {/* Market Cap Column */}
