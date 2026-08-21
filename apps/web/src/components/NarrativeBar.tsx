@@ -133,16 +133,19 @@ export const NarrativeBar: React.FC<NarrativeBarProps> = ({
               </div>
 
               {/* Card Bottom: % Performance Badge + Inspect Button */}
-              <div className="pt-2 border-t border-white/[0.04] flex items-center justify-between gap-1">
-                <div className={`flex items-center gap-1 font-mono text-xs font-bold ${
-                  isPositive ? 'text-emerald-400' : 'text-rose-400'
-                }`}>
-                  {isPositive ? (
-                    <TrendingUp className="w-3 h-3" />
-                  ) : (
-                    <TrendingDown className="w-3 h-3" />
-                  )}
-                  <span>{isPositive ? `+${n.avgChange24h}%` : `${n.avgChange24h}%`}</span>
+              <div className="pt-2 border-t border-white/[0.04] flex items-end justify-between gap-1">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[8px] uppercase tracking-wide font-mono text-slate-500">Medie 24h</span>
+                  <div className={`flex items-center gap-1 font-mono text-xs font-bold ${
+                    isPositive ? 'text-emerald-400' : 'text-rose-400'
+                  }`}>
+                    {isPositive ? (
+                      <TrendingUp className="w-3 h-3" />
+                    ) : (
+                      <TrendingDown className="w-3 h-3" />
+                    )}
+                    <span>{isPositive ? `+${n.avgChange24h}%` : `${n.avgChange24h}%`}</span>
+                  </div>
                 </div>
 
                 <button

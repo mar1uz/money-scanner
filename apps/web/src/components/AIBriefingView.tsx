@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { AIAnalysisPayload, XPostItem } from '../types.js';
 import { fetchAIBriefing, askAIAnalyst, fetchXPosts } from '../services/api.js';
+import { useLanguage } from '../i18n.js';
 import {
   BrainCircuit,
   Sparkles,
@@ -108,6 +109,7 @@ const inspirationQuestions = [
 
 /* ─── Main Component ─── */
 export const AIBriefingView: React.FC = () => {
+  const { language } = useLanguage();
   // Chat state
   const [chats, setChats] = useState<SavedChat[]>(() => loadChats());
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -120,6 +122,15 @@ export const AIBriefingView: React.FC = () => {
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const localizedHeading = `## 📊 ${language === 'en' ? 'Market Summary' : 'Sinteză de Piață'} — ${new Date().toLocaleDateString(language === 'en' ? 'en-US' : 'ro-RO', { weekday: 'long', day: 'numeric', month: 'long' })}`;
+    setMessages(current => current.map(message => (
+      message.id === 'briefing_auto'
+        ? { ...message, text: message.text.replace(/^## 📊 .*$/m, localizedHeading) }
+        : message
+    )));
+  }, [language]);
 
   // Load X posts once
   useEffect(() => {
@@ -138,7 +149,7 @@ export const AIBriefingView: React.FC = () => {
 
     fetchAIBriefing().then((briefing: AIAnalysisPayload) => {
       const summaryParts = [
-        `## 📊 Sinteză de Piață — ${new Date().toLocaleDateString('ro-RO', { weekday: 'long', day: 'numeric', month: 'long' })}`,
+        `## 📊 ${language === 'en' ? 'Market Summary' : 'Sinteză de Piață'} — ${new Date().toLocaleDateString(language === 'en' ? 'en-US' : 'ro-RO', { weekday: 'long', day: 'numeric', month: 'long' })}`,
         '',
         briefing.executiveSummary,
         '',
@@ -172,7 +183,7 @@ export const AIBriefingView: React.FC = () => {
         timestamp: Date.now()
       }]);
     });
-  }, [briefingLoaded, xPostsCache]);
+  }, [briefingLoaded, xPostsCache, language]);
 
   // Persist chats to localStorage
   const persistChat = useCallback((chatId: string, msgs: ChatMessage[]) => {
@@ -201,7 +212,7 @@ export const AIBriefingView: React.FC = () => {
     // Re-trigger briefing load
     fetchAIBriefing().then((briefing) => {
       const summaryParts = [
-        `## 📊 Sinteză de Piață — ${new Date().toLocaleDateString('ro-RO', { weekday: 'long', day: 'numeric', month: 'long' })}`,
+        `## 📊 ${language === 'en' ? 'Market Summary' : 'Sinteză de Piață'} — ${new Date().toLocaleDateString(language === 'en' ? 'en-US' : 'ro-RO', { weekday: 'long', day: 'numeric', month: 'long' })}`,
         '',
         briefing.executiveSummary,
         '',

@@ -42,11 +42,22 @@ export function createServer() {
   let webDistPath = possibleWebDistPaths.find(p => fs.existsSync(p));
 
   if (webDistPath) {
-    app.use(express.static(webDistPath));
+    app.use(express.static(webDistPath, {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('index.html')) {
+          // The HTML entrypoint must always revalidate so users immediately
+          // receive the newest hashed JS/CSS bundle after a deployment.
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+        } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+      }
+    }));
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api')) {
         return next();
       }
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.sendFile(path.join(webDistPath!, 'index.html'));
     });
   }

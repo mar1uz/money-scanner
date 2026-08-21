@@ -9,10 +9,14 @@ import {
   Star,
   RefreshCw,
   CornerDownLeft,
-  BellRing
+  BellRing,
+  Languages,
+  ChevronDown,
+  Check
 } from 'lucide-react';
 import { Timeframe, AssetScannerRow } from '../types.js';
 import { buildSearchUniverse, performAISearchMatch, SearchMatchResult } from '../services/ai-search.js';
+import { useLanguage, Language } from '../i18n.js';
 
 interface HeaderProps {
   timeframe: Timeframe;
@@ -48,10 +52,13 @@ export const Header: React.FC<HeaderProps> = ({
   hasSidebar = false
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isLanguageOpen, setIsLanguageOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState<number>(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const languageRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const { language, setLanguage } = useLanguage();
 
   // Build semantic searchable asset universe
   const searchUniverse = useMemo(() => buildSearchUniverse(allAssets), [allAssets]);
@@ -127,6 +134,9 @@ export const Header: React.FC<HeaderProps> = ({
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsDropdownOpen(false);
+      }
+      if (languageRef.current && !languageRef.current.contains(event.target as Node)) {
+        setIsLanguageOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -412,6 +422,46 @@ export const Header: React.FC<HeaderProps> = ({
             <span>Alert</span>
           </button>
         )}
+
+        {/* Persistent language selector */}
+        <div ref={languageRef} className="relative shrink-0">
+          <button
+            onClick={() => setIsLanguageOpen(open => !open)}
+            title={language === 'ro' ? 'Schimbă limba' : 'Change language'}
+            aria-label={language === 'ro' ? 'Schimbă limba' : 'Change language'}
+            aria-expanded={isLanguageOpen}
+            className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 text-[10px] sm:text-[11px] font-mono font-bold text-slate-300 hover:text-cyan-300 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] rounded-xl transition-all"
+          >
+            <Languages className="w-3.5 h-3.5 text-cyan-400" />
+            <span>{language.toUpperCase()}</span>
+            <ChevronDown className={`w-3 h-3 transition-transform ${isLanguageOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {isLanguageOpen && (
+            <div className="absolute right-0 top-full mt-2 min-w-[150px] overflow-hidden rounded-xl border border-cyan-500/30 bg-[#090e1a] shadow-2xl z-50 animate-fade-in">
+              {([
+                { id: 'ro' as Language, label: 'Română' },
+                { id: 'en' as Language, label: 'English' }
+              ]).map(option => (
+                <button
+                  key={option.id}
+                  onClick={() => {
+                    setLanguage(option.id);
+                    setIsLanguageOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 text-xs font-mono transition-colors ${
+                    language === option.id
+                      ? 'bg-cyan-500/15 text-cyan-200'
+                      : 'text-slate-300 hover:bg-white/[0.05] hover:text-white'
+                  }`}
+                >
+                  <span>{option.label}</span>
+                  {language === option.id && <Check className="w-3.5 h-3.5 text-cyan-400" />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );
