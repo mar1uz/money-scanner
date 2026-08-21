@@ -36,6 +36,7 @@ import {
   ArrowDownCircle,
   MoveVertical
 } from 'lucide-react';
+import { useLanguage } from '../i18n.js';
 
 interface InteractiveChartProps {
   candles: Candle[];
@@ -73,6 +74,14 @@ const formatFlipPrice = (price: number): string => {
   }).format(price);
 };
 
+const getMoneyLineParameters = (timeframe: string) => {
+  const tf = timeframe.toLowerCase();
+  if (tf === '1h') return { fastFactor: 2.2, slowFactor: 3.0, atrLength: 12 };
+  if (tf === '4h' || tf === '1d') return { fastFactor: 2.5, slowFactor: 3.5, atrLength: 10 };
+  if (tf === '1w' || tf === '1m') return { fastFactor: 2.8, slowFactor: 3.8, atrLength: 10 };
+  return { fastFactor: 2.0, slowFactor: 3.0, atrLength: 10 };
+};
+
 // Exact MoneyLine Overlay Force v1 Mathematical Computation
 export function calculateMoneyLineForce(candles: Candle[], timeframe: string) {
   if (!candles || candles.length === 0) {
@@ -89,24 +98,11 @@ export function calculateMoneyLineForce(candles: Candle[], timeframe: string) {
   }
 
   // --- Parametri Adaptabili (Logică Cloud) ---
-  let f_fast = 2.0;
-  let f_slow = 3.0;
-  let atr_len = 10;
-
-  const tf = timeframe.toLowerCase();
-  if (tf === '1h') {
-    f_fast = 2.2;
-    f_slow = 3.0;
-    atr_len = 12;
-  } else if (tf === '4h' || tf === '1d') {
-    f_fast = 2.5;
-    f_slow = 3.5;
-    atr_len = 10;
-  } else if (tf === '1w' || tf === '1m') {
-    f_fast = 2.8;
-    f_slow = 3.8;
-    atr_len = 10;
-  }
+  const {
+    fastFactor: f_fast,
+    slowFactor: f_slow,
+    atrLength: atr_len
+  } = getMoneyLineParameters(timeframe);
 
   // Calculate True Range and Wilder's RMA ATR
   const tr: number[] = [];
@@ -231,13 +227,14 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   timeframe,
   onTimeframeChange
 }) => {
+  const { language } = useLanguage();
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const svgOverlayRef = useRef<SVGSVGElement>(null);
   const tvWidgetContainerRef = useRef<HTMLDivElement>(null);
   const chartApiRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'chart' | 'tv_embed' | 'pinescript'>('chart');
+  const [activeTab, setActiveTab] = useState<'chart' | 'tv_embed' | 'pinescript'>('tv_embed');
   const [activeInterval, setActiveInterval] = useState<string>(timeframe);
   const [copiedPine, setCopiedPine] = useState(false);
   const [latestState, setLatestState] = useState<{
@@ -246,6 +243,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     slowLine: number;
     sma200: number;
     isAboveSma200: boolean;
+    nextFlip: 'BUY' | 'SELL';
   } | null>(null);
 
   // Technical Analysis Drawing Suite State
@@ -373,6 +371,31 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   const isStockOrMetal = ['SPACEX', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'PLTR', 'AMD', 'MSTR', 'COIN', 'SPY', 'QQQ', 'XAU', 'XAG', 'OIL', 'COPPER', 'DXY', 'DYXY', 'VIX', 'EURUSD', 'GBPUSD', 'USDJPY', 'BRENT', 'NATGAS', 'SILVER', 'GOLD', 'PLATINUM', 'PALLADIUM', 'JPM', 'V', 'MA', 'LLY', 'XOM', 'BA'].includes(symbol.toUpperCase());
   const quoteCurrency = isDominanceOrRatio ? '%' : (isStockOrMetal ? 'USD' : 'USDT');
   const tvSymbol = getTradingViewSymbol(symbol);
+
+  // Keep Money Line telemetry available even when the official TradingView
+  // chart is the active/default view.
+  useEffect(() => {
+    if (!candles || candles.length === 0) {
+      setLatestState(null);
+      return;
+    }
+
+    const moneyLine = calculateMoneyLineForce(candles, activeInterval);
+    const lastIdx = candles.length - 1;
+    const isBullFast = moneyLine.dirFast[lastIdx] < 0;
+    const isBullSlow = moneyLine.dirSlow[lastIdx] < 0;
+    const lastSma200 = moneyLine.sma200[lastIdx] || 0;
+    const lastClose = candles[lastIdx].close;
+
+    setLatestState({
+      status: isBullFast && isBullSlow ? 'BULLISH' : (!isBullFast && !isBullSlow ? 'BEARISH' : 'TRANSITION'),
+      fastLine: moneyLine.lineFast[lastIdx] || 0,
+      slowLine: moneyLine.lineSlow[lastIdx] || 0,
+      sma200: lastSma200,
+      isAboveSma200: lastClose >= lastSma200,
+      nextFlip: isBullSlow ? 'SELL' : 'BUY'
+    });
+  }, [candles, activeInterval]);
 
   // 1. Primary Lightweight Charts Engine with MoneyLine Overlay Force v1
   useEffect(() => {
@@ -545,50 +568,6 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       createSeriesMarkers(candleSeries, markers);
     }
 
-    // The active slow Supertrend band is the exact close-price threshold for
-    // the next flip. In a bearish regime a candle must close above it for BUY;
-    // in a bullish regime it must close below it for SELL. Anchor this label
-    // to the latest point of the MoneyLine itself so every timeframe shows its
-    // own live threshold without adding a lateral price-scale label.
-    const flipThresholdMarkers: any[] = [];
-    const lastIdx = candles.length - 1;
-    if (lastIdx >= 0) {
-      const threshold = moneyLine.lineSlow[lastIdx];
-      const isNextBuy = moneyLine.dirSlow[lastIdx] === 1;
-
-      if (Number.isFinite(threshold) && threshold > 0) {
-        flipThresholdMarkers.push({
-          time: Math.floor(candles[lastIdx].timestamp / 1000) + lastIdx * 60,
-          position: 'inBar',
-          color: isNextBuy ? '#34d399' : '#fb7185',
-          shape: 'circle',
-          // Put the operator and value first so the essential threshold stays
-          // readable even on very narrow charts.
-          text: `${isNextBuy ? '>' : '<'} ${formatFlipPrice(threshold)} · ${isNextBuy ? 'BUY' : 'SELL'} FLIP`,
-          size: 2
-        });
-      }
-    }
-
-    if (flipThresholdMarkers.length > 0) {
-      createSeriesMarkers(slowLineSeries, flipThresholdMarkers);
-    }
-
-    // Set latest state for summary header
-    if (lastIdx >= 0) {
-      const isBullFast = moneyLine.dirFast[lastIdx] < 0;
-      const isBullSlow = moneyLine.dirSlow[lastIdx] < 0;
-      const lastSma200 = moneyLine.sma200[lastIdx] || 0;
-      const lastClose = candles[lastIdx].close;
-      setLatestState({
-        status: isBullFast && isBullSlow ? 'BULLISH' : (!isBullFast && !isBullSlow ? 'BEARISH' : 'TRANSITION'),
-        fastLine: moneyLine.lineFast[lastIdx] || 0,
-        slowLine: moneyLine.lineSlow[lastIdx] || 0,
-        sma200: lastSma200,
-        isAboveSma200: lastClose >= lastSma200
-      });
-    }
-
     chart.timeScale().fitContent();
     chart.timeScale().applyOptions({
       rightOffset: 8,
@@ -636,7 +615,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
           timezone: 'Etc/UTC',
           theme: 'dark',
           style: '1',
-          locale: 'ro',
+          locale: language,
           toolbar_bg: '#080c14',
           enable_publishing: false,
           allow_symbol_change: true,
@@ -645,6 +624,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
           hide_side_toolbar: false,
           hide_top_toolbar: false,
           studies: [
+            "STD;Supertrend",
             "MASimple@tv-basicstudies"
           ],
           studies_overrides: {
@@ -672,7 +652,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     } else {
       initWidget();
     }
-  }, [activeTab, symbol, activeInterval, tvSymbol]);
+  }, [activeTab, symbol, activeInterval, tvSymbol, language]);
 
   // --- SVG Drawing Coordinate Projection Helpers ---
   const getCoordinatesForPoint = (timeIndex: number, price: number): { x: number; y: number } | null => {
@@ -1068,7 +1048,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
               }`}
             >
               <Zap className="w-3.5 h-3.5 text-emerald-400" />
-              <span>MoneyLine Force v1 (cu Nor &amp; Bara Instrumente TradingView)</span>
+              <span>MoneyLine Cloud</span>
             </button>
 
             <button
@@ -1080,7 +1060,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
               }`}
             >
               <BarChart2 className="w-3.5 h-3.5 text-blue-400" />
-              <span>TradingView Oficial (Iframe)</span>
+              <span>TradingView Oficial + MoneyLine</span>
             </button>
 
             <button
@@ -1490,6 +1470,62 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                 activeTool === 'select' ? 'pointer-events-none' : 'cursor-crosshair touch-none'
               }`}
             >
+              {/* Live flip threshold: horizontal line segment anchored to the
+                  exact slow Money Line value. No point/circle marker and no
+                  lateral price-scale label. */}
+              {(() => {
+                if (!latestState || !candles.length || !Number.isFinite(latestState.slowLine) || latestState.slowLine <= 0) return null;
+                const anchor = getCoordinatesForPoint(candles.length - 1, latestState.slowLine);
+                const chartWidth = chartContainerRef.current?.clientWidth || 0;
+                if (!anchor || chartWidth <= 0) return null;
+
+                const isBuy = latestState.nextFlip === 'BUY';
+                const color = isBuy ? '#34d399' : '#fb7185';
+                const operator = isBuy ? '>' : '<';
+                const label = `${operator} ${formatFlipPrice(latestState.slowLine)} · ${latestState.nextFlip} FLIP`;
+                const labelWidth = Math.min(184, Math.max(132, label.length * 6.25 + 18));
+                const x1 = Math.max(54, anchor.x - 110);
+                const x2 = Math.min(Math.max(anchor.x + 175, x1 + labelWidth + 24), Math.max(x1 + 80, chartWidth - 64));
+                const labelX = Math.max(x1 + 8, Math.min(x2 - labelWidth, chartWidth - labelWidth - 66));
+                const labelY = Math.max(8, Math.min(anchor.y - 13, 508));
+
+                return (
+                  <g aria-label={`Prag flip ${latestState.nextFlip} ${formatFlipPrice(latestState.slowLine)}`}>
+                    <line
+                      x1={x1}
+                      y1={anchor.y}
+                      x2={x2}
+                      y2={anchor.y}
+                      stroke={color}
+                      strokeWidth="2.5"
+                      strokeLinecap="square"
+                      filter={`drop-shadow(0 0 5px ${color})`}
+                    />
+                    <rect
+                      x={labelX}
+                      y={labelY}
+                      width={labelWidth}
+                      height="26"
+                      rx="5"
+                      fill="#07111e"
+                      stroke={color}
+                      strokeWidth="1.25"
+                    />
+                    <text
+                      x={labelX + labelWidth / 2}
+                      y={labelY + 17}
+                      fill={color}
+                      textAnchor="middle"
+                      fontFamily="monospace"
+                      fontSize="10"
+                      fontWeight="800"
+                    >
+                      {label}
+                    </text>
+                  </g>
+                );
+              })()}
+
               {/* Render Saved User Drawings */}
               {drawings.map((d) => {
                 const c1 = getCoordinatesForPoint(d.p1.timeIndex, d.p1.price);
@@ -2018,6 +2054,14 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                   <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
                   Margine Nor: ${latestState.slowLine.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </span>
+                <span className={`flex items-center gap-2 px-2.5 py-1 rounded-md border font-bold ${
+                  latestState.nextFlip === 'BUY'
+                    ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/35'
+                    : 'bg-rose-500/10 text-rose-300 border-rose-500/35'
+                }`}>
+                  <span className={`w-8 h-0.5 ${latestState.nextFlip === 'BUY' ? 'bg-emerald-400' : 'bg-rose-400'}`}></span>
+                  PRAG ML EXACT · {latestState.nextFlip === 'BUY' ? '>' : '<'} ${formatFlipPrice(latestState.slowLine)} · {latestState.nextFlip} FLIP
+                </span>
                 <span className="flex items-center gap-1 text-amber-300 font-bold">
                   <span className="w-2 h-2 rounded-full bg-amber-400"></span>
                   SMA 200: ${latestState.sma200.toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -2055,7 +2099,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
             <div className="flex items-center gap-2 text-cyan-300">
               <Sparkles className="w-4 h-4 text-cyan-400 shrink-0" />
               <span>
-                <strong>Bara Oficială TradingView:</strong> Click pe <strong>fx Indicatori</strong> din bara de sus pentru orice indicator/strategie nativă și folosește bara din stânga pentru toate instrumentele de desen.
+                <strong>MoneyLine pe TradingView:</strong> SuperTrendul nativ oferă reperul vizual direct în grafic, iar pragul exact MoneyLine pentru {activeInterval.toUpperCase()} este linia colorată <strong>PRAG ML EXACT</strong> de sus. Bara laterală din stânga este panoul oficial TradingView pentru instrumentele de desen.
               </span>
             </div>
           </div>
