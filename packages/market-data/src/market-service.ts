@@ -3,7 +3,9 @@ import {
   AssetPriceQuote,
   Timeframe,
   MarketOverviewSummary,
-  TOP_50_CRYPTO_ASSETS
+  TOP_50_CRYPTO_ASSETS,
+  ScannerMarketClass,
+  getScannerAssets
 } from '@money-scanner/shared';
 import { MarketHealthMonitor } from './health-monitor.js';
 import { BinanceMarketAdapter } from './adapters/binance.js';
@@ -20,6 +22,7 @@ export class MarketDataService {
   private stockAdapter = new PublicStockMarketAdapter(this.healthMonitor);
   private candleCache = new Map<string, Candle[]>();
   private quoteCache = new Map<string, AssetPriceQuote>();
+  private quoteFetchedAt = new Map<string, number>();
   private marketCapCache: { values: Map<string, number>; updatedAt: number } | null = null;
 
   private coinGeckoHeaders(): Record<string, string> {
@@ -29,6 +32,17 @@ export class MarketDataService {
       : { accept: 'application/json' };
   }
 
+  private readonly quoteCacheMs = 60_000;
+  private readonly candleCacheMs: Record<Timeframe, number> = {
+    '1h': 60_000,
+    '4h': 2 * 60_000,
+    '8h': 5 * 60_000,
+    '1d': 15 * 60_000,
+    '1w': 60 * 60_000,
+    '1m': 6 * 60 * 60_000
+  };
+  private candleFetchedAt = new Map<string, number>();
+
   public async getCandles(
     symbol: string,
     timeframe: Timeframe = '1h',
@@ -36,15 +50,18 @@ export class MarketDataService {
   ): Promise<Candle[]> {
     const cacheKey = `${symbol}_${timeframe}_${limit}`;
     const isStockOrMetal = this.stockAdapter.isStockOrMetal(symbol);
+    const cached = this.candleCache.get(cacheKey);
+    const fetchedAt = this.candleFetchedAt.get(cacheKey) || 0;
+    if (cached?.length && Date.now() - fetchedAt < this.candleCacheMs[timeframe]) return cached;
 
     try {
       const candles = isStockOrMetal
         ? await this.stockAdapter.fetchCandles(symbol, timeframe, limit)
         : await this.binanceAdapter.fetchCandles(symbol, timeframe, limit);
       this.candleCache.set(cacheKey, candles);
+      this.candleFetchedAt.set(cacheKey, Date.now());
       return candles;
     } catch (error) {
-      const cached = this.candleCache.get(cacheKey);
       if (cached?.length) return cached;
       throw error;
     }
@@ -52,12 +69,15 @@ export class MarketDataService {
 
   public async getPriceQuote(symbol: string): Promise<AssetPriceQuote> {
     const isStockOrMetal = this.stockAdapter.isStockOrMetal(symbol);
+    const cached = this.quoteCache.get(symbol);
+    if (cached && Date.now() - (this.quoteFetchedAt.get(symbol) || 0) < this.quoteCacheMs) return cached;
 
     try {
       const quote = isStockOrMetal
         ? await this.stockAdapter.fetchQuote(symbol)
         : await this.binanceAdapter.fetch24hTicker(symbol);
       this.quoteCache.set(symbol, quote);
+      this.quoteFetchedAt.set(symbol, Date.now());
       return quote;
     } catch (error) {
       const cached = this.quoteCache.get(symbol);
@@ -66,11 +86,17 @@ export class MarketDataService {
     }
   }
 
-  public async getAllQuotes(): Promise<AssetPriceQuote[]> {
-    const settled = await Promise.allSettled(
-      TOP_50_CRYPTO_ASSETS.map(asset => this.getPriceQuote(asset.symbol))
-    );
-    return settled.flatMap(result => result.status === 'fulfilled' ? [result.value] : []);
+  public async getAllQuotes(marketClass: ScannerMarketClass = 'ALL'): Promise<AssetPriceQuote[]> {
+    const assets = getScannerAssets(marketClass);
+    const quotes: AssetPriceQuote[] = [];
+    const concurrency = 6;
+    for (let index = 0; index < assets.length; index += concurrency) {
+      const settled = await Promise.allSettled(
+        assets.slice(index, index + concurrency).map(asset => this.getPriceQuote(asset.symbol))
+      );
+      quotes.push(...settled.flatMap(result => result.status === 'fulfilled' ? [result.value] : []));
+    }
+    return quotes;
   }
 
   public async getCryptoMarketCaps(): Promise<Map<string, number>> {
@@ -101,7 +127,9 @@ export class MarketDataService {
 
   public async getMarketOverview(): Promise<MarketOverviewSummary> {
     const startedAt = Date.now();
-    const quotes = await this.getAllQuotes();
+    // Market overview is a crypto-market metric; equities and commodities are
+    // displayed in their own scanner universes.
+    const quotes = await this.getAllQuotes('crypto');
     const advancing = quotes.filter(quote => quote.change24h > 0.5).length;
     const declining = quotes.filter(quote => quote.change24h < -0.5).length;
     const neutral = Math.max(0, quotes.length - advancing - declining);

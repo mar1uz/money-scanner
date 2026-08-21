@@ -1,12 +1,13 @@
 import {
-  TOP_50_CRYPTO_ASSETS,
+  getScannerAssets,
   NARRATIVE_DEFINITIONS,
   NarrativeSummary,
   MarketNarrativeId,
   Timeframe,
   AssetScannerRow,
   MoneyLineSignal,
-  DispatchedAlert
+  DispatchedAlert,
+  ScannerMarketClass
 } from '@money-scanner/shared';
 import { MarketDataService } from '@money-scanner/market-data';
 import { MoneyLineEngine, calculateMTFConfluence } from '@money-scanner/money-line';
@@ -36,15 +37,21 @@ export class AppState {
   }
 
   /**
-   * Scans all assets and updates calculated signals in parallel for sub-second response.
+   * Scans the selected live universe. Provider calls are intentionally limited
+   * so Yahoo Finance and Binance are not rate-limited by a large all-market scan.
    */
-  public async refreshSignals(timeframe: Timeframe = '1h'): Promise<AssetScannerRow[]> {
-    const quotes = await this.marketData.getAllQuotes();
+  public async refreshSignals(
+    timeframe: Timeframe = '1h',
+    marketClass: ScannerMarketClass = 'ALL'
+  ): Promise<AssetScannerRow[]> {
+    const assets = getScannerAssets(marketClass);
+    const quotes = await this.marketData.getAllQuotes(marketClass);
     const quoteBySymbol = new Map(quotes.map(quote => [quote.symbol, quote]));
-    const marketCaps = await this.marketData.getCryptoMarketCaps();
+    const marketCaps = marketClass === 'stocks' || marketClass === 'metals'
+      ? new Map<string, number>()
+      : await this.marketData.getCryptoMarketCaps();
 
-    const settledRows = await Promise.allSettled(
-      TOP_50_CRYPTO_ASSETS.map(async (asset) => {
+    const buildRow = async (asset: ReturnType<typeof getScannerAssets>[number]) => {
         const quote = quoteBySymbol.get(asset.symbol);
         if (!quote) throw new Error(`No verified quote available for ${asset.symbol}`);
         const candleLimit = timeframe === '1w' ? 300 : (timeframe === '1d' ? 500 : (timeframe === '1m' ? 150 : 500));
@@ -120,16 +127,25 @@ export class AppState {
           lastUpdated: quote.timestamp,
           isStale: this.marketData.getHealthMonitor().isDataStale(quote.timestamp)
         };
-      })
-    );
-    return settledRows.flatMap(result => result.status === 'fulfilled' ? [result.value] : []);
+    };
+
+    const rows: AssetScannerRow[] = [];
+    const concurrency = 4;
+    for (let index = 0; index < assets.length; index += concurrency) {
+      const settledRows = await Promise.allSettled(assets.slice(index, index + concurrency).map(buildRow));
+      rows.push(...settledRows.flatMap(result => result.status === 'fulfilled' ? [result.value] : []));
+    }
+    return rows;
   }
 
   /**
    * Computes comprehensive narrative summaries including % change, market cap and top movers.
    */
-  public async getNarrativeSummaries(timeframe: Timeframe = '1w'): Promise<NarrativeSummary[]> {
-    const rows = await this.refreshSignals(timeframe);
+  public async getNarrativeSummaries(
+    timeframe: Timeframe = '1w',
+    marketClass: ScannerMarketClass = 'ALL'
+  ): Promise<NarrativeSummary[]> {
+    const rows = await this.refreshSignals(timeframe, marketClass);
 
     return NARRATIVE_DEFINITIONS.map(def => {
       const matchingRows = rows.filter(r => r.narratives?.includes(def.id));

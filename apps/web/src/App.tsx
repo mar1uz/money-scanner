@@ -60,10 +60,9 @@ export const App: React.FC = () => {
   const refreshData = async () => {
     setLoading(true);
     try {
-      const [ovRes, rowsRes, narrRes] = await Promise.allSettled([
+      const [ovRes, rowsRes] = await Promise.allSettled([
         fetchMarketOverview(),
-        fetchScanner(timeframe),
-        fetchNarratives(timeframe)
+        fetchScanner(timeframe, undefined, undefined, undefined, undefined, selectedMarketCategory)
       ]);
       if (ovRes.status === 'fulfilled') {
         setOverview(ovRes.value);
@@ -71,8 +70,11 @@ export const App: React.FC = () => {
       if (rowsRes.status === 'fulfilled' && rowsRes.value && rowsRes.value.length > 0) {
         setScannerRows(rowsRes.value);
       }
-      if (narrRes.status === 'fulfilled' && narrRes.value && narrRes.value.length > 0) {
-        setNarratives(narrRes.value);
+      // The scanner request warms quote/candle caches; loading narrative rollups
+      // afterwards avoids issuing the same provider requests twice.
+      const narrRes = await fetchNarratives(timeframe, selectedMarketCategory);
+      if (narrRes.length > 0) {
+        setNarratives(narrRes);
       }
     } catch (err) {
       console.error('Data refresh error:', err);
@@ -85,7 +87,7 @@ export const App: React.FC = () => {
     refreshData();
     const interval = setInterval(refreshData, 300000); 
     return () => clearInterval(interval);
-  }, [timeframe]);
+  }, [timeframe, selectedMarketCategory]);
 
   const toggleWatchlist = (symbol: string) => {
     const sym = symbol.toUpperCase();

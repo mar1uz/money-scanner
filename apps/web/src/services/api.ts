@@ -43,7 +43,8 @@ export async function fetchScanner(
   tier?: string,
   search?: string,
   watchlistOnly?: boolean,
-  narrative?: string
+  narrative?: string,
+  marketClass: 'ALL' | 'crypto' | 'stocks' | 'metals' = 'ALL'
 ): Promise<AssetScannerRow[]> {
   const params = new URLSearchParams();
   params.set('timeframe', timeframe);
@@ -51,6 +52,7 @@ export async function fetchScanner(
   if (search) params.set('search', search);
   if (watchlistOnly) params.set('watchlist', 'true');
   if (narrative && narrative !== 'ALL') params.set('narrative', narrative);
+  if (marketClass !== 'ALL') params.set('marketClass', marketClass);
 
   const res = await fetch(`${API_BASE}/scanner?${params.toString()}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch scanner`);
@@ -58,9 +60,12 @@ export async function fetchScanner(
 }
 
 export async function fetchNarratives(
-  timeframe: Timeframe = '1w'
+  timeframe: Timeframe = '1w',
+  marketClass: 'ALL' | 'crypto' | 'stocks' | 'metals' = 'ALL'
 ): Promise<import('@money-scanner/shared').NarrativeSummary[]> {
-  const res = await fetch(`${API_BASE}/narratives?timeframe=${timeframe}`);
+  const params = new URLSearchParams({ timeframe });
+  if (marketClass !== 'ALL') params.set('marketClass', marketClass);
+  const res = await fetch(`${API_BASE}/narratives?${params.toString()}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch narratives`);
   return res.json();
 }
@@ -170,4 +175,3 @@ export async function searchUniversalAssets(query: string): Promise<SearchAssetI
   if (!res.ok) return [];
   return res.json();
 }
-

@@ -1,4 +1,4 @@
-import { Candle, AssetPriceQuote, Timeframe, TOP_50_CRYPTO_ASSETS } from '@money-scanner/shared';
+import { Candle, AssetPriceQuote, Timeframe, SCANNER_ASSETS } from '@money-scanner/shared';
 import { MarketHealthMonitor } from '../health-monitor.js';
 
 export class PublicStockMarketAdapter {
@@ -32,7 +32,7 @@ export class PublicStockMarketAdapter {
 
   public isStockOrMetal(symbol: string): boolean {
     const sym = symbol.toUpperCase();
-    const asset = TOP_50_CRYPTO_ASSETS.find(a => a.symbol.toUpperCase() === sym);
+    const asset = SCANNER_ASSETS.find(a => a.symbol.toUpperCase() === sym);
     if (asset) {
       return asset.marketClass === 'stocks' || asset.marketClass === 'metals';
     }

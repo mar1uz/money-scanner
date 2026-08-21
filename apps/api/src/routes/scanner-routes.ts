@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { AppState } from '../services/app-state.js';
-import { Timeframe, TOP_50_CRYPTO_ASSETS } from '@money-scanner/shared';
+import { Timeframe, TRADING_360_ASSETS, ScannerMarketClass } from '@money-scanner/shared';
 import { calculateMTFConfluence } from '@money-scanner/money-line';
 
 export const scannerRouter = Router();
@@ -34,7 +34,7 @@ scannerRouter.get('/search', async (req, res) => {
     const seenSymbols = new Set<string>();
 
     // 1. Search Local High-Speed Catalog
-    for (const asset of TOP_50_CRYPTO_ASSETS) {
+    for (const asset of TRADING_360_ASSETS) {
       const sym = asset.symbol.toUpperCase();
       const symLower = sym.toLowerCase();
       const nameLower = asset.name.toLowerCase();
@@ -167,12 +167,16 @@ scannerRouter.get('/scanner', async (req, res) => {
     const timeframe = (req.query.timeframe as Timeframe) || '1w';
     const tier = req.query.tier as string;
     const narrative = req.query.narrative as string;
+    const requestedMarketClass = String(req.query.marketClass || 'ALL');
+    const marketClass: ScannerMarketClass = requestedMarketClass === 'crypto' || requestedMarketClass === 'stocks' || requestedMarketClass === 'metals'
+      ? requestedMarketClass
+      : 'ALL';
     const rawSearch = (req.query.search as string || '').trim();
     const search = rawSearch.replace(/^[$#]/, '').toUpperCase();
     const watchlistOnly = req.query.watchlist === 'true';
 
     const appState = AppState.getInstance();
-    let rows = await appState.refreshSignals(timeframe);
+    let rows = await appState.refreshSignals(timeframe, marketClass);
 
     if (narrative && narrative !== 'ALL') {
       rows = rows.filter(r => r.narratives?.includes(narrative as any));
@@ -181,7 +185,7 @@ scannerRouter.get('/scanner', async (req, res) => {
     if (search) {
       const q = search.toLowerCase();
       rows = rows.filter(r => {
-        const info = TOP_50_CRYPTO_ASSETS.find(a => a.symbol.toUpperCase() === r.symbol.toUpperCase());
+        const info = TRADING_360_ASSETS.find(a => a.symbol.toUpperCase() === r.symbol.toUpperCase());
         const aliases = (info?.aliases || []).map(al => al.toLowerCase());
         return (
           r.symbol.toLowerCase().includes(q) || 
@@ -204,8 +208,12 @@ scannerRouter.get('/scanner', async (req, res) => {
 scannerRouter.get('/narratives', async (req, res) => {
   try {
     const timeframe = (req.query.timeframe as Timeframe) || '1w';
+    const requestedMarketClass = String(req.query.marketClass || 'ALL');
+    const marketClass: ScannerMarketClass = requestedMarketClass === 'crypto' || requestedMarketClass === 'stocks' || requestedMarketClass === 'metals'
+      ? requestedMarketClass
+      : 'ALL';
     const appState = AppState.getInstance();
-    const narratives = await appState.getNarrativeSummaries(timeframe);
+    const narratives = await appState.getNarrativeSummaries(timeframe, marketClass);
     res.json(narratives);
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to compute narrative summaries', details: err.message });
@@ -217,7 +225,7 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
     const symbol = req.params.symbol.toUpperCase();
     const timeframe = (req.query.timeframe as Timeframe) || '1w';
 
-    let assetInfo = TOP_50_CRYPTO_ASSETS.find(a => a.symbol === symbol);
+    let assetInfo = TRADING_360_ASSETS.find(a => a.symbol === symbol);
     if (!assetInfo) {
       assetInfo = {
         symbol,

@@ -6,7 +6,7 @@ const app = createServer();
 
 // Preload signals in background
 const state = AppState.getInstance();
-state.refreshSignals('1h').catch(err => console.error('Initial scan error:', err));
+state.refreshSignals('1h', 'crypto').catch(err => console.error('Initial scan error:', err));
 
 app.listen(PORT, () => {
   console.log(`🚀 Money Scanner API Server running on port ${PORT}`);

@@ -2116,10 +2116,90 @@ export const TRADING_360_ASSETS: AssetInfo[] = [
     marketCap: 21000000000,
     rank: 160,
     decimals: 2
+  },
+
+  // Liquid, exchange-traded metal funds supplement the spot/futures contracts
+  // above. Their prices and candles are fetched directly from Yahoo Finance.
+  {
+    symbol: 'GLD',
+    name: 'SPDR Gold Shares ETF',
+    category: 'Precious Metal',
+    marketClass: 'metals',
+    narratives: ['energy_commodities'],
+    quoteCurrency: 'USD',
+    aliases: ['gld', 'gold etf', 'aur etf'],
+    rank: 0,
+    decimals: 2
+  },
+  {
+    symbol: 'SLV',
+    name: 'iShares Silver Trust',
+    category: 'Precious Metal',
+    marketClass: 'metals',
+    narratives: ['energy_commodities'],
+    quoteCurrency: 'USD',
+    aliases: ['slv', 'silver etf', 'argint etf'],
+    rank: 0,
+    decimals: 2
+  },
+  {
+    symbol: 'PPLT',
+    name: 'abrdn Physical Platinum Shares ETF',
+    category: 'Precious Metal',
+    marketClass: 'metals',
+    narratives: ['energy_commodities'],
+    quoteCurrency: 'USD',
+    aliases: ['pplt', 'platinum', 'platina'],
+    rank: 0,
+    decimals: 2
+  },
+  {
+    symbol: 'PALL',
+    name: 'abrdn Physical Palladium Shares ETF',
+    category: 'Precious Metal',
+    marketClass: 'metals',
+    narratives: ['energy_commodities'],
+    quoteCurrency: 'USD',
+    aliases: ['pall', 'palladium', 'paladiu'],
+    rank: 0,
+    decimals: 2
+  },
+  {
+    symbol: 'COPX',
+    name: 'Global X Copper Miners ETF',
+    category: 'Commodity',
+    marketClass: 'metals',
+    narratives: ['energy_commodities', 'semiconductors'],
+    quoteCurrency: 'USD',
+    aliases: ['copx', 'copper miners', 'mineri cupru'],
+    rank: 0,
+    decimals: 2
+  },
+  {
+    symbol: 'LIT',
+    name: 'Global X Lithium & Battery Tech ETF',
+    category: 'Commodity',
+    marketClass: 'metals',
+    narratives: ['energy_commodities', 'ai_ecosystem'],
+    quoteCurrency: 'USD',
+    aliases: ['lit', 'lithium', 'litiu', 'battery metals'],
+    rank: 0,
+    decimals: 2
+  },
+  {
+    symbol: 'REMX',
+    name: 'VanEck Rare Earth and Strategic Metals ETF',
+    category: 'Commodity',
+    marketClass: 'metals',
+    narratives: ['energy_commodities', 'semiconductors'],
+    quoteCurrency: 'USD',
+    aliases: ['remx', 'rare earth', 'metale rare', 'strategic metals'],
+    rank: 0,
+    decimals: 2
   }
 ];
 
-// Production scanner universe: exactly 50 spot-crypto assets. The broader
+// Production scanner universe: up to 50 supported spot-crypto assets. The broader
 // catalog remains available for search, but unsupported assets are never
 // silently filled with synthetic quotes.
 export const TOP_50_CRYPTO_ASSETS: AssetInfo[] = TRADING_360_ASSETS
@@ -2130,4 +2210,30 @@ export const TOP_50_CRYPTO_ASSETS: AssetInfo[] = TRADING_360_ASSETS
     !asset.symbol.startsWith('TOTAL')
   )
   .slice(0, 50);
+
+/**
+ * Curated liquid US-equity universe. Asset membership is deliberately fixed;
+ * prices, candles and displayed metrics are always obtained from Yahoo Finance.
+ */
+export const TOP_50_STOCK_ASSETS: AssetInfo[] = TRADING_360_ASSETS
+  .filter(asset => asset.marketClass === 'stocks' && asset.quoteCurrency === 'USD' && asset.rank > 0)
+  .slice(0, 50);
+
+/** Major precious and industrial metals/commodity instruments with a live Yahoo or Binance mapping. */
+export const TOP_METALS_ASSETS: AssetInfo[] = TRADING_360_ASSETS
+  .filter(asset => asset.marketClass === 'metals');
+
+export const SCANNER_ASSETS: AssetInfo[] = [
+  ...TOP_50_CRYPTO_ASSETS,
+  ...TOP_50_STOCK_ASSETS,
+  ...TOP_METALS_ASSETS
+];
+
+export type ScannerMarketClass = 'ALL' | 'crypto' | 'stocks' | 'metals';
+
+export const getScannerAssets = (marketClass: ScannerMarketClass = 'ALL'): AssetInfo[] =>
+  marketClass === 'ALL'
+    ? SCANNER_ASSETS
+    : SCANNER_ASSETS.filter(asset => asset.marketClass === marketClass);
+
 export const ASSET_SYMBOLS_SET = new Set(TRADING_360_ASSETS.map(a => a.symbol));
