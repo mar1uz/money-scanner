@@ -46,7 +46,8 @@ describe('Telegram Bot & Alert Dispatcher', () => {
 
     const alert1 = dispatcher.evaluateSignal(dummySignal, 65200);
     assert.ok(alert1 !== null);
-    assert.ok(alert1.message.includes('MONEY LINE SIGNAL CHANGE'));
+    assert.ok(alert1.message.includes('BULLISH FLIP CONFIRMAT'));
+    assert.ok(alert1.message.includes('BUY / LONG'));
     assert.ok(alert1.message.includes('$BTC'));
 
     // Repeating exact same signal should be blocked by idempotency

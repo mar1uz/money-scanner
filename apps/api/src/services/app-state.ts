@@ -136,12 +136,12 @@ export class AppState {
       const slowLine = cloud.lineSlow[lastIndex];
       const dashboardBaseUrl = process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app';
       const message = [
-        `🟢 *MONEYLINE BULLISH CONFIRMED*`,
-        `*Asset:* $${rule.symbol}`,
-        `*Timeframe:* ${rule.timeframe.toUpperCase()}`,
+        `🟢 *BULLISH FLIP CONFIRMAT*`,
+        `*▲ BUY / LONG*`,
+        `\n*$${rule.symbol}*  •  *${rule.timeframe.toUpperCase()}*`,
         `*Preț confirmare:* $${price.toLocaleString('en-US', { maximumFractionDigits: price < 1 ? 8 : 4 })}`,
         `*Margine Nor (Slow):* $${slowLine.toLocaleString('en-US', { maximumFractionDigits: slowLine < 1 ? 8 : 4 })}`,
-        `*Confirmare:* Baza Nor și Margine Nor sunt bullish pe ultima lumânare închisă.`,
+        `*Confirmare:* Fast + Slow sunt bullish pe ultima lumânare închisă.`,
         `\n🔗 [Deschide Money Scanner](${dashboardBaseUrl})`
       ].join('\n');
       const delivered = await this.telegramBot.sendMarkdown(message);

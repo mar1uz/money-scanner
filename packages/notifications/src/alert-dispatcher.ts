@@ -47,21 +47,26 @@ export class AlertDispatcher {
     }
 
     const isBull = signal.score >= 20;
-    const emoji = isBull ? '🟢' : (signal.score <= -20 ? '🔴' : '⚪');
+    const isBear = signal.score <= -20;
+    const direction = isBull
+      ? { emoji: '🟢', heading: 'BULLISH FLIP CONFIRMAT', action: '▲ BUY / LONG', tone: 'Bullish' }
+      : isBear
+        ? { emoji: '🔴', heading: 'BEARISH FLIP CONFIRMAT', action: '▼ SELL / RISK OFF', tone: 'Bearish' }
+        : { emoji: '⚪', heading: 'MONEYLINE SCHIMBARE NEUTRĂ', action: '• WATCH / WAIT', tone: 'Neutral' };
     const transitionText = signal.previousTier
-      ? `transitioned from *${signal.previousTier}* to *${signal.tier}*`
-      : `is now *${signal.tier}*`;
+      ? `${signal.previousTier} → ${signal.tier}`
+      : signal.tier;
 
-    const title = `${emoji} MONEY LINE ALERT: $${signal.symbol} (${signal.timeframe.toUpperCase()})`;
+    const title = `${direction.emoji} ${direction.heading}: $${signal.symbol} (${signal.timeframe.toUpperCase()})`;
     const message = [
-      `${emoji} *MONEY LINE SIGNAL CHANGE*`,
-      `*Asset:* $${signal.symbol} (Rank #${signal.symbol})`,
-      `*Price:* $${currentPrice.toLocaleString()}`,
-      `*Timeframe:* ${signal.timeframe.toUpperCase()}`,
-      `*Status:* ${transitionText}`,
+      `${direction.emoji} *${direction.heading}*`,
+      `*${direction.action}*`,
+      `\n*$${signal.symbol}*  •  *${signal.timeframe.toUpperCase()}*`,
+      `*Preț confirmare:* $${currentPrice.toLocaleString()}`,
+      `*Tranziție:* ${transitionText}`,
       `*Money Line Score:* ${signal.score > 0 ? '+' : ''}${signal.score}/100`,
       `*RVOL:* ${signal.rawIndicators.rvol}x | *RSI:* ${signal.rawIndicators.rsi14}`,
-      `*EMA Ribbon:* ${signal.rawIndicators.ema20Slope > 0 ? 'Bullish Slope ↗' : 'Bearish Slope ↘'}`,
+      `*EMA:* ${signal.rawIndicators.ema20Slope > 0 ? 'panta bullish ↗' : 'panta bearish ↘'}`,
       `\n🔗 [Open Deep-Dive Analysis](${this.dashboardBaseUrl}/assets/${signal.symbol})`
     ].join('\n');
 
