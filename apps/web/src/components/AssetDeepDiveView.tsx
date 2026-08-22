@@ -58,7 +58,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   const loadData = () => {
     setLoading(true);
     Promise.all([
-      fetchAssetDetail(symbol, timeframe),
+      fetchAssetDetail(symbol, timeframe, marketClass),
       fetchXPosts().catch(() => [])
     ])
       .then(([detailRes, postsRes]) => {
@@ -72,7 +72,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   useEffect(() => {
     loadData();
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [symbol, timeframe]);
+  }, [symbol, timeframe, marketClass]);
 
   const handleSendAlert = async () => {
     try {

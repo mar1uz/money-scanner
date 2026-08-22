@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { AppState } from '../services/app-state.js';
-import { Timeframe, TRADING_360_ASSETS, ScannerMarketClass } from '@money-scanner/shared';
+import { Timeframe, TRADING_360_ASSETS, ScannerMarketClass, AssetMarketClass } from '@money-scanner/shared';
 import { calculateMTFConfluence } from '@money-scanner/money-line';
 
 export const scannerRouter = Router();
@@ -292,9 +292,30 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
   try {
     const symbol = req.params.symbol.toUpperCase();
     const timeframe = (req.query.timeframe as Timeframe) || '1w';
+    const requestedClassRaw = String(req.query.marketClass || '');
+    const requestedMarketClass: AssetMarketClass | undefined = requestedClassRaw === 'crypto' || requestedClassRaw === 'stocks' || requestedClassRaw === 'metals'
+      ? requestedClassRaw
+      : undefined;
     const appState = AppState.getInstance();
 
     let assetInfo = TRADING_360_ASSETS.find(a => a.symbol === symbol);
+    if (requestedMarketClass === 'crypto') {
+      const liveCryptoAsset = (await appState.marketData.getTopCryptoAssets(80))
+        .find(asset => asset.symbol.toUpperCase() === symbol);
+      assetInfo = liveCryptoAsset || {
+        symbol,
+        name: `${symbol} Crypto`,
+        category: 'Infrastructure',
+        marketClass: 'crypto',
+        quoteCurrency: 'USDT',
+        aliases: [symbol.toLowerCase()],
+        rank: 999,
+        decimals: 6,
+        exchange: 'BINANCE',
+        instrumentType: 'spot',
+        marketDataSource: 'binance_spot'
+      };
+    }
     // Dynamic Top 50 assets do not all exist in the hand-curated catalog.
     // Preserve their verified crypto class when opening a deep-dive/chart.
     if (!assetInfo) {
@@ -322,15 +343,16 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       };
     }
 
-    const activeCandles = await appState.marketData.getCandles(symbol, timeframe, 1500);
+    const resolvedMarketClass = requestedMarketClass || assetInfo.marketClass;
+    const activeCandles = await appState.marketData.getCandles(symbol, timeframe, 1500, resolvedMarketClass);
 
     const [candles1h, candles4h, candles8h, candles1d, candles1w, candles1m] = await Promise.all([
-      timeframe === '1h' ? activeCandles : appState.marketData.getCandles(symbol, '1h', 500),
-      timeframe === '4h' ? activeCandles : appState.marketData.getCandles(symbol, '4h', 500),
-      timeframe === '8h' ? activeCandles : appState.marketData.getCandles(symbol, '8h', 500),
-      timeframe === '1d' ? activeCandles : appState.marketData.getCandles(symbol, '1d', 500),
-      timeframe === '1w' ? activeCandles : appState.marketData.getCandles(symbol, '1w', 300),
-      timeframe === '1m' ? activeCandles : appState.marketData.getCandles(symbol, '1m', 150)
+      timeframe === '1h' ? activeCandles : appState.marketData.getCandles(symbol, '1h', 500, resolvedMarketClass),
+      timeframe === '4h' ? activeCandles : appState.marketData.getCandles(symbol, '4h', 500, resolvedMarketClass),
+      timeframe === '8h' ? activeCandles : appState.marketData.getCandles(symbol, '8h', 500, resolvedMarketClass),
+      timeframe === '1d' ? activeCandles : appState.marketData.getCandles(symbol, '1d', 500, resolvedMarketClass),
+      timeframe === '1w' ? activeCandles : appState.marketData.getCandles(symbol, '1w', 300, resolvedMarketClass),
+      timeframe === '1m' ? activeCandles : appState.marketData.getCandles(symbol, '1m', 150, resolvedMarketClass)
     ]);
 
     const signal1h = appState.moneyLine.calculateLatest(symbol, '1h', candles1h);
@@ -358,7 +380,7 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
         )
       )
     );
-    const quote = await appState.marketData.getPriceQuote(symbol);
+    const quote = await appState.marketData.getPriceQuote(symbol, resolvedMarketClass);
     const xPosts = appState.social.getPostsForSymbol(symbol);
     const trendingTopics = appState.social.getTrendingTopics();
     const news = appState.news.getNewsForSymbol(symbol);

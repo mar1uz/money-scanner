@@ -101,4 +101,26 @@ describe('Market Data Service & Normalization', () => {
     assert.equal(h?.status, 'operational');
     assert.equal(h?.latencyMs, 32);
   });
+
+  it('routes a ticker collision to Binance when the verified class is crypto', async () => {
+    const originalFetch = globalThis.fetch;
+    let requestedUrl = '';
+    globalThis.fetch = (async (input) => {
+      requestedUrl = String(input);
+      return Response.json([
+        [Date.now() - 3_600_000, '2.50', '2.70', '2.40', '2.60', '1000'],
+        [Date.now(), '2.60', '2.80', '2.50', '2.75', '1200']
+      ]);
+    }) as typeof fetch;
+
+    try {
+      const service = new MarketDataService();
+      const candles = await service.getCandles('CAKE', '1h', 2, 'crypto');
+      assert.equal(candles.length, 2);
+      assert.match(requestedUrl, /\/klines\?symbol=CAKEUSDT&/);
+      assert.doesNotMatch(requestedUrl, /finance\/chart\/CAKE/);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

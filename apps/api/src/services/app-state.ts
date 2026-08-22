@@ -68,7 +68,7 @@ export class AppState {
         const quote = quoteBySymbol.get(asset.symbol);
         if (!quote) throw new Error(`No verified quote available for ${asset.symbol}`);
         const candleLimit = timeframe === '1w' ? 300 : (timeframe === '1d' ? 500 : (timeframe === '1m' ? 150 : 500));
-        const candles = await this.marketData.getCandles(asset.symbol, timeframe, candleLimit);
+        const candles = await this.marketData.getCandles(asset.symbol, timeframe, candleLimit, asset.marketClass);
         const signal = this.moneyLine.calculateLatest(asset.symbol, timeframe, candles);
 
         if (!signal) throw new Error(`Insufficient verified candles for ${asset.symbol}`);
@@ -85,13 +85,13 @@ export class AppState {
         let signal1w = timeframe === '1w' ? signal : this.cachedSignals.get(`${asset.symbol}_1w`);
 
         if (!signal1d) {
-          const candles1d = timeframe === '1d' ? candles : await this.marketData.getCandles(asset.symbol, '1d', 500);
+          const candles1d = timeframe === '1d' ? candles : await this.marketData.getCandles(asset.symbol, '1d', 500, asset.marketClass);
           signal1d = this.moneyLine.calculateLatest(asset.symbol, '1d', candles1d) || undefined;
           if (signal1d) this.cachedSignals.set(`${asset.symbol}_1d`, signal1d);
         }
 
         if (!signal1w) {
-          const candles1w = timeframe === '1w' ? candles : await this.marketData.getCandles(asset.symbol, '1w', 300);
+          const candles1w = timeframe === '1w' ? candles : await this.marketData.getCandles(asset.symbol, '1w', 300, asset.marketClass);
           signal1w = this.moneyLine.calculateLatest(asset.symbol, '1w', candles1w) || undefined;
           if (signal1w) this.cachedSignals.set(`${asset.symbol}_1w`, signal1w);
         }

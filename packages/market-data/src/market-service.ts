@@ -6,6 +6,7 @@ import {
   TOP_50_CRYPTO_ASSETS,
   TRADING_360_ASSETS,
   AssetInfo,
+  AssetMarketClass,
   ScannerMarketClass,
   getScannerAssets
 } from '@money-scanner/shared';
@@ -63,13 +64,21 @@ export class MarketDataService {
   public async getCandles(
     symbol: string,
     timeframe: Timeframe = '1h',
-    limit = 1000
+    limit = 1000,
+    requestedMarketClass?: AssetMarketClass
   ): Promise<Candle[]> {
-    const cacheKey = `${symbol}_${timeframe}_${limit}`;
     const asset = this.getAssetDefinition(symbol);
+    const resolvedMarketClass = requestedMarketClass || asset?.marketClass;
+    const cacheScope = resolvedMarketClass || 'auto';
+    const cacheKey = `${cacheScope}_${symbol}_${timeframe}_${limit}`;
     const isBinanceFutures = this.isBinanceFuturesSymbol(symbol, asset);
     const providerSymbol = asset?.providerSymbol || symbol;
-    const isStockOrMetal = this.stockAdapter.isStockOrMetal(symbol);
+    const isExplicitCryptoSpot = resolvedMarketClass === 'crypto' && !symbol.includes('.') && !symbol.startsWith('TOTAL');
+    const isStockOrMetal = resolvedMarketClass === 'stocks' || resolvedMarketClass === 'metals'
+      ? true
+      : resolvedMarketClass === 'crypto'
+        ? false
+        : this.stockAdapter.isStockOrMetal(symbol);
     const cached = this.candleCache.get(cacheKey);
     const fetchedAt = this.candleFetchedAt.get(cacheKey) || 0;
     if (cached?.length && Date.now() - fetchedAt < this.candleCacheMs[timeframe]) return cached;
@@ -77,6 +86,8 @@ export class MarketDataService {
     try {
       const candles = isBinanceFutures
         ? await this.binanceAdapter.fetchFuturesCandles(providerSymbol, timeframe, limit)
+        : isExplicitCryptoSpot
+        ? await this.binanceAdapter.fetchCandles(symbol, timeframe, limit)
         : isStockOrMetal
         ? await this.stockAdapter.fetchCandles(symbol, timeframe, limit)
         : await this.binanceAdapter.fetchCandles(symbol, timeframe, limit);
@@ -89,25 +100,34 @@ export class MarketDataService {
     }
   }
 
-  public async getPriceQuote(symbol: string): Promise<AssetPriceQuote> {
+  public async getPriceQuote(symbol: string, requestedMarketClass?: AssetMarketClass): Promise<AssetPriceQuote> {
     const asset = this.getAssetDefinition(symbol);
+    const resolvedMarketClass = requestedMarketClass || asset?.marketClass;
+    const cacheKey = `${resolvedMarketClass || 'auto'}_${symbol}`;
     const isBinanceFutures = this.isBinanceFuturesSymbol(symbol, asset);
     const providerSymbol = asset?.providerSymbol || symbol;
-    const isStockOrMetal = this.stockAdapter.isStockOrMetal(symbol);
-    const cached = this.quoteCache.get(symbol);
-    if (cached && Date.now() - (this.quoteFetchedAt.get(symbol) || 0) < this.quoteCacheMs) return cached;
+    const isExplicitCryptoSpot = resolvedMarketClass === 'crypto' && !symbol.includes('.') && !symbol.startsWith('TOTAL');
+    const isStockOrMetal = resolvedMarketClass === 'stocks' || resolvedMarketClass === 'metals'
+      ? true
+      : resolvedMarketClass === 'crypto'
+        ? false
+        : this.stockAdapter.isStockOrMetal(symbol);
+    const cached = this.quoteCache.get(cacheKey);
+    if (cached && Date.now() - (this.quoteFetchedAt.get(cacheKey) || 0) < this.quoteCacheMs) return cached;
 
     try {
       const quote = isBinanceFutures
         ? await this.binanceAdapter.fetchFutures24hTicker(providerSymbol, symbol)
+        : isExplicitCryptoSpot
+        ? await this.binanceAdapter.fetch24hTicker(symbol)
         : isStockOrMetal
         ? await this.stockAdapter.fetchQuote(symbol)
         : await this.binanceAdapter.fetch24hTicker(symbol);
-      this.quoteCache.set(symbol, quote);
-      this.quoteFetchedAt.set(symbol, Date.now());
+      this.quoteCache.set(cacheKey, quote);
+      this.quoteFetchedAt.set(cacheKey, Date.now());
       return quote;
     } catch (error) {
-      const cached = this.quoteCache.get(symbol);
+      const cached = this.quoteCache.get(cacheKey);
       if (cached) return { ...cached, source: `${cached.source} (cached)`, isStale: true };
       throw error;
     }
@@ -118,7 +138,7 @@ export class MarketDataService {
     const concurrency = 6;
     for (let index = 0; index < assets.length; index += concurrency) {
       const settled = await Promise.allSettled(
-        assets.slice(index, index + concurrency).map(asset => this.getPriceQuote(asset.symbol))
+        assets.slice(index, index + concurrency).map(asset => this.getPriceQuote(asset.symbol, asset.marketClass))
       );
       quotes.push(...settled.flatMap(result => result.status === 'fulfilled' ? [result.value] : []));
     }

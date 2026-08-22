@@ -73,9 +73,12 @@ export async function fetchNarratives(
 
 export async function fetchAssetDetail(
   symbol: string,
-  timeframe: Timeframe = '1w'
+  timeframe: Timeframe = '1w',
+  marketClass?: string
 ): Promise<AssetDetailResponse> {
-  const res = await fetch(`${API_BASE}/assets/${symbol}?timeframe=${timeframe}`);
+  const params = new URLSearchParams({ timeframe });
+  if (marketClass) params.set('marketClass', marketClass);
+  const res = await fetch(`${API_BASE}/assets/${symbol}?${params.toString()}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch asset detail for ${symbol}`);
   return res.json();
 }
