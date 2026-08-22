@@ -173,6 +173,7 @@ export interface SearchAssetItem {
   category: string;
   marketClass: 'stocks' | 'crypto' | 'metals' | 'forex' | 'macro' | string;
   exchange: string;
+  instrumentType?: string;
   price: number;
   change24h: number;
   changeYtd: number;

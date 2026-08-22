@@ -314,6 +314,11 @@ export const Header: React.FC<HeaderProps> = ({
                             <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/[0.04] text-slate-400 font-mono">
                               {asset.category}
                             </span>
+                            {asset.exchange && (
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-violet-500/10 text-violet-300 border border-violet-500/20 font-mono">
+                                {asset.exchange}{asset.instrumentType ? ` · ${asset.instrumentType.toUpperCase()}` : ''}
+                              </span>
+                            )}
                             {asset.isTopMatch && (
                               <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-bold font-mono flex items-center gap-0.5">
                                 <Sparkles className="w-2.5 h-2.5 text-emerald-400" />

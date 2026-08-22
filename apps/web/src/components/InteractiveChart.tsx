@@ -277,6 +277,9 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     // Clean common characters (slashes, dashes, spaces)
     const clean = s.replace(/[\/\-\s]/g, '');
 
+    // TradingView's Binance perpetual notation uses the `.P` suffix.
+    if (/^[A-Z0-9]+USDT\.P$/.test(s)) return `BINANCE:${s}`;
+
     // Crypto Dominance & Market Caps (TradingView CRYPTOCAP)
     if (clean === 'BTCD' || clean === 'BTC.D' || s === 'BTC.D') return 'CRYPTOCAP:BTC.D';
     if (clean === 'ETHD' || clean === 'ETH.D' || s === 'ETH.D') return 'CRYPTOCAP:ETH.D';

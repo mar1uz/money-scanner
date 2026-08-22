@@ -2184,7 +2184,27 @@ export const TRADING_360_ASSETS: AssetInfo[] = [
     quoteCurrency: 'USD',
     aliases: ['lit', 'lithium', 'litiu', 'battery metals'],
     rank: 0,
-    decimals: 2
+    decimals: 2,
+    exchange: 'AMEX',
+    instrumentType: 'etf',
+    marketDataSource: 'public_stock'
+  },
+  {
+    // `.P` is the TradingView/Binance convention for a USDT perpetual. It
+    // deliberately remains distinct from the AMEX:LIT lithium ETF above.
+    symbol: 'LITUSDT.P',
+    name: 'Lighter / USDT Perpetual',
+    category: 'Infrastructure',
+    marketClass: 'crypto',
+    narratives: ['crypto_l1'],
+    quoteCurrency: 'USDT',
+    aliases: ['lit', 'litusdt', 'lighter', 'lighter usdt', 'lighter perpetual', 'binance lit futures'],
+    rank: 0,
+    decimals: 6,
+    exchange: 'BINANCE Futures',
+    instrumentType: 'perpetual',
+    marketDataSource: 'binance_futures',
+    providerSymbol: 'LITUSDT'
   },
   {
     symbol: 'REMX',

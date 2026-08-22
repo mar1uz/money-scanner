@@ -4,6 +4,7 @@ import { MarketHealthMonitor } from '../health-monitor.js';
 export class BinanceMarketAdapter {
   // Binance recommends this host for public, market-data-only requests.
   private baseUrl = process.env.BINANCE_API_URL || 'https://data-api.binance.vision/api/v3';
+  private futuresBaseUrl = process.env.BINANCE_FUTURES_API_URL || 'https://fapi.binance.com/fapi/v1';
   private healthMonitor: MarketHealthMonitor;
   private supportedUsdtAssetsCache: { values: Set<string>; updatedAt: number } | null = null;
 
@@ -123,6 +124,38 @@ export class BinanceMarketAdapter {
     }
   }
 
+  /**
+   * USDT-M perpetual candles. The app stores perpetual symbols with a `.P`
+   * suffix so that they never collide with a spot ticker or an equity/ETF.
+   */
+  public async fetchFuturesCandles(
+    symbol: string,
+    timeframe: Timeframe = '1h',
+    limit = 1000
+  ): Promise<Candle[]> {
+    const pair = this.normalizeFuturesPair(symbol);
+    const interval = this.mapTimeframeToInterval(timeframe);
+    const startTime = Date.now();
+
+    try {
+      // Binance Futures permits up to 1,500 kline rows in one request.
+      const url = `${this.futuresBaseUrl}/klines?symbol=${pair}&interval=${interval}&limit=${Math.min(limit, 1500)}`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) throw new Error(`Binance Futures HTTP error: ${response.status}`);
+      const raw = await response.json() as any[];
+      const candles = this.parseRawKlines(raw);
+      this.healthMonitor.recordSuccess('Binance', Date.now() - startTime);
+      return candles;
+    } catch (err) {
+      this.healthMonitor.recordError('Binance');
+      throw err;
+    }
+  }
+
   private parseRawKlines(raw: any[]): Candle[] {
     return raw.map((item, idx) => {
       const isLast = idx === raw.length - 1;
@@ -223,5 +256,80 @@ export class BinanceMarketAdapter {
       this.healthMonitor.recordError('Binance');
       throw err;
     }
+  }
+
+  /** Fetch a quote for any Binance USDT-M perpetual, preserving the app symbol. */
+  public async fetchFutures24hTicker(symbol: string, displaySymbol = symbol): Promise<AssetPriceQuote> {
+    const pair = this.normalizeFuturesPair(symbol);
+    const url = `${this.futuresBaseUrl}/ticker/24hr?symbol=${pair}`;
+    const startTime = Date.now();
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) throw new Error(`Binance Futures ticker HTTP error: ${response.status}`);
+      const data = await response.json() as {
+        lastPrice: string;
+        priceChangePercent: string;
+        highPrice: string;
+        lowPrice: string;
+        volume: string;
+        closeTime: number;
+      };
+
+      this.healthMonitor.recordSuccess('Binance', Date.now() - startTime);
+      const currentPrice = parseFloat(data.lastPrice);
+      const startOfYearPrice = await this.getStartOfYearFuturesPrice(pair);
+      const changeYtd = startOfYearPrice && startOfYearPrice > 0
+        ? Number((((currentPrice - startOfYearPrice) / startOfYearPrice) * 100).toFixed(2))
+        : undefined;
+
+      return {
+        symbol: displaySymbol,
+        price: currentPrice,
+        change24h: parseFloat(data.priceChangePercent),
+        changeYtd,
+        high24h: parseFloat(data.highPrice),
+        low24h: parseFloat(data.lowPrice),
+        volume24h: parseFloat(data.volume),
+        timestamp: data.closeTime,
+        source: 'Binance Futures',
+        isStale: false
+      };
+    } catch (err) {
+      this.healthMonitor.recordError('Binance');
+      throw err;
+    }
+  }
+
+  private normalizeFuturesPair(symbol: string): string {
+    return symbol
+      .toUpperCase()
+      .trim()
+      .replace(/\.P$/, '')
+      .replace(/[^A-Z0-9]/g, '');
+  }
+
+  private async getStartOfYearFuturesPrice(pair: string): Promise<number | null> {
+    const cacheKey = `futures:${pair}`;
+    if (this.startOfYearPriceCache.has(cacheKey)) return this.startOfYearPriceCache.get(cacheKey)!;
+
+    try {
+      const startOfYear = Date.UTC(new Date().getUTCFullYear(), 0, 1);
+      const url = `${this.futuresBaseUrl}/klines?symbol=${pair}&interval=1d&startTime=${startOfYear}&limit=1`;
+      const response = await fetch(url, { signal: AbortSignal.timeout(2500) });
+      if (!response.ok) return null;
+      const data = await response.json() as any[];
+      const openPrice = Array.isArray(data) && data.length > 0 ? parseFloat(data[0][1]) : 0;
+      if (openPrice > 0) {
+        this.startOfYearPriceCache.set(cacheKey, openPrice);
+        return openPrice;
+      }
+    } catch {}
+
+    return null;
   }
 }

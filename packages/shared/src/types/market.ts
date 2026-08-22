@@ -12,6 +12,14 @@ export interface Candle {
 
 export type AssetMarketClass = 'crypto' | 'stocks' | 'metals';
 
+/**
+ * Identifies the tradable instrument, independently from its display ticker.
+ * This keeps similarly named instruments (for example an ETF and a perpetual)
+ * distinct throughout search, charts and market-data routing.
+ */
+export type AssetInstrumentType = 'spot' | 'perpetual' | 'equity' | 'etf' | 'metal' | 'index' | 'forex';
+export type AssetMarketDataSource = 'binance_spot' | 'binance_futures' | 'public_stock';
+
 export type AssetCategory = 
   | 'Layer 1' 
   | 'Layer 2' 
@@ -79,6 +87,13 @@ export interface AssetInfo {
   marketCap?: number;
   rank: number;
   decimals: number;
+  /** Exchange shown to the user and used to disambiguate identical tickers. */
+  exchange?: string;
+  instrumentType?: AssetInstrumentType;
+  /** Provider route for instruments that are not regular Binance spot pairs. */
+  marketDataSource?: AssetMarketDataSource;
+  /** Actual provider ticker when the app's unique symbol has a suffix such as .P. */
+  providerSymbol?: string;
 }
 
 export interface AssetPriceQuote {

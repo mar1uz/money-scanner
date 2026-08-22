@@ -1,4 +1,4 @@
-import { TOP_50_CRYPTO_ASSETS } from '@money-scanner/shared';
+import { TRADING_360_ASSETS } from '@money-scanner/shared';
 import { AssetScannerRow } from '../types.js';
 
 export interface SemanticAsset {
@@ -14,6 +14,9 @@ export interface SemanticAsset {
   tier: string;
   moneyLineScore: number;
   rank: number;
+  marketClass?: string;
+  exchange?: string;
+  instrumentType?: string;
 }
 
 export interface SearchMatchResult extends SemanticAsset {
@@ -434,7 +437,10 @@ export function normalizeQuery(query: string): string {
  * Builds full semantic searchable asset universe
  */
 export function buildSearchUniverse(liveRows: AssetScannerRow[] = []): SemanticAsset[] {
-  return TOP_50_CRYPTO_ASSETS.map(base => {
+  // Search intentionally uses the full curated catalog, while scanner tabs can
+  // remain focused on their own ranked universes. This lets an ETF and a
+  // perpetual with related tickers appear as separate, explicit choices.
+  return TRADING_360_ASSETS.map(base => {
     const live = liveRows.find(a => a.symbol.toUpperCase() === base.symbol.toUpperCase());
     const extra = SEMANTIC_CONCEPTS[base.symbol.toUpperCase()] || {
       concepts: [],
@@ -462,7 +468,10 @@ export function buildSearchUniverse(liveRows: AssetScannerRow[] = []): SemanticA
       change24h: live ? live.change24h : 0,
       tier: live ? live.tier : 'Bullish',
       moneyLineScore: live ? live.moneyLineScore : 0,
-      rank: base.rank || 50
+      rank: base.rank || 50,
+      marketClass: base.marketClass,
+      exchange: base.exchange || (base.marketClass === 'crypto' ? 'BINANCE' : (base.marketClass === 'stocks' ? 'NASDAQ/NYSE' : 'GLOBAL')),
+      instrumentType: base.instrumentType
     };
   });
 }

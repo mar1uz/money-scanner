@@ -131,8 +131,9 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
         symbol: local.symbol,
         name: local.name,
         category: local.category,
-        marketClass: (live?.marketClass || (sym === 'XAU' || sym === 'XAG' || sym === 'OIL' ? 'metals' : (local.category.includes('Stock') || local.category.includes('Equity') ? 'stocks' : 'crypto'))),
-        exchange: local.category.includes('Stock') ? 'NASDAQ/NYSE' : (local.category.includes('Crypto') ? 'BINANCE' : 'TVC'),
+        marketClass: (local.marketClass || live?.marketClass || (sym === 'XAU' || sym === 'XAG' || sym === 'OIL' ? 'metals' : (local.category.includes('Stock') || local.category.includes('Equity') ? 'stocks' : 'crypto'))),
+        exchange: local.exchange || (local.category.includes('Stock') ? 'NASDAQ/NYSE' : (local.category.includes('Crypto') ? 'BINANCE' : 'TVC')),
+        instrumentType: local.instrumentType,
         price: local.price || live?.price || 0,
         change24h: local.change24h || live?.change24h || 0,
         changeYtd: live?.changeYtd || 0,
@@ -394,6 +395,11 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
                             <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-white/[0.04] text-slate-400 border border-white/[0.04]">
                               {item.exchange || 'GLOBAL'}
                             </span>
+                            {item.instrumentType && (
+                              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-violet-500/10 text-violet-300 border border-violet-500/20 uppercase">
+                                {item.instrumentType}
+                              </span>
+                            )}
                             <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-800/80 text-slate-400">
                               {item.category}
                             </span>

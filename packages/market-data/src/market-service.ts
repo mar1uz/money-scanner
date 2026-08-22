@@ -50,19 +50,34 @@ export class MarketDataService {
   };
   private candleFetchedAt = new Map<string, number>();
 
+  private getAssetDefinition(symbol: string): AssetInfo | undefined {
+    const normalized = symbol.toUpperCase();
+    return TRADING_360_ASSETS.find(asset => asset.symbol.toUpperCase() === normalized);
+  }
+
+  /** `.P` is accepted for any Binance USDT-M perpetual, not only catalogued ones. */
+  private isBinanceFuturesSymbol(symbol: string, asset?: AssetInfo): boolean {
+    return asset?.marketDataSource === 'binance_futures' || /\.P$/i.test(symbol.trim());
+  }
+
   public async getCandles(
     symbol: string,
     timeframe: Timeframe = '1h',
     limit = 1000
   ): Promise<Candle[]> {
     const cacheKey = `${symbol}_${timeframe}_${limit}`;
+    const asset = this.getAssetDefinition(symbol);
+    const isBinanceFutures = this.isBinanceFuturesSymbol(symbol, asset);
+    const providerSymbol = asset?.providerSymbol || symbol;
     const isStockOrMetal = this.stockAdapter.isStockOrMetal(symbol);
     const cached = this.candleCache.get(cacheKey);
     const fetchedAt = this.candleFetchedAt.get(cacheKey) || 0;
     if (cached?.length && Date.now() - fetchedAt < this.candleCacheMs[timeframe]) return cached;
 
     try {
-      const candles = isStockOrMetal
+      const candles = isBinanceFutures
+        ? await this.binanceAdapter.fetchFuturesCandles(providerSymbol, timeframe, limit)
+        : isStockOrMetal
         ? await this.stockAdapter.fetchCandles(symbol, timeframe, limit)
         : await this.binanceAdapter.fetchCandles(symbol, timeframe, limit);
       this.candleCache.set(cacheKey, candles);
@@ -75,12 +90,17 @@ export class MarketDataService {
   }
 
   public async getPriceQuote(symbol: string): Promise<AssetPriceQuote> {
+    const asset = this.getAssetDefinition(symbol);
+    const isBinanceFutures = this.isBinanceFuturesSymbol(symbol, asset);
+    const providerSymbol = asset?.providerSymbol || symbol;
     const isStockOrMetal = this.stockAdapter.isStockOrMetal(symbol);
     const cached = this.quoteCache.get(symbol);
     if (cached && Date.now() - (this.quoteFetchedAt.get(symbol) || 0) < this.quoteCacheMs) return cached;
 
     try {
-      const quote = isStockOrMetal
+      const quote = isBinanceFutures
+        ? await this.binanceAdapter.fetchFutures24hTicker(providerSymbol, symbol)
+        : isStockOrMetal
         ? await this.stockAdapter.fetchQuote(symbol)
         : await this.binanceAdapter.fetch24hTicker(symbol);
       this.quoteCache.set(symbol, quote);

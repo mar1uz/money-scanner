@@ -23,6 +23,7 @@ scannerRouter.get('/search', async (req, res) => {
       category: string;
       marketClass: string;
       exchange: string;
+      instrumentType?: string;
       price: number;
       change24h: number;
       changeYtd: number;
@@ -56,7 +57,8 @@ scannerRouter.get('/search', async (req, res) => {
           name: asset.name,
           category: asset.category,
           marketClass: asset.marketClass || 'crypto',
-          exchange: asset.marketClass === 'stocks' ? 'NASDAQ/NYSE' : (asset.marketClass === 'crypto' ? 'BINANCE' : 'GLOBAL'),
+          exchange: asset.exchange || (asset.marketClass === 'stocks' ? 'NASDAQ/NYSE' : (asset.marketClass === 'crypto' ? 'BINANCE' : 'GLOBAL')),
+          instrumentType: asset.instrumentType,
           price: live?.price || 0,
           change24h: live?.change24h || 0,
           changeYtd: live?.changeYtd || 0,
@@ -67,7 +69,60 @@ scannerRouter.get('/search', async (req, res) => {
       }
     }
 
-    // 2. Query Global Yahoo Finance Public Search (TradingView-style global coverage)
+    // 2. Discover matching Binance USDT-M perpetuals. The `.P` suffix is an
+    // app/TradingView-safe identity, so a perpetual never replaces a spot
+    // coin, stock or ETF that happens to share the same ticker.
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2800);
+      const futuresRes = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo', {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (futuresRes.ok) {
+        const data = await futuresRes.json() as { symbols?: Array<{
+          symbol?: string;
+          baseAsset?: string;
+          quoteAsset?: string;
+          contractType?: string;
+          status?: string;
+        }> };
+        const normalizedQuery = cleanQ.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        for (const market of data.symbols || []) {
+          const pair = String(market.symbol || '').toUpperCase();
+          const base = String(market.baseAsset || '').toUpperCase();
+          if (
+            !pair ||
+            market.quoteAsset !== 'USDT' ||
+            market.contractType !== 'PERPETUAL' ||
+            market.status !== 'TRADING' ||
+            !(pair.includes(normalizedQuery) || base.includes(normalizedQuery))
+          ) continue;
+
+          const appSymbol = `${pair}.P`;
+          if (seenSymbols.has(appSymbol)) continue;
+          seenSymbols.add(appSymbol);
+          results.push({
+            symbol: appSymbol,
+            name: `${base} / USDT Perpetual`,
+            category: 'Infrastructure',
+            marketClass: 'crypto',
+            exchange: 'BINANCE Futures',
+            instrumentType: 'perpetual',
+            price: 0,
+            change24h: 0,
+            changeYtd: 0,
+            moneyLineScore: 0,
+            tier: 'Neutral',
+            matchType: 'custom'
+          });
+          if (results.filter(result => result.instrumentType === 'perpetual').length >= 8) break;
+        }
+      }
+    } catch {}
+
+    // 3. Query Global Yahoo Finance Public Search (TradingView-style global coverage)
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 2800);
@@ -138,7 +193,7 @@ scannerRouter.get('/search', async (req, res) => {
       }
     } catch (e) {}
 
-    // 3. Guarantee Direct Custom TradingView Fallback (User can always open ANY ticker directly)
+    // 4. Guarantee Direct Custom TradingView Fallback (User can always open ANY ticker directly)
     const upperTicker = cleanQ.toUpperCase();
     if (!seenSymbols.has(upperTicker) && upperTicker.length >= 2 && upperTicker.length <= 10) {
       results.push({
@@ -233,15 +288,22 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
 
     let assetInfo = TRADING_360_ASSETS.find(a => a.symbol === symbol);
     if (!assetInfo) {
+      const isPerpetual = /\.P$/i.test(symbol);
       assetInfo = {
         symbol,
-        name: `${symbol} (TradingView Asset)`,
-        category: symbol.includes('.') || symbol === 'TOTAL' || symbol === 'DXY' ? 'Macro / Index' : 'Tech Stock',
-        marketClass: symbol.includes('.D') || symbol.startsWith('TOTAL') ? 'crypto' : 'stocks',
-        quoteCurrency: symbol.includes('.D') ? '%' : 'USD',
+        name: isPerpetual ? `${symbol.replace(/\.P$/i, '')} / USDT Perpetual` : `${symbol} (TradingView Asset)`,
+        category: isPerpetual ? 'Infrastructure' : (symbol.includes('.') || symbol === 'TOTAL' || symbol === 'DXY' ? 'Macro / Index' : 'Tech Stock'),
+        marketClass: isPerpetual || symbol.includes('.D') || symbol.startsWith('TOTAL') ? 'crypto' : 'stocks',
+        quoteCurrency: isPerpetual ? 'USDT' : (symbol.includes('.D') ? '%' : 'USD'),
         aliases: [symbol.toLowerCase()],
         rank: 999,
-        decimals: 2
+        decimals: 2,
+        ...(isPerpetual ? {
+          exchange: 'BINANCE Futures',
+          instrumentType: 'perpetual' as const,
+          marketDataSource: 'binance_futures' as const,
+          providerSymbol: symbol.replace(/\.P$/i, '')
+        } : {})
       };
     }
 
