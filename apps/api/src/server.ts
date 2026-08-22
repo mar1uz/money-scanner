@@ -10,26 +10,43 @@ import { telegramRouter } from './routes/telegram-routes.js';
 import { backtestRouter } from './routes/backtest-routes.js';
 import { authRouter } from './routes/auth-routes.js';
 import { macroRouter } from './routes/macro-routes.js';
+import { authMiddleware } from './middleware/auth.js';
 
 export function createServer() {
   const app = express();
 
   app.use(cors({
-    origin: '*',
+    // The dashboard and API are served from the same Cloud Run origin. Do not
+    // expose authenticated cookies to arbitrary browser origins.
+    origin: false,
+    credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Telegram-Bot-Api-Secret-Token', 'X-User-Role', 'X-User-Email']
+    allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'X-Telegram-Bot-Api-Secret-Token']
   }));
 
   app.use(express.json());
 
-  // Mount API routers under /api
+  // Session bootstrap routes are deliberately public. They validate Google
+  // credentials themselves before issuing an HttpOnly session cookie.
+  app.use('/api', authRouter);
+
+  // Everything with market, social, AI, alert, or account data requires a
+  // verified Firebase session. Health and the Telegram webhook have their own
+  // safe verification mechanisms and must remain reachable for operations.
+  app.use('/api', (req, res, next) => {
+    if (req.path === '/health' || req.path === '/telegram/webhook' || req.path.startsWith('/auth/')) {
+      return next();
+    }
+    return authMiddleware(req, res, next);
+  });
+
+  // Mount protected API routers under /api
   app.use('/api', marketRouter);
   app.use('/api', scannerRouter);
   app.use('/api', socialNewsRouter);
   app.use('/api', aiRouter);
   app.use('/api', telegramRouter);
   app.use('/api', backtestRouter);
-  app.use('/api', authRouter);
   app.use('/api', macroRouter);
 
   // Serve static web app bundle if built

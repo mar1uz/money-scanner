@@ -12,11 +12,13 @@ import {
   BellRing,
   Languages,
   ChevronDown,
-  Check
+  Check,
+  LogOut
 } from 'lucide-react';
 import { Timeframe, AssetScannerRow } from '../types.js';
 import { buildSearchUniverse, performAISearchMatch, SearchMatchResult } from '../services/ai-search.js';
 import { useLanguage, Language } from '../i18n.js';
+import { UserProfile } from '@money-scanner/shared';
 
 interface HeaderProps {
   timeframe: Timeframe;
@@ -33,6 +35,8 @@ interface HeaderProps {
   isRefreshing?: boolean;
   onOpenSearchModal?: () => void;
   hasSidebar?: boolean;
+  currentUser?: UserProfile;
+  onLogout?: () => Promise<void>;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -49,7 +53,9 @@ export const Header: React.FC<HeaderProps> = ({
   onRefreshMarket,
   isRefreshing = false,
   onOpenSearchModal,
-  hasSidebar = false
+  hasSidebar = false,
+  currentUser,
+  onLogout
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isLanguageOpen, setIsLanguageOpen] = useState(false);
@@ -420,6 +426,23 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <BellRing className="w-3.5 h-3.5 text-cyan-400" />
             <span>Alert</span>
+          </button>
+        )}
+
+        {currentUser && onLogout && (
+          <button
+            type="button"
+            onClick={() => void onLogout()}
+            title={`Deconectare ${currentUser.email}`}
+            className="hidden md:flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.03] px-2 py-1 text-slate-300 transition-all hover:bg-rose-500/10 hover:text-rose-200"
+          >
+            {currentUser.avatarUrl ? (
+              <img src={currentUser.avatarUrl} alt="" className="h-5 w-5 rounded-full border border-cyan-400/30" referrerPolicy="no-referrer" />
+            ) : (
+              <span className="grid h-5 w-5 place-items-center rounded-full bg-cyan-500/15 text-[9px] font-bold text-cyan-300">{currentUser.name.slice(0, 1).toUpperCase()}</span>
+            )}
+            <span className="max-w-[105px] truncate text-[10px] font-mono">{currentUser.name}</span>
+            <LogOut className="h-3.5 w-3.5" />
           </button>
         )}
 

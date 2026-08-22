@@ -11,14 +11,15 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@money-scanner/shared": "^1.0.0",
-    "@money-scanner/money-line": "^1.0.0",
-    "@money-scanner/market-data": "^1.0.0",
-    "@money-scanner/social-analysis": "^1.0.0",
     "@money-scanner/ai-analysis": "^1.0.0",
+    "@money-scanner/market-data": "^1.0.0",
+    "@money-scanner/money-line": "^1.0.0",
     "@money-scanner/notifications": "^1.0.0",
+    "@money-scanner/shared": "^1.0.0",
+    "@money-scanner/social-analysis": "^1.0.0",
     "cors": "^2.8.5",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "firebase-admin": "^14.3.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

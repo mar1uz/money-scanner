@@ -29,9 +29,16 @@ import { SystemStatusView } from './components/SystemStatusView.js';
 import { USAStatusView } from './components/USAStatusView.js';
 import { CryptoBubbleView } from './components/CryptoBubbleView.js';
 import { CryptoHeatMapView } from './components/CryptoHeatMapView.js';
+import { AuthGate } from './components/AuthGate.js';
+import { UserProfile } from '@money-scanner/shared';
 import { Zap, CheckCircle2, RefreshCw } from 'lucide-react';
 
-export const App: React.FC = () => {
+interface AuthenticatedAppProps {
+  user: UserProfile;
+  onLogout: () => Promise<void>;
+}
+
+const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) => {
   const [activeTab, setActiveTab] = useState<AppTab>('market');
   const [timeframe, setTimeframe] = useState<Timeframe>('1w');
   const [searchQuery, setSearchQuery] = useState('');
@@ -41,10 +48,12 @@ export const App: React.FC = () => {
   const [inspectedNarrative, setInspectedNarrative] = useState<NarrativeSummary | null>(null);
   const [watchlistOnly, setWatchlistOnly] = useState(false);
   
-  // Persistent Watchlist from localStorage
+  const watchlistStorageKey = `money_scanner_watchlist_${user.id}`;
+
+  // Persistent watchlist is isolated per authenticated account in this browser.
   const [watchlist, setWatchlist] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem('money_scanner_watchlist');
+      const saved = localStorage.getItem(watchlistStorageKey);
       if (saved) return JSON.parse(saved);
     } catch {}
     return ['BTC', 'ETH', 'SOL', 'SUI', 'FET'];
@@ -102,7 +111,7 @@ export const App: React.FC = () => {
 
     setWatchlist(updated);
     try {
-      localStorage.setItem('money_scanner_watchlist', JSON.stringify(updated));
+      localStorage.setItem(watchlistStorageKey, JSON.stringify(updated));
     } catch {}
 
     setBannerAlert(
@@ -115,7 +124,7 @@ export const App: React.FC = () => {
 
   const handleReorderWatchlist = (newOrder: string[]) => {
     setWatchlist(newOrder);
-    localStorage.setItem('money_scanner_watchlist', JSON.stringify(newOrder));
+    localStorage.setItem(watchlistStorageKey, JSON.stringify(newOrder));
   };
 
   const handleTriggerTestAlert = async () => {
@@ -167,6 +176,8 @@ export const App: React.FC = () => {
           isRefreshing={loading}
           onOpenSearchModal={() => setIsSearchModalOpen(true)}
           hasSidebar={!selectedAssetSymbol}
+          currentUser={user}
+          onLogout={onLogout}
         />
 
         {/* Notification Banner */}
@@ -329,3 +340,9 @@ export const App: React.FC = () => {
     </div>
   );
 };
+
+export const App: React.FC = () => (
+  <AuthGate>
+    {(user, logout) => <AuthenticatedApp user={user} onLogout={logout} />}
+  </AuthGate>
+);

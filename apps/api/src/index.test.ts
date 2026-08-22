@@ -3,6 +3,12 @@ import assert from 'node:assert/strict';
 import { createServer } from './server.js';
 import http from 'node:http';
 
+// The production API always requires a verified Firebase session. Integration
+// tests exercise the market routes with an explicit test-only bypass that the
+// auth middleware refuses outside NODE_ENV=test.
+process.env.NODE_ENV = 'test';
+process.env.AUTH_TEST_BYPASS = 'true';
+
 describe('API Server Integration Tests', () => {
   it('serves health endpoint with ok status and version', async () => {
     const app = createServer();
@@ -19,6 +25,25 @@ describe('API Server Integration Tests', () => {
     assert.ok(body.version !== undefined);
 
     await new Promise<void>(resolve => server.close(() => resolve()));
+  });
+
+  it('rejects protected market data when no authenticated session is present', async () => {
+    const savedMode = process.env.NODE_ENV;
+    const savedBypass = process.env.AUTH_TEST_BYPASS;
+    process.env.NODE_ENV = 'production';
+    delete process.env.AUTH_TEST_BYPASS;
+
+    const app = createServer();
+    const server = http.createServer(app);
+    await new Promise<void>(resolve => server.listen(0, resolve));
+    const port = (server.address() as any).port;
+
+    const res = await fetch(`http://localhost:${port}/api/scanner?timeframe=1h`);
+    assert.equal(res.status, 401);
+
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    process.env.NODE_ENV = savedMode;
+    if (savedBypass) process.env.AUTH_TEST_BYPASS = savedBypass;
   });
 
   it('serves only currently verified scanner rows and their Money Line calculations', async (t) => {
