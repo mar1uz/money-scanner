@@ -532,6 +532,7 @@ Rough implementation estimate: four to six weeks for the functional MVP, followe
 | **Step 60** | `apps/api` | **Stock Market Cap Visibility** (Restored the known Market Cap values for every curated Top 50 stock in both the Stocks and Trading 360° scanner responses. The backend no longer replaces stock values with an empty map, so the Market Cap column can be displayed and sorted.) Deployed as Cloud Run revision `market-scanner-360-00059-2wj`. | **Completed & Deployed** | `9645dde` |
 | **Step 61** | `apps/api`, `apps/web` | **Strict Crypto-Only Contract** (The Crypto scanner endpoint now hard-rejects every non-crypto row, the client validates the same rule before rendering, and scanner/bubble selections pass their verified class to the chart. This prevents any stock ticker collision from displaying a stock chart inside crypto.) Deployed as Cloud Run revision `market-scanner-360-00060-tbt`. | **Completed & Deployed** | `471d819` |
 | **Step 62** | `apps/api`, `apps/web`, `packages/market-data` | **MoneyLine Provider-Class Routing** (Propagated the verified market class from scanner selection through the asset-detail API into quote and candle ingestion. Crypto now forces Binance USDT data for MoneyLine, SMA 200 and flips; cache keys are isolated by market class so an equity with the same ticker cannot contaminate crypto. Added a regression test proving `CAKE + crypto` requests `CAKEUSDT` instead of Yahoo.) Deployed as Cloud Run revision `market-scanner-360-00061-rpf`. | **Completed & Deployed** | `f6c10ca` |
+| **Step 63** | `apps/api`, `apps/web`, `packages/money-line`, `packages/notifications` | **Per-Asset MoneyLine Bullish Telegram Alerts** (Added an Alert toggle directly between Cloud Base and Cloud Edge, scoped to the selected asset and timeframe. The backend monitors only closed candles, confirms bullish state when both Fast and Slow Supertrend are bullish, prevents repeat delivery until a new bearish-to-bullish cycle, and delivers the asset, timeframe, confirmation price and Slow cloud edge through Telegram. Browser storage safely re-arms selected rules after a Cloud Run restart.) Deployed as Cloud Run revision `market-scanner-360-00062-5vj`. | **Completed & Deployed** | `f63a3e9` |
 
 ---
 
@@ -570,7 +571,7 @@ npm start
 - `GEMINI_MODEL` defaults to `gemini-3.5-flash-lite`.
 - `BLUESKY_SEARCH_QUERIES` is an optional comma-separated list of public Bluesky searches.
 - `TELEGRAM_SOURCE_CHANNELS` is a required comma-separated allowlist before public Telegram channel posts are accepted by the webhook.
-- Keep `TELEGRAM_BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` server-side only.
+- Keep `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, and `TELEGRAM_WEBHOOK_SECRET` server-side only. Bullish MoneyLine delivery requires the bot token and destination chat ID; the webhook can also learn the active chat after a verified command reaches the bot.
 
 ---
 
