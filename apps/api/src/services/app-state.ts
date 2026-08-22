@@ -51,8 +51,17 @@ export class AppState {
       ? await this.marketData.getQuotesForAssets(assets)
       : await this.marketData.getAllQuotes(marketClass);
     const quoteBySymbol = new Map(quotes.map(quote => [quote.symbol, quote]));
+    // Stock market caps are maintained in the curated Top 50 stock catalog.
+    // Use them for both the Stocks tab and the mixed 360° view; previously an
+    // empty map was deliberately returned for stocks, leaving every value as
+    // "-" despite all 50 assets having a known market cap.
+    const staticStockMarketCaps = new Map(
+      assets
+        .filter(asset => asset.marketClass === 'stocks' && typeof asset.marketCap === 'number' && asset.marketCap > 0)
+        .map(asset => [asset.symbol, asset.marketCap!] as const)
+    );
     const marketCaps = marketClass === 'stocks' || marketClass === 'metals'
-      ? new Map<string, number>()
+      ? staticStockMarketCaps
       : await this.marketData.getCryptoMarketCaps();
 
     const buildRow = async (asset: ReturnType<typeof getScannerAssets>[number]) => {
@@ -111,7 +120,7 @@ export class AppState {
           change24h: quote.change24h,
           timeframeChangePercent,
           changeYtd: quote.changeYtd,
-          marketCap: marketCaps.get(asset.symbol),
+          marketCap: marketCaps.get(asset.symbol) ?? asset.marketCap,
           high24h: quote.high24h,
           low24h: quote.low24h,
           volume24h: quote.volume24h,
