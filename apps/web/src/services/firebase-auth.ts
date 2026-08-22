@@ -3,6 +3,7 @@ import {
   getAuth,
   getRedirectResult,
   GoogleAuthProvider,
+  browserSessionPersistence,
   inMemoryPersistence,
   setPersistence,
   signInWithPopup,
@@ -26,6 +27,7 @@ const firebaseApp = getApps().length ? getApps()[0] : initializeApp(firebaseConf
 const firebaseAuth = getAuth(firebaseApp);
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
+const REDIRECT_INTENT_KEY = 'money_scanner_google_redirect_pending';
 
 const requestCsrfToken = async () => {
   const response = await fetch('/api/auth/csrf', { credentials: 'same-origin' });
@@ -59,12 +61,22 @@ const createServerSession = async (user: User): Promise<UserProfile> => {
 const useRedirectOnMobile = () => window.matchMedia('(max-width: 767px)').matches;
 
 export const beginGoogleSignIn = async (): Promise<UserProfile | null> => {
-  await setPersistence(firebaseAuth, inMemoryPersistence);
   if (useRedirectOnMobile()) {
-    await signInWithRedirect(firebaseAuth, googleProvider);
+    // Redirect navigation destroys in-memory Firebase state. Session storage
+    // survives the round-trip to Google while being cleared when the browser
+    // tab is closed, which is the intended scope for mobile sign-in.
+    await setPersistence(firebaseAuth, browserSessionPersistence);
+    window.sessionStorage.setItem(REDIRECT_INTENT_KEY, '1');
+    try {
+      await signInWithRedirect(firebaseAuth, googleProvider);
+    } catch (error) {
+      window.sessionStorage.removeItem(REDIRECT_INTENT_KEY);
+      throw error;
+    }
     return null;
   }
 
+  await setPersistence(firebaseAuth, inMemoryPersistence);
   const result = await signInWithPopup(firebaseAuth, googleProvider);
   try {
     return await createServerSession(result.user);
@@ -74,12 +86,22 @@ export const beginGoogleSignIn = async (): Promise<UserProfile | null> => {
 };
 
 export const finishRedirectGoogleSignIn = async (): Promise<UserProfile | null> => {
-  await setPersistence(firebaseAuth, inMemoryPersistence);
+  const redirectWasStarted = window.sessionStorage.getItem(REDIRECT_INTENT_KEY) === '1';
+  // Must match the persistence selected before signInWithRedirect; otherwise
+  // Firebase cannot recover the Google redirect result on a mobile reload.
+  await setPersistence(firebaseAuth, browserSessionPersistence);
   const result = await getRedirectResult(firebaseAuth);
-  if (!result?.user) return null;
+  window.sessionStorage.removeItem(REDIRECT_INTENT_KEY);
+  const redirectUser = result?.user || firebaseAuth.currentUser;
+  if (!redirectUser) {
+    if (redirectWasStarted) {
+      throw new Error('Autentificarea Google nu a revenit complet. Încearcă din nou.');
+    }
+    return null;
+  }
 
   try {
-    return await createServerSession(result.user);
+    return await createServerSession(redirectUser);
   } finally {
     await signOut(firebaseAuth);
   }
