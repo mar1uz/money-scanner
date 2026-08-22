@@ -7,13 +7,28 @@ import {
   AssetScannerRow,
   MoneyLineSignal,
   DispatchedAlert,
-  ScannerMarketClass
+  ScannerMarketClass,
+  AssetMarketClass
 } from '@money-scanner/shared';
 import { MarketDataService } from '@money-scanner/market-data';
-import { MoneyLineEngine, calculateMTFConfluence } from '@money-scanner/money-line';
+import { MoneyLineEngine, calculateMTFConfluence, calculateMoneyLineCloud } from '@money-scanner/money-line';
 import { XSocialIntelligenceService, NewsIntelligenceService } from '@money-scanner/social-analysis';
 import { AIMarketAnalystService } from '@money-scanner/ai-analysis';
 import { AlertDispatcher, TelegramBotHandler } from '@money-scanner/notifications';
+
+export interface BullishCloudAlertRule {
+  id: string;
+  userId: string;
+  symbol: string;
+  timeframe: Timeframe;
+  marketClass: AssetMarketClass;
+  isEnabled: boolean;
+  createdAt: number;
+  lastEvaluatedCandle?: number;
+  lastTriggeredCandle?: number;
+  lastWasBullish?: boolean;
+  lastError?: string;
+}
 
 export class AppState {
   public marketData = new MarketDataService();
@@ -26,6 +41,9 @@ export class AppState {
 
   public cachedSignals: Map<string, MoneyLineSignal> = new Map(); // key: `${symbol}_${timeframe}`
   public alertHistory: DispatchedAlert[] = [];
+  private bullishCloudAlerts = new Map<string, BullishCloudAlertRule>();
+  private evaluatingAlertIds = new Set<string>();
+  private bullishAlertTimer?: NodeJS.Timeout;
 
   private static instance: AppState;
 
@@ -34,6 +52,160 @@ export class AppState {
       AppState.instance = new AppState();
     }
     return AppState.instance;
+  }
+
+  private bullishAlertId(userId: string, symbol: string, timeframe: Timeframe) {
+    return `${userId}:${symbol.toUpperCase()}:${timeframe}`;
+  }
+
+  public getBullishCloudAlert(userId: string, symbol: string, timeframe: Timeframe) {
+    return this.bullishCloudAlerts.get(this.bullishAlertId(userId, symbol, timeframe));
+  }
+
+  public listBullishCloudAlerts(userId: string) {
+    return Array.from(this.bullishCloudAlerts.values()).filter(rule => rule.userId === userId && rule.isEnabled);
+  }
+
+  public async setBullishCloudAlert(
+    userId: string,
+    symbol: string,
+    timeframe: Timeframe,
+    marketClass: AssetMarketClass,
+    enabled: boolean
+  ) {
+    const normalizedSymbol = symbol.replace(/^[$#]/, '').trim().toUpperCase();
+    const id = this.bullishAlertId(userId, normalizedSymbol, timeframe);
+    if (!enabled) {
+      this.bullishCloudAlerts.delete(id);
+      return undefined;
+    }
+
+    const existing = this.bullishCloudAlerts.get(id);
+    const rule: BullishCloudAlertRule = existing || {
+      id,
+      userId,
+      symbol: normalizedSymbol,
+      timeframe,
+      marketClass,
+      isEnabled: true,
+      createdAt: Date.now()
+    };
+    rule.marketClass = marketClass;
+    rule.isEnabled = true;
+    this.bullishCloudAlerts.set(id, rule);
+    await this.evaluateBullishCloudAlert(rule);
+    return rule;
+  }
+
+  private async evaluateBullishCloudAlert(
+    rule: BullishCloudAlertRule,
+    supplied?: { candles: Awaited<ReturnType<MarketDataService['getCandles']>>; price: number }
+  ) {
+    if (!rule.isEnabled || this.evaluatingAlertIds.has(rule.id)) return;
+    this.evaluatingAlertIds.add(rule.id);
+
+    try {
+      const candles = supplied?.candles || await this.marketData.getCandles(
+        rule.symbol,
+        rule.timeframe,
+        rule.timeframe === '1w' ? 300 : 500,
+        rule.marketClass
+      );
+      const closedCandles = candles
+        .filter(candle => candle.isClosed !== false)
+        .sort((left, right) => left.timestamp - right.timestamp);
+      if (closedCandles.length < 2) {
+        rule.lastError = 'Nu există suficiente lumânări închise pentru confirmare.';
+        return;
+      }
+
+      const cloud = calculateMoneyLineCloud(closedCandles, rule.timeframe);
+      const lastIndex = closedCandles.length - 1;
+      const isBullish = cloud.dirFast[lastIndex] < 0 && cloud.dirSlow[lastIndex] < 0;
+      const candleTimestamp = closedCandles[lastIndex].timestamp;
+      const shouldNotify = isBullish && (
+        rule.lastWasBullish !== true || rule.lastTriggeredCandle === undefined
+      );
+
+      rule.lastWasBullish = isBullish;
+      rule.lastEvaluatedCandle = candleTimestamp;
+      rule.lastError = undefined;
+      if (!shouldNotify) return;
+
+      const price = supplied?.price || (await this.marketData.getPriceQuote(rule.symbol, rule.marketClass)).price;
+      const slowLine = cloud.lineSlow[lastIndex];
+      const dashboardBaseUrl = process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app';
+      const message = [
+        `🟢 *MONEYLINE BULLISH CONFIRMED*`,
+        `*Asset:* $${rule.symbol}`,
+        `*Timeframe:* ${rule.timeframe.toUpperCase()}`,
+        `*Preț confirmare:* $${price.toLocaleString('en-US', { maximumFractionDigits: price < 1 ? 8 : 4 })}`,
+        `*Margine Nor (Slow):* $${slowLine.toLocaleString('en-US', { maximumFractionDigits: slowLine < 1 ? 8 : 4 })}`,
+        `*Confirmare:* Baza Nor și Margine Nor sunt bullish pe ultima lumânare închisă.`,
+        `\n🔗 [Deschide Money Scanner](${dashboardBaseUrl})`
+      ].join('\n');
+      const delivered = await this.telegramBot.sendMarkdown(message);
+      if (!delivered) {
+        rule.lastError = this.telegramBot.getDeliveryConfiguration().telegramConfigured
+          ? 'Telegram a respins mesajul; verifică botul și chatul.'
+          : 'Telegram nu este configurat: lipsesc TELEGRAM_BOT_TOKEN sau TELEGRAM_CHAT_ID.';
+        return;
+      }
+
+      rule.lastTriggeredCandle = candleTimestamp;
+      const alert: DispatchedAlert = {
+        id: `cloud_bull_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        idempotencyKey: `${rule.id}:${candleTimestamp}`,
+        ruleId: rule.id,
+        symbol: rule.symbol,
+        type: 'MoneyLineTransition',
+        title: `MoneyLine bullish confirmat: ${rule.symbol} ${rule.timeframe.toUpperCase()}`,
+        message,
+        timeframe: rule.timeframe,
+        price,
+        tier: 'Bullish',
+        reason: 'Fast și Slow Supertrend sunt bullish pe o lumânare închisă.',
+        confidence: 1,
+        timestamp: Date.now(),
+        dashboardLink: dashboardBaseUrl,
+        isDelivered: true
+      };
+      this.alertHistory.unshift(alert);
+      if (this.alertHistory.length > 100) this.alertHistory.pop();
+    } catch (error) {
+      rule.lastError = error instanceof Error ? error.message : 'Verificarea alertei a eșuat.';
+      console.error(`Bullish alert check failed for ${rule.symbol} ${rule.timeframe}:`, rule.lastError);
+    } finally {
+      this.evaluatingAlertIds.delete(rule.id);
+    }
+  }
+
+  private async evaluateBullishSubscriptionsForCandles(
+    symbol: string,
+    timeframe: Timeframe,
+    candles: Awaited<ReturnType<MarketDataService['getCandles']>>,
+    price: number
+  ) {
+    const matchingRules = Array.from(this.bullishCloudAlerts.values()).filter(rule =>
+      rule.isEnabled && rule.symbol === symbol.toUpperCase() && rule.timeframe === timeframe
+    );
+    await Promise.allSettled(matchingRules.map(rule => this.evaluateBullishCloudAlert(rule, { candles, price })));
+  }
+
+  public async checkAllBullishCloudAlerts() {
+    const rules = Array.from(this.bullishCloudAlerts.values()).filter(rule => rule.isEnabled);
+    const concurrency = 3;
+    for (let index = 0; index < rules.length; index += concurrency) {
+      await Promise.allSettled(rules.slice(index, index + concurrency).map(rule => this.evaluateBullishCloudAlert(rule)));
+    }
+  }
+
+  public startBullishAlertMonitor(intervalMs = 60_000) {
+    if (this.bullishAlertTimer) return;
+    this.bullishAlertTimer = setInterval(() => {
+      this.checkAllBullishCloudAlerts().catch(error => console.error('Bullish alert monitor failed:', error));
+    }, intervalMs);
+    this.bullishAlertTimer.unref();
   }
 
   /**
@@ -73,6 +245,7 @@ export class AppState {
 
         if (!signal) throw new Error(`Insufficient verified candles for ${asset.symbol}`);
         this.cachedSignals.set(`${asset.symbol}_${timeframe}`, signal);
+        await this.evaluateBullishSubscriptionsForCandles(asset.symbol, timeframe, candles, quote.price);
 
         const alert = this.alertDispatcher.evaluateSignal(signal, quote.price);
         if (alert) {

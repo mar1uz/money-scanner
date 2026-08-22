@@ -8,19 +8,62 @@ import {
 
 export interface TelegramBotOptions {
   botToken?: string;
+  chatId?: string;
   webhookSecret?: string;
   dashboardBaseUrl?: string;
 }
 
 export class TelegramBotHandler {
   private botToken?: string;
+  private defaultChatId?: string;
   private webhookSecret?: string;
   private dashboardBaseUrl: string;
 
   constructor(options: TelegramBotOptions = {}) {
     this.botToken = options.botToken || process.env.TELEGRAM_BOT_TOKEN;
+    this.defaultChatId = options.chatId || process.env.TELEGRAM_CHAT_ID;
     this.webhookSecret = options.webhookSecret || process.env.TELEGRAM_WEBHOOK_SECRET || 'money-scanner-secret';
     this.dashboardBaseUrl = options.dashboardBaseUrl || 'https://scanner.relayhub.no';
+  }
+
+  public registerChat(chatId: string | number) {
+    this.defaultChatId = String(chatId);
+  }
+
+  public getDeliveryConfiguration() {
+    return {
+      botConfigured: Boolean(this.botToken),
+      chatConfigured: Boolean(this.defaultChatId),
+      telegramConfigured: Boolean(this.botToken && this.defaultChatId)
+    };
+  }
+
+  /** Sends a real Telegram message; tokens are never returned or logged. */
+  public async sendMarkdown(text: string, chatId?: string | number): Promise<boolean> {
+    const destination = chatId === undefined ? this.defaultChatId : String(chatId);
+    if (!this.botToken || !destination) return false;
+
+    try {
+      const response = await fetch(`https://api.telegram.org/bot${this.botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: destination,
+          text,
+          parse_mode: 'Markdown',
+          disable_web_page_preview: true
+        })
+      });
+      if (!response.ok) {
+        const errorBody = await response.text();
+        console.error(`Telegram delivery failed (${response.status}): ${errorBody.slice(0, 300)}`);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error('Telegram delivery failed:', error instanceof Error ? error.message : error);
+      return false;
+    }
   }
 
   /**

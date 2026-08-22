@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { AppState } from '../services/app-state.js';
-import { MoneyLineSignal } from '@money-scanner/shared';
+import { AssetMarketClass, MoneyLineSignal, Timeframe } from '@money-scanner/shared';
+import { AuthenticatedRequest } from '../middleware/auth.js';
 
 export const telegramRouter = Router();
 
@@ -21,6 +22,7 @@ telegramRouter.post('/telegram/webhook', async (req, res) => {
   if (!commandPayload) {
     return res.json({ status: 'ignored' });
   }
+  appState.telegramBot.registerChat(commandPayload.chatId);
 
   const overview = await appState.marketData.getMarketOverview();
   const topSignals = Array.from(appState.cachedSignals.values());
@@ -33,10 +35,55 @@ telegramRouter.post('/telegram/webhook', async (req, res) => {
     trends,
     news
   });
+  const delivered = await appState.telegramBot.sendMarkdown(response.text, commandPayload.chatId);
 
   res.json({
     status: 'ok',
+    delivered,
     response
+  });
+});
+
+const validTimeframes = new Set<Timeframe>(['1h', '4h', '8h', '1d', '1w', '1m']);
+const validMarketClasses = new Set<AssetMarketClass>(['crypto', 'stocks', 'metals']);
+
+telegramRouter.get('/alerts/bullish', (req: AuthenticatedRequest, res) => {
+  const appState = AppState.getInstance();
+  const symbol = String(req.query.symbol || '').replace(/^[$#]/, '').trim().toUpperCase();
+  const timeframe = String(req.query.timeframe || '1h') as Timeframe;
+  if (!req.user || !symbol || !validTimeframes.has(timeframe)) {
+    return res.status(400).json({ error: 'Symbol sau timeframe invalid.' });
+  }
+
+  const rule = appState.getBullishCloudAlert(req.user.id, symbol, timeframe);
+  res.json({
+    active: Boolean(rule?.isEnabled),
+    rule,
+    ...appState.telegramBot.getDeliveryConfiguration()
+  });
+});
+
+telegramRouter.put('/alerts/bullish', async (req: AuthenticatedRequest, res) => {
+  const appState = AppState.getInstance();
+  const symbol = String(req.body.symbol || '').replace(/^[$#]/, '').trim().toUpperCase();
+  const timeframe = String(req.body.timeframe || '') as Timeframe;
+  const marketClass = String(req.body.marketClass || 'crypto') as AssetMarketClass;
+  const enabled = req.body.enabled !== false;
+  if (
+    !req.user ||
+    !symbol ||
+    !/^[A-Z0-9._-]{1,30}$/.test(symbol) ||
+    !validTimeframes.has(timeframe) ||
+    !validMarketClasses.has(marketClass)
+  ) {
+    return res.status(400).json({ error: 'Date invalide pentru alerta MoneyLine.' });
+  }
+
+  const rule = await appState.setBullishCloudAlert(req.user.id, symbol, timeframe, marketClass, enabled);
+  res.json({
+    active: Boolean(rule?.isEnabled),
+    rule,
+    ...appState.telegramBot.getDeliveryConfiguration()
   });
 });
 
@@ -58,8 +105,13 @@ telegramRouter.post('/alerts/test', async (req, res) => {
 
   const alert = appState.alertDispatcher.evaluateSignal(signal, quote.price, true);
   if (alert) {
+    alert.isDelivered = await appState.telegramBot.sendMarkdown(alert.message);
     appState.alertHistory.unshift(alert);
-    return res.json({ status: 'dispatched', alert });
+    return res.json({
+      status: alert.isDelivered ? 'dispatched' : 'generated_not_delivered',
+      alert,
+      ...appState.telegramBot.getDeliveryConfiguration()
+    });
   }
 
   res.json({ status: 'no_alert_generated' });

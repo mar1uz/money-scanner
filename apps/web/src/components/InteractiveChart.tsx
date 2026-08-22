@@ -34,9 +34,11 @@ import {
   Split,
   ArrowUpCircle,
   ArrowDownCircle,
-  MoveVertical
+  MoveVertical,
+  BellRing
 } from 'lucide-react';
 import { useLanguage } from '../i18n.js';
+import { fetchBullishAlertStatus, setBullishAlert } from '../services/api.js';
 
 interface InteractiveChartProps {
   candles: Candle[];
@@ -240,6 +242,10 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   const [activeTab, setActiveTab] = useState<'chart' | 'tv_embed' | 'pinescript'>('tv_embed');
   const [activeInterval, setActiveInterval] = useState<string>(timeframe);
   const [copiedPine, setCopiedPine] = useState(false);
+  const [bullishAlertActive, setBullishAlertActive] = useState(false);
+  const [bullishAlertSaving, setBullishAlertSaving] = useState(false);
+  const [telegramConfigured, setTelegramConfigured] = useState(false);
+  const [bullishAlertError, setBullishAlertError] = useState('');
   const [latestState, setLatestState] = useState<{
     status: string;
     fastLine: number;
@@ -387,6 +393,61 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   const isStockOrMetal = ['SPACEX', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'PLTR', 'AMD', 'MSTR', 'COIN', 'SPY', 'QQQ', 'XAU', 'XAG', 'OIL', 'COPPER', 'DXY', 'DYXY', 'VIX', 'EURUSD', 'GBPUSD', 'USDJPY', 'BRENT', 'NATGAS', 'SILVER', 'GOLD', 'PLATINUM', 'PALLADIUM', 'JPM', 'V', 'MA', 'LLY', 'XOM', 'BA'].includes(symbol.toUpperCase());
   const quoteCurrency = isDominanceOrRatio ? '%' : (isStockOrMetal ? 'USD' : 'USDT');
   const tvSymbol = getTradingViewSymbol(symbol);
+  const normalizedAlertMarketClass: 'crypto' | 'stocks' | 'metals' =
+    marketClass === 'stocks' || marketClass === 'metals' || marketClass === 'crypto'
+      ? marketClass
+      : ['XAU', 'XAG', 'GOLD', 'SILVER', 'PLATINUM', 'PALLADIUM', 'COPPER'].includes(symbol.toUpperCase())
+        ? 'metals'
+        : isStockOrMetal ? 'stocks' : 'crypto';
+
+  useEffect(() => {
+    let cancelled = false;
+    const alertTimeframe = activeInterval.toLowerCase() as Timeframe;
+    const storageKey = `moneyline-bullish-alert:${symbol.toUpperCase()}:${alertTimeframe}`;
+    setBullishAlertSaving(true);
+    setBullishAlertError('');
+
+    fetchBullishAlertStatus(symbol, alertTimeframe)
+      .then(async status => {
+        if (cancelled) return;
+        const shouldRestore = localStorage.getItem(storageKey) === 'true';
+        const currentStatus = shouldRestore && !status.active
+          ? await setBullishAlert(symbol, alertTimeframe, normalizedAlertMarketClass, true)
+          : status;
+        if (cancelled) return;
+        setBullishAlertActive(currentStatus.active);
+        setTelegramConfigured(currentStatus.telegramConfigured);
+        if (currentStatus.rule?.lastError) setBullishAlertError(currentStatus.rule.lastError);
+      })
+      .catch(error => {
+        if (!cancelled) setBullishAlertError(error instanceof Error ? error.message : 'Alert status unavailable');
+      })
+      .finally(() => {
+        if (!cancelled) setBullishAlertSaving(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [symbol, activeInterval, normalizedAlertMarketClass]);
+
+  const handleToggleBullishAlert = async () => {
+    const alertTimeframe = activeInterval.toLowerCase() as Timeframe;
+    const nextActive = !bullishAlertActive;
+    const storageKey = `moneyline-bullish-alert:${symbol.toUpperCase()}:${alertTimeframe}`;
+    setBullishAlertSaving(true);
+    setBullishAlertError('');
+    try {
+      const status = await setBullishAlert(symbol, alertTimeframe, normalizedAlertMarketClass, nextActive);
+      setBullishAlertActive(status.active);
+      setTelegramConfigured(status.telegramConfigured);
+      if (status.active) localStorage.setItem(storageKey, 'true');
+      else localStorage.removeItem(storageKey);
+      if (status.rule?.lastError) setBullishAlertError(status.rule.lastError);
+    } catch (error) {
+      setBullishAlertError(error instanceof Error ? error.message : 'Nu am putut salva alerta.');
+    } finally {
+      setBullishAlertSaving(false);
+    }
+  };
 
   // Keep Money Line telemetry available even when the official TradingView
   // chart is the active/default view.
@@ -1152,6 +1213,24 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
 
             <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-300">
               <span>Baza Nor (Fast): <strong className="text-emerald-400">${latestState?.fastLine ? latestState.fastLine.toFixed(2) : '-'}</strong></span>
+              <button
+                type="button"
+                onClick={handleToggleBullishAlert}
+                disabled={bullishAlertSaving}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-bold transition-all disabled:opacity-60 ${
+                  bullishAlertActive
+                    ? telegramConfigured
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-glow-emerald'
+                      : 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                    : 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/20'
+                }`}
+                title={bullishAlertError || (bullishAlertActive
+                  ? (telegramConfigured ? 'Alertă Telegram activă pentru confirmarea bullish' : 'Alerta este activă; Telegram necesită configurarea botului și a chatului')
+                  : 'Activează alerta bullish pentru acest asset și timeframe')}
+              >
+                <BellRing className={`w-3.5 h-3.5 ${bullishAlertSaving ? 'animate-pulse' : ''}`} />
+                <span>{bullishAlertActive ? (language === 'ro' ? 'Alert activ' : 'Alert on') : 'Alert'}</span>
+              </button>
               <span>Margine Nor (Slow): <strong className="text-slate-300">${latestState?.slowLine ? latestState.slowLine.toFixed(2) : '-'}</strong></span>
               <span className="flex items-center gap-1.5 font-mono">
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-glow-gold"></span>

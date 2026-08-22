@@ -150,6 +150,44 @@ export async function triggerTestAlert(symbol: string): Promise<any> {
   return res.json();
 }
 
+export interface BullishAlertStatus {
+  active: boolean;
+  telegramConfigured: boolean;
+  botConfigured: boolean;
+  chatConfigured: boolean;
+  rule?: {
+    symbol: string;
+    timeframe: Timeframe;
+    marketClass: 'crypto' | 'stocks' | 'metals';
+    lastEvaluatedCandle?: number;
+    lastTriggeredCandle?: number;
+    lastWasBullish?: boolean;
+    lastError?: string;
+  };
+}
+
+export async function fetchBullishAlertStatus(symbol: string, timeframe: Timeframe): Promise<BullishAlertStatus> {
+  const params = new URLSearchParams({ symbol, timeframe });
+  const res = await fetch(`${API_BASE}/alerts/bullish?${params.toString()}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch bullish alert status`);
+  return res.json();
+}
+
+export async function setBullishAlert(
+  symbol: string,
+  timeframe: Timeframe,
+  marketClass: 'crypto' | 'stocks' | 'metals',
+  enabled: boolean
+): Promise<BullishAlertStatus> {
+  const res = await fetch(`${API_BASE}/alerts/bullish`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ symbol, timeframe, marketClass, enabled })
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to update bullish alert`);
+  return res.json();
+}
+
 export async function askAIAnalyst(question: string): Promise<{
   answer: string;
   relatedSymbols: string[];

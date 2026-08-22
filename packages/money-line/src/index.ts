@@ -6,3 +6,4 @@ export * from './indicators/rvol.js';
 export * from './indicators/atr.js';
 export * from './engine.js';
 export * from './multi-timeframe.js';
+export * from './cloud-supertrend.js';
