@@ -101,20 +101,33 @@ export const NewsFeedView: React.FC = () => {
             <h3 className="text-base font-semibold text-slate-100">{synthesis.headline}</h3>
             <div className="space-y-2.5">
               {synthesis.segments.map((segment, index) => {
-                const primarySource = segment.sourceIds.map(id => sourceById.get(id)).find(Boolean);
-                if (!primarySource) return null;
+                const citedSources = segment.sourceIds.map(id => sourceById.get(id)).filter(Boolean);
+                if (!citedSources.length) return null;
                 return (
-                  <a
-                    key={`${primarySource.id}_${index}`}
-                    href={primarySource.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="group flex items-start gap-2.5 rounded-xl border border-slate-700/70 bg-slate-950/35 px-3.5 py-3 text-xs leading-relaxed text-slate-300 transition-all hover:border-purple-400/45 hover:bg-purple-500/5 hover:text-slate-100"
+                  <div
+                    key={`${citedSources[0]!.id}_${index}`}
+                    className="flex items-start gap-2.5 rounded-xl border border-slate-700/70 bg-slate-950/35 px-3.5 py-3 text-xs leading-relaxed text-slate-300 transition-all hover:border-purple-400/45 hover:bg-purple-500/5 hover:text-slate-100"
                   >
-                    <Link2 className="w-3.5 h-3.5 mt-0.5 shrink-0 text-purple-400 group-hover:text-purple-300" />
-                    <span className="decoration-purple-400/60 group-hover:underline underline-offset-4">{segment.text}</span>
-                    <ExternalLink className="w-3.5 h-3.5 mt-0.5 ml-auto shrink-0 text-slate-600 group-hover:text-purple-300" />
-                  </a>
+                    <Link2 className="w-3.5 h-3.5 mt-0.5 shrink-0 text-purple-400" />
+                    <p className="min-w-0 flex-1">
+                      {segment.text}{' '}
+                      {citedSources.map((source, sourceIndex) => (
+                        <React.Fragment key={source!.id}>
+                          {sourceIndex > 0 ? ' ' : ''}
+                          <a
+                            href={source!.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            title={`${source!.sourceType}: ${source!.title}`}
+                            className="inline-flex items-center gap-1 rounded px-1 py-0.5 font-mono text-[10px] text-purple-300 underline decoration-purple-400/60 underline-offset-2 hover:bg-purple-500/15 hover:text-purple-100"
+                          >
+                            [{source!.author || source!.sourceType}]
+                            <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        </React.Fragment>
+                      ))}
+                    </p>
+                  </div>
                 );
               })}
             </div>
