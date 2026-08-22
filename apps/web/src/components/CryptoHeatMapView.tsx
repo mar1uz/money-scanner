@@ -30,37 +30,40 @@ const splitTreemap = (
   x: number,
   y: number,
   width: number,
-  height: number
+  height: number,
+  minimumWeight?: number
 ): HeatRect[] => {
   if (!coins.length) return [];
   if (coins.length === 1) return [{ coin: coins[0], x, y, width, height }];
 
-  const total = coins.reduce((sum, coin) => sum + Math.max(coin.marketCap, 1), 0);
+  const weightFloor = minimumWeight ?? coins.reduce((sum, coin) => sum + Math.max(coin.marketCap, 1), 0) * 0.004;
+  const weightOf = (coin: CryptoBubbleAsset) => Math.max(coin.marketCap, weightFloor);
+  const total = coins.reduce((sum, coin) => sum + weightOf(coin), 0);
   let running = 0;
   let splitIndex = 1;
   for (let index = 0; index < coins.length - 1; index += 1) {
-    running += Math.max(coins[index].marketCap, 1);
+    running += weightOf(coins[index]);
     splitIndex = index + 1;
     if (running >= total / 2) break;
   }
 
   const first = coins.slice(0, splitIndex);
   const second = coins.slice(splitIndex);
-  const firstWeight = first.reduce((sum, coin) => sum + Math.max(coin.marketCap, 1), 0);
+  const firstWeight = first.reduce((sum, coin) => sum + weightOf(coin), 0);
   const ratio = Math.max(0.08, Math.min(0.92, firstWeight / total));
 
   if (width >= height) {
     const firstWidth = width * ratio;
     return [
-      ...splitTreemap(first, x, y, firstWidth, height),
-      ...splitTreemap(second, x + firstWidth, y, width - firstWidth, height)
+      ...splitTreemap(first, x, y, firstWidth, height, weightFloor),
+      ...splitTreemap(second, x + firstWidth, y, width - firstWidth, height, weightFloor)
     ];
   }
 
   const firstHeight = height * ratio;
   return [
-    ...splitTreemap(first, x, y, width, firstHeight),
-    ...splitTreemap(second, x, y + firstHeight, width, height - firstHeight)
+    ...splitTreemap(first, x, y, width, firstHeight, weightFloor),
+    ...splitTreemap(second, x, y + firstHeight, width, height - firstHeight, weightFloor)
   ];
 };
 
@@ -90,8 +93,7 @@ const getTileTypography = (rect: HeatRect) => {
     prominence,
     name: 11 + prominence * 25,
     change: 11 + prominence * 17,
-    marketCap: 10 + prominence * 11,
-    symbol: 9 + prominence * 7
+    marketCap: 10 + prominence * 11
   };
 };
 
@@ -199,7 +201,7 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
               type="button"
               onClick={() => onSelectAsset(rect.coin.symbol)}
               title={`${rect.coin.name} · #${rect.coin.rank} · ${formatMarketCap(rect.coin.marketCap)} · ${rect.coin.change === null ? '—' : `${rect.coin.change >= 0 ? '+' : ''}${rect.coin.change.toFixed(2)}%`}`}
-              className="absolute overflow-hidden border border-black/50 p-1.5 text-center text-white transition-[filter,transform] duration-150 hover:z-20 hover:brightness-125 focus:z-20 focus:outline-none focus:ring-2 focus:ring-cyan-300"
+              className="absolute overflow-hidden border border-black/50 p-0.5 text-center text-white transition-[filter,transform] duration-150 hover:z-20 hover:brightness-125 focus:z-20 focus:outline-none focus:ring-2 focus:ring-cyan-300"
               style={{
                 left: `calc(${rect.x}% + 1px)`,
                 top: `calc(${rect.y}% + 1px)`,
@@ -225,19 +227,13 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
                   <span className="truncate">{rect.coin.name}</span>
                 </span>
                 <span
-                  className="mt-0.5 max-w-full truncate font-mono font-semibold uppercase text-white/75"
-                  style={{ fontSize: `${typography.symbol}px` }}
-                >
-                  {rect.coin.symbol}
-                </span>
-                <span
-                  className={`mt-1 max-w-full truncate font-mono font-black ${positive ? 'text-emerald-50' : 'text-rose-50'}`}
+                  className={`mt-px max-w-full truncate font-mono font-black ${positive ? 'text-emerald-50' : 'text-rose-50'}`}
                   style={{ fontSize: `${typography.change}px` }}
                 >
                   {rect.coin.change === null ? '—' : `${positive ? '+' : ''}${rect.coin.change.toFixed(2)}%`}
                 </span>
                 <span
-                  className="mt-1 max-w-full truncate font-mono font-semibold text-white/80"
+                  className="mt-px max-w-full truncate font-mono font-semibold text-white/80"
                   style={{ fontSize: `${typography.marketCap}px` }}
                 >
                   {formatMarketCap(rect.coin.marketCap)}
