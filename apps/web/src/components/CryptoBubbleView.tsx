@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CircleDot, RefreshCw, TrendingDown, TrendingUp } from 'lucide-react';
 import {
   CryptoBubbleAsset,
@@ -26,12 +26,75 @@ const formatPrice = (value: number) => new Intl.NumberFormat('en-US', {
   style: 'currency', currency: 'USD', maximumFractionDigits: value < 1 ? 4 : 2
 }).format(value);
 
+interface BubblePlacement {
+  coin: CryptoBubbleAsset;
+  x: number;
+  y: number;
+  size: number;
+}
+
+const seededRandom = (seed: number) => {
+  let value = seed >>> 0;
+  return () => {
+    value = (value * 1664525 + 1013904223) >>> 0;
+    return value / 4294967296;
+  };
+};
+
+const hashText = (value: string) => Array.from(value).reduce(
+  (hash, char) => Math.imul(hash ^ char.charCodeAt(0), 16777619),
+  2166136261
+) >>> 0;
+
+const createRandomBubbleLayout = (
+  coins: CryptoBubbleAsset[],
+  width: number,
+  height: number,
+  timeframe: CryptoBubbleTimeframe
+): BubblePlacement[] => {
+  if (!coins.length || width <= 0 || height <= 0) return [];
+  const maxCap = Math.max(...coins.map(coin => coin.marketCap), 1);
+  const mobileScale = width < 560 ? 0.78 : width < 900 ? 0.9 : 1;
+  const placements: BubblePlacement[] = [];
+  const ordered = [...coins].sort((left, right) => right.marketCap - left.marketCap);
+
+  for (const coin of ordered) {
+    let size = Math.round((48 + Math.sqrt(coin.marketCap / maxCap) * 128) * mobileScale);
+    const random = seededRandom(hashText(`${timeframe}:${coin.id}`));
+    let placed: BubblePlacement | null = null;
+
+    for (let shrinkAttempt = 0; shrinkAttempt < 4 && !placed; shrinkAttempt += 1) {
+      const radius = size / 2;
+      const gap = width < 560 ? 3 : 6;
+      for (let attempt = 0; attempt < 2400; attempt += 1) {
+        const x = radius + gap + random() * Math.max(1, width - (radius + gap) * 2);
+        const y = radius + gap + random() * Math.max(1, height - (radius + gap) * 2);
+        const overlaps = placements.some(existing => {
+          const dx = x - existing.x;
+          const dy = y - existing.y;
+          return Math.hypot(dx, dy) < radius + existing.size / 2 + gap;
+        });
+        if (!overlaps) {
+          placed = { coin, x, y, size };
+          break;
+        }
+      }
+      if (!placed) size = Math.max(38, Math.round(size * 0.9));
+    }
+
+    if (placed) placements.push(placed);
+  }
+  return placements;
+};
+
 export const CryptoBubbleView: React.FC<CryptoBubbleViewProps> = ({ onSelectAsset }) => {
   const [timeframe, setTimeframe] = useState<CryptoBubbleTimeframe>('1d');
   const [coins, setCoins] = useState<CryptoBubbleAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const [canvasWidth, setCanvasWidth] = useState(0);
 
   const loadCoins = async () => {
     setLoading(true);
@@ -51,7 +114,18 @@ export const CryptoBubbleView: React.FC<CryptoBubbleViewProps> = ({ onSelectAsse
     loadCoins();
   }, [timeframe]);
 
-  const maxMarketCap = useMemo(() => Math.max(...coins.map((coin) => coin.marketCap), 1), [coins]);
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    const observer = new ResizeObserver(([entry]) => setCanvasWidth(Math.round(entry.contentRect.width)));
+    observer.observe(canvasRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const canvasHeight = canvasWidth < 560 ? 1820 : canvasWidth < 900 ? 1200 : 820;
+  const bubbleLayout = useMemo(
+    () => createRandomBubbleLayout(coins, canvasWidth, canvasHeight, timeframe),
+    [coins, canvasWidth, canvasHeight, timeframe]
+  );
 
   return (
     <section className="space-y-5 tab-content-enter">
@@ -106,15 +180,13 @@ export const CryptoBubbleView: React.FC<CryptoBubbleViewProps> = ({ onSelectAsse
         </div>
       )}
 
-      <div className="crypto-bubble-canvas min-h-[760px] overflow-hidden rounded-2xl border border-white/[0.06] bg-[radial-gradient(circle_at_50%_0%,rgba(192,38,211,0.10),transparent_42%),linear-gradient(135deg,rgba(15,20,32,0.95),rgba(7,10,19,0.95))]">
+      <div ref={canvasRef} className="crypto-bubble-canvas overflow-hidden rounded-2xl border border-white/[0.06] bg-[radial-gradient(circle_at_18%_10%,rgba(192,38,211,0.12),transparent_32%),radial-gradient(circle_at_82%_72%,rgba(6,182,212,0.08),transparent_34%),linear-gradient(135deg,rgba(15,20,32,0.95),rgba(7,10,19,0.95))]">
         {loading && coins.length === 0 ? (
           <div className="flex min-h-[540px] items-center justify-center gap-3 text-sm font-mono text-slate-400"><RefreshCw className="h-5 w-5 animate-spin text-fuchsia-400" />Se încarcă top 100...</div>
         ) : (
-          <div className="flex min-h-[760px] flex-wrap content-center items-center justify-center gap-3 p-4 sm:gap-4 sm:p-6">
-            {coins.map((coin) => {
+          <div className="relative w-full" style={{ height: canvasHeight }}>
+            {bubbleLayout.map(({ coin, x, y, size }) => {
               const positive = (coin.change ?? 0) >= 0;
-              // The circle area, not merely its diameter, follows the market cap.
-              const size = Math.round(66 + Math.sqrt(coin.marketCap / maxMarketCap) * 154);
               return (
                 <button
                   key={coin.id}
@@ -123,9 +195,10 @@ export const CryptoBubbleView: React.FC<CryptoBubbleViewProps> = ({ onSelectAsse
                   style={{
                     width: size,
                     height: size,
-                    flex: `0 0 ${size}px`
+                    left: x - size / 2,
+                    top: y - size / 2
                   }}
-                  className={`crypto-bubble relative flex flex-col items-center justify-center overflow-hidden rounded-full border p-2 text-center transition-[box-shadow,border-color] duration-200 hover:shadow-[0_0_28px_rgba(232,121,249,0.32)] focus:outline-none focus:ring-2 focus:ring-fuchsia-300 ${
+                  className={`crypto-bubble absolute flex flex-col items-center justify-center overflow-hidden rounded-full border p-2 text-center transition-[box-shadow,border-color,transform] duration-200 hover:z-20 hover:scale-105 hover:shadow-[0_0_28px_rgba(232,121,249,0.32)] focus:z-20 focus:outline-none focus:ring-2 focus:ring-fuchsia-300 ${
                     coin.change === null
                       ? 'border-slate-500/30 bg-slate-500/10 text-slate-300'
                       : positive

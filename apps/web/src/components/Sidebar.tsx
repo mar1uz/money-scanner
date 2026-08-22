@@ -37,6 +37,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems: { id: AppTab; label: string; icon: any; accent?: string; badge?: string }[] = [
     { id: 'market', label: 'Market Intelligence', icon: LayoutGrid, accent: 'text-cyan-400' },
     { id: 'crypto_bubbles', label: 'Crypto Bubble', icon: CircleDot, accent: 'text-fuchsia-400', badge: 'TOP 100' },
+    { id: 'crypto_heatmap', label: 'Crypto Heat Map', icon: LayoutGrid, accent: 'text-emerald-400', badge: 'TOP 50' },
     { id: 'usa_status', label: 'USA Macro', icon: Landmark, accent: 'text-blue-400', badge: '🇺🇸' },
     { id: 'trends', label: 'X Intelligence', icon: Radio, accent: 'text-violet-400' },
     { id: 'news', label: 'News Feed', icon: Newspaper, accent: 'text-amber-400' },

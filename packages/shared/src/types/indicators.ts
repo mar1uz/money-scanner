@@ -75,6 +75,8 @@ export interface AssetScannerRow {
   narratives?: import('./market.js').MarketNarrativeId[];
   price: number;
   change24h: number;
+  /** Closed-candle return for the row's selected timeframe. */
+  timeframeChangePercent?: number;
   changeYtd?: number;
   marketCap?: number;
   high24h: number;

@@ -318,6 +318,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
     }
 
     if (selectedMarketClass !== 'ALL') {
+      if (r.marketClass) return r.marketClass === selectedMarketClass;
       const isStock = ['SPACEX', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'PLTR', 'AMD', 'MSTR', 'COIN', 'SPY', 'QQQ'].includes(sym) || r.category?.includes('Stock') || r.category?.includes('Index') || r.category?.includes('Mega-Cap');
       const isMetal = ['XAU', 'XAG', 'PAXG', 'OIL', 'COPPER'].includes(sym) || r.category?.includes('Metal') || r.category?.includes('Commodity');
       const isCrypto = !isStock && !isMetal;
@@ -681,9 +682,11 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                               <span className={`text-[9px] font-mono px-1 py-0.2 rounded uppercase border font-semibold ${
                                 row.marketClass === 'stocks'
                                   ? 'bg-blue-500/10 text-blue-300 border-blue-500/20'
-                                  : 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                                  : row.marketClass === 'crypto'
+                                    ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20'
+                                    : 'bg-amber-500/10 text-amber-300 border-amber-500/20'
                               }`}>
-                                {row.marketClass === 'stocks' ? 'STK' : 'MET'}
+                                {row.marketClass === 'stocks' ? 'STK' : row.marketClass === 'crypto' ? 'CRY' : 'MET'}
                               </span>
                             )}
                           </div>

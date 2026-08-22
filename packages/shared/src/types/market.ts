@@ -56,6 +56,9 @@ export interface NarrativeSummary {
   icon: string;
   category: 'tech' | 'defense_staples' | 'energy' | 'crypto';
   assetCount: number;
+  performanceTimeframe?: Timeframe;
+  avgChangePercent?: number;
+  weightedChangePercent?: number;
   avgChange24h: number;
   weightedChange24h: number;
   bullishPercent: number;

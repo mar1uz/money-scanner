@@ -44,6 +44,7 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
   const filteredRows = rows.filter(r => {
     const sym = r.symbol.replace(/^[$#]/, '').trim().toUpperCase();
     if (selectedCategory === 'ALL') return true;
+    if (r.marketClass) return r.marketClass === selectedCategory;
     if (selectedCategory === 'crypto') return isCrypto(sym, r.category);
     if (selectedCategory === 'stocks') return isStock(sym, r.category);
     if (selectedCategory === 'metals') return isMetal(sym, r.category);
@@ -234,9 +235,9 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
 
   const marketCategories: { id: MarketCategory; label: string; icon: any; count: number }[] = [
     { id: 'ALL', label: 'Trading 360° (Toate)', icon: Layers, count: rows.length || 51 },
-    { id: 'crypto', label: 'Crypto 🪙', icon: Coins, count: rows.filter(r => isCrypto(r.symbol, r.category)).length },
-    { id: 'stocks', label: 'Stocks SUA 📈', icon: TrendingUp, count: rows.filter(r => isStock(r.symbol, r.category)).length },
-    { id: 'metals', label: 'Metale & Gold 🥇', icon: Award, count: rows.filter(r => isMetal(r.symbol, r.category)).length }
+    { id: 'crypto', label: 'Crypto 🪙', icon: Coins, count: rows.filter(r => r.marketClass ? r.marketClass === 'crypto' : isCrypto(r.symbol, r.category)).length },
+    { id: 'stocks', label: 'Stocks SUA 📈', icon: TrendingUp, count: rows.filter(r => r.marketClass ? r.marketClass === 'stocks' : isStock(r.symbol, r.category)).length },
+    { id: 'metals', label: 'Metale & Gold 🥇', icon: Award, count: rows.filter(r => r.marketClass ? r.marketClass === 'metals' : isMetal(r.symbol, r.category)).length }
   ];
 
   return (

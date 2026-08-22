@@ -4,6 +4,8 @@ import {
   Timeframe,
   MarketOverviewSummary,
   TOP_50_CRYPTO_ASSETS,
+  TRADING_360_ASSETS,
+  AssetInfo,
   ScannerMarketClass,
   getScannerAssets
 } from '@money-scanner/shared';
@@ -12,8 +14,12 @@ import { BinanceMarketAdapter } from './adapters/binance.js';
 import { PublicStockMarketAdapter } from './adapters/public-stock.js';
 
 interface CoinGeckoMarketRow {
+  id?: string;
   symbol: string;
+  name?: string;
+  current_price?: number | null;
   market_cap: number | null;
+  market_cap_rank?: number | null;
 }
 
 export class MarketDataService {
@@ -24,6 +30,7 @@ export class MarketDataService {
   private quoteCache = new Map<string, AssetPriceQuote>();
   private quoteFetchedAt = new Map<string, number>();
   private marketCapCache: { values: Map<string, number>; updatedAt: number } | null = null;
+  private topCryptoAssetsCache: { values: AssetInfo[]; updatedAt: number } | null = null;
 
   private coinGeckoHeaders(): Record<string, string> {
     const key = process.env.COINGECKO_API_KEY;
@@ -86,8 +93,7 @@ export class MarketDataService {
     }
   }
 
-  public async getAllQuotes(marketClass: ScannerMarketClass = 'ALL'): Promise<AssetPriceQuote[]> {
-    const assets = getScannerAssets(marketClass);
+  public async getQuotesForAssets(assets: AssetInfo[]): Promise<AssetPriceQuote[]> {
     const quotes: AssetPriceQuote[] = [];
     const concurrency = 6;
     for (let index = 0; index < assets.length; index += concurrency) {
@@ -97,6 +103,73 @@ export class MarketDataService {
       quotes.push(...settled.flatMap(result => result.status === 'fulfilled' ? [result.value] : []));
     }
     return quotes;
+  }
+
+  public async getAllQuotes(marketClass: ScannerMarketClass = 'ALL'): Promise<AssetPriceQuote[]> {
+    const assets = marketClass === 'crypto'
+      ? await this.getTopCryptoAssets(50)
+      : getScannerAssets(marketClass);
+    return this.getQuotesForAssets(assets);
+  }
+
+  /** Top market-cap crypto assets that also have an active Binance USDT spot market. */
+  public async getTopCryptoAssets(limit = 50): Promise<AssetInfo[]> {
+    if (
+      this.topCryptoAssetsCache &&
+      this.topCryptoAssetsCache.values.length >= limit &&
+      Date.now() - this.topCryptoAssetsCache.updatedAt < 5 * 60_000
+    ) {
+      return this.topCryptoAssetsCache.values.slice(0, limit);
+    }
+
+    try {
+      const [response, supportedSymbols] = await Promise.all([
+        fetch(
+          'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=150&page=1&sparkline=false',
+          { headers: this.coinGeckoHeaders(), signal: AbortSignal.timeout(10_000) }
+        ),
+        this.binanceAdapter.getSupportedUsdtBaseAssets()
+      ]);
+      if (!response.ok) throw new Error(`CoinGecko HTTP ${response.status}`);
+
+      const rows = await response.json() as CoinGeckoMarketRow[];
+      const existingBySymbol = new Map(
+        TRADING_360_ASSETS.filter(asset => asset.marketClass === 'crypto').map(asset => [asset.symbol, asset])
+      );
+      const marketCaps = new Map<string, number>();
+      const seen = new Set<string>();
+      const assets: AssetInfo[] = [];
+
+      for (const row of rows) {
+        const symbol = String(row.symbol || '').toUpperCase();
+        if (!symbol || seen.has(symbol) || !supportedSymbols.has(symbol)) continue;
+        if (typeof row.market_cap !== 'number' || row.market_cap <= 0) continue;
+
+        const existing = existingBySymbol.get(symbol);
+        seen.add(symbol);
+        marketCaps.set(symbol, row.market_cap);
+        assets.push({
+          symbol,
+          name: String(row.name || existing?.name || symbol),
+          category: existing?.category || 'Infrastructure',
+          marketClass: 'crypto',
+          narratives: existing?.narratives,
+          quoteCurrency: 'USDT',
+          aliases: Array.from(new Set([...(existing?.aliases || []), String(row.id || ''), String(row.name || '')].filter(Boolean))),
+          marketCap: row.market_cap,
+          rank: Number(row.market_cap_rank || assets.length + 1),
+          decimals: existing?.decimals ?? ((row.current_price || 0) < 1 ? 6 : 2)
+        });
+        if (assets.length >= limit) break;
+      }
+
+      if (assets.length < limit) throw new Error(`Only ${assets.length} supported top crypto assets found`);
+      this.marketCapCache = { values: marketCaps, updatedAt: Date.now() };
+      this.topCryptoAssetsCache = { values: assets, updatedAt: Date.now() };
+      return assets;
+    } catch {
+      return TOP_50_CRYPTO_ASSETS.slice(0, limit);
+    }
   }
 
   public async getCryptoMarketCaps(): Promise<Map<string, number>> {

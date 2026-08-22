@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   AppTab,
   Timeframe,
@@ -28,6 +28,7 @@ import { BacktestView } from './components/BacktestView.js';
 import { SystemStatusView } from './components/SystemStatusView.js';
 import { USAStatusView } from './components/USAStatusView.js';
 import { CryptoBubbleView } from './components/CryptoBubbleView.js';
+import { CryptoHeatMapView } from './components/CryptoHeatMapView.js';
 import { Zap, CheckCircle2, RefreshCw } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -56,14 +57,17 @@ export const App: React.FC = () => {
   const [scannerRows, setScannerRows] = useState<AssetScannerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [bannerAlert, setBannerAlert] = useState<string | null>(null);
+  const refreshRequestId = useRef(0);
 
   const refreshData = async () => {
+    const requestId = ++refreshRequestId.current;
     setLoading(true);
     try {
       const [ovRes, rowsRes] = await Promise.allSettled([
         fetchMarketOverview(),
         fetchScanner(timeframe, undefined, undefined, undefined, undefined, selectedMarketCategory)
       ]);
+      if (requestId !== refreshRequestId.current) return;
       if (ovRes.status === 'fulfilled') {
         setOverview(ovRes.value);
       }
@@ -73,13 +77,13 @@ export const App: React.FC = () => {
       // The scanner request warms quote/candle caches; loading narrative rollups
       // afterwards avoids issuing the same provider requests twice.
       const narrRes = await fetchNarratives(timeframe, selectedMarketCategory);
-      if (narrRes.length > 0) {
+      if (requestId === refreshRequestId.current && narrRes.length > 0) {
         setNarratives(narrRes);
       }
     } catch (err) {
       console.error('Data refresh error:', err);
     } finally {
-      setLoading(false);
+      if (requestId === refreshRequestId.current) setLoading(false);
     }
   };
 
@@ -209,6 +213,7 @@ export const App: React.FC = () => {
                   {/* Interactive Narrative & Sector Alpha Bar */}
                   <NarrativeBar
                     narratives={narratives}
+                    timeframe={timeframe}
                     selectedNarrative={selectedNarrative}
                     onSelectNarrative={(narr) => setSelectedNarrative(narr)}
                     onInspectNarrative={(narr) => setInspectedNarrative(narr)}
@@ -272,6 +277,7 @@ export const App: React.FC = () => {
                       }}
                       watchlist={watchlist}
                       onToggleWatchlist={toggleWatchlist}
+                      timeframe={timeframe}
                     />
                   )}
                 </div>
@@ -280,6 +286,10 @@ export const App: React.FC = () => {
               {/* Top 100 cryptocurrencies, sized by market capitalization */}
               {activeTab === 'crypto_bubbles' && (
                 <CryptoBubbleView onSelectAsset={(symbol) => setSelectedAssetSymbol(symbol)} />
+              )}
+
+              {activeTab === 'crypto_heatmap' && (
+                <CryptoHeatMapView onSelectAsset={(symbol) => setSelectedAssetSymbol(symbol)} />
               )}
 
               {/* Tab 2: USA Economic Status & Macro Intelligence */}

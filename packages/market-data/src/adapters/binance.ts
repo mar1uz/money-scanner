@@ -5,9 +5,39 @@ export class BinanceMarketAdapter {
   // Binance recommends this host for public, market-data-only requests.
   private baseUrl = process.env.BINANCE_API_URL || 'https://data-api.binance.vision/api/v3';
   private healthMonitor: MarketHealthMonitor;
+  private supportedUsdtAssetsCache: { values: Set<string>; updatedAt: number } | null = null;
 
   constructor(healthMonitor: MarketHealthMonitor) {
     this.healthMonitor = healthMonitor;
+  }
+
+  public async getSupportedUsdtBaseAssets(): Promise<Set<string>> {
+    if (this.supportedUsdtAssetsCache && Date.now() - this.supportedUsdtAssetsCache.updatedAt < 15 * 60_000) {
+      return this.supportedUsdtAssetsCache.values;
+    }
+
+    const response = await fetch(`${this.baseUrl}/exchangeInfo`, {
+      signal: AbortSignal.timeout(10_000)
+    });
+    if (!response.ok) throw new Error(`Binance exchange info HTTP ${response.status}`);
+
+    const body = await response.json() as { symbols?: Array<{
+      status?: string;
+      baseAsset?: string;
+      quoteAsset?: string;
+      isSpotTradingAllowed?: boolean;
+    }> };
+    const values = new Set<string>();
+    for (const market of body.symbols || []) {
+      if (
+        market.status === 'TRADING' &&
+        market.quoteAsset === 'USDT' &&
+        market.isSpotTradingAllowed !== false &&
+        market.baseAsset
+      ) values.add(market.baseAsset.toUpperCase());
+    }
+    this.supportedUsdtAssetsCache = { values, updatedAt: Date.now() };
+    return values;
   }
 
   private mapTimeframeToInterval(tf: Timeframe): string {

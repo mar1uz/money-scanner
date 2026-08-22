@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NarrativeSummary, AssetScannerRow } from '../types.js';
+import { NarrativeSummary, AssetScannerRow, Timeframe } from '../types.js';
 import {
   X,
   TrendingUp,
@@ -21,6 +21,7 @@ interface NarrativeDetailModalProps {
   onSelectAsset: (symbol: string) => void;
   watchlist: string[];
   onToggleWatchlist: (symbol: string) => void;
+  timeframe: Timeframe;
 }
 
 export const NarrativeDetailModal: React.FC<NarrativeDetailModalProps> = ({
@@ -29,10 +30,11 @@ export const NarrativeDetailModal: React.FC<NarrativeDetailModalProps> = ({
   onClose,
   onSelectAsset,
   watchlist,
-  onToggleWatchlist
+  onToggleWatchlist,
+  timeframe
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortField, setSortField] = useState<'marketCap' | 'change24h' | 'changeYtd' | 'moneyLineScore' | 'name'>('marketCap');
+  const [sortField, setSortField] = useState<'marketCap' | 'timeframeChangePercent' | 'changeYtd' | 'moneyLineScore' | 'name'>('marketCap');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   if (!narrative) return null;
@@ -70,7 +72,8 @@ export const NarrativeDetailModal: React.FC<NarrativeDetailModalProps> = ({
     return `$${cap.toLocaleString()}`;
   };
 
-  const isPos = narrative.avgChange24h >= 0;
+  const narrativePerformance = narrative.avgChangePercent ?? narrative.avgChange24h;
+  const isPos = narrativePerformance >= 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-fade-in">
@@ -106,12 +109,12 @@ export const NarrativeDetailModal: React.FC<NarrativeDetailModalProps> = ({
         {/* Narrative Metrics Ribbon */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-background-surface/30 border-b border-white/[0.04] text-xs font-mono">
           <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
-            <span className="text-slate-500 block text-[10px] uppercase">Variație Medie 24h</span>
+            <span className="text-slate-500 block text-[10px] uppercase">Variație Medie {timeframe.toUpperCase()}</span>
             <div className={`flex items-center gap-1 text-sm font-bold mt-0.5 ${
               isPos ? 'text-emerald-400' : 'text-rose-400'
             }`}>
               {isPos ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-              <span>{isPos ? `+${narrative.avgChange24h}%` : `${narrative.avgChange24h}%`}</span>
+              <span>{isPos ? `+${narrativePerformance}%` : `${narrativePerformance}%`}</span>
             </div>
           </div>
 
@@ -167,16 +170,16 @@ export const NarrativeDetailModal: React.FC<NarrativeDetailModalProps> = ({
             </button>
             <button
               onClick={() => {
-                if (sortField === 'change24h') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                else { setSortField('change24h'); setSortOrder('desc'); }
+                if (sortField === 'timeframeChangePercent') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                else { setSortField('timeframeChangePercent'); setSortOrder('desc'); }
               }}
               className={`px-2.5 py-1 rounded-lg border transition-all ${
-                sortField === 'change24h'
+                sortField === 'timeframeChangePercent'
                   ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30 font-bold'
                   : 'bg-white/[0.02] border-white/[0.04] text-slate-400 hover:text-slate-200'
               }`}
             >
-              24h % {sortField === 'change24h' && (sortOrder === 'desc' ? '▼' : '▲')}
+              {timeframe.toUpperCase()} % {sortField === 'timeframeChangePercent' && (sortOrder === 'desc' ? '▼' : '▲')}
             </button>
             <button
               onClick={() => {
@@ -213,7 +216,8 @@ export const NarrativeDetailModal: React.FC<NarrativeDetailModalProps> = ({
             <div className="divide-y divide-white/[0.04]">
               {sortedRows.map((asset) => {
                 const isWatchlisted = watchlist.includes(asset.symbol.toUpperCase());
-                const isChangePos = asset.change24h >= 0;
+                const selectedChange = asset.timeframeChangePercent ?? 0;
+                const isChangePos = selectedChange >= 0;
                 const isBull = asset.tier?.includes('Bullish');
                 const isBear = asset.tier?.includes('Bearish');
 
@@ -271,7 +275,7 @@ export const NarrativeDetailModal: React.FC<NarrativeDetailModalProps> = ({
                       {/* Performance Badges */}
                       <div className="flex flex-col items-end font-mono text-xs font-bold min-w-[75px]">
                         <span className={isChangePos ? 'text-emerald-400' : 'text-rose-400'}>
-                          {isChangePos ? `+${asset.change24h}%` : `${asset.change24h}%`} <span className="text-[10px] text-slate-500 font-normal">24h</span>
+                          {isChangePos ? `+${selectedChange}%` : `${selectedChange}%`} <span className="text-[10px] text-slate-500 font-normal">{timeframe.toUpperCase()}</span>
                         </span>
                         {asset.changeYtd !== undefined && (
                           <span className={`text-[11px] ${asset.changeYtd >= 0 ? 'text-emerald-400/90' : 'text-rose-400/90'}`}>

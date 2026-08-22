@@ -199,6 +199,12 @@ scannerRouter.get('/scanner', async (req, res) => {
       rows = rows.filter(r => r.tier === tier);
     }
 
+    if (marketClass === 'crypto') {
+      rows = rows
+        .sort((left, right) => (right.marketCap || 0) - (left.marketCap || 0))
+        .slice(0, 50);
+    }
+
     res.json(rows);
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to execute scanner', details: err.message });

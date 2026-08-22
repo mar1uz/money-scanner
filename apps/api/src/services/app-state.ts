@@ -44,8 +44,12 @@ export class AppState {
     timeframe: Timeframe = '1h',
     marketClass: ScannerMarketClass = 'ALL'
   ): Promise<AssetScannerRow[]> {
-    const assets = getScannerAssets(marketClass);
-    const quotes = await this.marketData.getAllQuotes(marketClass);
+    const assets = marketClass === 'crypto'
+      ? await this.marketData.getTopCryptoAssets(80)
+      : getScannerAssets(marketClass);
+    const quotes = marketClass === 'crypto'
+      ? await this.marketData.getQuotesForAssets(assets)
+      : await this.marketData.getAllQuotes(marketClass);
     const quoteBySymbol = new Map(quotes.map(quote => [quote.symbol, quote]));
     const marketCaps = marketClass === 'stocks' || marketClass === 'metals'
       ? new Map<string, number>()
@@ -90,6 +94,12 @@ export class AppState {
         const tier = signal.tier;
         const rvol = signal.rawIndicators.rvol;
         const atrPct = signal.rawIndicators.atrPercent;
+        const closedCandles = candles.filter(candle => candle.isClosed).sort((a, b) => a.timestamp - b.timestamp);
+        const latestClosed = closedCandles[closedCandles.length - 1];
+        const previousClosed = closedCandles[closedCandles.length - 2];
+        const timeframeChangePercent = latestClosed && previousClosed && previousClosed.close > 0
+          ? Number((((latestClosed.close - previousClosed.close) / previousClosed.close) * 100).toFixed(2))
+          : undefined;
 
         return {
           symbol: asset.symbol,
@@ -99,6 +109,7 @@ export class AppState {
           narratives: asset.narratives,
           price: quote.price,
           change24h: quote.change24h,
+          timeframeChangePercent,
           changeYtd: quote.changeYtd,
           marketCap: marketCaps.get(asset.symbol),
           high24h: quote.high24h,
@@ -160,6 +171,9 @@ export class AppState {
           icon: def.icon,
           category: def.category,
           assetCount: 0,
+          performanceTimeframe: timeframe,
+          avgChangePercent: 0,
+          weightedChangePercent: 0,
           avgChange24h: 0,
           weightedChange24h: 0,
           bullishPercent: 50,
@@ -171,15 +185,29 @@ export class AppState {
       }
 
       const totalCap = matchingRows.reduce((sum, r) => sum + (r.marketCap || 0), 0);
+      const timeframeRows = matchingRows.filter(r => typeof r.timeframeChangePercent === 'number');
+      const timeframeCount = timeframeRows.length;
+      const avgChangePercent = timeframeCount
+        ? Number((timeframeRows.reduce((sum, r) => sum + (r.timeframeChangePercent || 0), 0) / timeframeCount).toFixed(2))
+        : 0;
       const sumChange = matchingRows.reduce((sum, r) => sum + r.change24h, 0);
       const avgChange24h = Number((sumChange / count).toFixed(2));
 
       let weightedSum = 0;
+      let timeframeWeightedSum = 0;
+      let timeframeWeightTotal = 0;
       for (const r of matchingRows) {
         const weight = totalCap > 0 ? (r.marketCap || 0) / totalCap : 1 / count;
         weightedSum += r.change24h * weight;
+        if (typeof r.timeframeChangePercent === 'number') {
+          timeframeWeightedSum += r.timeframeChangePercent * weight;
+          timeframeWeightTotal += weight;
+        }
       }
       const weightedChange24h = Number(weightedSum.toFixed(2));
+      const weightedChangePercent = timeframeWeightTotal > 0
+        ? Number((timeframeWeightedSum / timeframeWeightTotal).toFixed(2))
+        : 0;
 
       const bullishCount = matchingRows.filter(r => r.tier.includes('Bullish') || r.moneyLineScore > 0).length;
       const bullishPercent = Number(((bullishCount / count) * 100).toFixed(1));
@@ -196,6 +224,9 @@ export class AppState {
         icon: def.icon,
         category: def.category,
         assetCount: count,
+        performanceTimeframe: timeframe,
+        avgChangePercent,
+        weightedChangePercent,
         avgChange24h,
         weightedChange24h,
         bullishPercent,

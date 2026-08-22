@@ -1,5 +1,6 @@
 import React from 'react';
-import { NarrativeSummary, MarketNarrativeId, AssetScannerRow } from '../types.js';
+import { NarrativeSummary, MarketNarrativeId, Timeframe } from '../types.js';
+import { useLanguage } from '../i18n.js';
 import {
   BrainCircuit,
   Cpu,
@@ -23,6 +24,7 @@ interface NarrativeBarProps {
   selectedNarrative: MarketNarrativeId | 'ALL';
   onSelectNarrative: (narrativeId: MarketNarrativeId | 'ALL') => void;
   onInspectNarrative: (narrative: NarrativeSummary) => void;
+  timeframe: Timeframe;
   loading?: boolean;
 }
 
@@ -42,8 +44,10 @@ export const NarrativeBar: React.FC<NarrativeBarProps> = ({
   selectedNarrative,
   onSelectNarrative,
   onInspectNarrative,
+  timeframe,
   loading = false
 }) => {
+  const { language } = useLanguage();
   const formatMarketCap = (cap?: number) => {
     if (!cap) return '-';
     if (cap >= 1e12) return `$${(cap / 1e12).toFixed(2)}T`;
@@ -72,7 +76,9 @@ export const NarrativeBar: React.FC<NarrativeBarProps> = ({
               )}
             </div>
             <p className="text-[11px] text-slate-400 font-sans">
-              Performanță live 24h agregată și compoziția sectorială selectată de AI după Market Cap
+              {language === 'ro'
+                ? `Performanță agregată pe ultima lumânare ${timeframe.toUpperCase()} închisă și compoziție după Market Cap`
+                : `Aggregated performance on the latest closed ${timeframe.toUpperCase()} candle and Market Cap composition`}
             </p>
           </div>
         </div>
@@ -92,7 +98,8 @@ export const NarrativeBar: React.FC<NarrativeBarProps> = ({
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
         {narratives.map((n) => {
           const isSelected = selectedNarrative === n.id;
-          const isPositive = n.avgChange24h >= 0;
+          const performance = n.avgChangePercent ?? n.avgChange24h;
+          const isPositive = performance >= 0;
           const IconComponent = NARRATIVE_ICONS[n.icon] || Sparkles;
 
           return (
@@ -135,7 +142,7 @@ export const NarrativeBar: React.FC<NarrativeBarProps> = ({
               {/* Card Bottom: % Performance Badge + Inspect Button */}
               <div className="pt-2 border-t border-white/[0.04] flex items-end justify-between gap-1">
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-[8px] uppercase tracking-wide font-mono text-slate-500">Medie 24h</span>
+                  <span className="text-[8px] uppercase tracking-wide font-mono text-slate-500">Medie {timeframe.toUpperCase()}</span>
                   <div className={`flex items-center gap-1 font-mono text-xs font-bold ${
                     isPositive ? 'text-emerald-400' : 'text-rose-400'
                   }`}>
@@ -144,7 +151,7 @@ export const NarrativeBar: React.FC<NarrativeBarProps> = ({
                     ) : (
                       <TrendingDown className="w-3 h-3" />
                     )}
-                    <span>{isPositive ? `+${n.avgChange24h}%` : `${n.avgChange24h}%`}</span>
+                    <span>{isPositive ? `+${performance}%` : `${performance}%`}</span>
                   </div>
                 </div>
 
