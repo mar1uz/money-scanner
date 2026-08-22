@@ -41,6 +41,8 @@ import { useLanguage } from '../i18n.js';
 interface InteractiveChartProps {
   candles: Candle[];
   symbol: string;
+  /** Provider-verified class prevents TradingView ticker collisions (e.g. CAKE). */
+  marketClass?: string;
   timeframe: string;
   onTimeframeChange?: (tf: Timeframe) => void;
 }
@@ -224,6 +226,7 @@ export function calculateMoneyLineForce(candles: Candle[], timeframe: string) {
 export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   candles,
   symbol,
+  marketClass,
   timeframe,
   onTimeframeChange
 }) => {
@@ -295,6 +298,16 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     if (clean === 'US02Y' || clean === 'US02') return 'TVC:US02Y';
     if (clean === 'US30Y' || clean === 'US30') return 'TVC:US30Y';
     if (clean === 'US05Y' || clean === 'US05') return 'TVC:US05Y';
+
+    // The scanner already verified this is a crypto asset. Resolve it before
+    // the stock ticker tables, so a shared ticker can never open an equity.
+    if (
+      marketClass === 'crypto' &&
+      /^[A-Z0-9]+$/.test(clean) &&
+      !clean.endsWith('USDT') &&
+      !clean.endsWith('BUSD') &&
+      !clean.endsWith('USDC')
+    ) return `BINANCE:${clean}USDT`;
 
     // Forex Pairs (FX)
     if (clean === 'EURUSD') return 'FX:EURUSD';

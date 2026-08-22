@@ -285,8 +285,16 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
   try {
     const symbol = req.params.symbol.toUpperCase();
     const timeframe = (req.query.timeframe as Timeframe) || '1w';
+    const appState = AppState.getInstance();
 
     let assetInfo = TRADING_360_ASSETS.find(a => a.symbol === symbol);
+    // Dynamic Top 50 assets do not all exist in the hand-curated catalog.
+    // Preserve their verified crypto class when opening a deep-dive/chart.
+    if (!assetInfo) {
+      const liveCryptoAsset = (await appState.marketData.getTopCryptoAssets(50))
+        .find(asset => asset.symbol.toUpperCase() === symbol);
+      if (liveCryptoAsset) assetInfo = liveCryptoAsset;
+    }
     if (!assetInfo) {
       const isPerpetual = /\.P$/i.test(symbol);
       assetInfo = {
@@ -307,7 +315,6 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       };
     }
 
-    const appState = AppState.getInstance();
     const activeCandles = await appState.marketData.getCandles(symbol, timeframe, 1500);
 
     const [candles1h, candles4h, candles8h, candles1d, candles1w, candles1m] = await Promise.all([

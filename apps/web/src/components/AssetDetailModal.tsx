@@ -183,6 +183,7 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
             <InteractiveChart
               candles={data?.candles || []}
               symbol={symbol}
+              marketClass={data?.info?.marketClass}
               timeframe={activeTf}
               onTimeframeChange={setActiveTf}
             />

@@ -180,7 +180,7 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
     if (selectedCategory !== 'ALL') {
       list = list.filter(item => {
         if (selectedCategory === 'stocks') return item.marketClass === 'stocks' || item.category.toLowerCase().includes('stock') || item.category.toLowerCase().includes('tech');
-        if (selectedCategory === 'crypto') return item.marketClass === 'crypto' || item.category.toLowerCase().includes('crypto') || item.category.toLowerCase().includes('l1') || item.category.toLowerCase().includes('defi');
+        if (selectedCategory === 'crypto') return item.marketClass === 'crypto';
         if (selectedCategory === 'metals') return item.marketClass === 'metals' || item.category.toLowerCase().includes('metal') || item.category.toLowerCase().includes('commodity') || item.category.toLowerCase().includes('gold') || item.category.toLowerCase().includes('oil');
         if (selectedCategory === 'forex') return item.marketClass === 'forex' || item.marketClass === 'macro' || item.category.toLowerCase().includes('forex') || item.category.toLowerCase().includes('index') || item.category.toLowerCase().includes('dxy');
         return true;

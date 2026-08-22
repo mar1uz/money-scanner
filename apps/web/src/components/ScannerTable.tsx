@@ -318,14 +318,16 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
     }
 
     if (selectedMarketClass !== 'ALL') {
+      // Market class comes from the verified backend asset definition. Do not
+      // use ticker/category guesses here: a Crypto selection must contain only
+      // assets explicitly classified as crypto.
+      if (selectedMarketClass === 'crypto') return r.marketClass === 'crypto';
       if (r.marketClass) return r.marketClass === selectedMarketClass;
       const isStock = ['SPACEX', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'PLTR', 'AMD', 'MSTR', 'COIN', 'SPY', 'QQQ'].includes(sym) || r.category?.includes('Stock') || r.category?.includes('Index') || r.category?.includes('Mega-Cap');
       const isMetal = ['XAU', 'XAG', 'PAXG', 'OIL', 'COPPER'].includes(sym) || r.category?.includes('Metal') || r.category?.includes('Commodity');
-      const isCrypto = !isStock && !isMetal;
 
       if (selectedMarketClass === 'stocks' && !isStock) return false;
       if (selectedMarketClass === 'metals' && !isMetal) return false;
-      if (selectedMarketClass === 'crypto' && !isCrypto) return false;
     }
 
     return true;

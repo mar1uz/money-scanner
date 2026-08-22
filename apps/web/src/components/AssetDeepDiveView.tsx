@@ -292,6 +292,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
         <InteractiveChart
           candles={data?.candles || []}
           symbol={symbol}
+          marketClass={data?.info?.marketClass}
           timeframe={timeframe}
           onTimeframeChange={onTimeframeChange}
         />
