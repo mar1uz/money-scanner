@@ -4,7 +4,6 @@ import { UserProfile } from '@money-scanner/shared';
 import {
   beginGoogleSignIn,
   endCurrentSession,
-  finishRedirectGoogleSignIn,
   getCurrentSession
 } from '../services/firebase-auth.js';
 import { useLanguage } from '../i18n.js';
@@ -30,8 +29,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
     let active = true;
     const restoreSession = async () => {
       try {
-        const redirectUser = await finishRedirectGoogleSignIn();
-        const sessionUser = redirectUser || await loadSession();
+        const sessionUser = await loadSession();
         if (active) setUser(sessionUser);
       } catch (restoreError) {
         if (active) setError(restoreError instanceof Error ? restoreError.message : 'Autentificarea nu a putut fi finalizată.');
