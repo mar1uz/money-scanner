@@ -48,7 +48,7 @@ export type SortDirection = 'asc' | 'desc';
 
 interface ScannerTableProps {
   rows: AssetScannerRow[];
-  onSelectAsset: (symbol: string) => void;
+  onSelectAsset: (symbol: string, marketClass?: AssetScannerRow['marketClass']) => void;
   watchlist: string[];
   onToggleWatchlist: (symbol: string) => void;
   onReorderWatchlist?: (newOrder: string[]) => void;
@@ -642,7 +642,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                     onDragOver={(e) => handleDragOver(e, sym)}
                     onDrop={(e) => handleDrop(e, sym)}
                     onDragEnd={() => { setDraggedSymbol(null); setDragOverSymbol(null); }}
-                    onClick={() => onSelectAsset(row.symbol)}
+                    onClick={() => onSelectAsset(row.symbol, row.marketClass)}
                     className={`hover:bg-white/[0.03] transition-colors cursor-pointer group ${
                       isDragging ? 'opacity-30 bg-white/[0.02]' : (isOver ? 'bg-cyan-500/10 border-cyan-400' : '')
                     }`}
@@ -867,7 +867,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onSelectAsset(row.symbol);
+                          onSelectAsset(row.symbol, row.marketClass);
                         }}
                         className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-300 border border-white/[0.06] hover:border-cyan-500/30 transition-all"
                         title="Deschide Panoul de Analiză Detaliată"

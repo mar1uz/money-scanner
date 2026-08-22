@@ -60,6 +60,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
   });
 
   const [selectedAssetSymbol, setSelectedAssetSymbol] = useState<string | null>(null);
+  const [selectedAssetMarketClass, setSelectedAssetMarketClass] = useState<AssetScannerRow['marketClass']>(undefined);
   const [selectedMarketCategory, setSelectedMarketCategory] = useState<'ALL' | 'crypto' | 'stocks' | 'metals'>('ALL');
   const [overview, setOverview] = useState<MarketOverviewSummary | null>(null);
   const [narratives, setNarratives] = useState<NarrativeSummary[]>([]);
@@ -81,7 +82,12 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
         setOverview(ovRes.value);
       }
       if (rowsRes.status === 'fulfilled' && rowsRes.value && rowsRes.value.length > 0) {
-        setScannerRows(rowsRes.value);
+        // Defense in depth: Crypto view must never render a non-crypto row,
+        // even if an upstream response is stale or incorrectly classified.
+        const verifiedRows = selectedMarketCategory === 'crypto'
+          ? rowsRes.value.filter(row => row.marketClass === 'crypto')
+          : rowsRes.value;
+        setScannerRows(verifiedRows);
       }
       // The scanner request warms quote/candle caches; loading narrative rollups
       // afterwards avoids issuing the same provider requests twice.
@@ -127,6 +133,12 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
     localStorage.setItem(watchlistStorageKey, JSON.stringify(newOrder));
   };
 
+  const openAsset = (symbol: string, marketClass?: AssetScannerRow['marketClass']) => {
+    const verifiedClass = marketClass || scannerRows.find(row => row.symbol.toUpperCase() === symbol.toUpperCase())?.marketClass;
+    setSelectedAssetMarketClass(verifiedClass);
+    setSelectedAssetSymbol(symbol);
+  };
+
   const handleTriggerTestAlert = async () => {
     try {
       await triggerTestAlert('BTC');
@@ -145,11 +157,13 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
           activeTab={activeTab}
           onTabChange={(tab) => {
             setSelectedAssetSymbol(null);
+            setSelectedAssetMarketClass(undefined);
             setActiveTab(tab);
           }}
           watchlistCount={watchlist.length}
           onLogoClick={() => {
             setSelectedAssetSymbol(null);
+            setSelectedAssetMarketClass(undefined);
             setActiveTab('market');
           }}
           onOpenSearchModal={() => setIsSearchModalOpen(true)}
@@ -168,7 +182,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
           isStale={overview?.providerStatus.staleAssetsCount ? overview.providerStatus.staleAssetsCount > 0 : false}
           allAssets={scannerRows}
           onSelectAsset={(sym) => {
-            setSelectedAssetSymbol(sym);
+            openAsset(sym);
           }}
           watchlist={watchlist}
           onToggleWatchlist={toggleWatchlist}
@@ -202,9 +216,13 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
           {selectedAssetSymbol ? (
             <AssetDeepDiveView
               symbol={selectedAssetSymbol}
+              marketClass={selectedAssetMarketClass}
               timeframe={timeframe}
               onTimeframeChange={setTimeframe}
-              onBack={() => setSelectedAssetSymbol(null)}
+              onBack={() => {
+                setSelectedAssetSymbol(null);
+                setSelectedAssetMarketClass(undefined);
+              }}
               watchlist={watchlist}
               onToggleWatchlist={toggleWatchlist}
             />
@@ -260,7 +278,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
 
                     <ScannerTable
                       rows={scannerRows}
-                      onSelectAsset={(sym) => setSelectedAssetSymbol(sym)}
+                      onSelectAsset={(sym, marketClass) => openAsset(sym, marketClass)}
                       watchlist={watchlist}
                       onToggleWatchlist={toggleWatchlist}
                       onReorderWatchlist={handleReorderWatchlist}
@@ -284,7 +302,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
                       onClose={() => setInspectedNarrative(null)}
                       onSelectAsset={(sym) => {
                         setInspectedNarrative(null);
-                        setSelectedAssetSymbol(sym);
+                        openAsset(sym);
                       }}
                       watchlist={watchlist}
                       onToggleWatchlist={toggleWatchlist}
@@ -296,18 +314,18 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
 
               {/* Top 100 cryptocurrencies, sized by market capitalization */}
               {activeTab === 'crypto_bubbles' && (
-                <CryptoBubbleView onSelectAsset={(symbol) => setSelectedAssetSymbol(symbol)} />
+                <CryptoBubbleView onSelectAsset={(symbol) => openAsset(symbol, 'crypto')} />
               )}
 
               {activeTab === 'crypto_heatmap' && (
-                <CryptoHeatMapView onSelectAsset={(symbol) => setSelectedAssetSymbol(symbol)} />
+                <CryptoHeatMapView onSelectAsset={(symbol) => openAsset(symbol, 'crypto')} />
               )}
 
               {/* Tab 2: USA Economic Status & Macro Intelligence */}
               {activeTab === 'usa_status' && <USAStatusView />}
 
               {/* Tab 3: X Narrative Intelligence & AI News Aggregator */}
-              {activeTab === 'trends' && <XTrendsView onSelectAsset={(sym) => setSelectedAssetSymbol(sym)} />}
+              {activeTab === 'trends' && <XTrendsView onSelectAsset={(sym) => openAsset(sym)} />}
 
               {/* Tab 4: News Feed */}
               {activeTab === 'news' && <NewsFeedView />}
@@ -330,7 +348,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
         isOpen={isSearchModalOpen}
         onClose={() => setIsSearchModalOpen(false)}
         onSelectAsset={(sym) => {
-          setSelectedAssetSymbol(sym);
+          openAsset(sym);
           setIsSearchModalOpen(false);
         }}
         allAssets={scannerRows}

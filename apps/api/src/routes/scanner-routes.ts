@@ -233,6 +233,13 @@ scannerRouter.get('/scanner', async (req, res) => {
     const appState = AppState.getInstance();
     let rows = await appState.refreshSignals(timeframe, marketClass);
 
+    // The selected crypto endpoint is a hard data contract, not a visual
+    // preference. Reject every row that is not explicitly provider-classified
+    // as crypto before any additional filtering or response serialization.
+    if (marketClass === 'crypto') {
+      rows = rows.filter(row => row.marketClass === 'crypto');
+    }
+
     if (narrative && narrative !== 'ALL') {
       rows = rows.filter(r => r.narratives?.includes(narrative as any));
     }

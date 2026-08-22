@@ -29,6 +29,7 @@ import {
 
 interface AssetDeepDiveViewProps {
   symbol: string;
+  marketClass?: string;
   timeframe: Timeframe;
   onTimeframeChange: (tf: Timeframe) => void;
   onBack: () => void;
@@ -40,6 +41,7 @@ type InfoTab = 'mtf' | 'ai' | 'social';
 
 export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   symbol,
+  marketClass,
   timeframe,
   onTimeframeChange,
   onBack,
@@ -292,7 +294,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
         <InteractiveChart
           candles={data?.candles || []}
           symbol={symbol}
-          marketClass={data?.info?.marketClass}
+          marketClass={marketClass || data?.info?.marketClass}
           timeframe={timeframe}
           onTimeframeChange={onTimeframeChange}
         />
