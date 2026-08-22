@@ -4,6 +4,7 @@ import { calculateAuthorCredibility } from './credibility.js';
 import { clusterPostsIntoTopics } from './clustering.js';
 
 const DEFAULT_BLUESKY_QUERIES = ['bitcoin', 'ethereum', 'stock market', 'gold market'];
+const FREE_SOURCE_REFRESH_TIMEOUT_MS = 12_000;
 const SOCIAL_SYMBOLS = [
   'BTC', 'ETH', 'SOL', 'XRP', 'DOGE', 'ADA', 'SUI', 'AVAX', 'LINK', 'AAVE', 'UNI',
   'NVDA', 'TSLA', 'AAPL', 'MSFT', 'META', 'GOOGL', 'AMZN', 'PLTR', 'AMD', 'ASML',
@@ -95,6 +96,10 @@ export class XSocialIntelligenceService {
     if (!force && Date.now() - this.lastFreeSourceFetch < 2 * 60_000) return;
     if (this.freeSourceRefresh) return this.freeSourceRefresh;
 
+    // A shared deadline keeps a single slow public endpoint from blocking the
+    // News Feed and its AI synthesis for Cloud Run's full request timeout.
+    const refreshAbort = new AbortController();
+    const deadline = setTimeout(() => refreshAbort.abort(), FREE_SOURCE_REFRESH_TIMEOUT_MS);
     this.freeSourceRefresh = (async () => {
       const configured = (process.env.BLUESKY_SEARCH_QUERIES || '')
         .split(',')
@@ -114,7 +119,7 @@ export class XSocialIntelligenceService {
           `https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts?${params.toString()}`,
           {
             headers: { accept: 'application/json', 'user-agent': 'MarketScanner360/1.0' },
-            signal: AbortSignal.timeout(8_000)
+            signal: refreshAbort.signal
           }
         );
         if (!response.ok) throw new Error(`Bluesky HTTP ${response.status}`);
@@ -152,7 +157,7 @@ export class XSocialIntelligenceService {
       const telegramTasks = telegramChannels.map(async channel => {
         const response = await fetch(`https://t.me/s/${encodeURIComponent(channel)}`, {
           headers: { accept: 'text/html', 'user-agent': 'MarketScanner360/1.0' },
-          signal: AbortSignal.timeout(8_000)
+          signal: refreshAbort.signal
         });
         if (!response.ok) throw new Error(`Telegram public page HTTP ${response.status}`);
         this.ingestTelegramPublicPage(channel, await response.text());
@@ -164,6 +169,7 @@ export class XSocialIntelligenceService {
         this.lastFreeSourceFetch = Date.now();
       }
     })().finally(() => {
+      clearTimeout(deadline);
       this.freeSourceRefresh = null;
     });
 

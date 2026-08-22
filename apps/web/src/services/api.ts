@@ -12,6 +12,9 @@ import { AssetDetailResponse } from '../types.js';
 
 const API_BASE = '/api';
 
+const fetchWithDeadline = (input: RequestInfo | URL, init?: RequestInit, timeoutMs = 25_000) =>
+  fetch(input, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+
 export async function fetchMarketOverview(): Promise<MarketOverviewSummary> {
   const res = await fetch(`${API_BASE}/overview`).catch(() => fetch(`${API_BASE}/market/overview`));
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch market overview`);
@@ -100,7 +103,7 @@ export async function fetchNews(limit = 20, category?: string): Promise<NewsItem
   params.set('limit', limit.toString());
   if (category) params.set('category', category);
 
-  const res = await fetch(`${API_BASE}/news?${params.toString()}`);
+  const res = await fetchWithDeadline(`${API_BASE}/news?${params.toString()}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch news`);
   return res.json();
 }
@@ -111,7 +114,7 @@ export async function fetchNewsSynthesis(
 ): Promise<NewsSynthesisPayload> {
   const params = new URLSearchParams({ language });
   if (category && category !== 'ALL') params.set('category', category);
-  const res = await fetch(`${API_BASE}/news/synthesis?${params.toString()}`);
+  const res = await fetchWithDeadline(`${API_BASE}/news/synthesis?${params.toString()}`, undefined, 30_000);
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch grounded news synthesis`);
   return res.json();
 }

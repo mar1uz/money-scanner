@@ -11,24 +11,35 @@ export const NewsFeedView: React.FC = () => {
   const [selectedCat, setSelectedCat] = useState<string>('ALL');
   const [loading, setLoading] = useState(true);
   const [synthesisLoading, setSynthesisLoading] = useState(true);
+  const [newsError, setNewsError] = useState(false);
+  const [synthesisError, setSynthesisError] = useState(false);
+  const [refreshAttempt, setRefreshAttempt] = useState(0);
 
   const categories = ['ALL', 'Regulation', 'Institutional', 'Protocol', 'Macro', 'Security'];
 
   useEffect(() => {
     setLoading(true);
+    setNewsError(false);
     fetchNews(30, selectedCat !== 'ALL' ? selectedCat : undefined)
       .then(res => setNews(res))
-      .catch(console.error)
+      .catch(() => {
+        setNews([]);
+        setNewsError(true);
+      })
       .finally(() => setLoading(false));
-  }, [selectedCat]);
+  }, [selectedCat, refreshAttempt]);
 
   useEffect(() => {
     setSynthesisLoading(true);
+    setSynthesisError(false);
     fetchNewsSynthesis(language, selectedCat !== 'ALL' ? selectedCat : undefined)
       .then(setSynthesis)
-      .catch(() => setSynthesis(null))
+      .catch(() => {
+        setSynthesis(null);
+        setSynthesisError(true);
+      })
       .finally(() => setSynthesisLoading(false));
-  }, [selectedCat, language]);
+  }, [selectedCat, language, refreshAttempt]);
 
   const sourceById = new Map(synthesis?.sources.map(source => [source.id, source]) || []);
 
@@ -89,6 +100,16 @@ export const NewsFeedView: React.FC = () => {
               {synthesis.mode === 'ai' ? `AI · ${synthesis.model || 'Gemini'}` : (language === 'en' ? 'VERIFIED FALLBACK' : 'REZUMAT VERIFICAT')}
             </span>
           )}
+          {synthesisError && (
+            <button
+              type="button"
+              onClick={() => setRefreshAttempt(attempt => attempt + 1)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-purple-400/35 bg-purple-500/10 px-2.5 py-1 text-[10px] font-mono text-purple-200 hover:bg-purple-500/20"
+            >
+              <RefreshCw className="h-3 w-3" />
+              {language === 'en' ? 'RETRY' : 'REÎNCEARCĂ'}
+            </button>
+          )}
         </div>
 
         {synthesisLoading ? (
@@ -148,7 +169,9 @@ export const NewsFeedView: React.FC = () => {
           </div>
         ) : (
           <p className="py-5 text-xs text-slate-400">
-            {language === 'en' ? 'No verified sources are available for this category yet.' : 'Nu există încă surse verificate pentru această categorie.'}
+            {synthesisError
+              ? (language === 'en' ? 'The verified-source summary is temporarily unavailable. Please retry.' : 'Sinteza cu surse verificate este temporar indisponibilă. Încearcă din nou.')
+              : (language === 'en' ? 'No verified sources are available for this category yet.' : 'Nu există încă surse verificate pentru această categorie.')}
           </p>
         )}
       </section>
@@ -156,6 +179,10 @@ export const NewsFeedView: React.FC = () => {
       {/* News List */}
       {loading ? (
         <div className="p-12 text-center text-slate-400 font-mono">Aggregating crypto news feeds...</div>
+      ) : newsError ? (
+        <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-6 text-center text-xs font-mono text-amber-200">
+          {language === 'en' ? 'News sources are temporarily unavailable. Please retry.' : 'Sursele de știri sunt temporar indisponibile. Încearcă din nou.'}
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {news.map((item) => (

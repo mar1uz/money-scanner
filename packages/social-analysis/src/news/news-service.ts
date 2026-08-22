@@ -6,6 +6,8 @@ const LIVE_FEEDS = [
   { url: 'https://decrypt.co/feed', source: 'Decrypt' }
 ];
 
+const LIVE_REFRESH_TIMEOUT_MS = 12_000;
+
 const decodeXml = (value: string) => value
   .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
   .replace(/&amp;/g, '&')
@@ -40,11 +42,16 @@ export class NewsIntelligenceService {
     if (!force && Date.now() - this.lastFetchedAt < 10 * 60_000) return;
     if (this.inFlight) return this.inFlight;
 
+    // Use one hard deadline for the entire refresh. Some RSS hosts keep a
+    // connection open after headers have arrived, so a per-request timeout is
+    // not enough to protect the API request that is waiting for all feeds.
+    const refreshAbort = new AbortController();
+    const deadline = setTimeout(() => refreshAbort.abort(), LIVE_REFRESH_TIMEOUT_MS);
     this.inFlight = (async () => {
       const feedResults = await Promise.allSettled(LIVE_FEEDS.map(async feed => {
         const response = await fetch(feed.url, {
           headers: { 'User-Agent': 'MoneyScanner/1.0 (+https://scanner.relayhub.no)' },
-          signal: AbortSignal.timeout(8_000)
+          signal: refreshAbort.signal
         });
         if (!response.ok) throw new Error(`${feed.source} RSS HTTP ${response.status}`);
         this.parseRssItems(await response.text(), feed.source);
@@ -56,6 +63,7 @@ export class NewsIntelligenceService {
         this.newsItems = this.newsItems.slice(0, 300);
       }
     })().finally(() => {
+      clearTimeout(deadline);
       this.inFlight = null;
     });
 

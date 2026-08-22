@@ -6,6 +6,19 @@ export const aiRouter = Router();
 
 const synthesisCache = new Map<string, { payload: NewsSynthesisPayload; updatedAt: number }>();
 const SYNTHESIS_CACHE_MS = 5 * 60_000;
+const SOURCE_REFRESH_TIMEOUT_MS = 15_000;
+
+const waitForSourceRefresh = (refresh: Promise<void>): Promise<void> => {
+  // The model can produce a grounded fallback from currently cached sources.
+  // Do not allow a third-party RSS/social host to hold this route open.
+  return new Promise(resolve => {
+    const deadline = setTimeout(resolve, SOURCE_REFRESH_TIMEOUT_MS);
+    void refresh.catch(() => undefined).finally(() => {
+      clearTimeout(deadline);
+      resolve();
+    });
+  });
+};
 
 aiRouter.get('/news/synthesis', async (req, res) => {
   try {
@@ -21,8 +34,8 @@ aiRouter.get('/news/synthesis', async (req, res) => {
 
     const appState = AppState.getInstance();
     await Promise.all([
-      appState.news.fetchLiveNews(),
-      appState.social.refreshFreeSources()
+      waitForSourceRefresh(appState.news.fetchLiveNews()),
+      waitForSourceRefresh(appState.social.refreshFreeSources())
     ]);
     const news = appState.news.getLatestNews(20, category);
     const socialPosts = appState.social.getRecentVerifiedPosts()
