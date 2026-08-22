@@ -22,14 +22,14 @@ interface StoredProfile {
 
 const profiles = new Map<string, StoredProfile>();
 
-const getProjectId = () => process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT;
+const DEFAULT_FIREBASE_PROJECT_ID = 'gen-lang-client-0610749770';
+const getProjectId = () =>
+  process.env.FIREBASE_PROJECT_ID
+  || process.env.GOOGLE_CLOUD_PROJECT
+  || DEFAULT_FIREBASE_PROJECT_ID;
 
 export const getFirebaseAuth = () => {
   const projectId = getProjectId();
-  if (!projectId) {
-    throw new Error('Firebase Authentication is not configured: FIREBASE_PROJECT_ID is required.');
-  }
-
   if (!getApps().length) initializeApp({ projectId });
   return getAuth();
 };
