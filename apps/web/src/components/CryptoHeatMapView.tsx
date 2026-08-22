@@ -79,6 +79,22 @@ const heatColor = (change: number | null) => {
     : `rgba(225,29,72,${alpha})`;
 };
 
+const clamp = (value: number, minimum: number, maximum: number) =>
+  Math.min(maximum, Math.max(minimum, value));
+
+const getTileTypography = (rect: HeatRect) => {
+  const area = rect.width * rect.height;
+  const prominence = clamp((Math.sqrt(area) - 3) / 48, 0, 1);
+
+  return {
+    prominence,
+    name: 11 + prominence * 25,
+    change: 11 + prominence * 17,
+    marketCap: 10 + prominence * 11,
+    symbol: 9 + prominence * 7
+  };
+};
+
 export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAsset }) => {
   const { language } = useLanguage();
   const [timeframe, setTimeframe] = useState<CryptoBubbleTimeframe>('1d');
@@ -175,15 +191,15 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
           </div>
         ) : rectangles.map(rect => {
           const positive = (rect.coin.change ?? 0) >= 0;
-          const roomy = rect.width > 12 && rect.height > 11;
-          const compact = rect.width > 6 && rect.height > 6;
+          const typography = getTileTypography(rect);
+          const roomy = rect.width > 10 && rect.height > 9;
           return (
             <button
               key={rect.coin.id}
               type="button"
               onClick={() => onSelectAsset(rect.coin.symbol)}
               title={`${rect.coin.name} · #${rect.coin.rank} · ${formatMarketCap(rect.coin.marketCap)} · ${rect.coin.change === null ? '—' : `${rect.coin.change >= 0 ? '+' : ''}${rect.coin.change.toFixed(2)}%`}`}
-              className="absolute overflow-hidden border border-black/50 p-1 text-center text-white transition-[filter,transform] duration-150 hover:z-20 hover:brightness-125 focus:z-20 focus:outline-none focus:ring-2 focus:ring-cyan-300"
+              className="absolute overflow-hidden border border-black/50 p-1.5 text-center text-white transition-[filter,transform] duration-150 hover:z-20 hover:brightness-125 focus:z-20 focus:outline-none focus:ring-2 focus:ring-cyan-300"
               style={{
                 left: `calc(${rect.x}% + 1px)`,
                 top: `calc(${rect.y}% + 1px)`,
@@ -192,17 +208,40 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
                 backgroundColor: heatColor(rect.coin.change)
               }}
             >
-              <span className="flex h-full flex-col items-center justify-center leading-tight">
-                <span className="flex items-center gap-1 font-mono text-[10px] font-extrabold sm:text-xs">
-                  {roomy && rect.coin.image && <img src={rect.coin.image} alt="" className="h-4 w-4 rounded-full" loading="lazy" />}
+              <span className="flex h-full min-w-0 flex-col items-center justify-center overflow-hidden leading-none">
+                <span
+                  className="flex max-w-full items-center justify-center gap-1.5 font-mono font-black tracking-tight"
+                  style={{ fontSize: `${typography.name}px` }}
+                >
+                  {roomy && rect.coin.image && (
+                    <img
+                      src={rect.coin.image}
+                      alt=""
+                      className="shrink-0 rounded-full"
+                      style={{ width: `${clamp(typography.name * 0.82, 14, 27)}px`, height: `${clamp(typography.name * 0.82, 14, 27)}px` }}
+                      loading="lazy"
+                    />
+                  )}
+                  <span className="truncate">{rect.coin.name}</span>
+                </span>
+                <span
+                  className="mt-0.5 max-w-full truncate font-mono font-semibold uppercase text-white/75"
+                  style={{ fontSize: `${typography.symbol}px` }}
+                >
                   {rect.coin.symbol}
                 </span>
-                {compact && (
-                  <span className={`mt-0.5 font-mono text-[10px] font-bold sm:text-sm ${positive ? 'text-emerald-50' : 'text-rose-50'}`}>
-                    {rect.coin.change === null ? '—' : `${positive ? '+' : ''}${rect.coin.change.toFixed(2)}%`}
-                  </span>
-                )}
-                {roomy && <span className="mt-1 text-[9px] text-white/70">{formatMarketCap(rect.coin.marketCap)}</span>}
+                <span
+                  className={`mt-1 max-w-full truncate font-mono font-black ${positive ? 'text-emerald-50' : 'text-rose-50'}`}
+                  style={{ fontSize: `${typography.change}px` }}
+                >
+                  {rect.coin.change === null ? '—' : `${positive ? '+' : ''}${rect.coin.change.toFixed(2)}%`}
+                </span>
+                <span
+                  className="mt-1 max-w-full truncate font-mono font-semibold text-white/80"
+                  style={{ fontSize: `${typography.marketCap}px` }}
+                >
+                  {formatMarketCap(rect.coin.marketCap)}
+                </span>
               </span>
             </button>
           );
