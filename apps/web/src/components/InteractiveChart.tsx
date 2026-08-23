@@ -700,6 +700,26 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       createSeriesMarkers(candleSeries, markers);
     }
 
+    // Exact Money Line Flip Threshold Price Line (Dashed horizontal level)
+    const lastIdx = cleanCandles.length - 1;
+    if (lastIdx >= 0) {
+      const currentFlipThreshold = moneyLine.lineSlow[lastIdx];
+      const isBullSlow = moneyLine.dirSlow[lastIdx] < 0;
+      const flipAction = isBullSlow ? 'SELL FLIP' : 'BUY FLIP';
+      const flipColor = isBullSlow ? '#f43f5e' : '#10b981';
+
+      if (currentFlipThreshold && Number.isFinite(currentFlipThreshold) && currentFlipThreshold > 0) {
+        candleSeries.createPriceLine({
+          price: currentFlipThreshold,
+          color: flipColor,
+          lineWidth: 1,
+          lineStyle: 2, // LineStyle.Dashed
+          axisLabelVisible: true,
+          title: `PRAG ML: $${currentFlipThreshold < 1 ? currentFlipThreshold.toFixed(4) : currentFlipThreshold.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${flipAction})`
+        });
+      }
+    }
+
     chart.timeScale().fitContent();
     chart.timeScale().applyOptions({
       rightOffset: 8,
@@ -1191,7 +1211,25 @@ sma200Val  = ta.sma(close, lenSma200)
 plot(showSma50 ? sma50Val : na, color=colSma50, linewidth=1, title="SMA 50 (Galben Subțire)")
 plot(showSma200 ? sma200Val : na, color=colSma200, linewidth=3, title="SMA 200 (Alb Gros)")
 
-// Alerte TradingView
+// ==========================================
+// 3. Linie Mică cu Pragul Exact de Flip
+// ==========================================
+showFlipLine = input.bool(true, title="Afișează Linie Prag Flip", group="Prag Flip")
+var line flipLine = na
+var label flipLbl = na
+
+if showFlipLine and barstate.islast
+    line.delete(flipLine)
+    label.delete(flipLbl)
+    string flipAction = dirSlow < 0 ? "SELL FLIP" : "BUY FLIP"
+    color flipCol = dirSlow < 0 ? #f43f5e : #10b981
+    string flipText = "PRAG " + flipAction + ": $" + (lineSlow < 1 ? str.tostring(lineSlow, "#.####") : str.tostring(lineSlow, "#.##"))
+    flipLine := line.new(bar_index - 12, lineSlow, bar_index + 6, lineSlow, color=flipCol, width=2, style=line.style_dashed, extend=extend.none)
+    flipLbl  := label.new(bar_index + 6, lineSlow, flipText, color=color.new(flipCol, 20), textcolor=color.white, size=size.small, style=label.style_label_left)
+
+// ==========================================
+// 4. Alerte TradingView
+// ==========================================
 alertcondition(buySignal, title="MoneyLine Bullish Flip (BUY)", message="🚀 [MoneyLine] Bullish Flip confirmat pe {{ticker}} ({{interval}})! Preț: {{close}}")
 alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠️ [MoneyLine] Bearish Flip confirmat pe {{ticker}} ({{interval}})! Preț: {{close}}")
 `;
