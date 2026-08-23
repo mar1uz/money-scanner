@@ -94,6 +94,7 @@ export function calculateMoneyLineForce(candles: Candle[], timeframe: string) {
       dirFast: [],
       lineSlow: [],
       dirSlow: [],
+      sma50: [],
       sma200: [],
       cloudColor: [],
       buySignals: [],
@@ -185,6 +186,19 @@ export function calculateMoneyLineForce(candles: Candle[], timeframe: string) {
   const fast = calcSupertrend(f_fast);
   const slow = calcSupertrend(f_slow);
 
+  // 50 Simple Moving Average (SMA 50)
+  const sma50: number[] = [];
+  const sma50Len = 50;
+  for (let i = 0; i < candles.length; i++) {
+    const windowStart = Math.max(0, i - sma50Len + 1);
+    let sumClose = 0;
+    for (let j = windowStart; j <= i; j++) {
+      sumClose += candles[j].close;
+    }
+    const count = i - windowStart + 1;
+    sma50.push(sumClose / count);
+  }
+
   // 200 Simple Moving Average (SMA 200)
   const sma200: number[] = [];
   const smaLen = 200;
@@ -219,6 +233,7 @@ export function calculateMoneyLineForce(candles: Candle[], timeframe: string) {
     dirFast: fast.dir,
     lineSlow: slow.line,
     dirSlow: slow.dir,
+    sma50,
     sma200,
     buySignals,
     sellSignals
@@ -241,6 +256,8 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
 
   const [activeTab, setActiveTab] = useState<'chart' | 'tv_embed' | 'pinescript'>('chart');
   const [activeInterval, setActiveInterval] = useState<string>(timeframe);
+  const [showSma50, setShowSma50] = useState<boolean>(true);
+  const [showSma200, setShowSma200] = useState<boolean>(true);
   const [copiedPine, setCopiedPine] = useState(false);
   const [bullishAlertActive, setBullishAlertActive] = useState(false);
   const [bullishAlertSaving, setBullishAlertSaving] = useState(false);
@@ -250,8 +267,11 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     status: string;
     fastLine: number;
     slowLine: number;
+    sma50: number;
+    isAboveSma50: boolean;
     sma200: number;
     isAboveSma200: boolean;
+    hasGoldenCross: boolean;
     nextFlip: 'BUY' | 'SELL';
   } | null>(null);
 
@@ -461,6 +481,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     const lastIdx = candles.length - 1;
     const isBullFast = moneyLine.dirFast[lastIdx] < 0;
     const isBullSlow = moneyLine.dirSlow[lastIdx] < 0;
+    const lastSma50 = moneyLine.sma50[lastIdx] || 0;
     const lastSma200 = moneyLine.sma200[lastIdx] || 0;
     const lastClose = candles[lastIdx].close;
 
@@ -468,8 +489,11 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       status: isBullFast && isBullSlow ? 'BULLISH' : (!isBullFast && !isBullSlow ? 'BEARISH' : 'TRANSITION'),
       fastLine: moneyLine.lineFast[lastIdx] || 0,
       slowLine: moneyLine.lineSlow[lastIdx] || 0,
+      sma50: lastSma50,
+      isAboveSma50: lastClose >= lastSma50,
       sma200: lastSma200,
       isAboveSma200: lastClose >= lastSma200,
+      hasGoldenCross: lastSma50 >= lastSma200 && lastSma200 > 0,
       nextFlip: isBullSlow ? 'SELL' : 'BUY'
     });
   }, [candles, activeInterval]);
@@ -615,20 +639,39 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     }));
     slowLineSeries.setData(formattedSlowLine);
 
-    // SMA 200 Macro Baseline
-    const sma200Series = chart.addSeries(LineSeries, {
-      color: '#fbbf24', // Amber/Yellow
-      lineWidth: 2,
-      lineStyle: 0,
-      priceLineVisible: false,
-      lastValueVisible: false
-    });
+    // SMA 50 Intermediate Baseline (Yellow, Thin 1px)
+    if (showSma50) {
+      const sma50Series = chart.addSeries(LineSeries, {
+        color: '#fbbf24', // Amber/Yellow
+        lineWidth: 1,
+        lineStyle: 0,
+        priceLineVisible: false,
+        lastValueVisible: false
+      });
 
-    const formattedSma200 = moneyLine.sma200.map((val, idx) => ({
-      time: Math.floor(cleanCandles[idx].timestamp / 1000) as any,
-      value: val
-    }));
-    sma200Series.setData(formattedSma200);
+      const formattedSma50 = moneyLine.sma50.map((val, idx) => ({
+        time: Math.floor(cleanCandles[idx].timestamp / 1000) as any,
+        value: val
+      }));
+      sma50Series.setData(formattedSma50);
+    }
+
+    // SMA 200 Macro Baseline (White, Thick 3px)
+    if (showSma200) {
+      const sma200Series = chart.addSeries(LineSeries, {
+        color: '#ffffff', // Pure White
+        lineWidth: 3,
+        lineStyle: 0,
+        priceLineVisible: false,
+        lastValueVisible: false
+      });
+
+      const formattedSma200 = moneyLine.sma200.map((val, idx) => ({
+        time: Math.floor(cleanCandles[idx].timestamp / 1000) as any,
+        value: val
+      }));
+      sma200Series.setData(formattedSma200);
+    }
 
     // BUY and SELL Signal Triangles
     const markers: any[] = [];
@@ -686,7 +729,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       chartApiRef.current = null;
       candleSeriesRef.current = null;
     };
-  }, [activeTab, candles, activeInterval, symbol]);
+  }, [activeTab, candles, activeInterval, symbol, showSma50, showSma200]);
 
   // 2. Official TradingView Embed Widget (when tv_embed tab is selected)
   useEffect(() => {
@@ -1121,9 +1164,11 @@ sellSignal = ta.change(dirSlow) > 0
 plotshape(buySignal, title="BUY", style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small, text="BUY", textcolor=color.green)
 plotshape(sellSignal, title="SELL", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small, text="SELL", textcolor=color.red)
 
-// --- Indicator Macro SMA 200 ---
+// --- Indicatori Baselines: SMA 50 & SMA 200 ---
+sma50 = ta.sma(close, 50)
 sma200 = ta.sma(close, 200)
-plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro Baseline")
+plot(sma50, color=color.new(color.yellow, 0), linewidth=1, title="SMA 50 Intermediate Baseline")
+plot(sma200, color=color.new(color.white, 0), linewidth=3, title="SMA 200 Macro Baseline")
 `;
 
   return (
@@ -1249,17 +1294,62 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                 <span>{bullishAlertActive ? (language === 'ro' ? 'Alert activ' : 'Alert on') : 'Alert'}</span>
               </button>
               <span>Margine Nor (Slow): <strong className="text-slate-300">${latestState?.slowLine ? latestState.slowLine.toFixed(2) : '-'}</strong></span>
-              <span className="flex items-center gap-1.5 font-mono">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-glow-gold"></span>
-                <span>SMA 200: <strong className="text-amber-300">${latestState?.sma200 ? (latestState.sma200 < 1 ? latestState.sma200.toFixed(4) : latestState.sma200.toLocaleString(undefined, { minimumFractionDigits: 2 })) : '-'}</strong></span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold border ${
-                  latestState?.isAboveSma200
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                    : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
-                }`}>
-                  {latestState?.isAboveSma200 ? '▲ Peste (Bull)' : '▼ Sub (Bear)'}
+
+              {/* SMA 50 Toggle & Status (Yellow, Thin 1.5px) */}
+              <button
+                type="button"
+                onClick={() => setShowSma50(prev => !prev)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-mono transition-all ${
+                  showSma50
+                    ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 shadow-glow-gold'
+                    : 'bg-white/[0.03] text-slate-500 border-white/[0.06] hover:text-slate-300'
+                }`}
+                title={showSma50 ? 'Ascunde linia SMA 50 (Galbenă, subțire)' : 'Afișează linia SMA 50 (Galbenă, subțire)'}
+              >
+                <span className={`w-2.5 h-0.5 rounded-full ${showSma50 ? 'bg-amber-400' : 'bg-slate-500'}`}></span>
+                <span>SMA 50: <strong className={showSma50 ? 'text-amber-300' : 'text-slate-400'}>${latestState?.sma50 ? (latestState.sma50 < 1 ? latestState.sma50.toFixed(4) : latestState.sma50.toLocaleString(undefined, { minimumFractionDigits: 2 })) : '-'}</strong></span>
+                {showSma50 && (
+                  <span className={`text-[9px] px-1 py-0.2 rounded font-bold border ${
+                    latestState?.isAboveSma50
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                      : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                  }`}>
+                    {latestState?.isAboveSma50 ? '▲ Peste' : '▼ Sub'}
+                  </span>
+                )}
+              </button>
+
+              {/* SMA 200 Toggle & Status (White, Thick 3px) */}
+              <button
+                type="button"
+                onClick={() => setShowSma200(prev => !prev)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-mono transition-all ${
+                  showSma200
+                    ? 'bg-white/10 text-white border-white/40 shadow-md'
+                    : 'bg-white/[0.03] text-slate-500 border-white/[0.06] hover:text-slate-300'
+                }`}
+                title={showSma200 ? 'Ascunde linia SMA 200 (Albă, groasă)' : 'Afișează linia SMA 200 (Albă, groasă)'}
+              >
+                <span className={`w-3 h-1 rounded-full ${showSma200 ? 'bg-white shadow-[0_0_8px_#ffffff]' : 'bg-slate-500'}`}></span>
+                <span>SMA 200: <strong className={showSma200 ? 'text-white font-bold' : 'text-slate-400'}>${latestState?.sma200 ? (latestState.sma200 < 1 ? latestState.sma200.toFixed(4) : latestState.sma200.toLocaleString(undefined, { minimumFractionDigits: 2 })) : '-'}</strong></span>
+                {showSma200 && (
+                  <span className={`text-[9px] px-1 py-0.2 rounded font-bold border ${
+                    latestState?.isAboveSma200
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                      : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                  }`}>
+                    {latestState?.isAboveSma200 ? '▲ Peste (Bull)' : '▼ Sub (Bear)'}
+                  </span>
+                )}
+              </button>
+
+              {/* Golden Cross Indicator Badge if active */}
+              {latestState?.hasGoldenCross && (
+                <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                  ✨ Golden Cross (50 &gt; 200)
                 </span>
-              </span>
+              )}
+
               <button
                 onClick={handleCopyPineScript}
                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold transition-all ml-2"
@@ -2177,8 +2267,12 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                   <span className={`w-8 h-0.5 ${latestState.nextFlip === 'BUY' ? 'bg-emerald-400' : 'bg-rose-400'}`}></span>
                   PRAG ML EXACT · {latestState.nextFlip === 'BUY' ? '>' : '<'} ${formatFlipPrice(latestState.slowLine)} · {latestState.nextFlip} FLIP
                 </span>
-                <span className="flex items-center gap-1 text-amber-300 font-bold">
-                  <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                <span className="flex items-center gap-1 text-amber-300 font-bold font-mono">
+                  <span className="w-2 h-0.5 rounded-full bg-amber-400"></span>
+                  SMA 50: ${latestState.sma50.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </span>
+                <span className="flex items-center gap-1 text-white font-bold font-mono">
+                  <span className="w-2.5 h-1 rounded-full bg-white shadow-[0_0_6px_#fff]"></span>
                   SMA 200: ${latestState.sma200.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </span>
                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${

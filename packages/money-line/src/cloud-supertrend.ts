@@ -5,6 +5,7 @@ export interface MoneyLineCloudSeries {
   dirFast: number[];
   lineSlow: number[];
   dirSlow: number[];
+  sma50: number[];
   sma200: number[];
   buySignals: boolean[];
   sellSignals: boolean[];
@@ -30,6 +31,7 @@ export function calculateMoneyLineCloud(candles: Candle[], timeframe: Timeframe 
       dirFast: [],
       lineSlow: [],
       dirSlow: [],
+      sma50: [],
       sma200: [],
       buySignals: [],
       sellSignals: []
@@ -92,6 +94,11 @@ export function calculateMoneyLineCloud(candles: Candle[], timeframe: Timeframe 
 
   const fast = calculateSupertrend(fastFactor);
   const slow = calculateSupertrend(slowFactor);
+  const sma50 = candles.map((_candle, index) => {
+    const start = Math.max(0, index - 49);
+    const values = candles.slice(start, index + 1);
+    return values.reduce((sum, value) => sum + value.close, 0) / values.length;
+  });
   const sma200 = candles.map((_candle, index) => {
     const start = Math.max(0, index - 199);
     const values = candles.slice(start, index + 1);
@@ -105,6 +112,7 @@ export function calculateMoneyLineCloud(candles: Candle[], timeframe: Timeframe 
     dirFast: fast.dir,
     lineSlow: slow.line,
     dirSlow: slow.dir,
+    sma50,
     sma200,
     buySignals,
     sellSignals
