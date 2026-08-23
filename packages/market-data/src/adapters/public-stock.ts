@@ -1,5 +1,6 @@
 import { Candle, AssetPriceQuote, Timeframe, SCANNER_ASSETS } from '@money-scanner/shared';
 import { MarketHealthMonitor } from '../health-monitor.js';
+import { aggregateCandles } from '../aggregator.js';
 
 export class PublicStockMarketAdapter {
   private healthMonitor: MarketHealthMonitor;
@@ -45,9 +46,9 @@ export class PublicStockMarketAdapter {
 
   public mapTimeframeToYahoo(timeframe: Timeframe): { interval: string; range: string } {
     switch (timeframe) {
-      case '1h': return { interval: '1h', range: '1mo' };
-      case '4h': return { interval: '1h', range: '3mo' }; // aggregate
-      case '8h': return { interval: '1d', range: '6mo' };
+      case '1h': return { interval: '1h', range: '2y' };
+      case '4h': return { interval: '1h', range: '2y' }; // aggregate
+      case '8h': return { interval: '1h', range: '2y' }; // aggregate
       case '1d': return { interval: '1d', range: '2y' };
       case '1w': return { interval: '1wk', range: '5y' };
       case '1m': return { interval: '1mo', range: '10y' };
@@ -112,9 +113,15 @@ export class PublicStockMarketAdapter {
             }
           }
 
-          if (candles.length >= 10) {
+          const timeframeCandles = timeframe === '4h'
+            ? aggregateCandles(candles, 4)
+            : timeframe === '8h'
+              ? aggregateCandles(candles, 8)
+              : candles;
+
+          if (timeframeCandles.length >= 10) {
             this.healthMonitor.recordSuccess('YahooFinance', Date.now() - startTime);
-            return candles.slice(-limit);
+            return timeframeCandles.slice(-limit);
           }
         }
       }
@@ -125,6 +132,76 @@ export class PublicStockMarketAdapter {
 
     this.healthMonitor.recordError('YahooFinance');
     throw new Error(`No verified Yahoo Finance candle data available for ${sym}`);
+  }
+
+  /** Loads an older Yahoo page ending immediately before the current chart. */
+  public async fetchCandlesBefore(
+    symbol: string,
+    timeframe: Timeframe,
+    beforeTimestamp: number,
+    limit = 1000
+  ): Promise<Candle[]> {
+    const sym = symbol.toUpperCase();
+    const yahooTicker = this.tickerMap[sym] || sym;
+    const safeLimit = Math.max(1, Math.min(1000, Math.floor(limit)));
+    const sourceInterval = timeframe === '1h' || timeframe === '4h' || timeframe === '8h'
+      ? '1h'
+      : timeframe === '1d' ? '1d' : timeframe === '1w' ? '1wk' : '1mo';
+    const hoursPerResult = timeframe === '4h' ? 4 : timeframe === '8h' ? 8 : timeframe === '1d' ? 24 : timeframe === '1w' ? 168 : timeframe === '1m' ? 744 : 1;
+    const period2 = Math.floor(beforeTimestamp / 1000);
+    // Intraday equity bars only cover exchange sessions. Request a wider
+    // calendar window, capped to Yahoo's approximately two-year 1h horizon.
+    const requestedSpanSeconds = Math.ceil(safeLimit * hoursPerResult * 3600 * 6);
+    const maxSpanSeconds = sourceInterval === '1h' ? 729 * 24 * 3600 : requestedSpanSeconds;
+    const period1 = Math.max(1, period2 - Math.min(requestedSpanSeconds, maxSpanSeconds));
+    const startedAt = Date.now();
+
+    try {
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooTicker)}?period1=${period1}&period2=${period2}&interval=${sourceInterval}&includePrePost=false`;
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(8_000),
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+      });
+      if (!response.ok) throw new Error(`Yahoo history HTTP ${response.status}`);
+      const body = await response.json() as any;
+      const result = body?.chart?.result?.[0];
+      const quote = result?.indicators?.quote?.[0];
+      if (!result?.timestamp || !quote) return [];
+
+      const sourceCandles: Candle[] = [];
+      for (let index = 0; index < result.timestamp.length; index++) {
+        const open = quote.open?.[index];
+        const high = quote.high?.[index];
+        const low = quote.low?.[index];
+        const close = quote.close?.[index];
+        const volume = quote.volume?.[index];
+        if (![open, high, low, close].every(value => typeof value === 'number' && Number.isFinite(value))) continue;
+        sourceCandles.push({
+          timestamp: result.timestamp[index] * 1000,
+          open: Number(open.toFixed(4)),
+          high: Number(high.toFixed(4)),
+          low: Number(low.toFixed(4)),
+          close: Number(close.toFixed(4)),
+          volume: typeof volume === 'number' && Number.isFinite(volume) ? Math.floor(volume) : 0,
+          isClosed: true
+        });
+      }
+
+      const timeframeCandles = timeframe === '4h'
+        ? aggregateCandles(sourceCandles, 4)
+        : timeframe === '8h'
+          ? aggregateCandles(sourceCandles, 8)
+          : sourceCandles;
+      const candles = timeframeCandles
+        .filter(candle => candle.timestamp < beforeTimestamp)
+        .sort((left, right) => left.timestamp - right.timestamp)
+        .slice(-safeLimit);
+      this.healthMonitor.recordSuccess('YahooFinance', Date.now() - startedAt);
+      return candles;
+    } catch (error) {
+      this.healthMonitor.recordError('YahooFinance');
+      throw error;
+    }
   }
 
   public async fetchQuote(symbol: string): Promise<AssetPriceQuote> {

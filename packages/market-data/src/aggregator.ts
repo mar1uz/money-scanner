@@ -1,9 +1,9 @@
 import { Candle } from '@money-scanner/shared';
 
 /**
- * Aggregates 1-hour candles into 4-hour or 1-day candles deterministically.
+ * Aggregates 1-hour candles into a larger hourly period deterministically.
  */
-export function aggregateCandles(candles1h: Candle[], targetPeriodHours: 4 | 24): Candle[] {
+export function aggregateCandles(candles1h: Candle[], targetPeriodHours: 4 | 8 | 24): Candle[] {
   if (candles1h.length === 0) return [];
 
   const targetPeriodMs = targetPeriodHours * 3600 * 1000;
@@ -25,8 +25,9 @@ export function aggregateCandles(candles1h: Candle[], targetPeriodHours: 4 | 24)
     const list = grouped.get(start)!;
     if (list.length === 0) continue;
 
-    // Check if the aggregated bar is fully complete
-    const isComplete = list.length >= targetPeriodHours;
+    // Market sessions contain gaps (overnight/weekends), so candle count alone
+    // cannot decide closure. The aggregate is closed when all source bars are.
+    const isComplete = list.every(candle => candle.isClosed);
     const open = list[0].open;
     const close = list[list.length - 1].close;
     let high = -Infinity;

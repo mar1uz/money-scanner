@@ -124,6 +124,35 @@ export class BinanceMarketAdapter {
     }
   }
 
+  /** Fetches the page immediately preceding `beforeTimestamp` for infinite chart history. */
+  public async fetchCandlesBefore(
+    symbol: string,
+    timeframe: Timeframe,
+    beforeTimestamp: number,
+    limit = 1000
+  ): Promise<Candle[]> {
+    const pair = `${symbol}USDT`;
+    const interval = this.mapTimeframeToInterval(timeframe);
+    const safeLimit = Math.max(1, Math.min(1000, Math.floor(limit)));
+    const endTime = Math.max(1, Math.floor(beforeTimestamp) - 1);
+    const startedAt = Date.now();
+
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/klines?symbol=${pair}&interval=${interval}&limit=${safeLimit}&endTime=${endTime}`,
+        { signal: AbortSignal.timeout(8_000) }
+      );
+      if (!response.ok) throw new Error(`Binance history HTTP ${response.status}`);
+      const raw = await response.json() as any[];
+      const candles = this.parseRawKlines(raw, true).filter(candle => candle.timestamp < beforeTimestamp);
+      this.healthMonitor.recordSuccess('Binance', Date.now() - startedAt);
+      return candles;
+    } catch (error) {
+      this.healthMonitor.recordError('Binance');
+      throw error;
+    }
+  }
+
   /**
    * USDT-M perpetual candles. The app stores perpetual symbols with a `.P`
    * suffix so that they never collide with a spot ticker or an equity/ETF.
@@ -156,7 +185,35 @@ export class BinanceMarketAdapter {
     }
   }
 
-  private parseRawKlines(raw: any[]): Candle[] {
+  public async fetchFuturesCandlesBefore(
+    symbol: string,
+    timeframe: Timeframe,
+    beforeTimestamp: number,
+    limit = 1000
+  ): Promise<Candle[]> {
+    const pair = this.normalizeFuturesPair(symbol);
+    const interval = this.mapTimeframeToInterval(timeframe);
+    const safeLimit = Math.max(1, Math.min(1500, Math.floor(limit)));
+    const endTime = Math.max(1, Math.floor(beforeTimestamp) - 1);
+    const startedAt = Date.now();
+
+    try {
+      const response = await fetch(
+        `${this.futuresBaseUrl}/klines?symbol=${pair}&interval=${interval}&limit=${safeLimit}&endTime=${endTime}`,
+        { signal: AbortSignal.timeout(8_000) }
+      );
+      if (!response.ok) throw new Error(`Binance Futures history HTTP ${response.status}`);
+      const raw = await response.json() as any[];
+      const candles = this.parseRawKlines(raw, true).filter(candle => candle.timestamp < beforeTimestamp);
+      this.healthMonitor.recordSuccess('Binance', Date.now() - startedAt);
+      return candles;
+    } catch (error) {
+      this.healthMonitor.recordError('Binance');
+      throw error;
+    }
+  }
+
+  private parseRawKlines(raw: any[], forceClosed = false): Candle[] {
     return raw.map((item, idx) => {
       const isLast = idx === raw.length - 1;
       return {
@@ -166,7 +223,7 @@ export class BinanceMarketAdapter {
         low: parseFloat(item[3]),
         close: parseFloat(item[4]),
         volume: parseFloat(item[5]),
-        isClosed: !isLast
+        isClosed: forceClosed || !isLast
       };
     });
   }

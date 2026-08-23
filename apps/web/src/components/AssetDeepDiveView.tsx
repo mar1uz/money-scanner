@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AssetDetailResponse, Timeframe } from '../types.js';
-import { fetchAssetDetail, triggerTestAlert } from '../services/api.js';
+import { fetchAssetDetail, fetchHistoricalCandles, triggerTestAlert } from '../services/api.js';
 import { InteractiveChart } from './InteractiveChart.js';
 import {
   ArrowLeft,
@@ -53,6 +53,11 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   const [alertSent, setAlertSent] = useState(false);
   const [activeInfoTab, setActiveInfoTab] = useState<InfoTab>('mtf');
   const [showFlipTooltip, setShowFlipTooltip] = useState(false);
+  const [loadingOlderHistory, setLoadingOlderHistory] = useState(false);
+  const [hasMoreHistory, setHasMoreHistory] = useState(true);
+  const historyRequestActiveRef = useRef(false);
+  const historyContextRef = useRef(`${symbol}:${timeframe}`);
+  historyContextRef.current = `${symbol}:${timeframe}`;
 
   const loadData = () => {
     setLoading(true);
@@ -63,9 +68,62 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   };
 
   useEffect(() => {
+    setHasMoreHistory(true);
+    setLoadingOlderHistory(false);
+    historyRequestActiveRef.current = false;
     loadData();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [symbol, timeframe, marketClass]);
+
+  const loadOlderHistory = useCallback(async () => {
+    if (historyRequestActiveRef.current || loadingOlderHistory || !hasMoreHistory) return;
+    const currentCandles = data?.candles || [];
+    if (!currentCandles.length) return;
+
+    const oldestTimestamp = currentCandles.reduce(
+      (oldest, candle) => Math.min(oldest, candle.timestamp),
+      Number.POSITIVE_INFINITY
+    );
+    if (!Number.isFinite(oldestTimestamp)) return;
+
+    const requestContext = `${symbol}:${timeframe}`;
+    historyRequestActiveRef.current = true;
+    setLoadingOlderHistory(true);
+    try {
+      const response = await fetchHistoricalCandles(
+        symbol,
+        timeframe,
+        oldestTimestamp,
+        marketClass || data?.info?.marketClass,
+        1000
+      );
+      if (historyContextRef.current !== requestContext) return;
+
+      if (!response.candles.length) {
+        setHasMoreHistory(false);
+        return;
+      }
+
+      setData(current => {
+        if (!current || historyContextRef.current !== requestContext) return current;
+        const mergedByTimestamp = new Map<number, typeof response.candles[number]>();
+        for (const candle of response.candles) mergedByTimestamp.set(candle.timestamp, candle);
+        for (const candle of current.candles) mergedByTimestamp.set(candle.timestamp, candle);
+        return {
+          ...current,
+          candles: Array.from(mergedByTimestamp.values()).sort((left, right) => left.timestamp - right.timestamp)
+        };
+      });
+      setHasMoreHistory(response.hasMore);
+    } catch (error) {
+      console.error('Historical candle load failed:', error);
+    } finally {
+      if (historyContextRef.current === requestContext) {
+        historyRequestActiveRef.current = false;
+        setLoadingOlderHistory(false);
+      }
+    }
+  }, [data, hasMoreHistory, loadingOlderHistory, marketClass, symbol, timeframe]);
 
   const handleSendAlert = async () => {
     try {
@@ -292,6 +350,9 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
           marketClass={marketClass || data?.info?.marketClass}
           timeframe={timeframe}
           onTimeframeChange={onTimeframeChange}
+          onLoadMoreHistory={loadOlderHistory}
+          isLoadingHistory={loadingOlderHistory}
+          hasMoreHistory={hasMoreHistory}
         />
       </div>
 

@@ -292,6 +292,45 @@ scannerRouter.get('/narratives', async (req, res) => {
   }
 });
 
+scannerRouter.get('/assets/:symbol/candles', async (req, res) => {
+  try {
+    const symbol = req.params.symbol.toUpperCase();
+    const requestedTimeframe = String(req.query.timeframe || '1h');
+    const validTimeframes: Timeframe[] = ['1h', '4h', '8h', '1d', '1w', '1m'];
+    if (!validTimeframes.includes(requestedTimeframe as Timeframe)) {
+      return res.status(400).json({ error: 'Invalid timeframe.' });
+    }
+
+    const before = Number(req.query.before);
+    if (!Number.isFinite(before) || before <= 0) {
+      return res.status(400).json({ error: 'A valid before timestamp is required.' });
+    }
+
+    const requestedLimit = Number(req.query.limit || 1000);
+    const limit = Math.max(100, Math.min(1000, Number.isFinite(requestedLimit) ? Math.floor(requestedLimit) : 1000));
+    const requestedClassRaw = String(req.query.marketClass || '');
+    const requestedMarketClass: AssetMarketClass | undefined = requestedClassRaw === 'crypto' || requestedClassRaw === 'stocks' || requestedClassRaw === 'metals'
+      ? requestedClassRaw
+      : undefined;
+
+    const candles = await AppState.getInstance().marketData.getCandlesBefore(
+      symbol,
+      requestedTimeframe as Timeframe,
+      before,
+      limit,
+      requestedMarketClass
+    );
+
+    res.json({
+      candles,
+      hasMore: candles.length > 0,
+      oldestTimestamp: candles[0]?.timestamp || null
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to fetch historical candles', details: err.message });
+  }
+});
+
 scannerRouter.get('/assets/:symbol', async (req, res) => {
   try {
     const symbol = req.params.symbol.toUpperCase();

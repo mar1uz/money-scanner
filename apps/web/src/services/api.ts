@@ -1,6 +1,7 @@
 import {
   MarketOverviewSummary,
   AssetScannerRow,
+  Candle,
   Timeframe,
   XTrendTopic,
   NewsItem,
@@ -84,6 +85,30 @@ export async function fetchAssetDetail(
   const res = await fetch(`${API_BASE}/assets/${symbol}?${params.toString()}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch asset detail for ${symbol}`);
   return res.json();
+}
+
+export interface HistoricalCandlesResponse {
+  candles: Candle[];
+  hasMore: boolean;
+  oldestTimestamp: number | null;
+}
+
+export async function fetchHistoricalCandles(
+  symbol: string,
+  timeframe: Timeframe,
+  before: number,
+  marketClass?: string,
+  limit = 1000
+): Promise<HistoricalCandlesResponse> {
+  const params = new URLSearchParams({
+    timeframe,
+    before: String(before),
+    limit: String(limit)
+  });
+  if (marketClass) params.set('marketClass', marketClass);
+  const response = await fetchWithDeadline(`${API_BASE}/assets/${encodeURIComponent(symbol)}/candles?${params.toString()}`);
+  if (!response.ok) throw new Error(`HTTP ${response.status}: Failed to fetch historical candles for ${symbol}`);
+  return response.json();
 }
 
 export async function fetchXTrends(): Promise<XTrendTopic[]> {

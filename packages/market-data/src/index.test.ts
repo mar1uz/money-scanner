@@ -180,4 +180,29 @@ describe('Market Data Service & Normalization', () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it('loads a closed historical page strictly before the requested timestamp', async () => {
+    const originalFetch = globalThis.fetch;
+    const before = Date.now() - 3_600_000;
+    let requestedUrl = '';
+    globalThis.fetch = (async (input) => {
+      requestedUrl = String(input);
+      return Response.json([
+        [before - 7_200_000, '100', '105', '98', '103', '500'],
+        [before - 3_600_000, '103', '108', '102', '107', '650']
+      ]);
+    }) as typeof fetch;
+
+    try {
+      const service = new MarketDataService();
+      const candles = await service.getCandlesBefore('BTC', '1h', before, 500, 'crypto');
+      assert.equal(candles.length, 2);
+      assert.ok(candles.every(candle => candle.timestamp < before));
+      assert.ok(candles.every(candle => candle.isClosed));
+      assert.match(requestedUrl, /symbol=BTCUSDT/);
+      assert.match(requestedUrl, new RegExp(`endTime=${before - 1}`));
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

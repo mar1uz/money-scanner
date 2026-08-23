@@ -103,6 +103,37 @@ export class MarketDataService {
     }
   }
 
+  /** Returns one historical page strictly older than `beforeTimestamp`. */
+  public async getCandlesBefore(
+    symbol: string,
+    timeframe: Timeframe,
+    beforeTimestamp: number,
+    limit = 1000,
+    requestedMarketClass?: AssetMarketClass
+  ): Promise<Candle[]> {
+    const asset = this.getAssetDefinition(symbol);
+    const resolvedMarketClass = requestedMarketClass || asset?.marketClass;
+    const isBinanceFutures = this.isBinanceFuturesSymbol(symbol, asset);
+    const providerSymbol = asset?.providerSymbol || symbol;
+    const isExplicitCryptoSpot = resolvedMarketClass === 'crypto' && !symbol.includes('.') && !symbol.startsWith('TOTAL');
+    const isStockOrMetal = resolvedMarketClass === 'stocks' || resolvedMarketClass === 'metals'
+      ? true
+      : resolvedMarketClass === 'crypto'
+        ? false
+        : this.stockAdapter.isStockOrMetal(symbol);
+
+    if (isBinanceFutures) {
+      return this.binanceAdapter.fetchFuturesCandlesBefore(providerSymbol, timeframe, beforeTimestamp, limit);
+    }
+    if (isExplicitCryptoSpot) {
+      return this.binanceAdapter.fetchCandlesBefore(symbol, timeframe, beforeTimestamp, limit);
+    }
+    if (isStockOrMetal) {
+      return this.stockAdapter.fetchCandlesBefore(symbol, timeframe, beforeTimestamp, limit);
+    }
+    return this.binanceAdapter.fetchCandlesBefore(symbol, timeframe, beforeTimestamp, limit);
+  }
+
   public async getPriceQuote(symbol: string, requestedMarketClass?: AssetMarketClass): Promise<AssetPriceQuote> {
     const asset = this.getAssetDefinition(symbol);
     const resolvedMarketClass = requestedMarketClass || asset?.marketClass;

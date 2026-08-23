@@ -47,6 +47,9 @@ interface InteractiveChartProps {
   marketClass?: string;
   timeframe: string;
   onTimeframeChange?: (tf: Timeframe) => void;
+  onLoadMoreHistory?: () => void | Promise<void>;
+  isLoadingHistory?: boolean;
+  hasMoreHistory?: boolean;
 }
 
 export type DrawingTool = 
@@ -245,7 +248,10 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   symbol,
   marketClass,
   timeframe,
-  onTimeframeChange
+  onTimeframeChange,
+  onLoadMoreHistory,
+  isLoadingHistory = false,
+  hasMoreHistory = true
 }) => {
   const { language } = useLanguage();
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -253,6 +259,17 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   const tvWidgetContainerRef = useRef<HTMLDivElement>(null);
   const chartApiRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const preservedVisibleRangeRef = useRef<any>(null);
+  const chartIdentityRef = useRef(`${symbol}:${timeframe}`);
+  const userNavigatedChartRef = useRef(false);
+  const historyLoadTriggeredRef = useRef(false);
+  const loadMoreHistoryRef = useRef(onLoadMoreHistory);
+  const isLoadingHistoryRef = useRef(isLoadingHistory);
+  const hasMoreHistoryRef = useRef(hasMoreHistory);
+
+  loadMoreHistoryRef.current = onLoadMoreHistory;
+  isLoadingHistoryRef.current = isLoadingHistory;
+  hasMoreHistoryRef.current = hasMoreHistory;
 
   const [activeTab, setActiveTab] = useState<'chart' | 'tv_embed' | 'pinescript'>('chart');
   const [activeInterval, setActiveInterval] = useState<string>(timeframe);
@@ -285,6 +302,18 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   useEffect(() => {
     setActiveInterval(timeframe);
   }, [timeframe]);
+
+  const currentChartIdentity = `${symbol}:${activeInterval}`;
+  if (chartIdentityRef.current !== currentChartIdentity) {
+    chartIdentityRef.current = currentChartIdentity;
+    preservedVisibleRangeRef.current = null;
+    userNavigatedChartRef.current = false;
+    historyLoadTriggeredRef.current = false;
+  }
+
+  useEffect(() => {
+    historyLoadTriggeredRef.current = false;
+  }, [candles.length]);
 
   const intervalOptions: { id: Timeframe; label: string }[] = [
     { id: '1h', label: '1H' },
@@ -720,15 +749,40 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       }
     }
 
-    chart.timeScale().fitContent();
+    const preservedVisibleRange = preservedVisibleRangeRef.current;
+    if (preservedVisibleRange) {
+      chart.timeScale().setVisibleRange(preservedVisibleRange);
+    } else {
+      chart.timeScale().fitContent();
+    }
     chart.timeScale().applyOptions({
       rightOffset: 8,
       rightOffsetPixels: Math.min(120, Math.max(88, container.clientWidth * 0.18))
     });
 
     // Subscribe to pan/zoom changes to keep SVG drawings locked to chart coordinates
-    chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+    const armHistoricalLoading = () => {
+      userNavigatedChartRef.current = true;
+    };
+    container.addEventListener('pointerdown', armHistoricalLoading, { passive: true });
+    container.addEventListener('wheel', armHistoricalLoading, { passive: true });
+
+    chart.timeScale().subscribeVisibleLogicalRangeChange((logicalRange) => {
       setViewportTick(t => t + 1);
+      if (
+        logicalRange &&
+        logicalRange.from <= 40 &&
+        userNavigatedChartRef.current &&
+        !historyLoadTriggeredRef.current &&
+        !isLoadingHistoryRef.current &&
+        hasMoreHistoryRef.current &&
+        loadMoreHistoryRef.current
+      ) {
+        historyLoadTriggeredRef.current = true;
+        Promise.resolve(loadMoreHistoryRef.current()).finally(() => {
+          historyLoadTriggeredRef.current = false;
+        });
+      }
     });
 
     const handleResize = () => {
@@ -744,6 +798,11 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     window.addEventListener('resize', handleResize);
 
     return () => {
+      if (chartIdentityRef.current === currentChartIdentity) {
+        preservedVisibleRangeRef.current = chart.timeScale().getVisibleRange();
+      }
+      container.removeEventListener('pointerdown', armHistoricalLoading);
+      container.removeEventListener('wheel', armHistoricalLoading);
       window.removeEventListener('resize', handleResize);
       chart.remove();
       chartApiRef.current = null;
@@ -1544,6 +1603,11 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
 
           {/* Chart View Container with Floating Drawing Tools & SVG Overlay */}
           <div className="relative w-full rounded-2xl overflow-hidden bg-background-card border border-background-border">
+            {isLoadingHistory && (
+              <div className="absolute left-1/2 top-3 z-40 -translate-x-1/2 rounded-full border border-cyan-500/30 bg-[#07111f]/95 px-3 py-1.5 text-[10px] font-bold font-mono text-cyan-300 shadow-xl backdrop-blur-xl animate-pulse">
+                Se încarcă istoric mai vechi…
+              </div>
+            )}
             {/* Left Floating Technical Drawing Toolbar (Full TradingView Suite - Visible on mobile & desktop, vertically scrollable) */}
             <div
               onTouchStart={(e) => e.stopPropagation()}
