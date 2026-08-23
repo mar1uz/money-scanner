@@ -384,10 +384,14 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
         )
       )
     );
-    const quote = await appState.marketData.getPriceQuote(symbol, resolvedMarketClass);
+    const [quote, news] = await Promise.all([
+      appState.marketData.getPriceQuote(symbol, resolvedMarketClass),
+      process.env.NODE_ENV === 'test'
+        ? Promise.resolve(appState.news.getCachedNewsForAsset(assetInfo))
+        : appState.news.getNewsForAsset(assetInfo)
+    ]);
     const xPosts = appState.social.getPostsForSymbol(symbol);
     const trendingTopics = appState.social.getTrendingTopics();
-    const news = appState.news.getNewsForSymbol(symbol);
 
     let aiExplanation = null;
     if (activeSignal) {

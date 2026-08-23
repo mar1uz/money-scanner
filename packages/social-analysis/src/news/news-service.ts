@@ -1,4 +1,4 @@
-import { NewsItem, NewsCategory } from '@money-scanner/shared';
+import { NewsItem, NewsCategory, AssetInfo } from '@money-scanner/shared';
 
 const LIVE_FEEDS = [
   // Crypto Specialist Tier 1
@@ -17,6 +17,8 @@ const LIVE_FEEDS = [
 ];
 
 const LIVE_REFRESH_TIMEOUT_MS = 12_000;
+const ASSET_NEWS_REFRESH_MS = 10 * 60_000;
+const AMBIGUOUS_TICKERS = new Set(['A', 'AI', 'ALL', 'ARE', 'IT', 'ON', 'S', 'U']);
 
 const decodeXml = (value: string) => value
   .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
@@ -52,6 +54,8 @@ export class NewsIntelligenceService {
   private newsItems: NewsItem[] = [];
   private inFlight: Promise<void> | null = null;
   private lastFetchedAt = 0;
+  private assetNewsFetchedAt = new Map<string, number>();
+  private assetNewsInFlight = new Map<string, Promise<void>>();
 
   constructor() {
     this.fetchLiveNews().catch(() => {});
@@ -315,6 +319,215 @@ export class NewsIntelligenceService {
         regexList.some(r => r.test(item.title) || r.test(item.summary))
       )
       .slice(0, 10);
+  }
+
+  private getAssetSearchTerms(asset: AssetInfo): string[] {
+    const symbol = asset.symbol.toUpperCase().replace(/\.P$/i, '');
+    const cleanName = asset.name
+      .replace(/\s+\((?:ex-[^)]+|[^)]*(?:ETF|Stock|Spot|USDT|USD)[^)]*)\)$/i, '')
+      .replace(/\b(?:incorporated|inc|corp(?:oration)?|company|holdings?|plc|limited|ltd|group|etf|trust)\.?\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const genericAliases = /^(?:stock|stocks|crypto|coin|token|asset|market|markets|technology|tech stock|layer [12]|commodity|metal)$/i;
+    const aliases = (asset.aliases || [])
+      .map(alias => alias.replace(/^[$#]/, '').trim())
+      .filter(alias => alias.length >= 4 && alias.length <= 60 && !genericAliases.test(alias));
+
+    return Array.from(new Set([
+      cleanName.length >= 4 ? cleanName : '',
+      ...aliases
+    ].filter(Boolean))).slice(0, 8);
+  }
+
+  /** Strict relevance guard shared by cached feeds and on-demand providers. */
+  public isNewsRelevantToAsset(item: NewsItem, asset: AssetInfo): boolean {
+    const symbol = asset.symbol.toUpperCase().replace(/\.P$/i, '');
+    if (item.mentionedSymbols.some(value => value.toUpperCase().replace(/(?:-USD|USDT|\.P)$/i, '') === symbol)) {
+      return true;
+    }
+
+    const text = `${item.title} ${item.summary}`;
+    if (new RegExp(`\\$${symbol}\\b`, 'i').test(text)) return true;
+    if (symbol.length >= 3 && !AMBIGUOUS_TICKERS.has(symbol) && new RegExp(`\\b${symbol}\\b`, 'i').test(text)) {
+      return true;
+    }
+    return this.getAssetSearchTerms(asset).some(term => text.toLowerCase().includes(term.toLowerCase()));
+  }
+
+  public getCachedNewsForAsset(asset: AssetInfo, limit = 10): NewsItem[] {
+    return this.newsItems
+      .filter(item => this.isNewsRelevantToAsset(item, asset))
+      .sort((left, right) => right.publishedAt - left.publishedAt)
+      .slice(0, Math.max(1, Math.min(limit, 20)));
+  }
+
+  /**
+   * Fetches news for exactly one instrument. Yahoo Finance and Google News RSS
+   * work without a key. Alpha Vantage NEWS_SENTIMENT is used when a free key is
+   * configured, and its ticker relevance field is enforced server-side.
+   */
+  public async getNewsForAsset(asset: AssetInfo, limit = 10): Promise<NewsItem[]> {
+    const cacheKey = `${asset.marketClass || 'unknown'}:${asset.symbol.toUpperCase()}`;
+    const fetchedAt = this.assetNewsFetchedAt.get(cacheKey) || 0;
+    if (Date.now() - fetchedAt >= ASSET_NEWS_REFRESH_MS) {
+      let inFlight = this.assetNewsInFlight.get(cacheKey);
+      if (!inFlight) {
+        inFlight = this.fetchAssetNews(asset).finally(() => this.assetNewsInFlight.delete(cacheKey));
+        this.assetNewsInFlight.set(cacheKey, inFlight);
+      }
+      await inFlight;
+    }
+    return this.getCachedNewsForAsset(asset, limit);
+  }
+
+  private async fetchAssetNews(asset: AssetInfo): Promise<void> {
+    const symbol = asset.symbol.toUpperCase().replace(/\.P$/i, '');
+    const terms = this.getAssetSearchTerms(asset);
+    const primaryName = terms[0] || symbol;
+    const abortController = new AbortController();
+    const deadline = setTimeout(() => abortController.abort(), 6_000);
+    const tasks: Promise<void>[] = [];
+
+    // Yahoo Finance's free search endpoint returns explicit related tickers.
+    tasks.push((async () => {
+      try {
+        const params = new URLSearchParams({
+          q: primaryName,
+          quotesCount: '0',
+          newsCount: '12',
+          enableFuzzyQuery: 'false'
+        });
+        const response = await fetch(`https://query1.finance.yahoo.com/v1/finance/search?${params}`, {
+          headers: { accept: 'application/json', 'user-agent': 'MoneyScanner360/1.0' },
+          signal: abortController.signal
+        });
+        if (!response.ok) return;
+        const payload = await response.json() as { news?: Array<{
+          uuid?: string;
+          title?: string;
+          publisher?: string;
+          link?: string;
+          providerPublishTime?: number;
+          relatedTickers?: string[];
+        }> };
+        for (const row of payload.news || []) {
+          if (!row.title || !row.link || !/^https:\/\//i.test(row.link)) continue;
+          const related = (row.relatedTickers || []).map(ticker => ticker.toUpperCase().replace(/(?:-USD|USDT|\.P)$/i, ''));
+          const candidate: Omit<NewsItem, 'id'> = {
+            title: row.title.trim(),
+            summary: row.title.trim(),
+            source: row.publisher || 'Yahoo Finance',
+            url: row.link,
+            publishedAt: row.providerPublishTime ? row.providerPublishTime * 1000 : Date.now(),
+            category: this.categorizeText(row.title, row.title),
+            mentionedSymbols: [],
+            sentiment: this.inferSentiment(row.title)
+          };
+          const checkItem = { ...candidate, id: stableId(row.link) };
+          if (related.includes(symbol) && this.isNewsRelevantToAsset(checkItem, asset)) {
+            this.addNewsItem({ ...candidate, mentionedSymbols: [symbol] });
+          }
+        }
+      } catch {}
+    })());
+
+    // Google News RSS search is free and requires no account or API token.
+    tasks.push((async () => {
+      try {
+        const query = `("${primaryName}" OR "$${symbol}") (stock OR shares OR crypto OR market) when:30d`;
+        const params = new URLSearchParams({ q: query, hl: 'en-US', gl: 'US', ceid: 'US:en' });
+        const response = await fetch(`https://news.google.com/rss/search?${params}`, {
+          headers: { accept: 'application/rss+xml', 'user-agent': 'MoneyScanner360/1.0' },
+          signal: abortController.signal
+        });
+        if (!response.ok) return;
+        const xml = await response.text();
+        const itemRegex = /<item\b[^>]*>([\s\S]*?)<\/item>/gi;
+        let match: RegExpExecArray | null;
+        while ((match = itemRegex.exec(xml)) !== null) {
+          const raw = match[1];
+          const title = plainText(/<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(raw)?.[1] || '');
+          const url = plainText(/<link\b[^>]*>([\s\S]*?)<\/link>/i.exec(raw)?.[1] || '');
+          const date = plainText(/<pubDate\b[^>]*>([\s\S]*?)<\/pubDate>/i.exec(raw)?.[1] || '');
+          const source = plainText(/<source\b[^>]*>([\s\S]*?)<\/source>/i.exec(raw)?.[1] || '') || 'Google News';
+          if (!title || !/^https:\/\//i.test(url)) continue;
+          const candidate: Omit<NewsItem, 'id'> = {
+            title,
+            summary: title,
+            source,
+            url,
+            publishedAt: Number.isFinite(new Date(date).getTime()) ? new Date(date).getTime() : Date.now(),
+            category: this.categorizeText(title, title),
+            mentionedSymbols: [],
+            sentiment: this.inferSentiment(title)
+          };
+          const checkItem = { ...candidate, id: stableId(url) };
+          if (this.isNewsRelevantToAsset(checkItem, asset)) {
+            this.addNewsItem({ ...candidate, mentionedSymbols: [symbol] });
+          }
+        }
+      } catch {}
+    })());
+
+    const alphaVantageKey = process.env.ALPHA_VANTAGE_API_KEY;
+    if (alphaVantageKey) {
+      tasks.push((async () => {
+        try {
+          const ticker = asset.marketClass === 'crypto' ? `CRYPTO:${symbol}` : symbol;
+          const params = new URLSearchParams({
+            function: 'NEWS_SENTIMENT',
+            tickers: ticker,
+            sort: 'LATEST',
+            limit: '20',
+            apikey: alphaVantageKey
+          });
+          const response = await fetch(`https://www.alphavantage.co/query?${params}`, { signal: abortController.signal });
+          if (!response.ok) return;
+          const payload = await response.json() as { feed?: Array<any> };
+          for (const row of payload.feed || []) {
+            if (!row?.title || !row?.url || !/^https:\/\//i.test(row.url)) continue;
+            const confirmed = (row.ticker_sentiment || []).some((entry: any) =>
+              String(entry?.ticker || '').toUpperCase() === ticker && Number(entry?.relevance_score || 0) >= 0.2
+            );
+            if (!confirmed) continue;
+            const textualCandidate: NewsItem = {
+              id: stableId(String(row.url)),
+              title: String(row.title),
+              summary: String(row.summary || row.title),
+              source: String(row.source || 'Alpha Vantage'),
+              url: String(row.url),
+              publishedAt: Date.now(),
+              category: this.categorizeText(String(row.title), String(row.summary || '')),
+              mentionedSymbols: []
+            };
+            if (!this.isNewsRelevantToAsset(textualCandidate, asset)) continue;
+            const publishedAt = /^\d{8}T\d{6}$/.test(String(row.time_published || ''))
+              ? Date.UTC(
+                  Number(row.time_published.slice(0, 4)), Number(row.time_published.slice(4, 6)) - 1,
+                  Number(row.time_published.slice(6, 8)), Number(row.time_published.slice(9, 11)),
+                  Number(row.time_published.slice(11, 13)), Number(row.time_published.slice(13, 15))
+                )
+              : Date.now();
+            this.addNewsItem({
+              title: String(row.title).trim(),
+              summary: String(row.summary || row.title).trim().slice(0, 260),
+              source: String(row.source || 'Alpha Vantage'),
+              url: String(row.url),
+              publishedAt,
+              category: this.categorizeText(String(row.title), String(row.summary || '')),
+              mentionedSymbols: [symbol],
+              sentiment: this.inferSentiment(String(row.title))
+            });
+          }
+        } catch {}
+      })());
+    }
+
+    await Promise.allSettled(tasks);
+    clearTimeout(deadline);
+    this.assetNewsFetchedAt.set(`${asset.marketClass || 'unknown'}:${asset.symbol.toUpperCase()}`, Date.now());
+    this.newsItems.sort((left, right) => right.publishedAt - left.publishedAt);
+    this.newsItems = this.newsItems.slice(0, 800);
   }
 
   public addNewsItem(item: Omit<NewsItem, 'id'>): NewsItem {

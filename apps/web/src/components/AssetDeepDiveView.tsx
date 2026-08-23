@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AssetDetailResponse, Timeframe } from '../types.js';
-import { fetchAssetDetail, triggerTestAlert, fetchXPosts } from '../services/api.js';
+import { fetchAssetDetail, triggerTestAlert } from '../services/api.js';
 import { InteractiveChart } from './InteractiveChart.js';
 import {
   ArrowLeft,
@@ -49,7 +49,6 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   onToggleWatchlist
 }) => {
   const [data, setData] = useState<AssetDetailResponse | null>(null);
-  const [xPosts, setXPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [alertSent, setAlertSent] = useState(false);
   const [activeInfoTab, setActiveInfoTab] = useState<InfoTab>('mtf');
@@ -57,14 +56,8 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
 
   const loadData = () => {
     setLoading(true);
-    Promise.all([
-      fetchAssetDetail(symbol, timeframe, marketClass),
-      fetchXPosts().catch(() => [])
-    ])
-      .then(([detailRes, postsRes]) => {
-        setData(detailRes);
-        setXPosts(postsRes);
-      })
+    fetchAssetDetail(symbol, timeframe, marketClass)
+      .then(setData)
       .catch(console.error)
       .finally(() => setLoading(false));
   };
@@ -131,10 +124,12 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
     );
   }
 
-  // Use asset-specific X posts from backend API or local filter
+  // Only provider-verified posts explicitly tagged with this asset are shown.
+  // There is deliberately no fallback to the global social feed.
   const backendXPosts = (data as any)?.xPosts || [];
-  const assetXPosts = xPosts.filter(p => p.symbols?.includes(symbol) || p.text?.toUpperCase().includes(`$${symbol.toUpperCase()}`));
-  const displayXPosts = backendXPosts.length > 0 ? backendXPosts : (assetXPosts.length > 0 ? assetXPosts : xPosts.slice(0, 5));
+  const displayXPosts = backendXPosts.filter((post: any) =>
+    post.mentionedSymbols?.some((mentioned: string) => mentioned.toUpperCase() === symbol.toUpperCase())
+  );
 
   // Combine news + social into a unified feed
   const newsItems = (data?.news || []).slice(0, 4).map((n: any) => ({ ...n, _type: 'news' as const }));

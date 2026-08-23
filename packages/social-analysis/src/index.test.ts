@@ -161,4 +161,43 @@ describe('Social & News Intelligence Engine', () => {
 
     assert.equal(newsService.getLatestNews().length, initialCount + 1);
   });
+
+  it('returns only news that is explicitly relevant to the requested asset', () => {
+    const newsService = new NewsIntelligenceService();
+    newsService.addNewsItem({
+      title: 'Veteran trader explains how to manage risk',
+      summary: 'General trading psychology and portfolio discipline.',
+      source: 'General Feed',
+      url: 'https://example.com/general-trading',
+      publishedAt: Date.now(),
+      category: 'General',
+      mentionedSymbols: [],
+      sentiment: 'Neutral'
+    });
+    newsService.addNewsItem({
+      title: 'Salesforce expands its Agentforce product suite',
+      summary: 'CRM customers receive new enterprise AI automation tools.',
+      source: 'Company News',
+      url: 'https://example.com/salesforce-agentforce',
+      publishedAt: Date.now(),
+      category: 'General',
+      mentionedSymbols: ['CRM'],
+      sentiment: 'Bullish'
+    });
+
+    const crmNews = newsService.getCachedNewsForAsset({
+      symbol: 'CRM',
+      name: 'Salesforce Inc',
+      category: 'Tech Stock',
+      marketClass: 'stocks',
+      quoteCurrency: 'USD',
+      aliases: ['salesforce', 'crm'],
+      rank: 1,
+      decimals: 2
+    });
+
+    assert.equal(crmNews.length, 1);
+    assert.equal(crmNews[0].mentionedSymbols[0], 'CRM');
+    assert.doesNotMatch(crmNews[0].title, /veteran trader/i);
+  });
 });
