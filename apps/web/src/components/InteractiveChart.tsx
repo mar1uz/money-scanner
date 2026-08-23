@@ -239,7 +239,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   const chartApiRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'chart' | 'tv_embed' | 'pinescript'>('tv_embed');
+  const [activeTab, setActiveTab] = useState<'chart' | 'tv_embed' | 'pinescript'>('chart');
   const [activeInterval, setActiveInterval] = useState<string>(timeframe);
   const [copiedPine, setCopiedPine] = useState(false);
   const [bullishAlertActive, setBullishAlertActive] = useState(false);
@@ -1374,13 +1374,16 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
 
           {/* Chart View Container with Floating Drawing Tools & SVG Overlay */}
           <div className="relative w-full rounded-2xl overflow-hidden bg-background-card border border-background-border">
-            {/* Left Floating Technical Drawing Toolbar (Full TradingView Suite - Hidden on mobile, shown on md+) */}
-            <div className="hidden md:flex absolute left-3 top-3 z-30 flex-col items-center gap-1 p-1.5 bg-background-card/95 backdrop-blur-md border border-background-border rounded-xl shadow-2xl max-h-[500px] overflow-y-auto">
+            {/* Left Floating Technical Drawing Toolbar (Full TradingView Suite - Visible on mobile & desktop, vertically scrollable) */}
+            <div
+              onTouchStart={(e) => e.stopPropagation()}
+              className="flex absolute left-1.5 sm:left-3 top-2 sm:top-3 z-30 flex-col items-center gap-1 p-1 sm:p-1.5 bg-[#0a0e17]/90 backdrop-blur-xl border border-white/[0.08] rounded-xl shadow-2xl max-h-[calc(100%-1rem)] overflow-y-auto no-scrollbar touch-pan-y overscroll-y-contain"
+            >
               {/* 1. Pointer / Cursor Mode */}
               <button
                 onClick={() => { setActiveTool('select'); setCurrentStart(null); }}
                 title="Mod Cursor (Pan & Zoom normal)"
-                className={`p-2 rounded-lg transition-all ${
+                className={`p-1.5 sm:p-2 rounded-lg transition-all ${
                   activeTool === 'select'
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-cyan'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -1396,7 +1399,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                   setCurrentStart(null); 
                 }}
                 title="Riglă de Măsurat Procente (% Variație & Diferență Preț) - Al 2-lea instrument"
-                className={`p-2 rounded-lg transition-all ${
+                className={`p-1.5 sm:p-2 rounded-lg transition-all ${
                   activeTool === 'ruler'
                     ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/50 shadow-glow-emerald'
                     : 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10'
@@ -1411,7 +1414,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
               <button
                 onClick={() => { setActiveTool('trendline'); setCurrentStart(null); }}
                 title="Linie de Trend (Click pe start, trage și lasă)"
-                className={`p-2 rounded-lg transition-all ${
+                className={`p-1.5 sm:p-2 rounded-lg transition-all ${
                   activeTool === 'trendline'
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-cyan'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -1424,7 +1427,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
               <button
                 onClick={() => { setActiveTool('ray'); setCurrentStart(null); }}
                 title="Rază Extinsă / Ray Line (Trage linia spre infinit la dreapta)"
-                className={`p-2 rounded-lg transition-all ${
+                className={`p-1.5 sm:p-2 rounded-lg transition-all ${
                   activeTool === 'ray'
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-cyan'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -1437,7 +1440,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
               <button
                 onClick={() => { setActiveTool('horizontal'); setCurrentStart(null); }}
                 title="Nivel Orizontal Suport / Rezistență (Click pentru a plasa)"
-                className={`p-2 rounded-lg transition-all ${
+                className={`p-1.5 sm:p-2 rounded-lg transition-all ${
                   activeTool === 'horizontal'
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-cyan'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -1450,7 +1453,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
               <button
                 onClick={() => { setActiveTool('vertical'); setCurrentStart(null); }}
                 title="Linie Verticală Marcaj Timp / Sesiune (Click pentru a plasa)"
-                className={`p-2 rounded-lg transition-all ${
+                className={`p-1.5 sm:p-2 rounded-lg transition-all ${
                   activeTool === 'vertical'
                     ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-glow-cyan'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -1463,7 +1466,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
               <button
                 onClick={() => { setActiveTool('fibonacci'); setCurrentStart(null); }}
                 title="Fibonacci Retracement (Niveluri 23.6%, 38.2%, 50%, 61.8% Golden Pocket, 78.6%)"
-                className={`p-2 rounded-lg transition-all ${
+                className={`p-1.5 sm:p-2 rounded-lg transition-all ${
                   activeTool === 'fibonacci'
                     ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-glow-gold'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -1476,7 +1479,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
               <button
                 onClick={() => { setActiveTool('channel'); setCurrentStart(null); }}
                 title="Canal de Trend Paralel (Click & Trage)"
-                className={`p-2 rounded-lg transition-all ${
+                className={`p-1.5 sm:p-2 rounded-lg transition-all ${
                   activeTool === 'channel'
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-cyan'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -1489,7 +1492,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
               <button
                 onClick={() => { setActiveTool('rectangle'); setCurrentStart(null); }}
                 title="Dreptunghi / Zonă de Consolidare & Order Block"
-                className={`p-2 rounded-lg transition-all ${
+                className={`p-1.5 sm:p-2 rounded-lg transition-all ${
                   activeTool === 'rectangle'
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-cyan'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -1504,7 +1507,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
               <button
                 onClick={() => { setActiveTool('long_position'); setCurrentStart(null); }}
                 title="Poziție Long (Target Verde, Stop Loss Roșu & Raport Risc:Recompensă)"
-                className={`p-2 rounded-lg transition-all ${
+                className={`p-1.5 sm:p-2 rounded-lg transition-all ${
                   activeTool === 'long_position'
                     ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-glow-emerald'
                     : 'text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10'
@@ -1517,7 +1520,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
               <button
                 onClick={() => { setActiveTool('short_position'); setCurrentStart(null); }}
                 title="Poziție Short (Target Verde, Stop Loss Roșu & Raport Risc:Recompensă)"
-                className={`p-2 rounded-lg transition-all ${
+                className={`p-1.5 sm:p-2 rounded-lg transition-all ${
                   activeTool === 'short_position'
                     ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-glow-ruby'
                     : 'text-slate-400 hover:text-rose-400 hover:bg-rose-500/10'
@@ -1533,7 +1536,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                 onClick={handleUndo}
                 disabled={drawings.length === 0}
                 title="Anulează ultimul desen (Undo)"
-                className="p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                className="p-1.5 sm:p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
               >
                 <Undo2 className="w-4 h-4" />
               </button>
@@ -1543,7 +1546,7 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                 onClick={handleClearAll}
                 disabled={drawings.length === 0}
                 title="Șterge toate desenele"
-                className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                className="p-1.5 sm:p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
