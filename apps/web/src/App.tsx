@@ -152,26 +152,25 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
   return (
     <div className="min-h-screen flex bg-background text-slate-100 selection:bg-cyan-500/30 selection:text-cyan-200">
       {/* Persistent Left Sidebar (Desktop) + Bottom Nav (Mobile) */}
-      {!selectedAssetSymbol && (
-        <Sidebar
-          activeTab={activeTab}
-          onTabChange={(tab) => {
-            setSelectedAssetSymbol(null);
-            setSelectedAssetMarketClass(undefined);
-            setActiveTab(tab);
-          }}
-          watchlistCount={watchlist.length}
-          onLogoClick={() => {
-            setSelectedAssetSymbol(null);
-            setSelectedAssetMarketClass(undefined);
-            setActiveTab('market');
-          }}
-          onOpenSearchModal={() => setIsSearchModalOpen(true)}
-        />
-      )}
+      <Sidebar
+        activeTab={activeTab}
+        onTabChange={(tab) => {
+          setSelectedAssetSymbol(null);
+          setSelectedAssetMarketClass(undefined);
+          setActiveTab(tab);
+        }}
+        watchlistCount={watchlist.length}
+        onLogoClick={() => {
+          setSelectedAssetSymbol(null);
+          setSelectedAssetMarketClass(undefined);
+          setActiveTab('market');
+        }}
+        onOpenSearchModal={() => setIsSearchModalOpen(true)}
+        hideDesktopSidebar={Boolean(selectedAssetSymbol)}
+      />
 
       {/* Main Wrapper with responsive margin for desktop sidebar and top padding for fixed header */}
-      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${!selectedAssetSymbol ? 'md:pl-[260px] pb-16 md:pb-0' : ''} pt-[56px]`}>
+      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${!selectedAssetSymbol ? 'md:pl-[260px]' : ''} pb-20 md:pb-0 pt-[56px]`}>
         {/* Minimal Search & Control Header (Fixed at top of viewport) */}
         <Header
           timeframe={timeframe}
