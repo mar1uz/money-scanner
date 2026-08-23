@@ -38,14 +38,27 @@ export type AssetCategory =
   | 'Commodity';
 
 export type MarketNarrativeId =
+  | 'broad_market'
   | 'ai_ecosystem'
   | 'semiconductors'
   | 'consumer_staples'
+  | 'consumer_platforms'
   | 'cloud_enterprise'
   | 'energy_commodities'
   | 'space_defense'
+  | 'precious_metals'
+  | 'industrial_metals'
+  | 'critical_minerals'
   | 'crypto_l1'
-  | 'crypto_defi';
+  | 'crypto_l2'
+  | 'crypto_defi'
+  | 'crypto_ai'
+  | 'crypto_meme'
+  | 'crypto_infrastructure'
+  | 'crypto_rwa'
+  | 'crypto_gaming';
+
+export type NarrativeGroup = 'market' | 'tech' | 'defense_staples' | 'energy' | 'metals' | 'crypto';
 
 export interface NarrativeDefinition {
   id: MarketNarrativeId;
@@ -53,7 +66,7 @@ export interface NarrativeDefinition {
   shortName: string;
   tagline: string;
   icon: string; // Lucide icon or emoji
-  category: 'tech' | 'defense_staples' | 'energy' | 'crypto';
+  category: NarrativeGroup;
 }
 
 export interface NarrativeSummary {
@@ -62,7 +75,7 @@ export interface NarrativeSummary {
   shortName: string;
   tagline: string;
   icon: string;
-  category: 'tech' | 'defense_staples' | 'energy' | 'crypto';
+  category: NarrativeGroup;
   assetCount: number;
   performanceTimeframe?: Timeframe;
   avgChangePercent?: number;

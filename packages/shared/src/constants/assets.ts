@@ -2,10 +2,18 @@ import { AssetInfo, NarrativeDefinition, MarketNarrativeId } from '../types/mark
 
 export const NARRATIVE_DEFINITIONS: NarrativeDefinition[] = [
   {
+    id: 'broad_market',
+    name: 'Broad Market Indices & ETFs',
+    shortName: 'Indici & ETF-uri',
+    tagline: 'Expunere diversificată pe indicii principali și ETF-urile de referință',
+    icon: 'BarChart3',
+    category: 'market'
+  },
+  {
     id: 'ai_ecosystem',
-    name: 'AI & Autonomous Intelligence',
-    shortName: 'AI & GenAI',
-    tagline: 'Giganți de inteligență artificială, LLM-uri, compute și protocoale AI onchain',
+    name: 'AI Software & Autonomous Intelligence',
+    shortName: 'AI Software',
+    tagline: 'Platforme software AI, automatizare, analiză de date și inteligență autonomă',
     icon: 'BrainCircuit',
     category: 'tech'
   },
@@ -26,6 +34,14 @@ export const NARRATIVE_DEFINITIONS: NarrativeDefinition[] = [
     category: 'defense_staples'
   },
   {
+    id: 'consumer_platforms',
+    name: 'Consumer Technology, Commerce & Mobility',
+    shortName: 'Consumer Tech',
+    tagline: 'Platforme digitale, comerț global, dispozitive și mobilitate electrică',
+    icon: 'ShoppingCart',
+    category: 'defense_staples'
+  },
+  {
     id: 'cloud_enterprise',
     name: 'Cloud, SaaS & Enterprise Data',
     shortName: 'Cloud & SaaS',
@@ -35,9 +51,9 @@ export const NARRATIVE_DEFINITIONS: NarrativeDefinition[] = [
   },
   {
     id: 'energy_commodities',
-    name: 'Energy, Oil & Green Commodities',
-    shortName: 'Energie & Mărfuri',
-    tagline: 'Petrol, gaze, metale prețioase (Aur/Argint), tranziție verde și regenerabile',
+    name: 'Energy, Oil & Renewables',
+    shortName: 'Energie & Petrol',
+    tagline: 'Petrol, gaze, servicii energetice, energie solară și regenerabile',
     icon: 'Flame',
     category: 'energy'
   },
@@ -50,6 +66,30 @@ export const NARRATIVE_DEFINITIONS: NarrativeDefinition[] = [
     category: 'defense_staples'
   },
   {
+    id: 'precious_metals',
+    name: 'Precious Metals & Monetary Hedges',
+    shortName: 'Metale Prețioase',
+    tagline: 'Aur, argint, platină, paladiu și vehicule listate cu acoperire fizică',
+    icon: 'Gem',
+    category: 'metals'
+  },
+  {
+    id: 'industrial_metals',
+    name: 'Industrial Metals & Electrification',
+    shortName: 'Metale Industriale',
+    tagline: 'Cupru și producători esențiali pentru rețele, construcții și electrificare',
+    icon: 'Factory',
+    category: 'metals'
+  },
+  {
+    id: 'critical_minerals',
+    name: 'Battery & Critical Minerals',
+    shortName: 'Minerale Critice',
+    tagline: 'Litiu, pământuri rare și metale strategice pentru baterii și tehnologie',
+    icon: 'BatteryCharging',
+    category: 'metals'
+  },
+  {
     id: 'crypto_l1',
     name: 'Layer 1 & High-Throughput Chains',
     shortName: 'Crypto Layer 1',
@@ -58,11 +98,59 @@ export const NARRATIVE_DEFINITIONS: NarrativeDefinition[] = [
     category: 'crypto'
   },
   {
+    id: 'crypto_l2',
+    name: 'Layer 2 & Scaling Networks',
+    shortName: 'Crypto Layer 2',
+    tagline: 'Rollups și rețele de scalare pentru Ethereum și ecosistemele modulare',
+    icon: 'Boxes',
+    category: 'crypto'
+  },
+  {
     id: 'crypto_defi',
     name: 'DeFi & Next-Gen Financial Infrastructure',
     shortName: 'DeFi & Fintech',
     tagline: 'DEX-uri, piețe de creditare, tokenizare RWA, staking și infrastructură fintech',
     icon: 'Coins',
+    category: 'crypto'
+  },
+  {
+    id: 'crypto_ai',
+    name: 'Crypto AI & Decentralized Compute',
+    shortName: 'Crypto AI',
+    tagline: 'Agenți AI, compute descentralizat, date și rețele de inteligență onchain',
+    icon: 'Bot',
+    category: 'crypto'
+  },
+  {
+    id: 'crypto_meme',
+    name: 'Meme Coins & Community Assets',
+    shortName: 'Meme Coins',
+    tagline: 'Active crypto conduse de comunitate, cultură și lichiditate socială',
+    icon: 'Smile',
+    category: 'crypto'
+  },
+  {
+    id: 'crypto_infrastructure',
+    name: 'Crypto Infrastructure & Data',
+    shortName: 'Crypto Infra',
+    tagline: 'Oracole, stocare, indexare, interoperabilitate și infrastructură de date',
+    icon: 'Network',
+    category: 'crypto'
+  },
+  {
+    id: 'crypto_rwa',
+    name: 'Real World Assets & Tokenization',
+    shortName: 'Crypto RWA',
+    tagline: 'Tokenizarea activelor reale, trezorerii și infrastructură financiară onchain',
+    icon: 'Landmark',
+    category: 'crypto'
+  },
+  {
+    id: 'crypto_gaming',
+    name: 'Gaming, Metaverse & Digital Ownership',
+    shortName: 'Crypto Gaming',
+    tagline: 'Jocuri blockchain, NFT-uri utilitare și proprietate digitală',
+    icon: 'Gamepad2',
     category: 'crypto'
   }
 ];
@@ -2511,6 +2599,58 @@ export const TRADING_360_ASSETS: AssetInfo[] = [
   }
 ];
 
+const STOCK_CONSUMER_PLATFORM_SYMBOLS = new Set(['AAPL', 'AMZN', 'META', 'TSLA']);
+const STOCK_AI_SOFTWARE_SYMBOLS = new Set(['AI', 'PATH', 'SOUN']);
+const CRYPTO_LAYER_2_SYMBOLS = new Set(['ARB', 'OP', 'POL', 'STX']);
+const CRYPTO_GAMING_SYMBOLS = new Set(['IMX']);
+const CRITICAL_MINERAL_SYMBOLS = new Set(['LIT', 'REMX']);
+const INDUSTRIAL_METAL_SYMBOLS = new Set(['COPPER', 'COPX']);
+
+/**
+ * Assigns one primary, mutually exclusive sector to every scanner asset.
+ * The original catalog tags intentionally remain available above as search
+ * metadata, while scanner rows use this normalized taxonomy for exact filters.
+ */
+export const getPrimaryNarrative = (asset: AssetInfo): MarketNarrativeId => {
+  const tags = new Set(asset.narratives || []);
+
+  if (asset.marketClass === 'metals') {
+    if (asset.symbol === 'OIL') return 'energy_commodities';
+    if (CRITICAL_MINERAL_SYMBOLS.has(asset.symbol)) return 'critical_minerals';
+    if (INDUSTRIAL_METAL_SYMBOLS.has(asset.symbol)) return 'industrial_metals';
+    return 'precious_metals';
+  }
+
+  if (asset.marketClass === 'stocks') {
+    if (asset.category === 'Index / ETF') return 'broad_market';
+    if (STOCK_CONSUMER_PLATFORM_SYMBOLS.has(asset.symbol)) return 'consumer_platforms';
+    if (tags.has('semiconductors')) return 'semiconductors';
+    if (tags.has('energy_commodities')) return 'energy_commodities';
+    if (tags.has('space_defense')) return 'space_defense';
+    if (STOCK_AI_SOFTWARE_SYMBOLS.has(asset.symbol) || tags.has('ai_ecosystem') && !tags.has('cloud_enterprise')) {
+      return 'ai_ecosystem';
+    }
+    if (tags.has('cloud_enterprise')) return 'cloud_enterprise';
+    if (tags.has('consumer_staples')) return 'consumer_staples';
+    if (tags.has('crypto_defi') || tags.has('crypto_l1')) return 'crypto_defi';
+    return 'broad_market';
+  }
+
+  if (asset.category === 'Meme') return 'crypto_meme';
+  if (asset.category === 'AI') return 'crypto_ai';
+  if (asset.category === 'DeFi') return 'crypto_defi';
+  if (asset.category === 'RWA') return 'crypto_rwa';
+  if (asset.category === 'Gaming' || CRYPTO_GAMING_SYMBOLS.has(asset.symbol)) return 'crypto_gaming';
+  if (asset.category === 'Layer 2' || CRYPTO_LAYER_2_SYMBOLS.has(asset.symbol)) return 'crypto_l2';
+  if (asset.category === 'Infrastructure') return 'crypto_infrastructure';
+  return 'crypto_l1';
+};
+
+export const withPrimaryNarrative = (asset: AssetInfo): AssetInfo => ({
+  ...asset,
+  narratives: [getPrimaryNarrative(asset)]
+});
+
 // Production scanner universe: up to 50 supported spot-crypto assets. The broader
 // catalog remains available for search, but unsupported assets are never
 // silently filled with synthetic quotes.
@@ -2523,7 +2663,8 @@ export const TOP_50_CRYPTO_ASSETS: AssetInfo[] = TRADING_360_ASSETS
     !asset.symbol.startsWith('TOTAL')
   )
   .sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0))
-  .slice(0, 50);
+  .slice(0, 50)
+  .map(withPrimaryNarrative);
 
 /**
  * Curated liquid US-equity universe. Asset membership is deliberately fixed;
@@ -2531,11 +2672,13 @@ export const TOP_50_CRYPTO_ASSETS: AssetInfo[] = TRADING_360_ASSETS
  */
 export const TOP_50_STOCK_ASSETS: AssetInfo[] = TRADING_360_ASSETS
   .filter(asset => asset.marketClass === 'stocks' && asset.quoteCurrency === 'USD' && asset.rank > 0)
-  .slice(0, 50);
+  .slice(0, 50)
+  .map(withPrimaryNarrative);
 
 /** Major precious and industrial metals/commodity instruments with a live Yahoo or Binance mapping. */
 export const TOP_METALS_ASSETS: AssetInfo[] = TRADING_360_ASSETS
-  .filter(asset => asset.marketClass === 'metals');
+  .filter(asset => asset.marketClass === 'metals')
+  .map(withPrimaryNarrative);
 
 export const SCANNER_ASSETS: AssetInfo[] = [
   ...TOP_50_CRYPTO_ASSETS,

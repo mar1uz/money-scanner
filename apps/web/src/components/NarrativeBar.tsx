@@ -10,6 +10,17 @@ import {
   Rocket,
   Layers,
   Coins,
+  BarChart3,
+  ShoppingCart,
+  Gem,
+  Factory,
+  BatteryCharging,
+  Boxes,
+  Bot,
+  Smile,
+  Network,
+  Landmark,
+  Gamepad2,
   TrendingUp,
   TrendingDown,
   ChevronRight,
@@ -36,7 +47,18 @@ const NARRATIVE_ICONS: Record<string, React.FC<{ className?: string }>> = {
   Flame,
   Rocket,
   Layers,
-  Coins
+  Coins,
+  BarChart3,
+  ShoppingCart,
+  Gem,
+  Factory,
+  BatteryCharging,
+  Boxes,
+  Bot,
+  Smile,
+  Network,
+  Landmark,
+  Gamepad2
 };
 
 export const NarrativeBar: React.FC<NarrativeBarProps> = ({
@@ -67,7 +89,9 @@ export const NarrativeBar: React.FC<NarrativeBarProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-xs font-bold tracking-wider uppercase font-mono text-slate-200">
-                Narative & Sectoare Alpha (Minim 30 Active / Sector)
+                {language === 'ro'
+                  ? 'Narative & Sectoare Alpha · Categorii Multi-Asset'
+                  : 'Alpha Narratives & Sectors · Multi-Asset Categories'}
               </h2>
               {selectedNarrative !== 'ALL' && (
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-semibold">
@@ -95,7 +119,7 @@ export const NarrativeBar: React.FC<NarrativeBarProps> = ({
       </div>
 
       {/* Horizontal Scrollable / Grid Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-8 gap-2.5">
         {narratives.map((n) => {
           const isSelected = selectedNarrative === n.id;
           const performance = n.avgChangePercent ?? n.avgChange24h;

@@ -2,9 +2,44 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { MarketDataService } from './market-service.js';
 import { aggregateCandles } from './aggregator.js';
-import { Candle } from '@money-scanner/shared';
+import {
+  Candle,
+  getScannerAssets,
+  NARRATIVE_DEFINITIONS,
+  withPrimaryNarrative
+} from '@money-scanner/shared';
 
 describe('Market Data Service & Normalization', () => {
+  it('assigns one valid primary sector to every scanner asset', () => {
+    const definedNarratives = new Set(NARRATIVE_DEFINITIONS.map(definition => definition.id));
+    const assets = getScannerAssets();
+
+    assert.ok(assets.length >= 100);
+    for (const asset of assets) {
+      assert.equal(asset.narratives?.length, 1, `${asset.symbol} must have one primary sector`);
+      assert.ok(definedNarratives.has(asset.narratives![0]), `${asset.symbol} sector must be defined`);
+    }
+
+    const metalSectors = new Set(
+      getScannerAssets('metals').map(asset => asset.narratives![0])
+    );
+    assert.deepEqual(
+      metalSectors,
+      new Set(['precious_metals', 'industrial_metals', 'critical_minerals', 'energy_commodities'])
+    );
+
+    const unknownCrypto = withPrimaryNarrative({
+      symbol: 'NEW',
+      name: 'New Infrastructure Asset',
+      category: 'Infrastructure',
+      marketClass: 'crypto',
+      quoteCurrency: 'USDT',
+      rank: 999,
+      decimals: 4
+    });
+    assert.deepEqual(unknownCrypto.narratives, ['crypto_infrastructure']);
+  });
+
   it('correctly aggregates 1h candles into 4h bars', () => {
     const candles1h: Candle[] = [];
     const baseTime = 0; // aligns to 0 ms (1970-01-01 00:00:00)

@@ -427,6 +427,6 @@ export class AppState {
         },
         symbols: matchingRows.map(r => r.symbol)
       };
-    });
+    }).filter(summary => summary.assetCount > 0);
   }
 }

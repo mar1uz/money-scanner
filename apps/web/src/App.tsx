@@ -94,6 +94,11 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
       const narrRes = await fetchNarratives(timeframe, selectedMarketCategory);
       if (requestId === refreshRequestId.current && narrRes.length > 0) {
         setNarratives(narrRes);
+        setSelectedNarrative(current =>
+          current === 'ALL' || narrRes.some(narrative => narrative.id === current)
+            ? current
+            : 'ALL'
+        );
       }
     } catch (err) {
       console.error('Data refresh error:', err);

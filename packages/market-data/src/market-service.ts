@@ -8,7 +8,8 @@ import {
   AssetInfo,
   AssetMarketClass,
   ScannerMarketClass,
-  getScannerAssets
+  getScannerAssets,
+  withPrimaryNarrative
 } from '@money-scanner/shared';
 import { MarketHealthMonitor } from './health-monitor.js';
 import { BinanceMarketAdapter } from './adapters/binance.js';
@@ -188,7 +189,7 @@ export class MarketDataService {
         const existing = existingBySymbol.get(symbol);
         seen.add(symbol);
         marketCaps.set(symbol, row.market_cap);
-        assets.push({
+        assets.push(withPrimaryNarrative({
           symbol,
           name: String(row.name || existing?.name || symbol),
           category: existing?.category || 'Infrastructure',
@@ -199,7 +200,7 @@ export class MarketDataService {
           marketCap: row.market_cap,
           rank: Number(row.market_cap_rank || assets.length + 1),
           decimals: existing?.decimals ?? ((row.current_price || 0) < 1 ? 6 : 2)
-        });
+        }));
         if (assets.length >= limit) break;
       }
 
