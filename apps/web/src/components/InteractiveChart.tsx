@@ -482,13 +482,15 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
 
     const container = chartContainerRef.current;
     container.innerHTML = '';
+    const initialHeight = container.clientHeight > 0 ? container.clientHeight : (window.innerWidth < 768 ? 480 : 540);
 
     const chart = createChart(container, {
-      width: container.clientWidth,
-      height: 540,
+      width: container.clientWidth || 360,
+      height: initialHeight,
       layout: {
         background: { type: ColorType.Solid, color: '#080c14' },
-        textColor: '#94a3b8'
+        textColor: '#94a3b8',
+        fontSize: 11
       },
       grid: {
         vertLines: { color: 'rgba(30, 41, 59, 0.4)' },
@@ -504,12 +506,23 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
         scaleMargins: { top: 0.1, bottom: 0.2 }
       },
       timeScale: {
+        visible: true,
         borderColor: '#1e293b',
         timeVisible: true,
         secondsVisible: false,
-        // Keep room after the latest candle so the live flip-threshold label
-        // remains fully visible on desktop and narrow mobile charts.
+        tickMarkFormatter: (time: number, tickMarkType: number, locale: string) => {
+          const d = new Date(time * 1000);
+          // TickMarkType: 0 = Year, 1 = Month, 2 = DayOfMonth, 3 = Time, 4 = TimeWithSeconds
+          if (tickMarkType === 0) return d.toLocaleDateString(locale, { year: 'numeric' });
+          if (tickMarkType === 1) return d.toLocaleDateString(locale, { month: 'short', year: '2-digit' });
+          if (tickMarkType === 2) return d.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
+          return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false });
+        },
         rightOffset: 8
+      },
+      localization: {
+        locale: 'ro-RO',
+        dateFormat: 'dd MMM yyyy'
       }
     });
 
@@ -534,29 +547,39 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       scaleMargins: { top: 0.8, bottom: 0 }
     });
 
-    // Compute MoneyLine Overlay Force v1 mathematically
-    const moneyLine = calculateMoneyLineForce(candles, activeInterval);
+    // Clean and validate candle timestamps to ensure strict chronological order
+    const cleanCandles: Candle[] = [];
+    let prevTimeSec = 0;
+    const sorted = [...candles].sort((a, b) => a.timestamp - b.timestamp);
+    for (const c of sorted) {
+      let tSec = Math.floor(c.timestamp / 1000);
+      if (!Number.isFinite(tSec) || tSec <= 0) continue;
+      if (tSec <= prevTimeSec) {
+        tSec = prevTimeSec + 60;
+      }
+      cleanCandles.push({
+        ...c,
+        timestamp: tSec * 1000
+      });
+      prevTimeSec = tSec;
+    }
 
-    const formattedCandles = candles.map((c, idx) => {
-      const timeInSec = Math.floor(c.timestamp / 1000);
-      return {
-        time: (timeInSec + idx * 60) as any,
-        open: c.open,
-        high: c.high,
-        low: c.low,
-        close: c.close
-      };
-    });
+    // Compute MoneyLine Overlay Force v1 mathematically on clean candles
+    const moneyLine = calculateMoneyLineForce(cleanCandles, activeInterval);
 
-    const formattedVolume = candles.map((c, idx) => {
-      const isUp = c.close >= c.open;
-      const timeInSec = Math.floor(c.timestamp / 1000);
-      return {
-        time: (timeInSec + idx * 60) as any,
-        value: c.volume,
-        color: isUp ? 'rgba(16, 185, 129, 0.25)' : 'rgba(244, 63, 94, 0.25)'
-      };
-    });
+    const formattedCandles = cleanCandles.map((c) => ({
+      time: Math.floor(c.timestamp / 1000) as any,
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close
+    }));
+
+    const formattedVolume = cleanCandles.map((c) => ({
+      time: Math.floor(c.timestamp / 1000) as any,
+      value: c.volume,
+      color: c.close >= c.open ? 'rgba(16, 185, 129, 0.25)' : 'rgba(244, 63, 94, 0.25)'
+    }));
 
     candleSeries.setData(formattedCandles);
     volumeSeries.setData(formattedVolume);
@@ -569,15 +592,11 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       lastValueVisible: false
     });
 
-    const formattedFastLine = moneyLine.lineFast.map((val, idx) => {
-      const timeInSec = Math.floor(candles[idx].timestamp / 1000);
-      const isBull = moneyLine.dirFast[idx] < 0;
-      return {
-        time: (timeInSec + idx * 60) as any,
-        value: val,
-        color: isBull ? '#10b981' : '#f43f5e'
-      };
-    });
+    const formattedFastLine = moneyLine.lineFast.map((val, idx) => ({
+      time: Math.floor(cleanCandles[idx].timestamp / 1000) as any,
+      value: val,
+      color: moneyLine.dirFast[idx] < 0 ? '#10b981' : '#f43f5e'
+    }));
     fastLineSeries.setData(formattedFastLine);
 
     // Slow Supertrend Line (Cloud Edge)
@@ -589,15 +608,11 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       lastValueVisible: false
     });
 
-    const formattedSlowLine = moneyLine.lineSlow.map((val, idx) => {
-      const timeInSec = Math.floor(candles[idx].timestamp / 1000);
-      const isBull = moneyLine.dirSlow[idx] < 0;
-      return {
-        time: (timeInSec + idx * 60) as any,
-        value: val,
-        color: isBull ? 'rgba(16, 185, 129, 0.7)' : 'rgba(244, 63, 94, 0.7)'
-      };
-    });
+    const formattedSlowLine = moneyLine.lineSlow.map((val, idx) => ({
+      time: Math.floor(cleanCandles[idx].timestamp / 1000) as any,
+      value: val,
+      color: moneyLine.dirSlow[idx] < 0 ? 'rgba(16, 185, 129, 0.7)' : 'rgba(244, 63, 94, 0.7)'
+    }));
     slowLineSeries.setData(formattedSlowLine);
 
     // SMA 200 Macro Baseline
@@ -609,19 +624,16 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       lastValueVisible: false
     });
 
-    const formattedSma200 = moneyLine.sma200.map((val, idx) => {
-      const timeInSec = Math.floor(candles[idx].timestamp / 1000);
-      return {
-        time: (timeInSec + idx * 60) as any,
-        value: val
-      };
-    });
+    const formattedSma200 = moneyLine.sma200.map((val, idx) => ({
+      time: Math.floor(cleanCandles[idx].timestamp / 1000) as any,
+      value: val
+    }));
     sma200Series.setData(formattedSma200);
 
     // BUY and SELL Signal Triangles
     const markers: any[] = [];
-    candles.forEach((c, idx) => {
-      const timeInSec = Math.floor(c.timestamp / 1000) + idx * 60;
+    cleanCandles.forEach((c, idx) => {
+      const timeInSec = Math.floor(c.timestamp / 1000);
       if (moneyLine.buySignals[idx]) {
         markers.push({
           time: timeInSec,
@@ -658,7 +670,12 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
 
     const handleResize = () => {
       if (chartContainerRef.current) {
-        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+        const w = chartContainerRef.current.clientWidth || 360;
+        const h = chartContainerRef.current.clientHeight || (window.innerWidth < 768 ? 480 : 540);
+        chart.applyOptions({
+          width: w,
+          height: h
+        });
       }
     };
     window.addEventListener('resize', handleResize);
@@ -736,7 +753,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     if (!chartApiRef.current || !candleSeriesRef.current || !candles || candles.length === 0) return null;
     const validIdx = Math.max(0, Math.min(candles.length - 1, timeIndex));
     const c = candles[validIdx];
-    const timeInSec = Math.floor(c.timestamp / 1000) + validIdx * 60;
+    const timeInSec = Math.floor(c.timestamp / 1000);
 
     const x = chartApiRef.current.timeScale().timeToCoordinate(timeInSec as any);
     const y = candleSeriesRef.current.priceToCoordinate(price);
@@ -821,8 +838,8 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
 
     let timeIndex = candles.length - 1;
     if (typeof timeVal === 'number') {
-      const foundIdx = candles.findIndex((c, idx) => {
-        const tSec = Math.floor(c.timestamp / 1000) + idx * 60;
+      const foundIdx = candles.findIndex((c) => {
+        const tSec = Math.floor(c.timestamp / 1000);
         return tSec >= timeVal;
       });
       if (foundIdx !== -1) timeIndex = foundIdx;
@@ -845,8 +862,8 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
 
     let timeIndex = candles.length - 1;
     if (typeof timeVal === 'number') {
-      const foundIdx = candles.findIndex((c, idx) => {
-        const tSec = Math.floor(c.timestamp / 1000) + idx * 60;
+      const foundIdx = candles.findIndex((c) => {
+        const tSec = Math.floor(c.timestamp / 1000);
         return tSec >= timeVal;
       });
       if (foundIdx !== -1) timeIndex = foundIdx;
@@ -1012,8 +1029,8 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       const timeVal = chartApiRef.current.timeScale().coordinateToTime(mousePos.x) as any;
       let timeIndex = candles.length - 1;
       if (typeof timeVal === 'number') {
-        const foundIdx = candles.findIndex((c, idx) => {
-          const tSec = Math.floor(c.timestamp / 1000) + idx * 60;
+        const foundIdx = candles.findIndex((c) => {
+          const tSec = Math.floor(c.timestamp / 1000);
           return tSec >= timeVal;
         });
         if (foundIdx !== -1) timeIndex = foundIdx;
@@ -2036,8 +2053,8 @@ plot(sma200, color=color.new(color.yellow, 0), linewidth=2, title="SMA 200 Macro
                           if (chartApiRef.current) {
                             const timeVal = chartApiRef.current.timeScale().coordinateToTime(mousePos.x) as any;
                             if (typeof timeVal === 'number') {
-                              const foundIdx = candles.findIndex((c, idx) => {
-                                const tSec = Math.floor(c.timestamp / 1000) + idx * 60;
+                              const foundIdx = candles.findIndex((c) => {
+                                const tSec = Math.floor(c.timestamp / 1000);
                                 return tSec >= timeVal;
                               });
                               if (foundIdx !== -1) targetTimeIndex = foundIdx;
