@@ -214,14 +214,16 @@ export class AppState {
    */
   public async refreshSignals(
     timeframe: Timeframe = '1h',
-    marketClass: ScannerMarketClass = 'ALL'
+    marketClass: ScannerMarketClass = 'ALL',
+    narrative?: MarketNarrativeId
   ): Promise<AssetScannerRow[]> {
-    const assets = marketClass === 'crypto'
-      ? await this.marketData.getTopCryptoAssets(50)
+    const marketAssets = marketClass === 'crypto'
+      ? await this.marketData.getNarrativeBalancedCryptoAssets()
       : getScannerAssets(marketClass);
-    const quotes = marketClass === 'crypto'
-      ? await this.marketData.getQuotesForAssets(assets)
-      : await this.marketData.getAllQuotes(marketClass);
+    const assets = narrative
+      ? marketAssets.filter(asset => asset.narratives?.[0] === narrative)
+      : marketAssets;
+    const quotes = await this.marketData.getQuotesForAssets(assets);
     const quoteBySymbol = new Map(quotes.map(quote => [quote.symbol, quote]));
     // Stock market caps are maintained in the curated Top 50 stock catalog.
     // Use them for both the Stocks tab and the mixed 360° view; previously an

@@ -5,6 +5,7 @@ import { aggregateCandles } from './aggregator.js';
 import {
   Candle,
   getScannerAssets,
+  MIN_ASSETS_PER_NARRATIVE,
   NARRATIVE_DEFINITIONS,
   withPrimaryNarrative
 } from '@money-scanner/shared';
@@ -38,6 +39,27 @@ describe('Market Data Service & Normalization', () => {
       decimals: 4
     });
     assert.deepEqual(unknownCrypto.narratives, ['crypto_infrastructure']);
+  });
+
+  it('keeps at least ten market-cap-ranked assets in every available sector', () => {
+    for (const marketClass of ['crypto', 'stocks', 'metals'] as const) {
+      const assets = getScannerAssets(marketClass);
+      const activeNarratives = new Set(assets.map(asset => asset.narratives![0]));
+
+      for (const narrative of activeNarratives) {
+        const members = assets.filter(asset => asset.narratives?.[0] === narrative);
+        assert.ok(
+          members.length >= MIN_ASSETS_PER_NARRATIVE,
+          `${marketClass}/${narrative} must contain at least ${MIN_ASSETS_PER_NARRATIVE} assets`
+        );
+        for (let index = 1; index < members.length; index += 1) {
+          assert.ok(
+            (members[index - 1].marketCap || 0) >= (members[index].marketCap || 0),
+            `${marketClass}/${narrative} must be ordered by market cap`
+          );
+        }
+      }
+    }
   });
 
   it('correctly aggregates 1h candles into 4h bars', () => {

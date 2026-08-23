@@ -3,13 +3,15 @@ import {
   AssetPriceQuote,
   Timeframe,
   MarketOverviewSummary,
-  TOP_50_CRYPTO_ASSETS,
+  BALANCED_CRYPTO_ASSETS,
+  CRYPTO_SPOT_ASSETS,
   TRADING_360_ASSETS,
   AssetInfo,
   AssetMarketClass,
   ScannerMarketClass,
   getScannerAssets,
-  withPrimaryNarrative
+  withPrimaryNarrative,
+  selectNarrativeBalancedAssets
 } from '@money-scanner/shared';
 import { MarketHealthMonitor } from './health-monitor.js';
 import { BinanceMarketAdapter } from './adapters/binance.js';
@@ -148,16 +150,26 @@ export class MarketDataService {
 
   public async getAllQuotes(marketClass: ScannerMarketClass = 'ALL'): Promise<AssetPriceQuote[]> {
     const assets = marketClass === 'crypto'
-      ? await this.getTopCryptoAssets(50)
+      ? await this.getNarrativeBalancedCryptoAssets()
       : getScannerAssets(marketClass);
     return this.getQuotesForAssets(assets);
   }
 
+  /** Top 50 overall plus the ten largest supported coins in each crypto sector. */
+  public async getNarrativeBalancedCryptoAssets(): Promise<AssetInfo[]> {
+    try {
+      const marketCapPool = await this.getTopCryptoAssets(150);
+      return selectNarrativeBalancedAssets(marketCapPool, marketCapPool.slice(0, 50));
+    } catch {
+      return BALANCED_CRYPTO_ASSETS;
+    }
+  }
+
   /** Top market-cap crypto assets that also have an active Binance USDT spot market. */
   public async getTopCryptoAssets(limit = 50): Promise<AssetInfo[]> {
+    const poolLimit = Math.max(limit, 150);
     if (
       this.topCryptoAssetsCache &&
-      this.topCryptoAssetsCache.values.length >= limit &&
       Date.now() - this.topCryptoAssetsCache.updatedAt < 5 * 60_000
     ) {
       return this.topCryptoAssetsCache.values.slice(0, limit);
@@ -183,7 +195,7 @@ export class MarketDataService {
 
       for (const row of rows) {
         const symbol = String(row.symbol || '').toUpperCase();
-        if (!symbol || seen.has(symbol) || !supportedSymbols.has(symbol)) continue;
+        if (!symbol || !/^[A-Z0-9]+$/.test(symbol) || seen.has(symbol) || !supportedSymbols.has(symbol)) continue;
         if (typeof row.market_cap !== 'number' || row.market_cap <= 0) continue;
 
         const existing = existingBySymbol.get(symbol);
@@ -201,16 +213,17 @@ export class MarketDataService {
           rank: Number(row.market_cap_rank || assets.length + 1),
           decimals: existing?.decimals ?? ((row.current_price || 0) < 1 ? 6 : 2)
         }));
-        if (assets.length >= limit) break;
+        if (assets.length >= poolLimit) break;
       }
 
-      // Ensure we always reach the requested limit by filling with curated Top 50 assets
-      if (assets.length < limit) {
-        for (const fallback of TOP_50_CRYPTO_ASSETS) {
+      // Fill gaps with the curated supported catalog, including the sector
+      // completion assets that can sit outside CoinGecko's first page.
+      if (assets.length < poolLimit) {
+        for (const fallback of CRYPTO_SPOT_ASSETS) {
           if (!seen.has(fallback.symbol)) {
             seen.add(fallback.symbol);
             assets.push(fallback);
-            if (assets.length >= limit) break;
+            if (assets.length >= poolLimit) break;
           }
         }
       }
@@ -219,7 +232,7 @@ export class MarketDataService {
       this.topCryptoAssetsCache = { values: assets, updatedAt: Date.now() };
       return assets.slice(0, limit);
     } catch {
-      return TOP_50_CRYPTO_ASSETS.slice(0, limit);
+      return CRYPTO_SPOT_ASSETS.slice(0, limit);
     }
   }
 

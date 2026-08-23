@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { AppState } from '../services/app-state.js';
-import { Timeframe, TRADING_360_ASSETS, ScannerMarketClass, AssetMarketClass } from '@money-scanner/shared';
+import { Timeframe, TRADING_360_ASSETS, ScannerMarketClass, AssetMarketClass, MarketNarrativeId } from '@money-scanner/shared';
 import { calculateMTFConfluence } from '@money-scanner/money-line';
 
 export const scannerRouter = Router();
@@ -231,7 +231,11 @@ scannerRouter.get('/scanner', async (req, res) => {
     const watchlistOnly = req.query.watchlist === 'true';
 
     const appState = AppState.getInstance();
-    let rows = await appState.refreshSignals(timeframe, marketClass);
+    let rows = await appState.refreshSignals(
+      timeframe,
+      marketClass,
+      narrative && narrative !== 'ALL' ? narrative as MarketNarrativeId : undefined
+    );
 
     // The selected crypto endpoint is a hard data contract, not a visual
     // preference. Reject every row that is not explicitly provider-classified
@@ -262,9 +266,9 @@ scannerRouter.get('/scanner', async (req, res) => {
     }
 
     if (marketClass === 'crypto') {
-      rows = rows
-        .sort((left, right) => (right.marketCap || 0) - (left.marketCap || 0))
-        .slice(0, 50);
+      // The first 50 remain the global market-cap leaders; additional rows are
+      // the sector-completion set required to expose ten assets per narrative.
+      rows = rows.sort((left, right) => (right.marketCap || 0) - (left.marketCap || 0));
     }
 
     res.json(rows);

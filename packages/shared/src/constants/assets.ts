@@ -155,6 +155,72 @@ export const NARRATIVE_DEFINITIONS: NarrativeDefinition[] = [
   }
 ];
 
+const cryptoCatalogAsset = (
+  symbol: string,
+  name: string,
+  category: AssetInfo['category'],
+  marketCap: number,
+  rank: number,
+  decimals = 4
+): AssetInfo => ({
+  symbol,
+  name,
+  category,
+  marketClass: 'crypto',
+  narratives: [],
+  quoteCurrency: 'USDT',
+  aliases: [symbol.toLowerCase(), name.toLowerCase()],
+  marketCap,
+  rank,
+  decimals,
+  exchange: 'BINANCE',
+  instrumentType: 'spot',
+  marketDataSource: 'binance_spot'
+});
+
+const metalCatalogAsset = (
+  symbol: string,
+  name: string,
+  marketCap: number,
+  rank: number,
+  instrumentType: 'equity' | 'etf' = 'equity'
+): AssetInfo => ({
+  symbol,
+  name,
+  category: 'Commodity',
+  marketClass: 'metals',
+  narratives: [],
+  quoteCurrency: 'USD',
+  aliases: [symbol.toLowerCase(), name.toLowerCase()],
+  marketCap,
+  rank,
+  decimals: 2,
+  exchange: instrumentType === 'etf' ? 'NYSEARCA' : 'NYSE/NASDAQ',
+  instrumentType,
+  marketDataSource: 'public_stock'
+});
+
+const stockEtfCatalogAsset = (
+  symbol: string,
+  name: string,
+  assetsUnderManagement: number,
+  rank: number
+): AssetInfo => ({
+  symbol,
+  name,
+  category: 'Index / ETF',
+  marketClass: 'stocks',
+  narratives: [],
+  quoteCurrency: 'USD',
+  aliases: [symbol.toLowerCase(), name.toLowerCase()],
+  marketCap: assetsUnderManagement,
+  rank,
+  decimals: 2,
+  exchange: 'NYSEARCA',
+  instrumentType: 'etf',
+  marketDataSource: 'public_stock'
+});
+
 export const TRADING_360_ASSETS: AssetInfo[] = [
   // --- MACRO INDICES & CRYPTO DOMINANCE ---
   {
@@ -2136,7 +2202,7 @@ export const TRADING_360_ASSETS: AssetInfo[] = [
   {
     symbol: 'TIA',
     name: 'Celestia',
-    category: 'Layer 1',
+    category: 'Infrastructure',
     marketClass: 'crypto',
     narratives: ['crypto_l1'],
     quoteCurrency: 'USDT',
@@ -2508,6 +2574,7 @@ export const TRADING_360_ASSETS: AssetInfo[] = [
     narratives: ['energy_commodities'],
     quoteCurrency: 'USD',
     aliases: ['gld', 'gold etf', 'aur etf'],
+    marketCap: 100000000000,
     rank: 0,
     decimals: 2
   },
@@ -2519,6 +2586,7 @@ export const TRADING_360_ASSETS: AssetInfo[] = [
     narratives: ['energy_commodities'],
     quoteCurrency: 'USD',
     aliases: ['slv', 'silver etf', 'argint etf'],
+    marketCap: 20000000000,
     rank: 0,
     decimals: 2
   },
@@ -2530,6 +2598,7 @@ export const TRADING_360_ASSETS: AssetInfo[] = [
     narratives: ['energy_commodities'],
     quoteCurrency: 'USD',
     aliases: ['pplt', 'platinum', 'platina'],
+    marketCap: 2000000000,
     rank: 0,
     decimals: 2
   },
@@ -2541,6 +2610,7 @@ export const TRADING_360_ASSETS: AssetInfo[] = [
     narratives: ['energy_commodities'],
     quoteCurrency: 'USD',
     aliases: ['pall', 'palladium', 'paladiu'],
+    marketCap: 400000000,
     rank: 0,
     decimals: 2
   },
@@ -2552,6 +2622,7 @@ export const TRADING_360_ASSETS: AssetInfo[] = [
     narratives: ['energy_commodities', 'semiconductors'],
     quoteCurrency: 'USD',
     aliases: ['copx', 'copper miners', 'mineri cupru'],
+    marketCap: 5000000000,
     rank: 0,
     decimals: 2
   },
@@ -2563,6 +2634,7 @@ export const TRADING_360_ASSETS: AssetInfo[] = [
     narratives: ['energy_commodities', 'ai_ecosystem'],
     quoteCurrency: 'USD',
     aliases: ['lit', 'lithium', 'litiu', 'battery metals'],
+    marketCap: 3000000000,
     rank: 0,
     decimals: 2,
     exchange: 'AMEX',
@@ -2594,17 +2666,139 @@ export const TRADING_360_ASSETS: AssetInfo[] = [
     narratives: ['energy_commodities', 'semiconductors'],
     quoteCurrency: 'USD',
     aliases: ['remx', 'rare earth', 'metale rare', 'strategic metals'],
+    marketCap: 1000000000,
     rank: 0,
     decimals: 2
-  }
+  },
+
+  // Sector-completion universe. Live CoinGecko caps replace these fallback
+  // values; every crypto instrument below has an active Binance USDT market.
+  cryptoCatalogAsset('STRK', 'Starknet', 'Layer 2', 190_000_000, 174),
+  cryptoCatalogAsset('ZK', 'ZKsync', 'Layer 2', 150_000_000, 185),
+  cryptoCatalogAsset('METIS', 'Metis', 'Layer 2', 45_000_000, 320),
+  cryptoCatalogAsset('SKL', 'SKALE', 'Layer 2', 75_000_000, 280),
+  cryptoCatalogAsset('MANTA', 'Manta Network', 'Layer 2', 65_000_000, 300),
+  cryptoCatalogAsset('SCR', 'Scroll', 'Layer 2', 90_000_000, 260),
+
+  cryptoCatalogAsset('VIRTUAL', 'Virtuals Protocol', 'AI', 454_000_000, 110),
+  cryptoCatalogAsset('KAITO', 'Kaito', 'AI', 300_000_000, 135),
+  cryptoCatalogAsset('IO', 'io.net', 'AI', 190_000_000, 175),
+  cryptoCatalogAsset('ARKM', 'Arkham', 'AI', 180_000_000, 180),
+  cryptoCatalogAsset('AWE', 'AWE Network', 'AI', 126_000_000, 219),
+  cryptoCatalogAsset('KITE', 'Kite AI', 'AI', 260_000_000, 146),
+
+  cryptoCatalogAsset('TRUMP', 'Official Trump', 'Meme', 642_000_000, 93),
+  cryptoCatalogAsset('PENGU', 'Pudgy Penguins', 'Meme', 532_000_000, 101),
+  cryptoCatalogAsset('TURBO', 'Turbo', 'Meme', 120_000_000, 225, 6),
+  cryptoCatalogAsset('NEIRO', 'Neiro', 'Meme', 95_000_000, 255, 8),
+  cryptoCatalogAsset('MEME', 'Memecoin', 'Meme', 85_000_000, 270, 6),
+  cryptoCatalogAsset('DOGS', 'Dogs', 'Meme', 70_000_000, 290, 6),
+
+  cryptoCatalogAsset('ZRO', 'LayerZero', 'Infrastructure', 433_000_000, 113),
+  cryptoCatalogAsset('IOTA', 'IOTA', 'Infrastructure', 209_000_000, 160),
+  cryptoCatalogAsset('THETA', 'Theta Network', 'Infrastructure', 190_000_000, 175),
+  cryptoCatalogAsset('ENS', 'Ethereum Name Service', 'Infrastructure', 244_000_000, 153),
+
+  cryptoCatalogAsset('QNT', 'Quant', 'RWA', 934_000_000, 73),
+  cryptoCatalogAsset('POLYX', 'Polymesh', 'RWA', 110_000_000, 235),
+  cryptoCatalogAsset('PLUME', 'Plume', 'RWA', 90_000_000, 260),
+  cryptoCatalogAsset('CFG', 'Centrifuge', 'RWA', 80_000_000, 275),
+  cryptoCatalogAsset('RSR', 'Reserve Rights', 'RWA', 300_000_000, 130, 6),
+  cryptoCatalogAsset('SYRUP', 'Maple Finance', 'RWA', 227_000_000, 155),
+  cryptoCatalogAsset('SKY', 'Sky', 'RWA', 1_542_000_000, 56, 6),
+  cryptoCatalogAsset('USUAL', 'Usual', 'RWA', 100_000_000, 250, 6),
+  cryptoCatalogAsset('PROVE', 'Succinct', 'RWA', 85_000_000, 270),
+
+  cryptoCatalogAsset('AXS', 'Axie Infinity', 'Gaming', 172_000_000, 183),
+  cryptoCatalogAsset('ENJ', 'Enjin Coin', 'Gaming', 80_000_000, 275, 6),
+  cryptoCatalogAsset('ILV', 'Illuvium', 'Gaming', 75_000_000, 285),
+  cryptoCatalogAsset('MAGIC', 'Treasure', 'Gaming', 60_000_000, 310, 6),
+  cryptoCatalogAsset('CHZ', 'Chiliz', 'Gaming', 151_000_000, 193, 5),
+
+  cryptoCatalogAsset('CAKE', 'PancakeSwap', 'DeFi', 554_000_000, 97),
+  cryptoCatalogAsset('COMP', 'Compound', 'DeFi', 204_000_000, 162),
+  cryptoCatalogAsset('MORPHO', 'Morpho', 'DeFi', 1_601_000_000, 52),
+  cryptoCatalogAsset('AERO', 'Aerodrome Finance', 'DeFi', 452_000_000, 111),
+
+  // Broad-market and allocation ETFs use fund AUM for size ordering.
+  stockEtfCatalogAsset('VOO', 'Vanguard S&P 500 ETF', 1_400_000_000_000, 183),
+  stockEtfCatalogAsset('VTI', 'Vanguard Total Stock Market ETF', 570_000_000_000, 184),
+  stockEtfCatalogAsset('IVV', 'iShares Core S&P 500 ETF', 720_000_000_000, 185),
+  stockEtfCatalogAsset('IWM', 'iShares Russell 2000 ETF', 75_000_000_000, 186),
+  stockEtfCatalogAsset('DIA', 'SPDR Dow Jones Industrial Average ETF', 45_000_000_000, 187),
+  stockEtfCatalogAsset('VEA', 'Vanguard FTSE Developed Markets ETF', 160_000_000_000, 188),
+  stockEtfCatalogAsset('VWO', 'Vanguard FTSE Emerging Markets ETF', 95_000_000_000, 189),
+  stockEtfCatalogAsset('VT', 'Vanguard Total World Stock ETF', 55_000_000_000, 190),
+
+  // Precious-metal funds and miners, ordered by market cap or fund AUM.
+  metalCatalogAsset('IAU', 'iShares Gold Trust', 40_000_000_000, 161, 'etf'),
+  metalCatalogAsset('GDX', 'VanEck Gold Miners ETF', 20_000_000_000, 162, 'etf'),
+  metalCatalogAsset('GDXJ', 'VanEck Junior Gold Miners ETF', 5_000_000_000, 163, 'etf'),
+  metalCatalogAsset('SGOL', 'abrdn Physical Gold Shares ETF', 4_000_000_000, 164, 'etf'),
+  metalCatalogAsset('SIVR', 'abrdn Physical Silver Shares ETF', 2_000_000_000, 165, 'etf'),
+
+  // Industrial-metal producers and diversified base-metal funds.
+  metalCatalogAsset('BHP', 'BHP Group', 150_000_000_000, 166),
+  metalCatalogAsset('RIO', 'Rio Tinto', 115_000_000_000, 167),
+  metalCatalogAsset('SCCO', 'Southern Copper', 90_000_000_000, 168),
+  metalCatalogAsset('FCX', 'Freeport-McMoRan', 70_000_000_000, 169),
+  metalCatalogAsset('VALE', 'Vale', 45_000_000_000, 170),
+  metalCatalogAsset('TECK', 'Teck Resources', 30_000_000_000, 171),
+  metalCatalogAsset('AA', 'Alcoa', 6_000_000_000, 172),
+  metalCatalogAsset('DBB', 'Invesco DB Base Metals Fund', 700_000_000, 173, 'etf'),
+  metalCatalogAsset('CPER', 'United States Copper Index Fund', 400_000_000, 174, 'etf'),
+
+  // Lithium, uranium and strategic-mineral leaders.
+  metalCatalogAsset('CCJ', 'Cameco', 40_000_000_000, 175),
+  metalCatalogAsset('ALB', 'Albemarle', 15_000_000_000, 176),
+  metalCatalogAsset('SQM', 'Sociedad Quimica y Minera', 15_000_000_000, 177),
+  metalCatalogAsset('MP', 'MP Materials', 8_000_000_000, 178),
+  metalCatalogAsset('URA', 'Global X Uranium ETF', 4_000_000_000, 179, 'etf'),
+  metalCatalogAsset('URNM', 'Sprott Uranium Miners ETF', 1_500_000_000, 180, 'etf'),
+  metalCatalogAsset('LAC', 'Lithium Americas', 1_000_000_000, 181),
+  metalCatalogAsset('UEC', 'Uranium Energy Corp', 4_000_000_000, 182),
+
+  // Liquid energy commodity funds complete the existing Oil category.
+  metalCatalogAsset('USO', 'United States Oil Fund', 1_500_000_000, 191, 'etf'),
+  metalCatalogAsset('BNO', 'United States Brent Oil Fund', 200_000_000, 192, 'etf'),
+  metalCatalogAsset('UNG', 'United States Natural Gas Fund', 900_000_000, 193, 'etf'),
+  metalCatalogAsset('XLE', 'Energy Select Sector SPDR Fund', 40_000_000_000, 194, 'etf'),
+  metalCatalogAsset('XOP', 'SPDR S&P Oil & Gas Exploration ETF', 3_500_000_000, 195, 'etf'),
+  metalCatalogAsset('OIH', 'VanEck Oil Services ETF', 2_000_000_000, 196, 'etf'),
+  metalCatalogAsset('DBE', 'Invesco DB Energy Fund', 150_000_000, 197, 'etf'),
+  metalCatalogAsset('UGA', 'United States Gasoline Fund', 100_000_000, 198, 'etf'),
+  metalCatalogAsset('AMLP', 'Alerian MLP ETF', 10_000_000_000, 199, 'etf'),
+  metalCatalogAsset('IEO', 'iShares U.S. Oil & Gas Exploration ETF', 1_000_000_000, 200, 'etf')
 ];
 
-const STOCK_CONSUMER_PLATFORM_SYMBOLS = new Set(['AAPL', 'AMZN', 'META', 'TSLA']);
-const STOCK_AI_SOFTWARE_SYMBOLS = new Set(['AI', 'PATH', 'SOUN']);
-const CRYPTO_LAYER_2_SYMBOLS = new Set(['ARB', 'OP', 'POL', 'STX']);
+const STOCK_BROAD_MARKET_SYMBOLS = new Set(['MSTR']);
+const STOCK_CONSUMER_PLATFORM_SYMBOLS = new Set([
+  'AAPL', 'AMZN', 'META', 'TSLA', 'WMT', 'COST', 'MCD', 'NKE', 'TGT', 'HOOD'
+]);
+const STOCK_AI_SOFTWARE_SYMBOLS = new Set([
+  'AI', 'PATH', 'SOUN', 'PLTR', 'BBAI', 'SNOW', 'DDOG', 'MDB', 'ESTC', 'COIN'
+]);
+const CRYPTO_LAYER_2_SYMBOLS = new Set([
+  'ARB', 'OP', 'POL', 'STX', 'STRK', 'ZK', 'METIS', 'SKL', 'MANTA', 'SCR'
+]);
+const CRYPTO_MEME_SYMBOLS = new Set([
+  'DOGE', 'SHIB', 'PEPE', 'WIF', 'BONK', 'FLOKI', 'TRUMP', 'PENGU', 'TURBO', 'NEIRO', 'MEME', 'DOGS'
+]);
+const CRYPTO_LAYER_1_SYMBOLS = new Set(['TRX', 'ZEC', 'GRAM', 'ALGO', 'DASH', 'VET']);
+const CRYPTO_DEFI_SYMBOLS = new Set([
+  'USDC', 'USDS', 'USDE', 'USD1', 'RLUSD', 'BFUSD', 'U', 'JST', 'NEXO', 'WLFI', 'ASTER', 'ETHFI', 'TUSD'
+]);
+const CRYPTO_RWA_SYMBOLS = new Set(['XAUT', 'PAXG']);
 const CRYPTO_GAMING_SYMBOLS = new Set(['IMX']);
-const CRITICAL_MINERAL_SYMBOLS = new Set(['LIT', 'REMX']);
-const INDUSTRIAL_METAL_SYMBOLS = new Set(['COPPER', 'COPX']);
+const ENERGY_COMMODITY_SYMBOLS = new Set([
+  'OIL', 'USO', 'BNO', 'UNG', 'XLE', 'XOP', 'OIH', 'DBE', 'UGA', 'AMLP', 'IEO'
+]);
+const CRITICAL_MINERAL_SYMBOLS = new Set([
+  'LIT', 'REMX', 'ALB', 'SQM', 'MP', 'LAC', 'UEC', 'URA', 'URNM', 'CCJ'
+]);
+const INDUSTRIAL_METAL_SYMBOLS = new Set([
+  'COPPER', 'COPX', 'BHP', 'RIO', 'VALE', 'FCX', 'SCCO', 'TECK', 'AA', 'DBB', 'CPER'
+]);
 
 /**
  * Assigns one primary, mutually exclusive sector to every scanner asset.
@@ -2615,33 +2809,34 @@ export const getPrimaryNarrative = (asset: AssetInfo): MarketNarrativeId => {
   const tags = new Set(asset.narratives || []);
 
   if (asset.marketClass === 'metals') {
-    if (asset.symbol === 'OIL') return 'energy_commodities';
+    if (ENERGY_COMMODITY_SYMBOLS.has(asset.symbol)) return 'energy_commodities';
     if (CRITICAL_MINERAL_SYMBOLS.has(asset.symbol)) return 'critical_minerals';
     if (INDUSTRIAL_METAL_SYMBOLS.has(asset.symbol)) return 'industrial_metals';
     return 'precious_metals';
   }
 
   if (asset.marketClass === 'stocks') {
-    if (asset.category === 'Index / ETF') return 'broad_market';
+    if (asset.category === 'Index / ETF' || STOCK_BROAD_MARKET_SYMBOLS.has(asset.symbol)) return 'broad_market';
     if (STOCK_CONSUMER_PLATFORM_SYMBOLS.has(asset.symbol)) return 'consumer_platforms';
     if (tags.has('semiconductors')) return 'semiconductors';
     if (tags.has('energy_commodities')) return 'energy_commodities';
-    if (tags.has('space_defense')) return 'space_defense';
-    if (STOCK_AI_SOFTWARE_SYMBOLS.has(asset.symbol) || tags.has('ai_ecosystem') && !tags.has('cloud_enterprise')) {
+    if (STOCK_AI_SOFTWARE_SYMBOLS.has(asset.symbol)) {
       return 'ai_ecosystem';
     }
+    if (tags.has('space_defense')) return 'space_defense';
     if (tags.has('cloud_enterprise')) return 'cloud_enterprise';
     if (tags.has('consumer_staples')) return 'consumer_staples';
     if (tags.has('crypto_defi') || tags.has('crypto_l1')) return 'crypto_defi';
     return 'broad_market';
   }
 
-  if (asset.category === 'Meme') return 'crypto_meme';
+  if (asset.category === 'Meme' || CRYPTO_MEME_SYMBOLS.has(asset.symbol)) return 'crypto_meme';
+  if (asset.category === 'RWA' || CRYPTO_RWA_SYMBOLS.has(asset.symbol)) return 'crypto_rwa';
   if (asset.category === 'AI') return 'crypto_ai';
-  if (asset.category === 'DeFi') return 'crypto_defi';
-  if (asset.category === 'RWA') return 'crypto_rwa';
+  if (asset.category === 'DeFi' || CRYPTO_DEFI_SYMBOLS.has(asset.symbol)) return 'crypto_defi';
   if (asset.category === 'Gaming' || CRYPTO_GAMING_SYMBOLS.has(asset.symbol)) return 'crypto_gaming';
   if (asset.category === 'Layer 2' || CRYPTO_LAYER_2_SYMBOLS.has(asset.symbol)) return 'crypto_l2';
+  if (asset.category === 'Layer 1' || CRYPTO_LAYER_1_SYMBOLS.has(asset.symbol)) return 'crypto_l1';
   if (asset.category === 'Infrastructure') return 'crypto_infrastructure';
   return 'crypto_l1';
 };
@@ -2651,10 +2846,46 @@ export const withPrimaryNarrative = (asset: AssetInfo): AssetInfo => ({
   narratives: [getPrimaryNarrative(asset)]
 });
 
+export const MIN_ASSETS_PER_NARRATIVE = 10;
+
+const byMarketCap = (left: AssetInfo, right: AssetInfo) =>
+  (right.marketCap || 0) - (left.marketCap || 0) || left.rank - right.rank;
+
+const isSupportedScannerStock = (asset: AssetInfo) =>
+  asset.marketClass === 'stocks' &&
+  asset.quoteCurrency === 'USD' &&
+  asset.rank > 0 &&
+  asset.symbol !== 'SPACEX';
+
+/**
+ * Keeps the global market-cap leaders while guaranteeing that every available
+ * primary sector contributes its ten largest constituents. When a sector has
+ * fewer than ten supported instruments, all verified constituents are kept.
+ */
+export const selectNarrativeBalancedAssets = (
+  candidates: AssetInfo[],
+  baseAssets: AssetInfo[] = [],
+  minimumPerNarrative = MIN_ASSETS_PER_NARRATIVE
+): AssetInfo[] => {
+  const normalized = candidates.map(withPrimaryNarrative).sort(byMarketCap);
+  const selected = new Map<string, AssetInfo>();
+  const add = (asset: AssetInfo) => selected.set(`${asset.marketClass}:${asset.symbol}`, asset);
+
+  baseAssets.map(withPrimaryNarrative).forEach(add);
+  for (const definition of NARRATIVE_DEFINITIONS) {
+    normalized
+      .filter(asset => asset.narratives?.[0] === definition.id)
+      .slice(0, minimumPerNarrative)
+      .forEach(add);
+  }
+
+  return Array.from(selected.values()).sort(byMarketCap);
+};
+
 // Production scanner universe: up to 50 supported spot-crypto assets. The broader
 // catalog remains available for search, but unsupported assets are never
 // silently filled with synthetic quotes.
-export const TOP_50_CRYPTO_ASSETS: AssetInfo[] = TRADING_360_ASSETS
+export const CRYPTO_SPOT_ASSETS: AssetInfo[] = TRADING_360_ASSETS
   .filter(asset =>
     asset.marketClass === 'crypto' &&
     asset.quoteCurrency === 'USDT' &&
@@ -2663,26 +2894,39 @@ export const TOP_50_CRYPTO_ASSETS: AssetInfo[] = TRADING_360_ASSETS
     !asset.symbol.startsWith('TOTAL')
   )
   .sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0))
-  .slice(0, 50)
   .map(withPrimaryNarrative);
+
+export const TOP_50_CRYPTO_ASSETS: AssetInfo[] = CRYPTO_SPOT_ASSETS.slice(0, 50);
+
+export const BALANCED_CRYPTO_ASSETS: AssetInfo[] = selectNarrativeBalancedAssets(
+  CRYPTO_SPOT_ASSETS,
+  TOP_50_CRYPTO_ASSETS
+);
 
 /**
  * Curated liquid US-equity universe. Asset membership is deliberately fixed;
  * prices, candles and displayed metrics are always obtained from Yahoo Finance.
  */
 export const TOP_50_STOCK_ASSETS: AssetInfo[] = TRADING_360_ASSETS
-  .filter(asset => asset.marketClass === 'stocks' && asset.quoteCurrency === 'USD' && asset.rank > 0)
+  .filter(isSupportedScannerStock)
+  .sort(byMarketCap)
   .slice(0, 50)
   .map(withPrimaryNarrative);
+
+export const BALANCED_STOCK_ASSETS: AssetInfo[] = selectNarrativeBalancedAssets(
+  TRADING_360_ASSETS.filter(isSupportedScannerStock),
+  TOP_50_STOCK_ASSETS
+);
 
 /** Major precious and industrial metals/commodity instruments with a live Yahoo or Binance mapping. */
 export const TOP_METALS_ASSETS: AssetInfo[] = TRADING_360_ASSETS
   .filter(asset => asset.marketClass === 'metals')
+  .sort(byMarketCap)
   .map(withPrimaryNarrative);
 
 export const SCANNER_ASSETS: AssetInfo[] = [
-  ...TOP_50_CRYPTO_ASSETS,
-  ...TOP_50_STOCK_ASSETS,
+  ...BALANCED_CRYPTO_ASSETS,
+  ...BALANCED_STOCK_ASSETS,
   ...TOP_METALS_ASSETS
 ];
 
