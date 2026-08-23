@@ -15,7 +15,7 @@ export const NewsFeedView: React.FC = () => {
   const [synthesisError, setSynthesisError] = useState(false);
   const [refreshAttempt, setRefreshAttempt] = useState(0);
 
-  const categories = ['ALL', 'Regulation', 'Institutional', 'Protocol', 'Macro', 'Security'];
+  const categories = ['ALL', 'Macro', 'Institutional', 'Regulation', 'Protocol', 'Security', 'General'];
 
   useEffect(() => {
     setLoading(true);
@@ -201,8 +201,12 @@ export const NewsFeedView: React.FC = () => {
                     <span>{new Date(item.publishedAt).toLocaleTimeString()}</span>
                   </div>
                   {item.sentiment && (
-                    <span className={`px-2 py-0.5 rounded font-bold ${
-                      item.sentiment === 'Bullish' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-400'
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                      item.sentiment === 'Bullish'
+                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                        : item.sentiment === 'Bearish'
+                        ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                        : 'bg-white/[0.04] text-slate-400 border border-white/[0.06]'
                     }`}>
                       {item.sentiment}
                     </span>
