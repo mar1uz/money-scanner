@@ -14,7 +14,7 @@ export interface MoneyLineCloudSeries {
 export const getMoneyLineCloudParameters = (timeframe: Timeframe | string) => {
   const tf = timeframe.toLowerCase();
   if (tf === '1h') return { fastFactor: 2.2, slowFactor: 3.0, atrLength: 12 };
-  if (tf === '4h' || tf === '1d') return { fastFactor: 2.5, slowFactor: 3.5, atrLength: 10 };
+  if (tf === '4h' || tf === '8h' || tf === '1d') return { fastFactor: 2.5, slowFactor: 3.5, atrLength: 10 };
   if (tf === '1w' || tf === '1m') return { fastFactor: 2.8, slowFactor: 3.8, atrLength: 10 };
   return { fastFactor: 2.0, slowFactor: 3.0, atrLength: 10 };
 };
