@@ -217,7 +217,7 @@ export class AppState {
     marketClass: ScannerMarketClass = 'ALL'
   ): Promise<AssetScannerRow[]> {
     const assets = marketClass === 'crypto'
-      ? await this.marketData.getTopCryptoAssets(80)
+      ? await this.marketData.getTopCryptoAssets(50)
       : getScannerAssets(marketClass);
     const quotes = marketClass === 'crypto'
       ? await this.marketData.getQuotesForAssets(assets)

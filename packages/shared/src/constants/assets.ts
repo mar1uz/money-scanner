@@ -529,6 +529,30 @@ export const TRADING_360_ASSETS: AssetInfo[] = [
     rank: 30,
     decimals: 2
   },
+  {
+    symbol: 'FIL',
+    name: 'Filecoin',
+    category: 'Infrastructure',
+    marketClass: 'crypto',
+    narratives: ['ai_ecosystem', 'crypto_l1'],
+    quoteCurrency: 'USDT',
+    aliases: ['fil', 'filecoin', 'protocol labs', 'juan benet', 'ipfs', 'decentralized storage'],
+    marketCap: 2600000000,
+    rank: 32,
+    decimals: 3
+  },
+  {
+    symbol: 'WLD',
+    name: 'Worldcoin',
+    category: 'AI',
+    marketClass: 'crypto',
+    narratives: ['ai_ecosystem'],
+    quoteCurrency: 'USDT',
+    aliases: ['wld', 'worldcoin', 'sam altman', 'tools for humanity', 'world id', 'orb proof of personhood'],
+    marketCap: 1400000000,
+    rank: 33,
+    decimals: 4
+  },
 
   // ═══════════════════════════════════════════════════════════════════
   // 2. ⚡ SEMICONDUCTORS & CHIPS (30 active de top)
@@ -1907,7 +1931,11 @@ export const TRADING_360_ASSETS: AssetInfo[] = [
     aliases: ['kas', 'kaspa', 'ghostdag', 'yonatan sompolinsky', 'blockdag'],
     marketCap: 3400000000,
     rank: 143,
-    decimals: 4
+    decimals: 4,
+    exchange: 'BINANCE Futures',
+    instrumentType: 'perpetual',
+    marketDataSource: 'binance_futures',
+    providerSymbol: 'KASUSDT'
   },
   {
     symbol: 'LTC',
@@ -1920,6 +1948,150 @@ export const TRADING_360_ASSETS: AssetInfo[] = [
     marketCap: 4800000000,
     rank: 144,
     decimals: 2
+  },
+  {
+    symbol: 'DOGE',
+    name: 'Dogecoin',
+    category: 'Layer 1',
+    marketClass: 'crypto',
+    narratives: ['crypto_l1', 'consumer_staples'],
+    quoteCurrency: 'USDT',
+    aliases: ['doge', 'dogecoin', 'elon musk', 'meme king', 'shiba doge', 'dogecoin network', 'billy markus'],
+    marketCap: 38000000000,
+    rank: 8,
+    decimals: 4
+  },
+  {
+    symbol: 'XLM',
+    name: 'Stellar Lumens',
+    category: 'Layer 1',
+    marketClass: 'crypto',
+    narratives: ['crypto_l1'],
+    quoteCurrency: 'USDT',
+    aliases: ['xlm', 'stellar', 'jed mccaleb', 'soroban', 'stellar lumens'],
+    marketCap: 9500000000,
+    rank: 14,
+    decimals: 4
+  },
+  {
+    symbol: 'BCH',
+    name: 'Bitcoin Cash',
+    category: 'Layer 1',
+    marketClass: 'crypto',
+    narratives: ['crypto_l1'],
+    quoteCurrency: 'USDT',
+    aliases: ['bch', 'bitcoin cash', 'roger ver', 'peer to peer cash'],
+    marketCap: 9200000000,
+    rank: 15,
+    decimals: 2
+  },
+  {
+    symbol: 'ETC',
+    name: 'Ethereum Classic',
+    category: 'Layer 1',
+    marketClass: 'crypto',
+    narratives: ['crypto_l1'],
+    quoteCurrency: 'USDT',
+    aliases: ['etc', 'ethereum classic', 'original ether', 'etc pow'],
+    marketCap: 3800000000,
+    rank: 25,
+    decimals: 2
+  },
+  {
+    symbol: 'ATOM',
+    name: 'Cosmos',
+    category: 'Layer 1',
+    marketClass: 'crypto',
+    narratives: ['crypto_l1'],
+    quoteCurrency: 'USDT',
+    aliases: ['atom', 'cosmos', 'tendermint', 'interchain', 'ibc'],
+    marketCap: 2800000000,
+    rank: 31,
+    decimals: 3
+  },
+  {
+    symbol: 'ARB',
+    name: 'Arbitrum',
+    category: 'Layer 1',
+    marketClass: 'crypto',
+    narratives: ['crypto_l1', 'crypto_defi'],
+    quoteCurrency: 'USDT',
+    aliases: ['arb', 'arbitrum', 'offchain labs', 'ethereum layer 2', 'arbitrum one', 'nitro'],
+    marketCap: 2500000000,
+    rank: 34,
+    decimals: 4
+  },
+  {
+    symbol: 'OP',
+    name: 'Optimism',
+    category: 'Layer 1',
+    marketClass: 'crypto',
+    narratives: ['crypto_l1', 'crypto_defi'],
+    quoteCurrency: 'USDT',
+    aliases: ['op', 'optimism', 'superchain', 'op stack', 'optimistic rollup'],
+    marketCap: 2200000000,
+    rank: 35,
+    decimals: 4
+  },
+  {
+    symbol: 'POL',
+    name: 'Polygon Ecosystem Token',
+    category: 'Layer 1',
+    marketClass: 'crypto',
+    narratives: ['crypto_l1', 'crypto_defi'],
+    quoteCurrency: 'USDT',
+    aliases: ['pol', 'polygon', 'matic', 'sandeep nailwal', 'polygon 2.0', 'agglayer'],
+    marketCap: 2900000000,
+    rank: 36,
+    decimals: 4
+  },
+  {
+    symbol: 'TIA',
+    name: 'Celestia',
+    category: 'Layer 1',
+    marketClass: 'crypto',
+    narratives: ['crypto_l1'],
+    quoteCurrency: 'USDT',
+    aliases: ['tia', 'celestia', 'modular blockchain', 'mustafa al bassam', 'data availability'],
+    marketCap: 1600000000,
+    rank: 37,
+    decimals: 3
+  },
+  {
+    symbol: 'STX',
+    name: 'Stacks',
+    category: 'Layer 1',
+    marketClass: 'crypto',
+    narratives: ['crypto_l1'],
+    quoteCurrency: 'USDT',
+    aliases: ['stx', 'stacks', 'muneeb ali', 'bitcoin l2', 'nakamoto upgrade', 'sbtc'],
+    marketCap: 2400000000,
+    rank: 40,
+    decimals: 4
+  },
+  {
+    symbol: 'IMX',
+    name: 'Immutable',
+    category: 'Layer 1',
+    marketClass: 'crypto',
+    narratives: ['crypto_l1', 'consumer_staples'],
+    quoteCurrency: 'USDT',
+    aliases: ['imx', 'immutable', 'immutable x', 'robbie ferguson', 'web3 gaming zk'],
+    marketCap: 2100000000,
+    rank: 41,
+    decimals: 4
+  },
+  {
+    symbol: 'S',
+    name: 'Sonic (ex-FTM)',
+    category: 'Layer 1',
+    marketClass: 'crypto',
+    narratives: ['crypto_l1', 'crypto_defi'],
+    quoteCurrency: 'USDT',
+    aliases: ['s', 'sonic', 'ftm', 'fantom', 'andre cronje', 'sonic labs', 'sonic svm'],
+    marketCap: 1600000000,
+    rank: 47,
+    decimals: 4
   },
 
   // ═══════════════════════════════════════════════════════════════════
@@ -2082,6 +2254,126 @@ export const TRADING_360_ASSETS: AssetInfo[] = [
     decimals: 2
   },
   {
+    symbol: 'SHIB',
+    name: 'Shiba Inu',
+    category: 'Meme',
+    marketClass: 'crypto',
+    narratives: ['crypto_defi', 'consumer_staples'],
+    quoteCurrency: 'USDT',
+    aliases: ['shib', 'shiba inu', 'shibarium', 'ryoshi', 'shiba'],
+    marketCap: 15000000000,
+    rank: 12,
+    decimals: 8
+  },
+  {
+    symbol: 'PEPE',
+    name: 'Pepe',
+    category: 'Meme',
+    marketClass: 'crypto',
+    narratives: ['crypto_defi', 'consumer_staples'],
+    quoteCurrency: 'USDT',
+    aliases: ['pepe', 'pepe the frog', 'memecoin', 'pepe coin'],
+    marketCap: 5500000000,
+    rank: 20,
+    decimals: 8
+  },
+  {
+    symbol: 'WIF',
+    name: 'dogwifhat',
+    category: 'Meme',
+    marketClass: 'crypto',
+    narratives: ['consumer_staples'],
+    quoteCurrency: 'USDT',
+    aliases: ['wif', 'dogwifhat', 'solana meme', 'hat on'],
+    marketCap: 1700000000,
+    rank: 42,
+    decimals: 4
+  },
+  {
+    symbol: 'BONK',
+    name: 'Bonk',
+    category: 'Meme',
+    marketClass: 'crypto',
+    narratives: ['consumer_staples'],
+    quoteCurrency: 'USDT',
+    aliases: ['bonk', 'bonk dog', 'solana dog', 'bonk coin'],
+    marketCap: 1500000000,
+    rank: 43,
+    decimals: 8
+  },
+  {
+    symbol: 'FLOKI',
+    name: 'Floki',
+    category: 'Meme',
+    marketClass: 'crypto',
+    narratives: ['consumer_staples'],
+    quoteCurrency: 'USDT',
+    aliases: ['floki', 'floki inu', 'valhalla', 'floki token'],
+    marketCap: 1300000000,
+    rank: 44,
+    decimals: 8
+  },
+  {
+    symbol: 'KAVA',
+    name: 'Kava',
+    category: 'DeFi',
+    marketClass: 'crypto',
+    narratives: ['crypto_defi', 'crypto_l1'],
+    quoteCurrency: 'USDT',
+    aliases: ['kava', 'kava network', 'cosmos ethereum co chain'],
+    marketCap: 520000000,
+    rank: 48,
+    decimals: 4
+  },
+  {
+    symbol: 'GALA',
+    name: 'Gala Games',
+    category: 'Gaming',
+    marketClass: 'crypto',
+    narratives: ['consumer_staples'],
+    quoteCurrency: 'USDT',
+    aliases: ['gala', 'gala games', 'gala music', 'gala film', 'eric schiermeyer'],
+    marketCap: 950000000,
+    rank: 49,
+    decimals: 5
+  },
+  {
+    symbol: 'SAND',
+    name: 'The Sandbox',
+    category: 'Gaming',
+    marketClass: 'crypto',
+    narratives: ['consumer_staples'],
+    quoteCurrency: 'USDT',
+    aliases: ['sand', 'the sandbox', 'sebastien borget', 'metaverse voxel'],
+    marketCap: 850000000,
+    rank: 50,
+    decimals: 4
+  },
+  {
+    symbol: 'MANA',
+    name: 'Decentraland',
+    category: 'Gaming',
+    marketClass: 'crypto',
+    narratives: ['consumer_staples'],
+    quoteCurrency: 'USDT',
+    aliases: ['mana', 'decentraland', 'virtual world', 'ariel meilich'],
+    marketCap: 780000000,
+    rank: 51,
+    decimals: 4
+  },
+  {
+    symbol: 'APE',
+    name: 'ApeCoin',
+    category: 'Gaming',
+    marketClass: 'crypto',
+    narratives: ['consumer_staples'],
+    quoteCurrency: 'USDT',
+    aliases: ['ape', 'apecoin', 'yuga labs', 'bored ape', 'bayc', 'apechain'],
+    marketCap: 650000000,
+    rank: 52,
+    decimals: 4
+  },
+  {
     symbol: 'COIN',
     name: 'Coinbase Global',
     category: 'Tech Stock',
@@ -2226,9 +2518,11 @@ export const TOP_50_CRYPTO_ASSETS: AssetInfo[] = TRADING_360_ASSETS
   .filter(asset =>
     asset.marketClass === 'crypto' &&
     asset.quoteCurrency === 'USDT' &&
+    asset.marketDataSource !== 'binance_futures' &&
     !asset.symbol.includes('.') &&
     !asset.symbol.startsWith('TOTAL')
   )
+  .sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0))
   .slice(0, 50);
 
 /**

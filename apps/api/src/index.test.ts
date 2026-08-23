@@ -17,7 +17,7 @@ describe('API Server Integration Tests', () => {
     await new Promise<void>(resolve => server.listen(0, resolve));
     const port = (server.address() as any).port;
 
-    const res = await fetch(`http://localhost:${port}/api/health`);
+    const res = await fetch(`http://127.0.0.1:${port}/api/health`);
     assert.equal(res.status, 200);
     const body = await res.json() as any;
     assert.equal(body.status, 'ok');
@@ -38,7 +38,7 @@ describe('API Server Integration Tests', () => {
     await new Promise<void>(resolve => server.listen(0, resolve));
     const port = (server.address() as any).port;
 
-    const res = await fetch(`http://localhost:${port}/api/scanner?timeframe=1h`);
+    const res = await fetch(`http://127.0.0.1:${port}/api/scanner?timeframe=1h`);
     assert.equal(res.status, 401);
 
     await new Promise<void>(resolve => server.close(() => resolve()));
@@ -54,7 +54,7 @@ describe('API Server Integration Tests', () => {
     t.after(() => new Promise<void>(resolve => server.close(() => resolve())));
     const port = (server.address() as any).port;
 
-    const res = await fetch(`http://localhost:${port}/api/scanner?timeframe=1h`);
+    const res = await fetch(`http://127.0.0.1:${port}/api/scanner?timeframe=1h`);
     assert.equal(res.status, 200);
     const rows = await res.json() as any[];
     assert.ok(rows.length > 0);
@@ -76,7 +76,7 @@ describe('API Server Integration Tests', () => {
     await new Promise<void>(resolve => server.listen(0, resolve));
     const port = (server.address() as any).port;
 
-    const res = await fetch(`http://localhost:${port}/api/assets/BTC?timeframe=1h`);
+    const res = await fetch(`http://127.0.0.1:${port}/api/assets/BTC?timeframe=1h`);
     assert.equal(res.status, 200);
     const asset = await res.json() as any;
 
@@ -96,7 +96,7 @@ describe('API Server Integration Tests', () => {
     await new Promise<void>(resolve => server.listen(0, resolve));
     const port = (server.address() as any).port;
 
-    const res = await fetch(`http://localhost:${port}/api/backtest/ETH?timeframe=1h`);
+    const res = await fetch(`http://127.0.0.1:${port}/api/backtest/ETH?timeframe=1h`);
     assert.equal(res.status, 200);
     const backtest = await res.json() as any;
 

@@ -203,10 +203,20 @@ export class MarketDataService {
         if (assets.length >= limit) break;
       }
 
-      if (assets.length < limit) throw new Error(`Only ${assets.length} supported top crypto assets found`);
+      // Ensure we always reach the requested limit by filling with curated Top 50 assets
+      if (assets.length < limit) {
+        for (const fallback of TOP_50_CRYPTO_ASSETS) {
+          if (!seen.has(fallback.symbol)) {
+            seen.add(fallback.symbol);
+            assets.push(fallback);
+            if (assets.length >= limit) break;
+          }
+        }
+      }
+
       this.marketCapCache = { values: marketCaps, updatedAt: Date.now() };
       this.topCryptoAssetsCache = { values: assets, updatedAt: Date.now() };
-      return assets;
+      return assets.slice(0, limit);
     } catch {
       return TOP_50_CRYPTO_ASSETS.slice(0, limit);
     }
