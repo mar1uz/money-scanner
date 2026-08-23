@@ -45,7 +45,27 @@ export type SortField =
   | 'xTrendScore'
   | 'aiConfidence';
 
-export type SortDirection = 'asc' | 'desc';
+export type SortDirection = 'asc' | 'desc' | 'newFlip';
+type MoneyLineSortField = 'moneyLine4hPercent' | 'moneyLine1dPercent' | 'moneyLine1wPercent';
+
+const MONEY_LINE_SORT_FIELDS = new Set<SortField>([
+  'moneyLine4hPercent',
+  'moneyLine1dPercent',
+  'moneyLine1wPercent'
+]);
+
+const isMoneyLineSortField = (field: SortField | null): field is MoneyLineSortField =>
+  Boolean(field && MONEY_LINE_SORT_FIELDS.has(field));
+
+const getMoneyLineFlipState = (row: AssetScannerRow, field: MoneyLineSortField) => {
+  if (field === 'moneyLine4hPercent') {
+    return { isTransition: Boolean(row.moneyLine4hIsTransition), flipTime: row.moneyLine4hFlipTime || 0 };
+  }
+  if (field === 'moneyLine1dPercent') {
+    return { isTransition: Boolean(row.moneyLine1dIsTransition), flipTime: row.moneyLine1dFlipTime || 0 };
+  }
+  return { isTransition: Boolean(row.moneyLine1wIsTransition), flipTime: row.moneyLine1wFlipTime || 0 };
+};
 
 interface ScannerTableProps {
   rows: AssetScannerRow[];
@@ -234,10 +254,15 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
   // Handle header sorting click
   const handleSort = (field: SortField) => {
     if (sortField === field) {
-      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+      setSortDirection(prev => {
+        if (!isMoneyLineSortField(field)) return prev === 'asc' ? 'desc' : 'asc';
+        if (prev === 'asc') return 'desc';
+        if (prev === 'desc') return 'newFlip';
+        return 'asc';
+      });
     } else {
       setSortField(field);
-      setSortDirection('desc');
+      setSortDirection(isMoneyLineSortField(field) ? 'asc' : 'desc');
     }
   };
 
@@ -334,8 +359,17 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
     return true;
   });
 
-  // Apply sorting if a sort field is active
-  if (sortField) {
+  const isNewFlipMode = sortDirection === 'newFlip' && isMoneyLineSortField(sortField);
+
+  // NEW FLIP is an exact current-closed-candle filter for the selected Money
+  // Line timeframe. It intentionally does not mix older transitions into view.
+  if (isNewFlipMode) {
+    filteredRows = filteredRows.filter(row => getMoneyLineFlipState(row, sortField).isTransition);
+    filteredRows = [...filteredRows].sort((left, right) => {
+      const timeDifference = getMoneyLineFlipState(right, sortField).flipTime - getMoneyLineFlipState(left, sortField).flipTime;
+      return timeDifference || (right.marketCap || 0) - (left.marketCap || 0);
+    });
+  } else if (sortField) {
     filteredRows = [...filteredRows].sort((a, b) => {
       let comparison = 0;
       switch (sortField) {
@@ -402,6 +436,9 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
     if (sortField !== field) {
       return <ArrowUpDown className="w-3 h-3 text-slate-600 group-hover:text-slate-400 transition-colors" />;
     }
+    if (sortDirection === 'newFlip' && isMoneyLineSortField(field)) {
+      return <Zap className="w-3.5 h-3.5 text-cyan-300 fill-cyan-400/30 animate-pulse" />;
+    }
     return sortDirection === 'asc' ? (
       <ArrowUp className="w-3 h-3 text-cyan-400 font-bold" />
     ) : (
@@ -461,7 +498,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                     ? 'ML 1D'
                     : sortField === 'moneyLine1wPercent'
                     ? 'ML 1W'
-                    : sortField} ({sortDirection.toUpperCase()})
+                    : sortField} ({sortDirection === 'newFlip' ? 'NEW FLIP ACUM' : sortDirection.toUpperCase()})
                 </span>
                 <button
                   onClick={() => { setSortField('marketCap'); setSortDirection('desc'); }}
@@ -506,6 +543,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
               {/* ML 4H (4-Hour Flip & %) Header */}
               <th
                 onClick={() => handleSort('moneyLine4hPercent')}
+                title="Click: crescător → descrescător → NEW FLIP acum"
                 className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
               >
                 <div className="flex items-center gap-1.5">
@@ -517,6 +555,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
               {/* ML 1D (Daily Flip & %) Header */}
               <th
                 onClick={() => handleSort('moneyLine1dPercent')}
+                title="Click: crescător → descrescător → NEW FLIP acum"
                 className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
               >
                 <div className="flex items-center gap-1.5">
@@ -528,6 +567,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
               {/* ML 1W (Weekly Flip & %) Header */}
               <th
                 onClick={() => handleSort('moneyLine1wPercent')}
+                title="Click: crescător → descrescător → NEW FLIP acum"
                 className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
               >
                 <div className="flex items-center gap-1.5">
@@ -940,12 +980,28 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
               })
             ) : (
               <tr>
-                <td colSpan={13} className="py-14 text-center text-slate-400 font-mono space-y-3">
+                <td colSpan={15} className="py-14 text-center text-slate-400 font-mono space-y-3">
                   {loading ? (
                     <div className="space-y-2">
                       <RefreshCw className="w-6 h-6 mx-auto animate-spin text-cyan-400" />
                       <p className="text-sm font-bold text-slate-200">Se încarcă semnalele Live Market Scanner 360...</p>
                       <p className="text-xs text-slate-500">Se sincronizează datele de piață 360°.</p>
+                    </div>
+                  ) : isNewFlipMode ? (
+                    <div className="space-y-3">
+                      <Zap className="w-7 h-7 mx-auto text-cyan-400" />
+                      <p className="text-sm font-bold text-slate-200">Niciun NEW FLIP confirmat pe ultima lumânare închisă.</p>
+                      <p className="text-xs text-slate-500">
+                        Timeframe urmărit: <span className="text-cyan-300 font-bold">
+                          {sortField === 'moneyLine4hPercent' ? 'ML 4H' : sortField === 'moneyLine1dPercent' ? 'ML 1D' : 'ML 1W'}
+                        </span>
+                      </p>
+                      <button
+                        onClick={() => setSortDirection('desc')}
+                        className="px-3.5 py-1.5 text-xs font-bold font-mono rounded-lg bg-cyan-500/15 text-cyan-300 border border-cyan-500/35 hover:bg-cyan-500/25 transition-all"
+                      >
+                        Revino la sortare descrescătoare
+                      </button>
                     </div>
                   ) : watchlistOnly ? (
                     <div className="space-y-3">
