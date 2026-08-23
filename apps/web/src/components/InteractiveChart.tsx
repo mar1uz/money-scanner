@@ -1107,10 +1107,12 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     setTimeout(() => setCopiedPine(false), 3000);
   };
 
-  const pineScriptCode = `//@version=6
-indicator("MoneyLine Overlay Force v1", overlay=true, precision=2)
+  const pineScriptCode = `//@version=5
+indicator("MoneyLine Cloud & Baselines v1", overlay=true, precision=2)
 
-// --- Parametri Adaptabili (Logică Cloud) ---
+// ==========================================
+// 1. Parametri Adaptabili Money Line Cloud
+// ==========================================
 get_cloud_params() =>
     float f_fast = 2.0
     float f_slow = 3.0
@@ -1125,50 +1127,73 @@ get_cloud_params() =>
             f_fast  := 2.2
             f_slow  := 3.0
             atr_len := 12
+        else
+            f_fast  := 2.5
+            f_slow  := 3.5
+            atr_len := 10
     else if timeframe.isdaily
         f_fast  := 2.5
         f_slow  := 3.5
+        atr_len := 10
+    else if timeframe.isweekly
+        f_fast  := 2.8
+        f_slow  := 3.8
         atr_len := 10
         
     [f_fast, f_slow, atr_len]
 
 [fastFactor, slowFactor, atrLen] = get_cloud_params()
 
-useAuto = input.bool(true, title="Adaptare Automată?")
-manualAtr = input.int(10, title="Manual: ATR Length", minval=1)
-manualFast = input.float(2.0, title="Manual: Multiplicator Rapid", step=0.1)
-manualSlow = input.float(3.0, title="Manual: Multiplicator Lent", step=0.1)
+useAuto    = input.bool(true, title="Adaptare Automată Timeframe?", group="Money Line Cloud")
+manualAtr  = input.int(10, title="Manual: Lungime ATR", minval=1, group="Money Line Cloud")
+manualFast = input.float(2.0, title="Manual: Multiplicator Rapid", step=0.1, group="Money Line Cloud")
+manualSlow = input.float(3.0, title="Manual: Multiplicator Lent", step=0.1, group="Money Line Cloud")
 
 finalAtr   = useAuto ? atrLen : manualAtr
 finalFast  = useAuto ? fastFactor : manualFast
 finalSlow  = useAuto ? slowFactor : manualSlow
 
-// --- Calculul celor două linii din care se formează Norul ---
+// Calcul Supertrend
 [lineFast, dirFast] = ta.supertrend(finalFast, finalAtr)
 [lineSlow, dirSlow] = ta.supertrend(finalSlow, finalAtr)
 
-// --- Plotare Linii ---
-plotFast = plot(lineFast, color=dirFast < 0 ? color.new(color.green, 30) : color.new(color.red, 30), linewidth=1, title="Baza Nor")
-plotSlow = plot(lineSlow, color=dirSlow < 0 ? color.new(color.green, 50) : color.new(color.red, 50), linewidth=1, title="Margine Nor")
+// Plotare Linii Nor
+plotFast = plot(lineFast, color=dirFast < 0 ? color.new(#10b981, 20) : color.new(#f43f5e, 20), linewidth=1, title="Baza Nor (Fast)")
+plotSlow = plot(lineSlow, color=dirSlow < 0 ? color.new(#059669, 40) : color.new(#e11d48, 40), linewidth=1, style=plot.style_linebr, title="Margine Nor (Slow)")
 
-// --- Colorare Nor ---
-cloudColor = (dirFast < 0 and dirSlow < 0) ? color.new(color.green, 85) : 
-             (dirFast > 0 and dirSlow > 0) ? color.new(color.red, 85) : color.new(color.gray, 90)
+// Colorare Nor Dinamic
+cloudColor = (dirFast < 0 and dirSlow < 0) ? color.new(#10b981, 80) : 
+             (dirFast > 0 and dirSlow > 0) ? color.new(#f43f5e, 80) : color.new(#64748b, 85)
 
 fill(plotFast, plotSlow, color=cloudColor, title="Money Line Cloud Fill")
 
-// --- Semnale BUY / SELL ---
+// Semnale BUY / SELL (Non-repainting pe închidere)
 buySignal  = ta.change(dirSlow) < 0
 sellSignal = ta.change(dirSlow) > 0
 
-plotshape(buySignal, title="BUY", style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small, text="BUY", textcolor=color.green)
-plotshape(sellSignal, title="SELL", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small, text="SELL", textcolor=color.red)
+plotshape(buySignal, title="Semnal BUY (Bull Flip)", style=shape.triangleup, location=location.belowbar, color=#10b981, size=size.small, text="BUY", textcolor=#10b981)
+plotshape(sellSignal, title="Semnal SELL (Bear Flip)", style=shape.triangledown, location=location.abovebar, color=#f43f5e, size=size.small, text="SELL", textcolor=#f43f5e)
 
-// --- Indicatori Baselines: SMA 50 & SMA 200 ---
-sma50 = ta.sma(close, 50)
-sma200 = ta.sma(close, 200)
-plot(sma50, color=color.new(color.yellow, 0), linewidth=1, title="SMA 50 Intermediate Baseline")
-plot(sma200, color=color.new(color.white, 0), linewidth=3, title="SMA 200 Macro Baseline")
+// ==========================================
+// 2. Medii Mobile: SMA 50 (Galben) & SMA 200 (Alb)
+// ==========================================
+showSma50  = input.bool(true, title="Afișează SMA 50 (Galben subțire)", group="Medii Mobile")
+lenSma50   = input.int(50, title="Lungime SMA 50", minval=1, group="Medii Mobile")
+colSma50   = input.color(#fbbf24, title="Culoare SMA 50", group="Medii Mobile")
+
+showSma200 = input.bool(true, title="Afișează SMA 200 (Alb gros)", group="Medii Mobile")
+lenSma200  = input.int(200, title="Lungime SMA 200", minval=1, group="Medii Mobile")
+colSma200  = input.color(#ffffff, title="Culoare SMA 200", group="Medii Mobile")
+
+sma50Val   = ta.sma(close, lenSma50)
+sma200Val  = ta.sma(close, lenSma200)
+
+plot(showSma50 ? sma50Val : na, color=colSma50, linewidth=1, title="SMA 50 (Galben Subțire)")
+plot(showSma200 ? sma200Val : na, color=colSma200, linewidth=3, title="SMA 200 (Alb Gros)")
+
+// Alerte TradingView
+alertcondition(buySignal, title="MoneyLine Bullish Flip (BUY)", message="🚀 [MoneyLine] Bullish Flip confirmat pe {{ticker}} ({{interval}})! Preț: {{close}}")
+alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠️ [MoneyLine] Bearish Flip confirmat pe {{ticker}} ({{interval}})! Preț: {{close}}")
 `;
 
   return (
