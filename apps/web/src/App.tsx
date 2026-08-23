@@ -47,6 +47,13 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
   const [selectedNarrative, setSelectedNarrative] = useState<MarketNarrativeId | 'ALL'>('ALL');
   const [inspectedNarrative, setInspectedNarrative] = useState<NarrativeSummary | null>(null);
   const [watchlistOnly, setWatchlistOnly] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('money_scanner_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
   
   const watchlistStorageKey = `money_scanner_watchlist_${user.id}`;
 
@@ -113,6 +120,12 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
     return () => clearInterval(interval);
   }, [timeframe, selectedMarketCategory]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem('money_scanner_sidebar_collapsed', String(sidebarCollapsed));
+    } catch {}
+  }, [sidebarCollapsed]);
+
   const toggleWatchlist = (symbol: string) => {
     const sym = symbol.toUpperCase();
     const isAdding = !watchlist.includes(sym);
@@ -177,10 +190,12 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
         }}
         onOpenSearchModal={() => setIsSearchModalOpen(true)}
         hideDesktopSidebar={Boolean(selectedAssetSymbol)}
+        collapsed={sidebarCollapsed}
+        onCollapsedChange={setSidebarCollapsed}
       />
 
       {/* Main Wrapper with responsive margin for desktop sidebar and top padding for fixed header */}
-      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${!selectedAssetSymbol ? 'md:pl-[260px]' : ''} pb-20 md:pb-0 pt-[56px]`}>
+      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${!selectedAssetSymbol && !sidebarCollapsed ? 'md:pl-[260px]' : ''} pb-20 md:pb-0 pt-[56px]`}>
         {/* Minimal Search & Control Header (Fixed at top of viewport) */}
         <Header
           timeframe={timeframe}
@@ -198,7 +213,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
           onRefreshMarket={refreshData}
           isRefreshing={loading}
           onOpenSearchModal={() => setIsSearchModalOpen(true)}
-          hasSidebar={!selectedAssetSymbol}
+          hasSidebar={!selectedAssetSymbol && !sidebarCollapsed}
           currentUser={user}
           onLogout={onLogout}
         />

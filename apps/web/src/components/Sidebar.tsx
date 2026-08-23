@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   LayoutGrid,
   Landmark,
@@ -23,6 +23,8 @@ interface SidebarProps {
   onLogoClick?: () => void;
   onOpenSearchModal?: () => void;
   hideDesktopSidebar?: boolean;
+  collapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -31,9 +33,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   watchlistCount,
   onLogoClick,
   onOpenSearchModal,
-  hideDesktopSidebar
+  hideDesktopSidebar,
+  collapsed = false,
+  onCollapsedChange
 }) => {
-  const [collapsed, setCollapsed] = useState(false);
   const activeTabRef = useRef<HTMLButtonElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -64,15 +67,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <>
       {/* ─── Desktop Sidebar ─── */}
       {!hideDesktopSidebar && (
-        <aside
-          className={`hidden md:flex flex-col fixed left-0 top-0 h-screen z-50 bg-background-card/95 backdrop-blur-xl border-r border-white/[0.04] sidebar-transition ${
-            collapsed ? 'w-16' : 'w-[260px]'
-          }`}
-        >
+        <>
+          <aside
+            aria-hidden={collapsed}
+            className={`hidden md:flex w-[260px] flex-col fixed left-0 top-0 h-screen z-50 bg-background-card/95 backdrop-blur-xl border-r border-white/[0.04] sidebar-transition transform-gpu ${
+              collapsed ? '-translate-x-full pointer-events-none' : 'translate-x-0'
+            }`}
+          >
           {/* Logo */}
           <div
             onClick={onLogoClick}
-            className="flex items-center gap-3 px-4 h-14 border-b border-white/[0.04] cursor-pointer group shrink-0"
+            className="relative flex items-center gap-3 pl-4 pr-12 h-14 border-b border-white/[0.04] cursor-pointer group shrink-0"
           >
             <div className="relative flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-500/20 to-violet-500/20 border border-cyan-500/20 shrink-0 group-hover:border-cyan-500/40 transition-all">
               <Zap className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
@@ -81,14 +86,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-400"></span>
               </span>
             </div>
-            {!collapsed && (
-              <div className="overflow-hidden">
-                <span className="font-semibold text-sm tracking-wide bg-gradient-to-r from-white via-cyan-200 to-cyan-400 bg-clip-text text-transparent block leading-tight">
-                  Market Scanner
-                </span>
-                <span className="text-[10px] text-slate-500 block">360° Intelligence</span>
-              </div>
-            )}
+            <div className="overflow-hidden">
+              <span className="font-semibold text-sm tracking-wide bg-gradient-to-r from-white via-cyan-200 to-cyan-400 bg-clip-text text-transparent block leading-tight">
+                Market Scanner
+              </span>
+              <span className="text-[10px] text-slate-500 block">360° Intelligence</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onCollapsedChange?.(true);
+              }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-slate-400 hover:border-cyan-500/30 hover:bg-cyan-500/10 hover:text-cyan-300 active:scale-95 transition-all"
+              title="Retrage meniul"
+              aria-label="Retrage meniul lateral"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
           </div>
 
           {/* Navigation Items */}
@@ -101,10 +117,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <button
                   key={item.id}
                   onClick={() => onTabChange(item.id)}
-                  title={collapsed ? item.label : undefined}
-                  className={`w-full flex items-center gap-3 rounded-xl transition-all group relative ${
-                    collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'
-                  } ${
+                  className={`w-full flex items-center gap-3 rounded-xl transition-all group relative px-3 py-2.5 ${
                     isActive
                       ? 'bg-white/[0.07] text-white shadow-sm'
                       : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
@@ -117,19 +130,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                   <Icon className={`w-[18px] h-[18px] shrink-0 ${isActive ? (item.accent || 'text-cyan-400') : 'text-slate-500 group-hover:text-slate-300'} transition-colors`} />
                   
-                  {!collapsed && (
-                    <>
-                      <span className={`text-[13px] ${isActive ? 'font-semibold' : 'font-medium'} truncate`}>
-                        {item.label}
-                      </span>
-                      {item.badge && (
-                        <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded-md font-mono ${
-                          isActive ? 'bg-cyan-500/15 text-cyan-300' : 'bg-white/[0.04] text-slate-500'
-                        }`}>
-                          {item.badge}
-                        </span>
-                      )}
-                    </>
+                  <span className={`text-[13px] ${isActive ? 'font-semibold' : 'font-medium'} truncate`}>
+                    {item.label}
+                  </span>
+                  {item.badge && (
+                    <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded-md font-mono ${
+                      isActive ? 'bg-cyan-500/15 text-cyan-300' : 'bg-white/[0.04] text-slate-500'
+                    }`}>
+                      {item.badge}
+                    </span>
                   )}
                 </button>
               );
@@ -141,47 +150,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* System Status Link */}
             <button
               onClick={() => onTabChange('status')}
-              title={collapsed ? 'System Status' : undefined}
-              className={`w-full flex items-center gap-3 rounded-xl transition-all ${
-                collapsed ? 'justify-center px-2 py-2' : 'px-3 py-2'
-              } ${
+              className={`w-full flex items-center gap-3 rounded-xl px-3 py-2 transition-all ${
                 activeTab === 'status'
                   ? 'bg-white/[0.07] text-white'
                   : 'text-slate-500 hover:text-slate-300 hover:bg-white/[0.04]'
               }`}
             >
               <Activity className={`w-4 h-4 shrink-0 ${activeTab === 'status' ? 'text-emerald-400' : ''}`} />
-              {!collapsed && <span className="text-[12px] font-medium">System & Bot Health</span>}
+              <span className="text-[12px] font-medium">System & Bot Health</span>
             </button>
 
             {/* Watchlist Counter */}
-            {!collapsed && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.03]">
-                <Star className="w-3.5 h-3.5 text-amber-400" />
-                <span className="text-[11px] text-slate-400">
-                  Watchlist: <strong className="text-slate-200">{watchlistCount} active</strong>
-                </span>
-              </div>
-            )}
-
-            {/* Collapse Toggle */}
-            <button
-              onClick={() => setCollapsed(!collapsed)}
-              className={`w-full flex items-center gap-2 rounded-xl px-3 py-2 text-slate-500 hover:text-slate-300 hover:bg-white/[0.04] transition-all ${
-                collapsed ? 'justify-center' : ''
-              }`}
-            >
-              {collapsed ? (
-                <ChevronRight className="w-4 h-4" />
-              ) : (
-                <>
-                  <ChevronLeft className="w-4 h-4" />
-                  <span className="text-[11px] font-medium">Collapse</span>
-                </>
-              )}
-            </button>
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.03]">
+              <Star className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-[11px] text-slate-400">
+                Watchlist: <strong className="text-slate-200">{watchlistCount} active</strong>
+              </span>
+            </div>
           </div>
-        </aside>
+          </aside>
+
+          {collapsed && (
+            <button
+              type="button"
+              onClick={() => onCollapsedChange?.(false)}
+              className="hidden md:flex fixed left-0 top-[64px] z-[60] h-11 w-8 items-center justify-center rounded-r-xl border border-l-0 border-cyan-500/30 bg-[#101725]/95 text-cyan-300 shadow-xl backdrop-blur-xl hover:w-10 hover:bg-cyan-500/15 active:scale-95 transition-all"
+              title="Deschide meniul"
+              aria-label="Deschide meniul lateral"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          )}
+        </>
       )}
 
       {/* ─── Mobile Bottom Navigation (Permanently Visible & Horizontally Scrollable) ─── */}
