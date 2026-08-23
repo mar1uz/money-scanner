@@ -89,6 +89,11 @@ export interface AssetScannerRow {
   isTransition: boolean;
   lastSignalChangeTime?: number;
   roiPercent?: number;
+  moneyLine4hPercent?: number;
+  moneyLine4hScore?: number;
+  moneyLine4hTier?: MoneyLineTier;
+  moneyLine4hFlipTime?: number;
+  moneyLine4hIsTransition?: boolean;
   moneyLine1dPercent?: number;
   moneyLine1dScore?: number;
   moneyLine1dTier?: MoneyLineTier;

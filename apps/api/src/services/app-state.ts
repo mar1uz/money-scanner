@@ -255,9 +255,16 @@ export class AppState {
           if (this.alertHistory.length > 100) this.alertHistory.pop();
         }
 
-        // Compute 1D and 1W MoneyLine signals for multi-timeframe ROI columns
+        // Compute 4H, 1D and 1W MoneyLine signals for multi-timeframe ROI & flip columns
+        let signal4h = timeframe === '4h' ? signal : this.cachedSignals.get(`${asset.symbol}_4h`);
         let signal1d = timeframe === '1d' ? signal : this.cachedSignals.get(`${asset.symbol}_1d`);
         let signal1w = timeframe === '1w' ? signal : this.cachedSignals.get(`${asset.symbol}_1w`);
+
+        if (!signal4h) {
+          const candles4h = timeframe === '4h' ? candles : await this.marketData.getCandles(asset.symbol, '4h', 500, asset.marketClass);
+          signal4h = this.moneyLine.calculateLatest(asset.symbol, '4h', candles4h) || undefined;
+          if (signal4h) this.cachedSignals.set(`${asset.symbol}_4h`, signal4h);
+        }
 
         if (!signal1d) {
           const candles1d = timeframe === '1d' ? candles : await this.marketData.getCandles(asset.symbol, '1d', 500, asset.marketClass);
@@ -271,6 +278,7 @@ export class AppState {
           if (signal1w) this.cachedSignals.set(`${asset.symbol}_1w`, signal1w);
         }
 
+        const moneyLine4hPercent = signal4h?.roiPercent;
         const moneyLine1dPercent = signal1d?.roiPercent;
         const moneyLine1wPercent = signal1w?.roiPercent;
         const activeRoiPercent = signal.roiPercent;
@@ -306,6 +314,11 @@ export class AppState {
           isTransition: signal?.isTransition || false,
           lastSignalChangeTime: signal.transitionTime,
           roiPercent: activeRoiPercent,
+          moneyLine4hPercent,
+          moneyLine4hScore: signal4h?.score,
+          moneyLine4hTier: signal4h?.tier,
+          moneyLine4hFlipTime: signal4h?.transitionTime,
+          moneyLine4hIsTransition: signal4h?.isTransition || false,
           moneyLine1dPercent,
           moneyLine1dScore: signal1d?.score,
           moneyLine1dTier: signal1d?.tier,

@@ -34,6 +34,7 @@ export type SortField =
   | 'price'
   | 'change24h'
   | 'changeYtd'
+  | 'moneyLine4hPercent'
   | 'moneyLine1dPercent'
   | 'moneyLine1wPercent'
   | 'marketCap'
@@ -350,6 +351,9 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
         case 'changeYtd':
           comparison = (a.changeYtd || 0) - (b.changeYtd || 0);
           break;
+        case 'moneyLine4hPercent':
+          comparison = (a.moneyLine4hPercent || 0) - (b.moneyLine4hPercent || 0);
+          break;
         case 'moneyLine1dPercent':
           comparison = (a.moneyLine1dPercent || 0) - (b.moneyLine1dPercent || 0);
           break;
@@ -451,6 +455,8 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                 <span className="text-cyan-300 font-semibold uppercase">
                   {sortField === 'marketCap'
                     ? 'Market Cap'
+                    : sortField === 'moneyLine4hPercent'
+                    ? 'ML 4H'
                     : sortField === 'moneyLine1dPercent'
                     ? 'ML 1D'
                     : sortField === 'moneyLine1wPercent'
@@ -494,6 +500,17 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                 <div className="flex items-center gap-1.5">
                   <span>Preț</span>
                   {renderSortIcon('price')}
+                </div>
+              </th>
+
+              {/* ML 4H (4-Hour Flip & %) Header */}
+              <th
+                onClick={() => handleSort('moneyLine4hPercent')}
+                className="py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>ML 4H</span>
+                  {renderSortIcon('moneyLine4hPercent')}
                 </div>
               </th>
 
@@ -702,6 +719,49 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                     {/* Price */}
                     <td className="py-3.5 px-4 font-mono font-medium">
                       ${row.price < 1 ? row.price.toFixed(4) : row.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+
+                    {/* ML 4H: De când este flip pe 4h + Procentul dedesubt */}
+                    <td className="py-3.5 px-4 font-mono">
+                      <div className="flex flex-col gap-0.5">
+                        {row.moneyLine4hIsTransition ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 animate-pulse w-fit">
+                            <Zap className="w-3 h-3" /> FLIP NOU 4H
+                          </span>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <Clock className={`w-3.5 h-3.5 ${
+                              row.moneyLine4hTier?.includes('Bullish') ? 'text-emerald-400' : (row.moneyLine4hTier?.includes('Bearish') ? 'text-rose-400' : 'text-slate-400')
+                            }`} />
+                            <span className={`font-semibold ${
+                              row.moneyLine4hTier?.includes('Bullish') ? 'text-emerald-300' : (row.moneyLine4hTier?.includes('Bearish') ? 'text-rose-300' : 'text-slate-300')
+                            }`}>
+                              {formatFlipAge(row.moneyLine4hFlipTime)}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Procentul dedesubt */}
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className={`inline-flex items-center gap-0.5 font-bold text-[11px] ${
+                            (row.moneyLine4hPercent || 0) > 0 ? 'text-emerald-400' : ((row.moneyLine4hPercent || 0) < 0 ? 'text-rose-400' : 'text-slate-400')
+                          }`}>
+                            {(row.moneyLine4hPercent || 0) > 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : ((row.moneyLine4hPercent || 0) < 0 ? <ArrowDownRight className="w-3.5 h-3.5" /> : null)}
+                            {(row.moneyLine4hPercent || 0) > 0 ? `+${(row.moneyLine4hPercent || 0).toFixed(2)}%` : `${(row.moneyLine4hPercent || 0).toFixed(2)}%`}
+                          </span>
+                          {row.moneyLine4hTier && (
+                            <span className={`inline-block text-[9px] px-1.5 py-0.2 rounded border font-semibold ${
+                              row.moneyLine4hTier.includes('Bullish')
+                                ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                                : (row.moneyLine4hTier.includes('Bearish')
+                                  ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                                  : 'bg-slate-800 text-slate-400 border-slate-700')
+                            }`}>
+                              {row.moneyLine4hTier.replace('Strong ', 'S. ')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </td>
 
                     {/* ML 1D: De când este flip pe daily + Procentul dedesubt */}
