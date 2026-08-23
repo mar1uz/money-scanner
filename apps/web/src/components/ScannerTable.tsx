@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import {
   AssetScannerRow,
-  MoneyLineTier
+  MoneyLineTier,
+  Timeframe
 } from '../types.js';
 import {
   ArrowUpRight,
@@ -57,6 +58,13 @@ const MONEY_LINE_SORT_FIELDS = new Set<SortField>([
 const isMoneyLineSortField = (field: SortField | null): field is MoneyLineSortField =>
   Boolean(field && MONEY_LINE_SORT_FIELDS.has(field));
 
+const getMoneyLineTimeframe = (field: SortField | null): Timeframe | undefined => {
+  if (field === 'moneyLine4hPercent') return '4h';
+  if (field === 'moneyLine1dPercent') return '1d';
+  if (field === 'moneyLine1wPercent') return '1w';
+  return undefined;
+};
+
 const getMoneyLineFlipState = (row: AssetScannerRow, field: MoneyLineSortField) => {
   if (field === 'moneyLine4hPercent') {
     return { isTransition: Boolean(row.moneyLine4hIsTransition), flipTime: row.moneyLine4hFlipTime || 0 };
@@ -69,7 +77,11 @@ const getMoneyLineFlipState = (row: AssetScannerRow, field: MoneyLineSortField) 
 
 interface ScannerTableProps {
   rows: AssetScannerRow[];
-  onSelectAsset: (symbol: string, marketClass?: AssetScannerRow['marketClass']) => void;
+  onSelectAsset: (
+    symbol: string,
+    marketClass?: AssetScannerRow['marketClass'],
+    timeframe?: Timeframe
+  ) => void;
   watchlist: string[];
   onToggleWatchlist: (symbol: string) => void;
   onReorderWatchlist?: (newOrder: string[]) => void;
@@ -360,6 +372,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
   });
 
   const isNewFlipMode = sortDirection === 'newFlip' && isMoneyLineSortField(sortField);
+  const activeMoneyLineTimeframe = getMoneyLineTimeframe(sortField);
 
   // NEW FLIP is an exact current-closed-candle filter for the selected Money
   // Line timeframe. It intentionally does not mix older transitions into view.
@@ -699,7 +712,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                     onDragOver={(e) => handleDragOver(e, sym)}
                     onDrop={(e) => handleDrop(e, sym)}
                     onDragEnd={() => { setDraggedSymbol(null); setDragOverSymbol(null); }}
-                    onClick={() => onSelectAsset(row.symbol, row.marketClass)}
+                    onClick={() => onSelectAsset(row.symbol, row.marketClass, activeMoneyLineTimeframe)}
                     className={`hover:bg-white/[0.03] transition-colors cursor-pointer group ${
                       isDragging ? 'opacity-30 bg-white/[0.02]' : (isOver ? 'bg-cyan-500/10 border-cyan-400' : '')
                     }`}
@@ -762,7 +775,14 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                     </td>
 
                     {/* ML 4H: De când este flip pe 4h + Procentul dedesubt */}
-                    <td className="py-3.5 px-4 font-mono">
+                    <td
+                      className="py-3.5 px-4 font-mono hover:bg-cyan-500/[0.06]"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onSelectAsset(row.symbol, row.marketClass, '4h');
+                      }}
+                      title={`Deschide ${row.symbol} pe MoneyLine 4H`}
+                    >
                       <div className="flex flex-col gap-0.5">
                         {row.moneyLine4hIsTransition ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 animate-pulse w-fit">
@@ -805,7 +825,14 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                     </td>
 
                     {/* ML 1D: De când este flip pe daily + Procentul dedesubt */}
-                    <td className="py-3.5 px-4 font-mono">
+                    <td
+                      className="py-3.5 px-4 font-mono hover:bg-cyan-500/[0.06]"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onSelectAsset(row.symbol, row.marketClass, '1d');
+                      }}
+                      title={`Deschide ${row.symbol} pe MoneyLine 1D`}
+                    >
                       <div className="flex flex-col gap-0.5">
                         {row.moneyLine1dIsTransition ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 animate-pulse w-fit">
@@ -848,7 +875,14 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                     </td>
 
                     {/* ML 1W: De când este flip pe weekly + Procentul dedesubt */}
-                    <td className="py-3.5 px-4 font-mono">
+                    <td
+                      className="py-3.5 px-4 font-mono hover:bg-cyan-500/[0.06]"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onSelectAsset(row.symbol, row.marketClass, '1w');
+                      }}
+                      title={`Deschide ${row.symbol} pe MoneyLine 1W`}
+                    >
                       <div className="flex flex-col gap-0.5">
                         {row.moneyLine1wIsTransition ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 animate-pulse w-fit">
@@ -967,7 +1001,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onSelectAsset(row.symbol, row.marketClass);
+                          onSelectAsset(row.symbol, row.marketClass, activeMoneyLineTimeframe);
                         }}
                         className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-300 border border-white/[0.06] hover:border-cyan-500/30 transition-all"
                         title="Deschide Panoul de Analiză Detaliată"

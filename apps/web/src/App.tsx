@@ -138,8 +138,13 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
     localStorage.setItem(watchlistStorageKey, JSON.stringify(newOrder));
   };
 
-  const openAsset = (symbol: string, marketClass?: AssetScannerRow['marketClass']) => {
+  const openAsset = (
+    symbol: string,
+    marketClass?: AssetScannerRow['marketClass'],
+    selectedTimeframe?: Timeframe
+  ) => {
     const verifiedClass = marketClass || scannerRows.find(row => row.symbol.toUpperCase() === symbol.toUpperCase())?.marketClass;
+    if (selectedTimeframe) setTimeframe(selectedTimeframe);
     setSelectedAssetMarketClass(verifiedClass);
     setSelectedAssetSymbol(symbol);
   };
@@ -282,7 +287,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
 
                     <ScannerTable
                       rows={scannerRows}
-                      onSelectAsset={(sym, marketClass) => openAsset(sym, marketClass)}
+                      onSelectAsset={(sym, marketClass, selectedTimeframe) => openAsset(sym, marketClass, selectedTimeframe)}
                       watchlist={watchlist}
                       onToggleWatchlist={toggleWatchlist}
                       onReorderWatchlist={handleReorderWatchlist}
