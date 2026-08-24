@@ -822,3 +822,39 @@ Traffic: 100%
 Health verification: HTTP 200
 Unauthenticated manual-scan verification: HTTP 401
 ```
+
+## 20. Top 10 upcoming MoneyLine flips
+
+The Alerts Center now stores and displays a ranked list of ten distinct assets closest to a MoneyLine flip. The list is rebuilt by every full/scheduled scan and persisted in the existing Firestore document `operations/daily-regime-scan`.
+
+Ranking flow:
+
+```text
+Stage 1:
+- scan all Top 50 crypto + Market 360 stocks + metals on 1D and 1W
+- calculate preliminary distance to the Slow flip threshold normalized by ATR
+- shortlist the best 30 assets
+
+Stage 2:
+- fetch live quote plus 4H and 8H only for the shortlist
+- evaluate 4H, 8H and 1D candidates
+- score distance/ATR, live threshold crossing, new closed-candle flip,
+  ML 1W alignment, SMA 50, SMA 200 and RVOL
+- keep the best timeframe for each symbol and publish ten distinct assets
+```
+
+Candidate states are `APPROACHING`, `VERY_CLOSE`, `AWAITING_CLOSE` and `CONFIRMED`. The UI has All/Bullish/Bearish filters, opens the exact candidate timeframe, and lets a bullish candidate become an active MoneyLine alert. A bearish candidate opens its chart and threshold; the existing notification engine remains intentionally bullish-only.
+
+The candidate list is returned by `GET /api/alerts/dashboard` as `flipCandidates`. No extra scan starts when the Alerts page is opened; an initial list appears after the next `Complet` scan or the scheduled 12:00 Europe/Oslo scan.
+
+Production deployment:
+
+```text
+Git implementation commit: 190369b
+Cloud Build: 798256b5-640b-430b-8e67-b459df4e053b
+Cloud Run revision: market-scanner-360-00093-dxn
+Traffic: 100%
+Health verification: HTTP 200
+Unauthenticated dashboard verification: HTTP 401
+Mobile verification: 390x844, no horizontal overflow
+```
