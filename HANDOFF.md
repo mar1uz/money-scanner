@@ -811,3 +811,14 @@ Implementation details:
 - the full Cloud Run and Cloud Scheduler request deadlines remain 900 seconds
 
 The existing `Actualizează` button only reloads dashboard state; it does not start provider scans. The new `Rapid` and `Complet` buttons are the only manual scan triggers.
+
+Production deployment:
+
+```text
+Git implementation commit: ff759f4
+Cloud Build: 12f1f52a-6720-49e6-adb9-e60974618910
+Cloud Run revision: market-scanner-360-00092-vxw
+Traffic: 100%
+Health verification: HTTP 200
+Unauthenticated manual-scan verification: HTTP 401
+```
