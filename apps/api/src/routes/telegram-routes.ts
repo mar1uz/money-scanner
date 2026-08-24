@@ -1,9 +1,18 @@
 import { Router } from 'express';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { AppState } from '../services/app-state.js';
 import { AssetMarketClass, MoneyLineSignal, Timeframe } from '@money-scanner/shared';
 import { AuthenticatedRequest } from '../middleware/auth.js';
 
 export const telegramRouter = Router();
+
+const validateDailyScanToken = (received?: string) => {
+  const expected = process.env.DAILY_SCAN_TOKEN;
+  if (!expected || !received) return false;
+  const expectedHash = Buffer.from(createHash('sha256').update(expected).digest('hex'));
+  const receivedHash = Buffer.from(createHash('sha256').update(received).digest('hex'));
+  return expectedHash.length === receivedHash.length && timingSafeEqual(expectedHash, receivedHash);
+};
 
 telegramRouter.post('/telegram/webhook', async (req, res) => {
   const appState = AppState.getInstance();
@@ -87,9 +96,31 @@ telegramRouter.put('/alerts/bullish', async (req: AuthenticatedRequest, res) => 
   });
 });
 
-telegramRouter.get('/alerts/history', (req, res) => {
+telegramRouter.get('/alerts/dashboard', async (req: AuthenticatedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
+  const dashboard = await AppState.getInstance().getAlertsDashboard(req.user.id);
+  res.set('Cache-Control', 'no-store');
+  res.json(dashboard);
+});
+
+// Invoked only by Cloud Scheduler. It deliberately sits outside browser auth
+// because there is no user session in a scheduled HTTP request; the dedicated
+// high-entropy header is verified here in constant time.
+telegramRouter.post('/alerts/daily-regime-scan', async (req, res) => {
+  if (!validateDailyScanToken(req.get('x-daily-scan-token'))) {
+    return res.status(401).json({ error: 'Invalid daily scan token.' });
+  }
+  const status = await AppState.getInstance().runDailyRegimeScan();
+  res.set('Cache-Control', 'no-store');
+  res.json(status);
+});
+
+telegramRouter.get('/alerts/history', (req: AuthenticatedRequest, res) => {
   const appState = AppState.getInstance();
-  res.json(appState.alertHistory);
+  if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
+  res.json(appState.alertHistory.filter(alert =>
+    alert.ruleId?.startsWith(`${req.user!.id}:`) || alert.type === 'MultiTimeframeReversal'
+  ));
 });
 
 telegramRouter.post('/alerts/test', async (req, res) => {

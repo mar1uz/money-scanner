@@ -21,7 +21,7 @@ export function createServer() {
     origin: false,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'X-Telegram-Bot-Api-Secret-Token']
+    allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'X-Telegram-Bot-Api-Secret-Token', 'X-Daily-Scan-Token']
   }));
 
   app.use(express.json());
@@ -34,7 +34,12 @@ export function createServer() {
   // verified Firebase session. Health and the Telegram webhook have their own
   // safe verification mechanisms and must remain reachable for operations.
   app.use('/api', (req, res, next) => {
-    if (req.path === '/health' || req.path === '/telegram/webhook' || req.path.startsWith('/auth/')) {
+    if (
+      req.path === '/health'
+      || req.path === '/telegram/webhook'
+      || req.path === '/alerts/daily-regime-scan'
+      || req.path.startsWith('/auth/')
+    ) {
       return next();
     }
     return authMiddleware(req, res, next);

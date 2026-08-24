@@ -10,8 +10,7 @@ import {
 import {
   fetchMarketOverview,
   fetchScanner,
-  fetchNarratives,
-  triggerTestAlert
+  fetchNarratives
 } from './services/api.js';
 import { Header } from './components/Header.js';
 import { Sidebar } from './components/Sidebar.js';
@@ -26,6 +25,7 @@ import { NewsFeedView } from './components/NewsFeedView.js';
 import { AIBriefingView } from './components/AIBriefingView.js';
 import { BacktestView } from './components/BacktestView.js';
 import { SystemStatusView } from './components/SystemStatusView.js';
+import { AlertsCenterView } from './components/AlertsCenterView.js';
 import { USAStatusView } from './components/USAStatusView.js';
 import { CryptoBubbleView } from './components/CryptoBubbleView.js';
 import { CryptoHeatMapView } from './components/CryptoHeatMapView.js';
@@ -162,16 +162,6 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
     setSelectedAssetSymbol(symbol);
   };
 
-  const handleTriggerTestAlert = async () => {
-    try {
-      await triggerTestAlert('BTC');
-      setBannerAlert('⚡ Test Alert expediat cu succes pe Telegram pentru $BTC!');
-      setTimeout(() => setBannerAlert(null), 4000);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
   return (
     <div className="min-h-screen flex bg-background text-slate-100 selection:bg-cyan-500/30 selection:text-cyan-200">
       {/* Persistent Left Sidebar (Desktop) + Bottom Nav (Mobile) */}
@@ -202,7 +192,11 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
           onTimeframeChange={setTimeframe}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
-          onTriggerTestAlert={handleTriggerTestAlert}
+          onOpenAlerts={() => {
+            setSelectedAssetSymbol(null);
+            setSelectedAssetMarketClass(undefined);
+            setActiveTab('alerts');
+          }}
           isStale={overview?.providerStatus.staleAssetsCount ? overview.providerStatus.staleAssetsCount > 0 : false}
           allAssets={scannerRows}
           onSelectAsset={(sym) => {
@@ -358,9 +352,17 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
               {activeTab === 'ai' && <AIBriefingView />}
 
               {/* Tab 6: Backtest Engine */}
+              {activeTab === 'alerts' && (
+                <AlertsCenterView
+                  knownAssets={scannerRows}
+                  onOpenAsset={(symbol, marketClass, selectedTimeframe) => openAsset(symbol, marketClass, selectedTimeframe)}
+                />
+              )}
+
+              {/* Tab 7: Backtest Engine */}
               {activeTab === 'backtest' && <BacktestView />}
 
-              {/* Tab 7: System Status & Telemetry */}
+              {/* Tab 8: System Status & Telemetry */}
               {activeTab === 'status' && <SystemStatusView />}
             </>
           )}

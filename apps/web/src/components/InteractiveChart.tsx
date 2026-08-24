@@ -459,7 +459,13 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     fetchBullishAlertStatus(symbol, alertTimeframe)
       .then(async status => {
         if (cancelled) return;
-        const shouldRestore = localStorage.getItem(storageKey) === 'true';
+        const storedAlert = localStorage.getItem(storageKey);
+        let shouldRestore = storedAlert === 'true';
+        if (storedAlert?.startsWith('{')) {
+          try {
+            shouldRestore = JSON.parse(storedAlert)?.enabled === true;
+          } catch {}
+        }
         const currentStatus = shouldRestore && !status.active
           ? await setBullishAlert(symbol, alertTimeframe, normalizedAlertMarketClass, true)
           : status;
@@ -488,7 +494,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       const status = await setBullishAlert(symbol, alertTimeframe, normalizedAlertMarketClass, nextActive);
       setBullishAlertActive(status.active);
       setTelegramConfigured(status.telegramConfigured);
-      if (status.active) localStorage.setItem(storageKey, 'true');
+        if (status.active) localStorage.setItem(storageKey, JSON.stringify({ enabled: true, marketClass: normalizedAlertMarketClass }));
       else localStorage.removeItem(storageKey);
       if (status.rule?.lastError) setBullishAlertError(status.rule.lastError);
     } catch (error) {
@@ -1409,11 +1415,11 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
                     : 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/20'
                 }`}
                 title={bullishAlertError || (bullishAlertActive
-                  ? (telegramConfigured ? 'Alertă Telegram activă pentru confirmarea bullish' : 'Alerta este activă; Telegram necesită configurarea botului și a chatului')
-                  : 'Activează alerta bullish pentru acest asset și timeframe')}
+                  ? (telegramConfigured ? 'Plan Telegram activ: confirmare bullish, entry, stop și ținte R:R adaptate timeframe-ului' : 'Alerta este activă; Telegram necesită configurarea botului și a chatului')
+                  : 'Activează planul de alertă bullish pentru acest asset și timeframe')}
               >
                 <BellRing className={`w-3.5 h-3.5 ${bullishAlertSaving ? 'animate-pulse' : ''}`} />
-                <span>{bullishAlertActive ? (language === 'ro' ? 'Alert activ' : 'Alert on') : 'Alert'}</span>
+                <span>{bullishAlertActive ? (language === 'ro' ? 'Plan activ' : 'Plan on') : (language === 'ro' ? 'Alertă plan' : 'Plan alert')}</span>
               </button>
               <span>Margine Nor (Slow): <strong className="text-slate-300">${latestState?.slowLine ? latestState.slowLine.toFixed(2) : '-'}</strong></span>
 

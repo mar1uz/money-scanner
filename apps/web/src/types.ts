@@ -9,6 +9,7 @@ export type AppTab =
   | 'trends'
   | 'news'
   | 'ai'
+  | 'alerts'
   | 'backtest'
   | 'status';
 

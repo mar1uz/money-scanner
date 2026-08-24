@@ -6,15 +6,26 @@ import {
   Timeframe,
   AssetScannerRow,
   MoneyLineSignal,
+  MoneyLineTier,
   DispatchedAlert,
   ScannerMarketClass,
   AssetMarketClass
 } from '@money-scanner/shared';
 import { MarketDataService } from '@money-scanner/market-data';
-import { MoneyLineEngine, calculateMTFConfluence, calculateMoneyLineCloud } from '@money-scanner/money-line';
+import {
+  BullishTradePlan,
+  MoneyLineEngine,
+  calculateBullishTradePlan,
+  calculateMTFConfluence,
+  calculateMoneyLineCloud,
+  getMoneyLineCloudParameters,
+  getTradePlanProfile
+} from '@money-scanner/money-line';
 import { XSocialIntelligenceService, NewsIntelligenceService } from '@money-scanner/social-analysis';
 import { AIMarketAnalystService } from '@money-scanner/ai-analysis';
 import { AlertDispatcher, TelegramBotHandler } from '@money-scanner/notifications';
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
 export interface BullishCloudAlertRule {
   id: string;
@@ -27,8 +38,48 @@ export interface BullishCloudAlertRule {
   lastEvaluatedCandle?: number;
   lastTriggeredCandle?: number;
   lastWasBullish?: boolean;
+  lastPlan?: BullishTradePlan;
   lastError?: string;
 }
+
+export interface DailyRegimeScanStatus {
+  enabled: true;
+  schedule: '0 12 * * *';
+  timezone: 'Europe/Oslo';
+  lastStartedAt?: number;
+  lastCompletedAt?: number;
+  scannedAssets: number;
+  matches: number;
+  errors: number;
+  running: boolean;
+  lastError?: string;
+}
+
+interface DailyRegimeMatch {
+  symbol: string;
+  marketClass: AssetMarketClass;
+  scenario: 'WEEKLY_BULL_DAILY_BEAR' | 'WEEKLY_BEAR_DAILY_BULL';
+  weeklyTier: MoneyLineTier;
+  weeklyScore: number;
+  dailyTier: MoneyLineTier;
+  previousDailyTier: MoneyLineTier;
+  dailyScore: number;
+  dailyCandleTimestamp: number;
+  price: number;
+  sma50: number;
+  distanceToSma50Percent: number;
+}
+
+const formatAlertPrice = (value: number) => `$${value.toLocaleString('en-US', {
+  minimumFractionDigits: value < 1 ? 4 : 2,
+  maximumFractionDigits: value < 1 ? 8 : 4
+})}`;
+
+const tradePlanActionLabel = (action: BullishTradePlan['action']) => {
+  if (action === 'READY') return '🟢 SETUP VALID — intrare numai în zona indicată';
+  if (action === 'WAIT_RETEST') return '🟡 AȘTEAPTĂ RETEST — nu urmări prețul';
+  return '🔴 EVITĂ ACUM — filtrele nu confirmă un R:R bun';
+};
 
 export class AppState {
   public marketData = new MarketDataService();
@@ -44,6 +95,17 @@ export class AppState {
   private bullishCloudAlerts = new Map<string, BullishCloudAlertRule>();
   private evaluatingAlertIds = new Set<string>();
   private bullishAlertTimer?: NodeJS.Timeout;
+  private dailyRegimeScanPromise?: Promise<DailyRegimeScanStatus>;
+  private dailyRegimeStateLoadedAt = 0;
+  private dailyRegimeScanStatus: DailyRegimeScanStatus = {
+    enabled: true,
+    schedule: '0 12 * * *',
+    timezone: 'Europe/Oslo',
+    scannedAssets: 0,
+    matches: 0,
+    errors: 0,
+    running: false
+  };
 
   private static instance: AppState;
 
@@ -64,6 +126,405 @@ export class AppState {
 
   public listBullishCloudAlerts(userId: string) {
     return Array.from(this.bullishCloudAlerts.values()).filter(rule => rule.userId === userId && rule.isEnabled);
+  }
+
+  public async getAlertsDashboard(userId: string) {
+    await this.restoreDailyRegimeState();
+    const rules = this.listBullishCloudAlerts(userId);
+    const activeAlerts = [];
+    const concurrency = 4;
+    for (let index = 0; index < rules.length; index += concurrency) {
+      const settled = await Promise.allSettled(
+        rules.slice(index, index + concurrency).map(rule => this.getBullishAlertProgress(rule))
+      );
+      activeAlerts.push(...settled.flatMap(result => result.status === 'fulfilled' ? [result.value] : []));
+    }
+
+    const history = this.alertHistory.filter(alert =>
+      alert.ruleId?.startsWith(`${userId}:`) || alert.type === 'MultiTimeframeReversal'
+    );
+    return {
+      activeAlerts,
+      history,
+      dailyRegimeScan: { ...this.dailyRegimeScanStatus },
+      updatedAt: Date.now(),
+      ...this.telegramBot.getDeliveryConfiguration()
+    };
+  }
+
+  public getDailyRegimeScanStatus() {
+    return { ...this.dailyRegimeScanStatus };
+  }
+
+  /**
+   * Daily, closed-candle scan for counter-trend MoneyLine regime changes.
+   * The live Top 50 crypto universe is combined with every stock and metal
+   * shown in Market 360. Weekly context must already be directional, while
+   * the latest Daily candle must cross into the opposite tier and confirm on
+   * the correct side of SMA 50.
+   */
+  public runDailyRegimeScan(): Promise<DailyRegimeScanStatus> {
+    if (this.dailyRegimeScanPromise) return this.dailyRegimeScanPromise;
+
+    this.dailyRegimeScanPromise = this.executeDailyRegimeScan().finally(() => {
+      this.dailyRegimeScanPromise = undefined;
+    });
+    return this.dailyRegimeScanPromise;
+  }
+
+  private async executeDailyRegimeScan(): Promise<DailyRegimeScanStatus> {
+    // Restore the last persisted results first so scheduler retries or cold
+    // starts cannot duplicate a signal for the same closed Daily candle.
+    await this.restoreDailyRegimeState(true);
+    this.dailyRegimeScanStatus = {
+      ...this.dailyRegimeScanStatus,
+      lastStartedAt: Date.now(),
+      running: true,
+      scannedAssets: 0,
+      matches: 0,
+      errors: 0,
+      lastError: undefined
+    };
+
+    try {
+      const [liveCrypto, stocks, metals] = await Promise.all([
+        this.marketData.getTopCryptoAssets(50),
+        Promise.resolve(getScannerAssets('stocks')),
+        Promise.resolve(getScannerAssets('metals'))
+      ]);
+      const universe = [...liveCrypto, ...stocks, ...metals].filter(
+        asset => asset.marketClass === 'crypto' || asset.marketClass === 'stocks' || asset.marketClass === 'metals'
+      );
+      const matches: DailyRegimeMatch[] = [];
+      let errors = 0;
+      const concurrency = 6;
+
+      for (let index = 0; index < universe.length; index += concurrency) {
+        const batch = universe.slice(index, index + concurrency);
+        const settled = await Promise.allSettled(batch.map(async asset => {
+          const marketClass = asset.marketClass as AssetMarketClass;
+          const [dailyRaw, weeklyRaw] = await Promise.all([
+            this.marketData.getCandles(asset.symbol, '1d', 320, marketClass),
+            this.marketData.getCandles(asset.symbol, '1w', 260, marketClass)
+          ]);
+          const currentUtcDay = new Date();
+          currentUtcDay.setUTCHours(0, 0, 0, 0);
+          // Yahoo marks its newest row as open even when it is yesterday's
+          // completed session. A row from before the current UTC day is safe.
+          const dailyCandles = dailyRaw.map(candle =>
+            candle.isClosed === false && candle.timestamp < currentUtcDay.getTime()
+              ? { ...candle, isClosed: true }
+              : candle
+          );
+          return this.evaluateDailyRegimeAsset(asset.symbol, marketClass, dailyCandles, weeklyRaw);
+        }));
+
+        settled.forEach(result => {
+          if (result.status === 'fulfilled') {
+            if (result.value) matches.push(result.value);
+          } else {
+            errors += 1;
+            console.warn('Daily regime asset scan failed:', result.reason instanceof Error ? result.reason.message : result.reason);
+          }
+        });
+        this.dailyRegimeScanStatus.scannedAssets += settled.filter(result => result.status === 'fulfilled').length;
+      }
+
+      const freshMatches = matches.filter(match => {
+        const idempotencyKey = `daily-regime:${match.scenario}:${match.symbol}:${match.dailyCandleTimestamp}`;
+        return !this.alertHistory.some(alert => alert.idempotencyKey === idempotencyKey);
+      });
+      const dashboardBaseUrl = process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app';
+      let delivered = false;
+
+      if (freshMatches.length) {
+        const riskOff = freshMatches.filter(match => match.scenario === 'WEEKLY_BULL_DAILY_BEAR');
+        const reversal = freshMatches.filter(match => match.scenario === 'WEEKLY_BEAR_DAILY_BULL');
+        const lines = [
+          `🚨 *SCANARE GENERALĂ ML 1W / ML 1D / SMA 50*`,
+          `*${freshMatches.length} setup${freshMatches.length === 1 ? '' : '-uri'} nou${freshMatches.length === 1 ? '' : 'e'} confirmat${freshMatches.length === 1 ? '' : 'e'} pe lumânări închise*`,
+          ''
+        ];
+        if (riskOff.length) {
+          lines.push(`🔴 *RISK-OFF — 1W bullish, 1D flip bearish sub SMA 50*`);
+          riskOff.forEach(match => lines.push(
+            `▼ *$${match.symbol}* · ${formatAlertPrice(match.price)} · SMA50 ${formatAlertPrice(match.sma50)} · ML1W ${match.weeklyTier} (${match.weeklyScore > 0 ? '+' : ''}${match.weeklyScore}) · ML1D ${match.dailyTier} (${match.dailyScore})`
+          ));
+          lines.push('');
+        }
+        if (reversal.length) {
+          lines.push(`🟢 *REVERSAL LONG — 1W bearish, 1D flip bullish peste SMA 50*`);
+          reversal.forEach(match => lines.push(
+            `▲ *$${match.symbol}* · ${formatAlertPrice(match.price)} · SMA50 ${formatAlertPrice(match.sma50)} · ML1W ${match.weeklyTier} (${match.weeklyScore}) · ML1D ${match.dailyTier} (+${match.dailyScore})`
+          ));
+          lines.push('');
+        }
+        lines.push(
+          `_Scanarea rulează automat o dată pe zi, la 12:00 Europe/Oslo. Semnalele sunt tehnice, nu recomandări financiare._`,
+          `🔗 [Deschide pagina Alerte](${dashboardBaseUrl})`
+        );
+        delivered = await this.telegramBot.sendMarkdown(lines.join('\n'));
+      }
+
+      freshMatches.forEach(match => {
+        const isRiskOff = match.scenario === 'WEEKLY_BULL_DAILY_BEAR';
+        const reason = isRiskOff
+          ? 'ML 1W este bullish, ML 1D a devenit bearish și închiderea zilnică este sub SMA 50.'
+          : 'ML 1W este bearish, ML 1D a devenit bullish și închiderea zilnică este peste SMA 50.';
+        this.alertHistory.unshift({
+          id: `daily_regime_${Date.now()}_${match.symbol}_${Math.floor(Math.random() * 1000)}`,
+          idempotencyKey: `daily-regime:${match.scenario}:${match.symbol}:${match.dailyCandleTimestamp}`,
+          ruleId: 'global:daily-regime-scan',
+          symbol: match.symbol,
+          type: 'MultiTimeframeReversal',
+          title: isRiskOff ? 'Risk-off Daily în context Weekly bullish' : 'Reversal bullish Daily în context Weekly bearish',
+          message: reason,
+          timeframe: '1d',
+          price: match.price,
+          tier: match.dailyTier,
+          previousTier: match.previousDailyTier,
+          reason,
+          confidence: Math.min(1, Math.abs(match.dailyScore - match.weeklyScore) / 100),
+          timestamp: Date.now(),
+          dashboardLink: dashboardBaseUrl,
+          isDelivered: delivered,
+          regimeScan: {
+            scenario: match.scenario,
+            marketClass: match.marketClass,
+            weeklyTier: match.weeklyTier,
+            weeklyScore: match.weeklyScore,
+            dailyTier: match.dailyTier,
+            previousDailyTier: match.previousDailyTier,
+            dailyScore: match.dailyScore,
+            dailyCandleTimestamp: match.dailyCandleTimestamp,
+            sma50: match.sma50,
+            distanceToSma50Percent: match.distanceToSma50Percent
+          }
+        });
+      });
+      if (this.alertHistory.length > 250) this.alertHistory.splice(250);
+
+      this.dailyRegimeScanStatus = {
+        ...this.dailyRegimeScanStatus,
+        lastCompletedAt: Date.now(),
+        matches: matches.length,
+        errors,
+        running: false
+      };
+      await this.persistDailyRegimeState();
+    } catch (error) {
+      this.dailyRegimeScanStatus = {
+        ...this.dailyRegimeScanStatus,
+        lastCompletedAt: Date.now(),
+        running: false,
+        lastError: error instanceof Error ? error.message : 'Scanarea zilnică a eșuat.'
+      };
+      console.error('Daily MoneyLine regime scan failed:', this.dailyRegimeScanStatus.lastError);
+      await this.persistDailyRegimeState();
+    }
+
+    return { ...this.dailyRegimeScanStatus };
+  }
+
+  private dailyRegimeDocument() {
+    const app = getApps()[0] || initializeApp({
+      projectId: process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || 'gen-lang-client-0610749770'
+    });
+    return getFirestore(app, 'money-scanner-360').doc('operations/daily-regime-scan');
+  }
+
+  private async restoreDailyRegimeState(force = false) {
+    if (!force && Date.now() - this.dailyRegimeStateLoadedAt < 30_000) return;
+    try {
+      const snapshot = await this.dailyRegimeDocument().get();
+      this.dailyRegimeStateLoadedAt = Date.now();
+      if (!snapshot.exists) return;
+      const stored = snapshot.data() as {
+        status?: DailyRegimeScanStatus;
+        alerts?: DispatchedAlert[];
+      } | undefined;
+      if (stored?.status) this.dailyRegimeScanStatus = { ...stored.status, running: false };
+      if (Array.isArray(stored?.alerts)) {
+        const individual = this.alertHistory.filter(alert => alert.type !== 'MultiTimeframeReversal');
+        this.alertHistory = [...stored.alerts, ...individual]
+          .sort((left, right) => right.timestamp - left.timestamp)
+          .slice(0, 250);
+      }
+    } catch (error) {
+      // The scan and Telegram delivery still work in memory if persistence is
+      // temporarily unavailable. Surface the problem in logs without taking
+      // the user's alerts page down.
+      console.warn('Daily regime state restore failed:', error instanceof Error ? error.message : error);
+    }
+  }
+
+  private async persistDailyRegimeState() {
+    try {
+      const alerts = this.alertHistory
+        .filter(alert => alert.type === 'MultiTimeframeReversal')
+        .slice(0, 100);
+      // JSON normalization strips optional undefined values rejected by
+      // Firestore while preserving the exact dashboard payload shape.
+      const payload = JSON.parse(JSON.stringify({
+        status: this.dailyRegimeScanStatus,
+        alerts,
+        updatedAt: Date.now()
+      }));
+      await this.dailyRegimeDocument().set(payload, { merge: true });
+      this.dailyRegimeStateLoadedAt = Date.now();
+    } catch (error) {
+      console.warn('Daily regime state persistence failed:', error instanceof Error ? error.message : error);
+    }
+  }
+
+  private evaluateDailyRegimeAsset(
+    symbol: string,
+    marketClass: AssetMarketClass,
+    dailyCandles: Awaited<ReturnType<MarketDataService['getCandles']>>,
+    weeklyCandles: Awaited<ReturnType<MarketDataService['getCandles']>>
+  ): DailyRegimeMatch | undefined {
+    const dailySeries = this.moneyLine.calculateSeries(symbol, '1d', dailyCandles);
+    const weeklySignal = this.moneyLine.calculateLatest(symbol, '1w', weeklyCandles);
+    if (dailySeries.length < 50 || !weeklySignal) return undefined;
+
+    const dailySignal = dailySeries[dailySeries.length - 1];
+    const previousDailyTier = dailySignal.previousTier;
+    if (!previousDailyTier) return undefined;
+    const dailyClosed = dailyCandles
+      .filter(candle => candle.isClosed !== false)
+      .sort((left, right) => left.timestamp - right.timestamp);
+    const latestCandle = dailyClosed[dailyClosed.length - 1];
+    if (!latestCandle || latestCandle.timestamp !== dailySignal.candleTimestamp) return undefined;
+
+    // Prevent weekend/holiday re-alerting for an old stock candle. Friday is
+    // still evaluated on Saturday noon because Friday's US session closes
+    // after the Friday 12:00 Oslo scan.
+    const maxCandleAgeMs = 42 * 60 * 60 * 1000;
+    if (Date.now() - latestCandle.timestamp > maxCandleAgeMs) return undefined;
+
+    const cloud = calculateMoneyLineCloud(dailyClosed, '1d');
+    const sma50 = cloud.sma50[cloud.sma50.length - 1];
+    if (!Number.isFinite(sma50) || sma50 <= 0) return undefined;
+
+    const bullish = (tier: MoneyLineTier) => tier === 'Bullish' || tier === 'Strong Bullish';
+    const bearish = (tier: MoneyLineTier) => tier === 'Bearish' || tier === 'Strong Bearish';
+    const becameBearish = bearish(dailySignal.tier) && !bearish(previousDailyTier);
+    const becameBullish = bullish(dailySignal.tier) && !bullish(previousDailyTier);
+    const scenario = bullish(weeklySignal.tier) && becameBearish && latestCandle.close < sma50
+      ? 'WEEKLY_BULL_DAILY_BEAR'
+      : bearish(weeklySignal.tier) && becameBullish && latestCandle.close > sma50
+        ? 'WEEKLY_BEAR_DAILY_BULL'
+        : undefined;
+    if (!scenario) return undefined;
+
+    return {
+      symbol,
+      marketClass,
+      scenario,
+      weeklyTier: weeklySignal.tier,
+      weeklyScore: weeklySignal.score,
+      dailyTier: dailySignal.tier,
+      previousDailyTier,
+      dailyScore: dailySignal.score,
+      dailyCandleTimestamp: dailySignal.candleTimestamp,
+      price: latestCandle.close,
+      sma50,
+      distanceToSma50Percent: Number((((latestCandle.close - sma50) / sma50) * 100).toFixed(2))
+    };
+  }
+
+  private async getBullishAlertProgress(rule: BullishCloudAlertRule) {
+    try {
+      const [candles, quote] = await Promise.all([
+        this.marketData.getCandles(
+          rule.symbol,
+          rule.timeframe,
+          rule.timeframe === '1w' || rule.timeframe === '1m' ? 300 : 500,
+          rule.marketClass
+        ),
+        this.marketData.getPriceQuote(rule.symbol, rule.marketClass)
+      ]);
+      const closedCandles = candles
+        .filter(candle => candle.isClosed !== false)
+        .sort((left, right) => left.timestamp - right.timestamp);
+      if (!closedCandles.length) throw new Error('Nu există lumânări închise.');
+
+      const cloud = calculateMoneyLineCloud(closedCandles, rule.timeframe);
+      const signal = this.moneyLine.calculateLatest(rule.symbol, rule.timeframe, closedCandles);
+      const lastIndex = closedCandles.length - 1;
+      const fastBullish = cloud.dirFast[lastIndex] < 0;
+      const slowBullish = cloud.dirSlow[lastIndex] < 0;
+      const isBullish = fastBullish && slowBullish;
+      const currentPrice = quote.price || closedCandles[lastIndex].close;
+      const triggerPrice = cloud.lineSlow[lastIndex] || currentPrice;
+      const atr = signal?.rawIndicators.atr14 || Math.max(
+        closedCandles[lastIndex].high - closedCandles[lastIndex].low,
+        currentPrice * 0.001
+      );
+      const slowFactor = getMoneyLineCloudParameters(rule.timeframe).slowFactor;
+      const distanceToTrigger = isBullish ? 0 : Math.max(0, triggerPrice - currentPrice);
+      const distancePercent = currentPrice > 0 ? (distanceToTrigger / currentPrice) * 100 : 0;
+      const distanceAtr = atr > 0 ? distanceToTrigger / atr : 0;
+      const progressPercent = isBullish
+        ? 100
+        : Math.round(Math.max(0, Math.min(99, (1 - distanceAtr / Math.max(1, slowFactor)) * 100)));
+      const status = isBullish
+        ? 'CONFIRMED'
+        : currentPrice >= triggerPrice
+          ? 'AWAITING_CLOSE'
+          : distanceAtr <= 0.25
+            ? 'VERY_CLOSE'
+            : distanceAtr <= 1
+              ? 'CLOSE'
+              : 'WAITING';
+
+      rule.lastEvaluatedCandle = closedCandles[lastIndex].timestamp;
+      rule.lastError = undefined;
+      return {
+        id: rule.id,
+        symbol: rule.symbol,
+        timeframe: rule.timeframe,
+        marketClass: rule.marketClass,
+        createdAt: rule.createdAt,
+        lastEvaluatedCandle: rule.lastEvaluatedCandle,
+        lastTriggeredCandle: rule.lastTriggeredCandle,
+        currentPrice,
+        triggerPrice,
+        distancePercent,
+        distanceAtr,
+        progressPercent,
+        status,
+        fastBullish,
+        slowBullish,
+        moneyLineScore: signal?.score,
+        moneyLineTier: signal?.tier,
+        lastPlan: rule.lastPlan,
+        lastError: rule.lastError
+      };
+    } catch (error) {
+      rule.lastError = error instanceof Error ? error.message : 'Progresul alertei nu poate fi calculat.';
+      return {
+        id: rule.id,
+        symbol: rule.symbol,
+        timeframe: rule.timeframe,
+        marketClass: rule.marketClass,
+        createdAt: rule.createdAt,
+        lastEvaluatedCandle: rule.lastEvaluatedCandle,
+        lastTriggeredCandle: rule.lastTriggeredCandle,
+        currentPrice: 0,
+        triggerPrice: 0,
+        distancePercent: 0,
+        distanceAtr: 0,
+        progressPercent: 0,
+        status: 'ERROR',
+        fastBullish: false,
+        slowBullish: false,
+        moneyLineScore: undefined,
+        moneyLineTier: undefined,
+        lastPlan: rule.lastPlan,
+        lastError: rule.lastError
+      };
+    }
   }
 
   public async setBullishCloudAlert(
@@ -133,15 +594,75 @@ export class AppState {
       if (!shouldNotify) return;
 
       const price = supplied?.price || (await this.marketData.getPriceQuote(rule.symbol, rule.marketClass)).price;
-      const slowLine = cloud.lineSlow[lastIndex];
+      const signal = this.moneyLine.calculateLatest(rule.symbol, rule.timeframe, closedCandles);
+      if (!signal) {
+        rule.lastError = 'Semnalul MoneyLine nu a putut fi calculat pentru planul de tranzacție.';
+        return;
+      }
+
+      const profile = getTradePlanProfile(rule.timeframe);
+      const confirmationEntries = await Promise.all(profile.confirmationTimeframes.map(async timeframe => {
+        try {
+          const confirmationCandles = await this.marketData.getCandles(
+            rule.symbol,
+            timeframe,
+            timeframe === '1m' ? 260 : 300,
+            rule.marketClass
+          );
+          const confirmationSignal = this.moneyLine.calculateLatest(rule.symbol, timeframe, confirmationCandles);
+          return [timeframe, confirmationSignal] as const;
+        } catch (error) {
+          console.warn(`Alert confirmation ${timeframe} unavailable for ${rule.symbol}:`, error instanceof Error ? error.message : error);
+          return [timeframe, null] as const;
+        }
+      }));
+      const confirmationSignals: Partial<Record<Timeframe, MoneyLineSignal>> = {};
+      confirmationEntries.forEach(([timeframe, confirmationSignal]) => {
+        if (confirmationSignal) confirmationSignals[timeframe] = confirmationSignal;
+      });
+
+      const plan = calculateBullishTradePlan({
+        timeframe: rule.timeframe,
+        candles: closedCandles,
+        cloud,
+        signal,
+        currentPrice: price || closedCandles[lastIndex].close,
+        confirmationSignals
+      });
+      rule.lastPlan = plan;
+
+      const contextText = profile.confirmationTimeframes.length
+        ? profile.confirmationTimeframes.map(timeframe => {
+            const confirmation = confirmationSignals[timeframe];
+            return confirmation
+              ? `${timeframe.toUpperCase()} ${confirmation.tier} (${confirmation.score > 0 ? '+' : ''}${confirmation.score})`
+              : `${timeframe.toUpperCase()} indisponibil`;
+          }).join(' | ')
+        : 'fără timeframe superior disponibil';
+      const resistanceText = plan.resistanceRiskReward === undefined
+        ? 'fără rezistență apropiată detectată'
+        : `R:R până la rezistență ${plan.resistanceRiskReward.toFixed(2)}`;
       const dashboardBaseUrl = process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app';
       const message = [
         `🟢 *BULLISH FLIP CONFIRMAT*`,
-        `*▲ BUY / LONG*`,
+        `*▲ PLAN TEHNIC LONG — ${rule.timeframe.toUpperCase()}*`,
         `\n*$${rule.symbol}*  •  *${rule.timeframe.toUpperCase()}*`,
-        `*Preț confirmare:* $${price.toLocaleString('en-US', { maximumFractionDigits: price < 1 ? 8 : 4 })}`,
-        `*Margine Nor (Slow):* $${slowLine.toLocaleString('en-US', { maximumFractionDigits: slowLine < 1 ? 8 : 4 })}`,
-        `*Confirmare:* Fast + Slow sunt bullish pe ultima lumânare închisă.`,
+        `*Acțiune:* ${tradePlanActionLabel(plan.action)}`,
+        `*Calitate setup:* ${plan.confidence}/100`,
+        `\n*Preț acum:* ${formatAlertPrice(plan.currentPrice)}`,
+        `*Intrare optimă:* ${formatAlertPrice(plan.suggestedEntry)}`,
+        `*Zonă intrare:* ${formatAlertPrice(plan.entryLow)} – ${formatAlertPrice(plan.entryHigh)}`,
+        `*Alternativ breakout:* peste ${formatAlertPrice(plan.breakoutTrigger)}`,
+        `*STOP LOSS tehnic:* ${formatAlertPrice(plan.stopLoss)}`,
+        `*Ținta 1 (1.5R):* ${formatAlertPrice(plan.target1)}`,
+        `*Ținta 2 (${plan.targetRiskReward.toFixed(1)}R):* ${formatAlertPrice(plan.target2)}`,
+        `*Risc entry → SL:* ${plan.riskPercent.toFixed(2)}% | *R:R plan:* 1:${plan.targetRiskReward.toFixed(1)}`,
+        `\n*Context superior:* ${contextText}`,
+        `*ML ${rule.timeframe.toUpperCase()}:* ${plan.tier} (${plan.score > 0 ? '+' : ''}${plan.score}) | *RVOL:* ${plan.rvol.toFixed(2)}x | *RSI:* ${plan.rsi.toFixed(1)}`,
+        `*Nor:* Fast ${formatAlertPrice(plan.fastLine)} | Slow ${formatAlertPrice(plan.slowLine)}`,
+        `*Spațiu:* ${resistanceText}`,
+        `*Observații:* ${plan.reasons.slice(0, 4).join('; ') || 'confirmare tehnică completă'}`,
+        `\n_Analiză deterministă pe lumânări închise. Nivelurile sunt orientative și nu garantează execuția sau profitul._`,
         `\n🔗 [Deschide Money Scanner](${dashboardBaseUrl})`
       ].join('\n');
       const delivered = await this.telegramBot.sendMarkdown(message);
@@ -164,11 +685,30 @@ export class AppState {
         timeframe: rule.timeframe,
         price,
         tier: 'Bullish',
-        reason: 'Fast și Slow Supertrend sunt bullish pe o lumânare închisă.',
-        confidence: 1,
+        reason: `Fast și Slow bullish pe lumânare închisă; plan ${plan.action}, confluence ${plan.confidence}/100.`,
+        confidence: plan.confidence / 100,
         timestamp: Date.now(),
         dashboardLink: dashboardBaseUrl,
-        isDelivered: true
+        isDelivered: true,
+        tradePlan: {
+          action: plan.action,
+          confidence: plan.confidence,
+          entryLow: plan.entryLow,
+          entryHigh: plan.entryHigh,
+          suggestedEntry: plan.suggestedEntry,
+          breakoutTrigger: plan.breakoutTrigger,
+          stopLoss: plan.stopLoss,
+          target1: plan.target1,
+          target2: plan.target2,
+          targetRiskReward: plan.targetRiskReward,
+          riskPercent: plan.riskPercent,
+          fastLine: plan.fastLine,
+          slowLine: plan.slowLine,
+          atr: plan.atr,
+          rvol: plan.rvol,
+          rsi: plan.rsi,
+          score: plan.score
+        }
       };
       this.alertHistory.unshift(alert);
       if (this.alertHistory.length > 100) this.alertHistory.pop();

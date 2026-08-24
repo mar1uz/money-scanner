@@ -25,7 +25,7 @@ interface HeaderProps {
   onTimeframeChange: (tf: Timeframe) => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
-  onTriggerTestAlert?: () => void;
+  onOpenAlerts?: () => void;
   isStale?: boolean;
   allAssets?: AssetScannerRow[];
   onSelectAsset?: (symbol: string) => void;
@@ -44,7 +44,7 @@ export const Header: React.FC<HeaderProps> = ({
   onTimeframeChange,
   searchQuery,
   onSearchChange,
-  onTriggerTestAlert,
+  onOpenAlerts,
   isStale = false,
   allAssets = [],
   onSelectAsset,
@@ -422,15 +422,15 @@ export const Header: React.FC<HeaderProps> = ({
           </span>
         </div>
 
-        {/* Test Alert Button */}
-        {onTriggerTestAlert && (
+        {/* Central Alerts Page */}
+        {onOpenAlerts && (
           <button
-            onClick={onTriggerTestAlert}
-            title="Test Alert Telegram"
-            className="hidden lg:flex items-center gap-1 px-2.5 py-1 text-[11px] font-mono text-slate-400 hover:text-cyan-300 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] rounded-xl transition-all"
+            onClick={onOpenAlerts}
+            title="Deschide alertele mele"
+            className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-mono text-slate-400 hover:text-cyan-300 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] rounded-xl transition-all"
           >
             <BellRing className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Alert</span>
+            <span className="hidden lg:inline">Alert</span>
           </button>
         )}
 

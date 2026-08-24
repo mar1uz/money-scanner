@@ -107,4 +107,37 @@ describe('API Server Integration Tests', () => {
 
     await new Promise<void>(resolve => server.close(() => resolve()));
   });
+
+  it('serves the authenticated alerts command center payload', async () => {
+    const app = createServer();
+    const server = http.createServer(app);
+
+    await new Promise<void>(resolve => server.listen(0, resolve));
+    const port = (server.address() as any).port;
+
+    const res = await fetch(`http://127.0.0.1:${port}/api/alerts/dashboard`);
+    assert.equal(res.status, 200);
+    const dashboard = await res.json() as any;
+    assert.ok(Array.isArray(dashboard.activeAlerts));
+    assert.ok(Array.isArray(dashboard.history));
+    assert.equal(typeof dashboard.telegramConfigured, 'boolean');
+    assert.equal(dashboard.dailyRegimeScan.enabled, true);
+    assert.equal(dashboard.dailyRegimeScan.timezone, 'Europe/Oslo');
+    assert.equal(dashboard.dailyRegimeScan.schedule, '0 12 * * *');
+    assert.equal(typeof dashboard.updatedAt, 'number');
+
+    await new Promise<void>(resolve => server.close(() => resolve()));
+  });
+
+  it('protects the scheduled daily regime scan with its dedicated token', async () => {
+    const app = createServer();
+    const server = http.createServer(app);
+
+    await new Promise<void>(resolve => server.listen(0, resolve));
+    const port = (server.address() as any).port;
+    const res = await fetch(`http://127.0.0.1:${port}/api/alerts/daily-regime-scan`, { method: 'POST' });
+    assert.equal(res.status, 401);
+
+    await new Promise<void>(resolve => server.close(() => resolve()));
+  });
 });

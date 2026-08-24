@@ -216,6 +216,104 @@ export async function setBullishAlert(
   return res.json();
 }
 
+export interface AlertPlanSnapshot {
+  action: 'READY' | 'WAIT_RETEST' | 'AVOID';
+  confidence: number;
+  entryLow: number;
+  entryHigh: number;
+  suggestedEntry: number;
+  breakoutTrigger: number;
+  stopLoss: number;
+  target1: number;
+  target2: number;
+  targetRiskReward: number;
+  riskPercent: number;
+  fastLine: number;
+  slowLine: number;
+  atr: number;
+  rvol: number;
+  rsi: number;
+  score: number;
+}
+
+export type AlertProgressStatus = 'CONFIRMED' | 'AWAITING_CLOSE' | 'VERY_CLOSE' | 'CLOSE' | 'WAITING' | 'ERROR';
+
+export interface ActiveAlertDashboardItem {
+  id: string;
+  symbol: string;
+  timeframe: Timeframe;
+  marketClass: 'crypto' | 'stocks' | 'metals';
+  createdAt: number;
+  lastEvaluatedCandle?: number;
+  lastTriggeredCandle?: number;
+  currentPrice: number;
+  triggerPrice: number;
+  distancePercent: number;
+  distanceAtr: number;
+  progressPercent: number;
+  status: AlertProgressStatus;
+  fastBullish: boolean;
+  slowBullish: boolean;
+  moneyLineScore?: number;
+  moneyLineTier?: string;
+  lastPlan?: AlertPlanSnapshot;
+  lastError?: string;
+}
+
+export interface AlertHistoryDashboardItem {
+  id: string;
+  symbol: string;
+  title: string;
+  timeframe: Timeframe;
+  price: number;
+  reason: string;
+  confidence: number;
+  timestamp: number;
+  isDelivered: boolean;
+  tradePlan?: AlertPlanSnapshot;
+  regimeScan?: {
+    scenario: 'WEEKLY_BULL_DAILY_BEAR' | 'WEEKLY_BEAR_DAILY_BULL';
+    marketClass: 'crypto' | 'stocks' | 'metals';
+    weeklyTier: string;
+    weeklyScore: number;
+    dailyTier: string;
+    previousDailyTier: string;
+    dailyScore: number;
+    dailyCandleTimestamp: number;
+    sma50: number;
+    distanceToSma50Percent: number;
+  };
+}
+
+export interface DailyRegimeScanStatus {
+  enabled: true;
+  schedule: '0 12 * * *';
+  timezone: 'Europe/Oslo';
+  lastStartedAt?: number;
+  lastCompletedAt?: number;
+  scannedAssets: number;
+  matches: number;
+  errors: number;
+  running: boolean;
+  lastError?: string;
+}
+
+export interface AlertsDashboardResponse {
+  activeAlerts: ActiveAlertDashboardItem[];
+  history: AlertHistoryDashboardItem[];
+  telegramConfigured: boolean;
+  botConfigured: boolean;
+  chatConfigured: boolean;
+  dailyRegimeScan: DailyRegimeScanStatus;
+  updatedAt: number;
+}
+
+export async function fetchAlertsDashboard(): Promise<AlertsDashboardResponse> {
+  const res = await fetchWithDeadline(`${API_BASE}/alerts/dashboard`, { cache: 'no-store' }, 45_000);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch alerts dashboard`);
+  return res.json();
+}
+
 export async function askAIAnalyst(question: string): Promise<{
   answer: string;
   relatedSymbols: string[];

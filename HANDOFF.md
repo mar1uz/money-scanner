@@ -602,3 +602,157 @@ This document is the implementation baseline. Update it whenever architecture, A
 
 
 ---
+
+## 16. August 2026 alerting deployment
+
+The production Money Scanner revision `market-scanner-360-00091-bxb` added:
+
+- A central **Alert Command Center** opened from the global `Alert` button.
+- Active per-asset MoneyLine alerts with ATR-normalized distance to the Slow flip threshold.
+- Trigger history with the Entry, Stop Loss, TP1 and TP2 snapshot sent to Telegram.
+- A general daily scan across the live Top 50 crypto assets plus every Market 360 stock and metal.
+- The two general closed-candle conditions are:
+  - Weekly MoneyLine bullish + Daily MoneyLine changes to bearish + Daily close below SMA 50.
+  - Weekly MoneyLine bearish + Daily MoneyLine changes to bullish + Daily close above SMA 50.
+- Cloud Scheduler job `money-scanner-daily-regime-scan`, schedule `0 12 * * *`, timezone `Europe/Oslo`.
+- Secret Manager secret `money-scanner-daily-scan-token`, injected as `DAILY_SCAN_TOKEN`.
+- Firestore database `money-scanner-360` in `europe-west3`, with delete protection, for persistent general-alert history and scheduler status.
+
+Production URL:
+
+```text
+https://market-scanner-360-384051756749.europe-west3.run.app
+```
+
+## 17. RelayHub cost shutdown and restoration handoff
+
+### Shutdown performed on 24 August 2026
+
+RelayHub was not in use and its global external Application Load Balancer was the largest Google Cloud cost source. The load balancer was decommissioned and public invocation was removed from its retained Cloud Run service.
+
+Deleted resources in project `gen-lang-client-0610749770`:
+
+```text
+global forwarding rule: relayhub-http-redirect-rule (port 80)
+global forwarding rule: relayhub-https-rule (port 443)
+global static IPv4: relayhub-ip (previous address 8.232.128.95)
+global target HTTP proxy: relayhub-http-redirect-proxy
+global target HTTPS proxy: relayhub-https-proxy
+Google-managed SSL certificate: relayhub-cert (relayhub.no)
+global URL map: relayhub-http-redirect
+global URL map: relayhub-url-map
+global backend service: relayhub-backend
+serverless NEG: relayhub-neg (europe-west3)
+```
+
+Retained resource:
+
+```text
+Cloud Run service: cloud-callcenter-saas
+Region: europe-west3
+Direct URL: https://cloud-callcenter-saas-srqcsofnua-ey.a.run.app
+Scaling: min instances 0, max instances 20
+Resources: 1 vCPU, 512 MiB, concurrency 80, timeout 300 seconds
+Public allUsers roles/run.invoker binding: REMOVED
+```
+
+The source/deployed container was intentionally retained. The service now scales to zero and rejects unauthenticated public traffic. `relayhub.no` no longer resolves to a functioning Google Cloud frontend. Cloud DNS was not enabled in this project; the external DNS A record must be updated or removed at the domain provider separately.
+
+Post-shutdown verification:
+
+```text
+Remaining RelayHub load-balancer resources: 0
+Retained Cloud Run service status: READY
+Unauthenticated request to the direct Cloud Run URL: HTTP 403
+```
+
+The deleted load-balancer objects and released IP cannot be restored in place. They can be recreated with the commands below; the recreated static IP will normally be different. Billing reports can lag behind the resource shutdown, so already-incurred usage can remain visible after the deletion date.
+
+### Fast restoration without the custom domain
+
+To expose the retained service again through its Cloud Run URL:
+
+```bash
+gcloud run services add-iam-policy-binding cloud-callcenter-saas \
+  --region=europe-west3 \
+  --member='allUsers' \
+  --role='roles/run.invoker'
+```
+
+Then use:
+
+```text
+https://cloud-callcenter-saas-srqcsofnua-ey.a.run.app
+```
+
+### Full restoration of `relayhub.no`
+
+The old IP was released and must not be assumed to be available. Recreate the stack, obtain the new IP, and change the DNS A record for `relayhub.no` to that new address.
+
+```bash
+gcloud run services add-iam-policy-binding cloud-callcenter-saas \
+  --region=europe-west3 \
+  --member='allUsers' \
+  --role='roles/run.invoker'
+
+gcloud compute addresses create relayhub-ip \
+  --global \
+  --ip-version=IPV4 \
+  --network-tier=PREMIUM
+
+gcloud compute network-endpoint-groups create relayhub-neg \
+  --region=europe-west3 \
+  --network-endpoint-type=serverless \
+  --cloud-run-service=cloud-callcenter-saas
+
+gcloud compute backend-services create relayhub-backend \
+  --global \
+  --load-balancing-scheme=EXTERNAL_MANAGED \
+  --protocol=HTTP \
+  --timeout=30s
+
+gcloud compute backend-services add-backend relayhub-backend \
+  --global \
+  --network-endpoint-group=relayhub-neg \
+  --network-endpoint-group-region=europe-west3
+
+gcloud compute url-maps create relayhub-url-map \
+  --global \
+  --default-service=relayhub-backend
+
+gcloud compute ssl-certificates create relayhub-cert \
+  --domains=relayhub.no
+
+gcloud compute target-https-proxies create relayhub-https-proxy \
+  --url-map=relayhub-url-map \
+  --ssl-certificates=relayhub-cert
+
+gcloud compute forwarding-rules create relayhub-https-rule \
+  --global \
+  --load-balancing-scheme=EXTERNAL_MANAGED \
+  --network-tier=PREMIUM \
+  --address=relayhub-ip \
+  --target-https-proxy=relayhub-https-proxy \
+  --ports=443
+
+gcloud compute url-maps import relayhub-http-redirect \
+  --global \
+  --source=infra/relayhub-http-redirect.yaml
+
+gcloud compute target-http-proxies create relayhub-http-redirect-proxy \
+  --url-map=relayhub-http-redirect
+
+gcloud compute forwarding-rules create relayhub-http-redirect-rule \
+  --global \
+  --load-balancing-scheme=EXTERNAL_MANAGED \
+  --network-tier=PREMIUM \
+  --address=relayhub-ip \
+  --target-http-proxy=relayhub-http-redirect-proxy \
+  --ports=80
+
+gcloud compute addresses describe relayhub-ip \
+  --global \
+  --format='value(address)'
+```
+
+After changing DNS, wait for the Google-managed certificate to become `ACTIVE` before treating the restoration as complete.
