@@ -315,6 +315,36 @@ export interface ManualAlertScanStatus {
   lastError?: string;
 }
 
+export type FlipCandidateDirection = 'BULLISH' | 'BEARISH';
+export type FlipCandidateStatus = 'CONFIRMED' | 'AWAITING_CLOSE' | 'VERY_CLOSE' | 'APPROACHING';
+
+export interface FlipCandidateDashboardItem {
+  id: string;
+  symbol: string;
+  marketClass: 'crypto' | 'stocks' | 'metals';
+  timeframe: '4h' | '8h' | '1d';
+  direction: FlipCandidateDirection;
+  status: FlipCandidateStatus;
+  currentPrice: number;
+  triggerPrice: number;
+  distancePercent: number;
+  distanceAtr: number;
+  priorityScore: number;
+  atr: number;
+  rvol: number;
+  moneyLineTier: string;
+  moneyLineScore: number;
+  weeklyTier: string;
+  weeklyScore: number;
+  sma50: number;
+  sma200: number;
+  weeklyAligned: boolean;
+  sma50Aligned: boolean;
+  sma200Aligned: boolean;
+  candleTimestamp: number;
+  scannedAt: number;
+}
+
 export interface AlertsDashboardResponse {
   activeAlerts: ActiveAlertDashboardItem[];
   history: AlertHistoryDashboardItem[];
@@ -323,6 +353,7 @@ export interface AlertsDashboardResponse {
   chatConfigured: boolean;
   dailyRegimeScan: DailyRegimeScanStatus;
   manualScan: ManualAlertScanStatus;
+  flipCandidates: FlipCandidateDashboardItem[];
   updatedAt: number;
 }
 

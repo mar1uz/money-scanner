@@ -76,6 +76,45 @@ export interface ManualAlertScanAssetInput {
   marketClass?: AssetMarketClass;
 }
 
+export type FlipCandidateDirection = 'BULLISH' | 'BEARISH';
+export type FlipCandidateStatus = 'CONFIRMED' | 'AWAITING_CLOSE' | 'VERY_CLOSE' | 'APPROACHING';
+
+export interface FlipCandidate {
+  id: string;
+  symbol: string;
+  marketClass: AssetMarketClass;
+  timeframe: Extract<Timeframe, '4h' | '8h' | '1d'>;
+  direction: FlipCandidateDirection;
+  status: FlipCandidateStatus;
+  currentPrice: number;
+  triggerPrice: number;
+  distancePercent: number;
+  distanceAtr: number;
+  priorityScore: number;
+  atr: number;
+  rvol: number;
+  moneyLineTier: MoneyLineTier;
+  moneyLineScore: number;
+  weeklyTier: MoneyLineTier;
+  weeklyScore: number;
+  sma50: number;
+  sma200: number;
+  weeklyAligned: boolean;
+  sma50Aligned: boolean;
+  sma200Aligned: boolean;
+  candleTimestamp: number;
+  scannedAt: number;
+}
+
+interface PreliminaryFlipAsset {
+  symbol: string;
+  marketClass: AssetMarketClass;
+  dailyCandles: Awaited<ReturnType<MarketDataService['getCandles']>>;
+  weeklyTier: MoneyLineTier;
+  weeklyScore: number;
+  candidate: FlipCandidate;
+}
+
 interface DailyRegimeMatch {
   symbol: string;
   marketClass: AssetMarketClass;
@@ -121,6 +160,7 @@ export class AppState {
   private manualAlertScanPromises = new Map<string, Promise<ManualAlertScanStatus>>();
   private manualAlertScanStatuses = new Map<string, ManualAlertScanStatus>();
   private manualAlertScanNextAllowed = new Map<string, number>();
+  private flipCandidates: FlipCandidate[] = [];
   private dailyRegimeScanStatus: DailyRegimeScanStatus = {
     enabled: true,
     schedule: '0 12 * * *',
@@ -172,6 +212,7 @@ export class AppState {
       history,
       dailyRegimeScan: { ...this.dailyRegimeScanStatus },
       manualScan: this.getManualAlertScanStatus(userId),
+      flipCandidates: this.flipCandidates.map(candidate => ({ ...candidate })),
       updatedAt: Date.now(),
       ...this.telegramBot.getDeliveryConfiguration()
     };
@@ -440,6 +481,7 @@ export class AppState {
       );
       this.dailyRegimeScanStatus.totalAssets = universe.length;
       const matches: DailyRegimeMatch[] = [];
+      const preliminaryFlipAssets: PreliminaryFlipAsset[] = [];
       let errors = 0;
       const concurrency = 6;
 
@@ -460,12 +502,40 @@ export class AppState {
               ? { ...candle, isClosed: true }
               : candle
           );
-          return this.evaluateDailyRegimeAsset(asset.symbol, marketClass, dailyCandles, weeklyRaw);
+          const weeklySignal = this.moneyLine.calculateLatest(asset.symbol, '1w', weeklyRaw);
+          const dailyClosed = dailyCandles
+            .filter(candle => candle.isClosed !== false)
+            .sort((left, right) => left.timestamp - right.timestamp);
+          const preliminaryCandidate = weeklySignal
+            ? this.calculateFlipCandidate(
+              asset.symbol,
+              marketClass,
+              '1d',
+              dailyClosed,
+              dailyClosed[dailyClosed.length - 1]?.close || 0,
+              weeklySignal.tier,
+              weeklySignal.score
+            )
+            : undefined;
+          return {
+            match: this.evaluateDailyRegimeAsset(asset.symbol, marketClass, dailyCandles, weeklyRaw),
+            preliminary: preliminaryCandidate && weeklySignal
+              ? {
+                symbol: asset.symbol,
+                marketClass,
+                dailyCandles: dailyClosed,
+                weeklyTier: weeklySignal.tier,
+                weeklyScore: weeklySignal.score,
+                candidate: preliminaryCandidate
+              }
+              : undefined
+          };
         }));
 
         settled.forEach(result => {
           if (result.status === 'fulfilled') {
-            if (result.value) matches.push(result.value);
+            if (result.value.match) matches.push(result.value.match);
+            if (result.value.preliminary) preliminaryFlipAssets.push(result.value.preliminary);
           } else {
             errors += 1;
             console.warn('Daily regime asset scan failed:', result.reason instanceof Error ? result.reason.message : result.reason);
@@ -473,6 +543,8 @@ export class AppState {
         });
         this.dailyRegimeScanStatus.scannedAssets += settled.filter(result => result.status === 'fulfilled').length;
       }
+
+      this.flipCandidates = await this.enrichAndRankFlipCandidates(preliminaryFlipAssets);
 
       await this.publishDailyRegimeMatches(matches, 'scheduled/full scan');
 
@@ -598,8 +670,10 @@ export class AppState {
       const stored = snapshot.data() as {
         status?: DailyRegimeScanStatus;
         alerts?: DispatchedAlert[];
+        flipCandidates?: FlipCandidate[];
       } | undefined;
       if (stored?.status) this.dailyRegimeScanStatus = { ...stored.status, running: false };
+      if (Array.isArray(stored?.flipCandidates)) this.flipCandidates = stored.flipCandidates.slice(0, 10);
       if (Array.isArray(stored?.alerts)) {
         const individual = this.alertHistory.filter(alert => alert.type !== 'MultiTimeframeReversal');
         this.alertHistory = [...stored.alerts, ...individual]
@@ -624,6 +698,7 @@ export class AppState {
       const payload = JSON.parse(JSON.stringify({
         status: this.dailyRegimeScanStatus,
         alerts,
+        flipCandidates: this.flipCandidates,
         updatedAt: Date.now()
       }));
       await this.dailyRegimeDocument().set(payload, { merge: true });
@@ -631,6 +706,141 @@ export class AppState {
     } catch (error) {
       console.warn('Daily regime state persistence failed:', error instanceof Error ? error.message : error);
     }
+  }
+
+  private calculateFlipCandidate(
+    symbol: string,
+    marketClass: AssetMarketClass,
+    timeframe: Extract<Timeframe, '4h' | '8h' | '1d'>,
+    candles: Awaited<ReturnType<MarketDataService['getCandles']>>,
+    currentPrice: number,
+    weeklyTier: MoneyLineTier,
+    weeklyScore: number
+  ): FlipCandidate | undefined {
+    const closedCandles = candles
+      .filter(candle => candle.isClosed !== false)
+      .sort((left, right) => left.timestamp - right.timestamp);
+    if (closedCandles.length < 50 || !Number.isFinite(currentPrice) || currentPrice <= 0) return undefined;
+
+    const cloud = calculateMoneyLineCloud(closedCandles, timeframe);
+    const signal = this.moneyLine.calculateLatest(symbol, timeframe, closedCandles);
+    if (!signal) return undefined;
+    const lastIndex = closedCandles.length - 1;
+    const latestBullFlip = cloud.buySignals[lastIndex] === true;
+    const latestBearFlip = cloud.sellSignals[lastIndex] === true;
+    const slowBullish = cloud.dirSlow[lastIndex] < 0;
+    const direction: FlipCandidateDirection = latestBullFlip
+      ? 'BULLISH'
+      : latestBearFlip
+        ? 'BEARISH'
+        : slowBullish ? 'BEARISH' : 'BULLISH';
+    const confirmed = latestBullFlip || latestBearFlip;
+    const rawTrigger = confirmed && lastIndex > 0
+      ? cloud.lineSlow[lastIndex - 1]
+      : cloud.lineSlow[lastIndex];
+    const triggerPrice = Number.isFinite(rawTrigger) && rawTrigger > 0 ? rawTrigger : currentPrice;
+    const crossedLive = direction === 'BULLISH'
+      ? currentPrice >= triggerPrice
+      : currentPrice <= triggerPrice;
+    const atr = signal.rawIndicators.atr14 > 0
+      ? signal.rawIndicators.atr14
+      : Math.max(closedCandles[lastIndex].high - closedCandles[lastIndex].low, currentPrice * 0.001);
+    const distance = confirmed || crossedLive ? 0 : Math.abs(triggerPrice - currentPrice);
+    const distanceAtr = atr > 0 ? distance / atr : Number.POSITIVE_INFINITY;
+    const distancePercent = currentPrice > 0 ? (distance / currentPrice) * 100 : 0;
+    const status: FlipCandidateStatus = confirmed
+      ? 'CONFIRMED'
+      : crossedLive
+        ? 'AWAITING_CLOSE'
+        : distanceAtr <= 0.25
+          ? 'VERY_CLOSE'
+          : 'APPROACHING';
+    const sma50 = cloud.sma50[lastIndex];
+    const sma200 = cloud.sma200[lastIndex];
+    const weeklyBullish = weeklyTier === 'Bullish' || weeklyTier === 'Strong Bullish';
+    const weeklyBearish = weeklyTier === 'Bearish' || weeklyTier === 'Strong Bearish';
+    const weeklyAligned = direction === 'BULLISH' ? weeklyBullish : weeklyBearish;
+    const sma50Aligned = direction === 'BULLISH' ? currentPrice >= sma50 : currentPrice <= sma50;
+    const sma200Aligned = direction === 'BULLISH' ? currentPrice >= sma200 : currentPrice <= sma200;
+    const statusBoost = confirmed ? 22 : crossedLive ? 16 : distanceAtr <= 0.25 ? 8 : 0;
+    const alignmentBoost = (weeklyAligned ? 6 : 0) + (sma50Aligned ? 3 : 0) + (sma200Aligned ? 2 : 0);
+    const volumeBoost = Math.min(4, Math.max(0, signal.rawIndicators.rvol - 0.8) * 3);
+    const timeframeBoost = timeframe === '1d' ? 3 : timeframe === '8h' ? 2 : 1;
+    const priorityScore = Math.max(0, Math.min(100,
+      92 - Math.min(distanceAtr, 4) * 18 + statusBoost + alignmentBoost + volumeBoost + timeframeBoost
+    ));
+
+    return {
+      id: `${marketClass}:${symbol}:${timeframe}:${direction}`,
+      symbol,
+      marketClass,
+      timeframe,
+      direction,
+      status,
+      currentPrice: Number(currentPrice.toFixed(8)),
+      triggerPrice: Number(triggerPrice.toFixed(8)),
+      distancePercent: Number(distancePercent.toFixed(3)),
+      distanceAtr: Number((Number.isFinite(distanceAtr) ? distanceAtr : 99).toFixed(3)),
+      priorityScore: Number(priorityScore.toFixed(1)),
+      atr: Number(atr.toFixed(8)),
+      rvol: signal.rawIndicators.rvol,
+      moneyLineTier: signal.tier,
+      moneyLineScore: signal.score,
+      weeklyTier,
+      weeklyScore,
+      sma50: Number(sma50.toFixed(8)),
+      sma200: Number(sma200.toFixed(8)),
+      weeklyAligned,
+      sma50Aligned,
+      sma200Aligned,
+      candleTimestamp: closedCandles[lastIndex].timestamp,
+      scannedAt: Date.now()
+    };
+  }
+
+  private async enrichAndRankFlipCandidates(preliminaryAssets: PreliminaryFlipAsset[]): Promise<FlipCandidate[]> {
+    // Stage 1 already used the Daily/Weekly data fetched for every asset. Only
+    // the strongest 30 preliminary candidates receive additional 4H/8H calls.
+    const shortlist = preliminaryAssets
+      .slice()
+      .sort((left, right) => right.candidate.priorityScore - left.candidate.priorityScore
+        || left.candidate.distanceAtr - right.candidate.distanceAtr)
+      .slice(0, 30);
+    const enriched: FlipCandidate[] = [];
+    const concurrency = 6;
+
+    for (let index = 0; index < shortlist.length; index += concurrency) {
+      const batch = shortlist.slice(index, index + concurrency);
+      const settled = await Promise.allSettled(batch.map(async asset => {
+        const [quote, candles4h, candles8h] = await Promise.all([
+          this.marketData.getPriceQuote(asset.symbol, asset.marketClass),
+          this.marketData.getCandles(asset.symbol, '4h', 320, asset.marketClass),
+          this.marketData.getCandles(asset.symbol, '8h', 320, asset.marketClass)
+        ]);
+        const price = quote.price || asset.candidate.currentPrice;
+        return [
+          this.calculateFlipCandidate(asset.symbol, asset.marketClass, '1d', asset.dailyCandles, price, asset.weeklyTier, asset.weeklyScore),
+          this.calculateFlipCandidate(asset.symbol, asset.marketClass, '8h', candles8h, price, asset.weeklyTier, asset.weeklyScore),
+          this.calculateFlipCandidate(asset.symbol, asset.marketClass, '4h', candles4h, price, asset.weeklyTier, asset.weeklyScore)
+        ].filter((candidate): candidate is FlipCandidate => Boolean(candidate));
+      }));
+
+      settled.forEach(result => {
+        if (result.status === 'fulfilled') enriched.push(...result.value);
+        else console.warn('Flip candidate enrichment failed:', result.reason instanceof Error ? result.reason.message : result.reason);
+      });
+    }
+
+    // One row per asset keeps the list genuinely diverse. The best timeframe
+    // for each symbol wins; confirmed/awaiting-close candidates naturally rank first.
+    const bestByAsset = new Map<string, FlipCandidate>();
+    enriched
+      .sort((left, right) => right.priorityScore - left.priorityScore || left.distanceAtr - right.distanceAtr)
+      .forEach(candidate => {
+        const key = `${candidate.marketClass}:${candidate.symbol}`;
+        if (!bestByAsset.has(key)) bestByAsset.set(key, candidate);
+      });
+    return Array.from(bestByAsset.values()).slice(0, 10);
   }
 
   private evaluateDailyRegimeAsset(

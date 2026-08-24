@@ -82,4 +82,32 @@ describe('Daily MoneyLine regime scan', () => {
     const result = (state as any).evaluateDailyRegimeAsset('TEST', 'crypto', daily, candles(100));
     assert.equal(result, undefined);
   });
+
+  it('calculates an ATR-normalized upcoming flip candidate from closed candles', () => {
+    const state = new AppState();
+    const series = candles(100);
+    state.moneyLine.calculateLatest = (() => ({
+      tier: 'Bearish',
+      score: -35,
+      rawIndicators: { atr14: 2, rvol: 1.4 }
+    })) as any;
+
+    const result = (state as any).calculateFlipCandidate(
+      'TEST',
+      'stocks',
+      '1d',
+      series,
+      100,
+      'Bearish',
+      -42
+    );
+
+    assert.equal(result.symbol, 'TEST');
+    assert.equal(result.timeframe, '1d');
+    assert.equal(result.direction, 'BULLISH');
+    assert.ok(result.triggerPrice > result.currentPrice);
+    assert.ok(result.distanceAtr > 0);
+    assert.ok(result.priorityScore >= 0 && result.priorityScore <= 100);
+    assert.equal(result.weeklyAligned, false);
+  });
 });

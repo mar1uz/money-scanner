@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  BellPlus,
   BellRing,
   CalendarClock,
   CheckCircle2,
   ChevronRight,
   Clock3,
   RefreshCw,
+  Radar,
   ScanSearch,
   Send,
   ShieldAlert,
@@ -21,6 +23,7 @@ import {
   AlertsDashboardResponse,
   AlertProgressStatus,
   fetchAlertsDashboard,
+  FlipCandidateDashboardItem,
   ManualAlertScanScope,
   runManualAlertScan,
   setBullishAlert
@@ -69,6 +72,8 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
   const [scanScope, setScanScope] = useState<ManualAlertScanScope | null>(null);
   const [scanMessage, setScanMessage] = useState('');
   const [removingId, setRemovingId] = useState('');
+  const [preparingId, setPreparingId] = useState('');
+  const [candidateFilter, setCandidateFilter] = useState<'ALL' | 'BULLISH' | 'BEARISH'>('ALL');
   const restoredBrowserRules = useRef(false);
 
   const loadDashboard = useCallback(async () => {
@@ -168,6 +173,28 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
     }
   };
 
+  const prepareCandidateAlert = async (candidate: FlipCandidateDashboardItem) => {
+    if (candidate.direction !== 'BULLISH') {
+      onOpenAsset(candidate.symbol, candidate.marketClass, candidate.timeframe);
+      return;
+    }
+    setPreparingId(candidate.id);
+    setError('');
+    try {
+      await setBullishAlert(candidate.symbol, candidate.timeframe, candidate.marketClass, true);
+      localStorage.setItem(
+        `${ALERT_STORAGE_PREFIX}${candidate.symbol}:${candidate.timeframe}`,
+        JSON.stringify({ enabled: true, marketClass: candidate.marketClass })
+      );
+      setScanMessage(`Alerta bullish pentru $${candidate.symbol} ${candidate.timeframe.toUpperCase()} este activă.`);
+      await loadDashboard();
+    } catch (prepareError) {
+      setError(prepareError instanceof Error ? prepareError.message : 'Alerta nu a putut fi pregătită.');
+    } finally {
+      setPreparingId('');
+    }
+  };
+
   const startManualScan = async (scope: ManualAlertScanScope) => {
     setScanScope(scope);
     setScanMessage('');
@@ -208,6 +235,9 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
   const scanProgress = activeManualScanStatus?.totalAssets
     ? Math.min(100, Math.round((activeManualScanStatus.scannedAssets / activeManualScanStatus.totalAssets) * 100))
     : 0;
+  const visibleCandidates = (data?.flipCandidates || []).filter(candidate =>
+    candidateFilter === 'ALL' || candidate.direction === candidateFilter
+  );
 
   return (
     <div className="space-y-6">
@@ -319,6 +349,64 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
           <AlertTriangle className="h-4 w-4 shrink-0" /> {error}
         </div>
       )}
+
+      <section className="space-y-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <Radar className="h-4 w-4 text-violet-300" />
+              <h2 className="text-sm font-bold text-slate-100">Top 10 flipuri apropiate</h2>
+            </div>
+            <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">
+              Clasament după distanța până la Slow normalizată cu ATR, contextul ML 1W, SMA 50/200 și volum. Se actualizează după scanarea completă.
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-1 rounded-lg border border-white/[0.06] bg-white/[0.025] p-1">
+            {(['ALL', 'BULLISH', 'BEARISH'] as const).map(filter => (
+              <button
+                key={filter}
+                type="button"
+                onClick={() => setCandidateFilter(filter)}
+                className={`rounded-md px-2.5 py-1.5 text-[10px] font-bold transition ${candidateFilter === filter
+                  ? filter === 'BULLISH'
+                    ? 'bg-emerald-500/15 text-emerald-300'
+                    : filter === 'BEARISH'
+                      ? 'bg-rose-500/15 text-rose-300'
+                      : 'bg-violet-500/15 text-violet-200'
+                  : 'text-slate-500 hover:text-slate-300'}`}
+              >{filter === 'ALL' ? 'TOATE' : filter}</button>
+            ))}
+          </div>
+        </div>
+
+        {visibleCandidates.length ? (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {visibleCandidates.map((candidate, index) => (
+              <FlipCandidateCard
+                key={candidate.id}
+                candidate={candidate}
+                rank={(data?.flipCandidates || []).findIndex(item => item.id === candidate.id) + 1 || index + 1}
+                preparing={preparingId === candidate.id}
+                alertActive={Boolean(data?.activeAlerts.some(alert =>
+                  alert.symbol === candidate.symbol && alert.timeframe === candidate.timeframe
+                ))}
+                onPrepare={() => void prepareCandidateAlert(candidate)}
+                onOpen={() => onOpenAsset(candidate.symbol, candidate.marketClass, candidate.timeframe)}
+              />
+            ))}
+          </div>
+        ) : data?.dailyRegimeScan.lastCompletedAt ? (
+          <div className="rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.02] px-5 py-8 text-center text-xs text-slate-500">
+            Nu există candidați {candidateFilter === 'ALL' ? '' : candidateFilter.toLowerCase()} în Top 10 curent.
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-violet-500/20 bg-violet-500/[0.04] px-5 py-8 text-center">
+            <ScanSearch className="mx-auto h-7 w-7 text-violet-400" />
+            <h3 className="mt-3 text-sm font-semibold text-slate-200">Rulează prima scanare completă</h3>
+            <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">Top 10 va fi populat după analiza universului crypto, stocks și metale.</p>
+          </div>
+        )}
+      </section>
 
       <section className="space-y-3">
         <div className="flex items-end justify-between gap-3">
@@ -443,6 +531,109 @@ const SummaryCard: React.FC<{ icon: React.ElementType; label: string; value: num
       <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider opacity-75"><Icon className="h-3.5 w-3.5" /> {label}</div>
       <div className="mt-2 font-mono text-lg font-bold text-white">{value}</div>
     </div>
+  );
+};
+
+const FlipCandidateCard: React.FC<{
+  candidate: FlipCandidateDashboardItem;
+  rank: number;
+  preparing: boolean;
+  alertActive: boolean;
+  onPrepare: () => void;
+  onOpen: () => void;
+}> = ({ candidate, rank, preparing, alertActive, onPrepare, onOpen }) => {
+  const bullish = candidate.direction === 'BULLISH';
+  const directionTone = bullish
+    ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
+    : 'border-rose-500/25 bg-rose-500/10 text-rose-300';
+  const statusLabel = candidate.status === 'CONFIRMED'
+    ? 'Flip nou confirmat'
+    : candidate.status === 'AWAITING_CLOSE'
+      ? 'Așteaptă închiderea'
+      : candidate.status === 'VERY_CLOSE'
+        ? 'Foarte aproape'
+        : 'Se apropie';
+  const statusTone = candidate.status === 'CONFIRMED'
+    ? bullish ? 'text-emerald-300' : 'text-rose-300'
+    : candidate.status === 'AWAITING_CLOSE'
+      ? 'text-cyan-300'
+      : candidate.status === 'VERY_CLOSE'
+        ? 'text-amber-300'
+        : 'text-slate-400';
+  const proximity = candidate.status === 'CONFIRMED' || candidate.status === 'AWAITING_CLOSE'
+    ? 100
+    : Math.max(4, Math.min(98, Math.round((1 - candidate.distanceAtr / 2.5) * 100)));
+  const alignmentCount = [candidate.weeklyAligned, candidate.sma50Aligned, candidate.sma200Aligned].filter(Boolean).length;
+
+  return (
+    <article className="overflow-hidden rounded-2xl border border-white/[0.07] bg-background-card shadow-sm transition hover:border-violet-500/20">
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <button type="button" onClick={onOpen} className="flex min-w-0 items-start gap-3 text-left">
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-violet-500/20 bg-violet-500/10 font-mono text-xs font-black text-violet-200">#{rank}</div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <strong className="font-mono text-lg text-white">${candidate.symbol}</strong>
+                <span className="rounded-md border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-cyan-300">{candidate.timeframe.toUpperCase()}</span>
+                <span className="rounded-md border border-white/[0.07] bg-white/[0.03] px-1.5 py-0.5 text-[9px] uppercase text-slate-500">{candidate.marketClass}</span>
+              </div>
+              <div className={`mt-1 text-[11px] font-semibold ${statusTone}`}>{statusLabel}</div>
+            </div>
+          </button>
+          <span className={`shrink-0 rounded-lg border px-2 py-1 font-mono text-[10px] font-black ${directionTone}`}>
+            {bullish ? '▲ BULL FLIP' : '▼ BEAR FLIP'}
+          </span>
+        </div>
+
+        <div className="mt-4 grid grid-cols-[1fr_auto] items-end gap-3">
+          <div>
+            <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-wider text-slate-600">
+              <span>Distanță până la confirmare</span>
+              <span>{proximity}%</span>
+            </div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.05]">
+              <div className={`h-full rounded-full ${bullish ? 'bg-emerald-400' : 'bg-rose-400'}`} style={{ width: `${proximity}%` }} />
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="font-mono text-xl font-black text-white">{candidate.distanceAtr.toFixed(2)} ATR</div>
+            <div className="font-mono text-[10px] text-slate-500">{candidate.distancePercent.toFixed(2)}%</div>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <LevelBox label="Preț acum" value={formatPrice(candidate.currentPrice)} tone="slate" />
+          <LevelBox label={`${bullish ? 'Peste' : 'Sub'} Slow`} value={formatPrice(candidate.triggerPrice)} tone={bullish ? 'emerald' : 'rose'} />
+          <LevelBox label="ML 1W" value={`${candidate.weeklyTier} · ${candidate.weeklyScore > 0 ? '+' : ''}${candidate.weeklyScore}`} tone={candidate.weeklyAligned ? (bullish ? 'emerald' : 'rose') : 'slate'} />
+          <LevelBox label="Prioritate" value={`${candidate.priorityScore.toFixed(0)}/100`} tone={candidate.priorityScore >= 80 ? 'amber' : 'slate'} />
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[9px] font-bold uppercase tracking-wide">
+          <span className={`rounded-md border px-2 py-1 ${candidate.weeklyAligned ? directionTone : 'border-white/[0.06] text-slate-600'}`}>1W aliniat</span>
+          <span className={`rounded-md border px-2 py-1 ${candidate.sma50Aligned ? directionTone : 'border-white/[0.06] text-slate-600'}`}>SMA 50</span>
+          <span className={`rounded-md border px-2 py-1 ${candidate.sma200Aligned ? directionTone : 'border-white/[0.06] text-slate-600'}`}>SMA 200</span>
+          <span className="rounded-md border border-white/[0.06] px-2 py-1 text-slate-500">RVOL {candidate.rvol.toFixed(2)}x</span>
+          <span className="ml-auto text-slate-600">Confluență {alignmentCount}/3</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 border-t border-white/[0.05]">
+        <button type="button" onClick={onOpen} className="flex items-center justify-center gap-1.5 px-3 py-3 text-[11px] font-semibold text-slate-400 transition hover:bg-white/[0.03] hover:text-cyan-300">
+          Deschide graficul <ChevronRight className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={onPrepare}
+          disabled={preparing || alertActive}
+          className={`flex items-center justify-center gap-1.5 border-l border-white/[0.05] px-3 py-3 text-[11px] font-bold transition disabled:cursor-not-allowed disabled:opacity-60 ${bullish
+            ? 'text-emerald-300 hover:bg-emerald-500/[0.06]'
+            : 'text-rose-300 hover:bg-rose-500/[0.06]'}`}
+        >
+          <BellPlus className={`h-3.5 w-3.5 ${preparing ? 'animate-pulse' : ''}`} />
+          {alertActive ? 'Alertă activă' : bullish ? 'Pregătește alerta' : 'Vezi pragul bearish'}
+        </button>
+      </div>
+    </article>
   );
 };
 
