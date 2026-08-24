@@ -756,3 +756,27 @@ gcloud compute addresses describe relayhub-ip \
 ```
 
 After changing DNS, wait for the Google-managed certificate to become `ACTIVE` before treating the restoration as complete.
+
+## 18. Removal of unused Google Cloud applications
+
+### Cleanup performed on 24 August 2026
+
+The following unused Cloud Run applications were permanently removed from project `gen-lang-client-0610749770`:
+
+```text
+crypto-scanner-web (europe-west3)
+kj-lematte (europe-west2)
+kjolematte-backend (europe-west2)
+```
+
+The dedicated Artifact Registry package `kjolematte-backend` in `europe-west2/cloud-run-source-deploy` was also deleted. The historical package named `crypto-scanner-web` in `europe-west3` was intentionally retained because the active Market 360 revision is deployed from that package (`crypto-scanner-web:codex-alert-center-20260824-2`). Deleting the package would break future rollback/redeployment of Market 360.
+
+Post-cleanup Cloud Run inventory:
+
+```text
+cloud-callcenter-saas (RelayHub, retained, private)
+market-scanner-360 (retained, public, HTTP 200 verified)
+relayhub-hybrid-email-test (RelayHub component, retained)
+```
+
+Other Google Cloud projects were not deleted as part of this cleanup. Project deletion is broader than deleting an application and can remove buckets, snapshots, API keys and IAM configuration. At inventory time, `gen-lang-client-0165084077` (`Typi`) and `responsive-journey-vbc5s` still had billing enabled; the active account did not have resource-inspection permission on `responsive-journey-vbc5s`.
