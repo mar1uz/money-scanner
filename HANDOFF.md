@@ -852,9 +852,12 @@ Production deployment:
 ```text
 Git implementation commit: 190369b
 Cloud Build: 798256b5-640b-430b-8e67-b459df4e053b
-Cloud Run revision: market-scanner-360-00093-dxn
+Cloud Run image revision: market-scanner-360-00093-dxn
+Cloud Run secret-rotation revision: market-scanner-360-00094-bw9
 Traffic: 100%
 Health verification: HTTP 200
 Unauthenticated dashboard verification: HTTP 401
-Mobile verification: 390x844, no horizontal overflow
+Initial full scan: HTTP 200, ten populated candidates verified
+Cloud Scheduler: token rotated/synchronized; manual execution HTTP 200
+Mobile verification: 390x844, ten real cards and no horizontal overflow
 ```
