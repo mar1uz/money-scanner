@@ -16,6 +16,26 @@ const candles = (lastClose: number) => Array.from({ length: 60 }, (_, index) => 
 }));
 
 describe('Daily MoneyLine regime scan', () => {
+  it('prevents repeated manual full scans during the ten-minute cooldown', async () => {
+    const state = new AppState();
+    (state as any).executeManualFullScan = async () => ({
+      scope: 'full',
+      running: false,
+      scannedAssets: 10,
+      totalAssets: 10,
+      matches: 0,
+      errors: 0,
+      lastCompletedAt: Date.now()
+    });
+
+    const first = await state.runManualAlertScan('user-1', 'full');
+    assert.equal(first.scannedAssets, 10);
+    await assert.rejects(
+      () => state.runManualAlertScan('user-1', 'full'),
+      (error: any) => error?.code === 'SCAN_COOLDOWN' && error?.retryAfterSeconds > 0
+    );
+  });
+
   it('detects a Daily bearish transition below SMA50 inside a Weekly bullish regime', () => {
     const state = new AppState();
     const daily = candles(90);

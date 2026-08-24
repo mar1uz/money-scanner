@@ -7,11 +7,13 @@ import {
   ChevronRight,
   Clock3,
   RefreshCw,
+  ScanSearch,
   Send,
   ShieldAlert,
   Target,
   Trash2,
-  TrendingUp
+  TrendingUp,
+  Zap
 } from 'lucide-react';
 import { AssetScannerRow, Timeframe } from '../types.js';
 import {
@@ -19,11 +21,14 @@ import {
   AlertsDashboardResponse,
   AlertProgressStatus,
   fetchAlertsDashboard,
+  ManualAlertScanScope,
+  runManualAlertScan,
   setBullishAlert
 } from '../services/api.js';
 
 interface AlertsCenterViewProps {
   knownAssets: AssetScannerRow[];
+  watchlist: string[];
   onOpenAsset: (symbol: string, marketClass: AssetScannerRow['marketClass'], timeframe: Timeframe) => void;
 }
 
@@ -57,10 +62,12 @@ const actionLabel = (action?: 'READY' | 'WAIT_RETEST' | 'AVOID') => {
   return 'Plan indisponibil';
 };
 
-export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets, onOpenAsset }) => {
+export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets, watchlist, onOpenAsset }) => {
   const [data, setData] = useState<AlertsDashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [scanScope, setScanScope] = useState<ManualAlertScanScope | null>(null);
+  const [scanMessage, setScanMessage] = useState('');
   const [removingId, setRemovingId] = useState('');
   const restoredBrowserRules = useRef(false);
 
@@ -81,6 +88,14 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
     const timer = window.setInterval(() => void loadDashboard(), 60_000);
     return () => window.clearInterval(timer);
   }, [loadDashboard]);
+
+  useEffect(() => {
+    if (!data?.manualScan.running || scanScope) return;
+    const timer = window.setInterval(() => {
+      void fetchAlertsDashboard().then(setData).catch(() => undefined);
+    }, 2_500);
+    return () => window.clearInterval(timer);
+  }, [data?.manualScan.running, scanScope]);
 
   // Existing alert choices live in the browser as a recovery layer. Restore
   // missing server rules after a Cloud Run revision change, then refresh the
@@ -153,6 +168,47 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
     }
   };
 
+  const startManualScan = async (scope: ManualAlertScanScope) => {
+    setScanScope(scope);
+    setScanMessage('');
+    setError('');
+    const watchlistPayload = watchlist.slice(0, 50).map(symbol => {
+      const normalizedSymbol = symbol.replace(/^[$#]/, '').trim().toUpperCase();
+      const asset = knownAssets.find(item => item.symbol.toUpperCase() === normalizedSymbol);
+      const marketClass = asset?.marketClass === 'crypto' || asset?.marketClass === 'stocks' || asset?.marketClass === 'metals'
+        ? asset.marketClass
+        : undefined;
+      return { symbol: normalizedSymbol, marketClass };
+    });
+    const pollTimer = window.setInterval(() => {
+      void fetchAlertsDashboard().then(setData).catch(() => undefined);
+    }, 2_500);
+
+    try {
+      const result = await runManualAlertScan(scope, watchlistPayload);
+      if (result.lastError) throw new Error(result.lastError);
+      setScanMessage(
+        `${scope === 'quick' ? 'Scanarea rapidă' : 'Scanarea completă'} s-a încheiat: `
+        + `${result.scannedAssets}/${result.totalAssets} active verificate, ${result.matches} setup-uri, ${result.errors} erori.`
+      );
+      await loadDashboard();
+    } catch (scanError) {
+      setError(scanError instanceof Error ? scanError.message : 'Scanarea manuală nu a putut fi pornită.');
+      await loadDashboard();
+    } finally {
+      window.clearInterval(pollTimer);
+      setScanScope(null);
+    }
+  };
+
+  const activeScanScope = scanScope || (data?.manualScan.running ? data.manualScan.scope : null);
+  const activeManualScanStatus = activeScanScope && data?.manualScan.running && data.manualScan.scope === activeScanScope
+    ? data.manualScan
+    : null;
+  const scanProgress = activeManualScanStatus?.totalAssets
+    ? Math.min(100, Math.round((activeManualScanStatus.scannedAssets / activeManualScanStatus.totalAssets) * 100))
+    : 0;
+
   return (
     <div className="space-y-6">
       <section className="overflow-hidden rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-cyan-500/[0.08] via-background-card to-violet-500/[0.05] p-4 sm:p-6">
@@ -184,32 +240,79 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
           <SummaryCard icon={Send} label="Telegram" value={data?.telegramConfigured ? 'Conectat' : 'Neconfigurat'} tone={data?.telegramConfigured ? 'emerald' : 'rose'} />
         </div>
 
-        <div className="mt-4 flex flex-col gap-3 rounded-xl border border-violet-500/20 bg-violet-500/[0.06] p-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-violet-400/20 bg-violet-500/10">
-              <CalendarClock className="h-4 w-4 text-violet-300" />
+        <div className="mt-4 rounded-xl border border-violet-500/20 bg-violet-500/[0.06] p-3">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-violet-400/20 bg-violet-500/10">
+                <CalendarClock className="h-4 w-4 text-violet-300" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-violet-200">Scanare ML 1W → ML 1D + SMA 50</div>
+                <p className="mt-1 max-w-2xl text-[11px] leading-5 text-slate-400">
+                  Automat zilnic la <strong className="text-slate-200">12:00 Europe/Oslo</strong>. Rapid verifică watchlist-ul și alertele active; Complet verifică întregul univers crypto, stocks și metale.
+                </p>
+              </div>
             </div>
-            <div>
-              <div className="text-xs font-bold text-violet-200">Scanare generală ML 1W → ML 1D + SMA 50</div>
-              <p className="mt-1 text-[11px] leading-5 text-slate-400">
-                Activă automat zilnic la <strong className="text-slate-200">12:00 Europe/Oslo</strong>. Detectează Daily bearish sub SMA 50 în Weekly bullish și Daily bullish peste SMA 50 în Weekly bearish.
-              </p>
+
+            <div className="flex shrink-0 flex-col gap-2 sm:items-end">
+              <div className="text-left sm:text-right">
+                <div className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
+                  {activeScanScope
+                    ? `${activeScanScope === 'quick' ? 'Scanare rapidă' : 'Scanare completă'} în curs`
+                    : data?.dailyRegimeScan.lastCompletedAt ? 'Ultima scanare completă' : 'Programată'}
+                </div>
+                <div className="mt-1 font-mono text-xs font-bold text-violet-200">
+                  {activeScanScope
+                    ? activeManualScanStatus?.totalAssets
+                      ? `${activeManualScanStatus.scannedAssets}/${activeManualScanStatus.totalAssets} active · ${activeManualScanStatus.matches} setup-uri`
+                      : 'Pregătesc universul de scanare…'
+                    : data?.manualScan.lastCompletedAt
+                      ? `${formatDate(data.manualScan.lastCompletedAt)} · ${data.manualScan.matches} setup-uri`
+                      : data?.dailyRegimeScan.lastCompletedAt
+                        ? `${formatDate(data.dailyRegimeScan.lastCompletedAt)} · ${data.dailyRegimeScan.matches} semnale`
+                        : 'Următoarea rulare: 12:00'}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => void startManualScan('quick')}
+                  disabled={Boolean(activeScanScope)}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-[11px] font-bold text-cyan-200 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Zap className={`h-3.5 w-3.5 ${activeScanScope === 'quick' ? 'animate-pulse' : ''}`} /> Rapid
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void startManualScan('full')}
+                  disabled={Boolean(activeScanScope)}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-[11px] font-bold text-violet-200 transition hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <ScanSearch className={`h-3.5 w-3.5 ${activeScanScope === 'full' ? 'animate-pulse' : ''}`} /> Complet
+                </button>
+              </div>
             </div>
           </div>
-          <div className="shrink-0 text-left sm:text-right">
-            <div className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
-              {data?.dailyRegimeScan.running ? 'Scanare în curs' : data?.dailyRegimeScan.lastCompletedAt ? 'Ultima verificare' : 'Programată'}
+
+          {activeScanScope && (
+            <div className="mt-3">
+              <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-violet-400 transition-all duration-500"
+                  style={{ width: `${Math.max(3, scanProgress)}%` }}
+                />
+              </div>
+              <p className="mt-2 text-[10px] text-slate-500">Poți rămâne pe această pagină; rezultatele și alertele Telegram sunt protejate împotriva duplicării.</p>
             </div>
-            <div className="mt-1 font-mono text-xs font-bold text-violet-200">
-              {data?.dailyRegimeScan.running
-                ? `${data.dailyRegimeScan.scannedAssets} active verificate`
-                : data?.dailyRegimeScan.lastCompletedAt
-                  ? `${formatDate(data.dailyRegimeScan.lastCompletedAt)} · ${data.dailyRegimeScan.matches} semnale`
-                  : 'Următoarea rulare: 12:00'}
-            </div>
-          </div>
+          )}
         </div>
       </section>
+
+      {scanMessage && (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+          <CheckCircle2 className="h-4 w-4 shrink-0" /> {scanMessage}
+        </div>
+      )}
 
       {error && (
         <div className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">

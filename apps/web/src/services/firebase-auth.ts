@@ -25,7 +25,7 @@ const firebaseAuth = getAuth(firebaseApp);
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
-const requestCsrfToken = async () => {
+export const requestCsrfToken = async () => {
   const response = await fetch('/api/auth/csrf', { credentials: 'same-origin' });
   if (!response.ok) throw new Error('Nu s-a putut pregăti sesiunea securizată.');
   const payload = await response.json() as { csrfToken?: string };

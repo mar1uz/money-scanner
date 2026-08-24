@@ -10,6 +10,7 @@ import {
   BacktestResult
 } from '@money-scanner/shared';
 import { AssetDetailResponse } from '../types.js';
+import { requestCsrfToken } from './firebase-auth.js';
 
 const API_BASE = '/api';
 
@@ -292,9 +293,25 @@ export interface DailyRegimeScanStatus {
   lastStartedAt?: number;
   lastCompletedAt?: number;
   scannedAssets: number;
+  totalAssets?: number;
   matches: number;
   errors: number;
   running: boolean;
+  lastError?: string;
+}
+
+export type ManualAlertScanScope = 'quick' | 'full';
+
+export interface ManualAlertScanStatus {
+  scope: ManualAlertScanScope;
+  running: boolean;
+  scannedAssets: number;
+  totalAssets: number;
+  matches: number;
+  errors: number;
+  lastStartedAt?: number;
+  lastCompletedAt?: number;
+  nextAllowedAt?: number;
   lastError?: string;
 }
 
@@ -305,6 +322,7 @@ export interface AlertsDashboardResponse {
   botConfigured: boolean;
   chatConfigured: boolean;
   dailyRegimeScan: DailyRegimeScanStatus;
+  manualScan: ManualAlertScanStatus;
   updatedAt: number;
 }
 
@@ -312,6 +330,28 @@ export async function fetchAlertsDashboard(): Promise<AlertsDashboardResponse> {
   const res = await fetchWithDeadline(`${API_BASE}/alerts/dashboard`, { cache: 'no-store' }, 45_000);
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch alerts dashboard`);
   return res.json();
+}
+
+export async function runManualAlertScan(
+  scope: ManualAlertScanScope,
+  watchlist: Array<{ symbol: string; marketClass?: 'crypto' | 'stocks' | 'metals' }> = []
+): Promise<ManualAlertScanStatus> {
+  const csrfToken = await requestCsrfToken();
+  const res = await fetchWithDeadline(`${API_BASE}/alerts/manual-scan`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken
+    },
+    body: JSON.stringify({ scope, watchlist })
+  }, 15 * 60_000);
+  const payload = await res.json().catch(() => ({})) as ManualAlertScanStatus & {
+    error?: string;
+    retryAfterSeconds?: number;
+  };
+  if (!res.ok) throw new Error(payload.error || `HTTP ${res.status}: Scanarea manuală a eșuat.`);
+  return payload;
 }
 
 export async function askAIAnalyst(question: string): Promise<{

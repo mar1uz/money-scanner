@@ -780,3 +780,34 @@ relayhub-hybrid-email-test (RelayHub component, retained)
 ```
 
 Other Google Cloud projects were not deleted as part of this cleanup. Project deletion is broader than deleting an application and can remove buckets, snapshots, API keys and IAM configuration. At inventory time, `gen-lang-client-0165084077` (`Typi`) and `responsive-journey-vbc5s` still had billing enabled; the active account did not have resource-inspection permission on `responsive-journey-vbc5s`.
+
+## 19. Manual alert scans
+
+The Alerts Center now exposes two authenticated manual scan modes:
+
+```text
+Rapid / Quick:
+- combines the current browser watchlist (maximum 50 entries) with the user's active MoneyLine alert rules
+- checks the Daily/Weekly regime condition and every configured alert timeframe
+- concurrency 4
+- cooldown 60 seconds
+
+Complet / Full:
+- reuses the scheduled general Top 50 crypto + Market 360 stocks + metals scan
+- concurrency 6
+- cooldown 10 minutes per user
+```
+
+Implementation details:
+
+- UI: `apps/web/src/components/AlertsCenterView.tsx`
+- authenticated endpoint: `POST /api/alerts/manual-scan`
+- request body: `{ "scope": "quick" | "full", "watchlist": [{ "symbol": "BTC", "marketClass": "crypto" }] }`
+- the endpoint requires the normal Firebase session plus an `X-CSRF-Token`
+- scan status is included in `GET /api/alerts/dashboard` as `manualScan`
+- the client keeps the POST request open while polling dashboard progress every 2.5 seconds
+- concurrent scans for the same user reuse/lock the active operation
+- existing closed-candle idempotency keys prevent duplicate Telegram regime alerts
+- the full Cloud Run and Cloud Scheduler request deadlines remain 900 seconds
+
+The existing `Actualizează` button only reloads dashboard state; it does not start provider scans. The new `Rapid` and `Complet` buttons are the only manual scan triggers.

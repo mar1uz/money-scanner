@@ -355,6 +355,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
               {activeTab === 'alerts' && (
                 <AlertsCenterView
                   knownAssets={scannerRows}
+                  watchlist={watchlist}
                   onOpenAsset={(symbol, marketClass, selectedTimeframe) => openAsset(symbol, marketClass, selectedTimeframe)}
                 />
               )}

@@ -49,10 +49,31 @@ export interface DailyRegimeScanStatus {
   lastStartedAt?: number;
   lastCompletedAt?: number;
   scannedAssets: number;
+  totalAssets?: number;
   matches: number;
   errors: number;
   running: boolean;
   lastError?: string;
+}
+
+export type ManualAlertScanScope = 'quick' | 'full';
+
+export interface ManualAlertScanStatus {
+  scope: ManualAlertScanScope;
+  running: boolean;
+  scannedAssets: number;
+  totalAssets: number;
+  matches: number;
+  errors: number;
+  lastStartedAt?: number;
+  lastCompletedAt?: number;
+  nextAllowedAt?: number;
+  lastError?: string;
+}
+
+export interface ManualAlertScanAssetInput {
+  symbol: string;
+  marketClass?: AssetMarketClass;
 }
 
 interface DailyRegimeMatch {
@@ -97,6 +118,9 @@ export class AppState {
   private bullishAlertTimer?: NodeJS.Timeout;
   private dailyRegimeScanPromise?: Promise<DailyRegimeScanStatus>;
   private dailyRegimeStateLoadedAt = 0;
+  private manualAlertScanPromises = new Map<string, Promise<ManualAlertScanStatus>>();
+  private manualAlertScanStatuses = new Map<string, ManualAlertScanStatus>();
+  private manualAlertScanNextAllowed = new Map<string, number>();
   private dailyRegimeScanStatus: DailyRegimeScanStatus = {
     enabled: true,
     schedule: '0 12 * * *',
@@ -147,6 +171,7 @@ export class AppState {
       activeAlerts,
       history,
       dailyRegimeScan: { ...this.dailyRegimeScanStatus },
+      manualScan: this.getManualAlertScanStatus(userId),
       updatedAt: Date.now(),
       ...this.telegramBot.getDeliveryConfiguration()
     };
@@ -154,6 +179,224 @@ export class AppState {
 
   public getDailyRegimeScanStatus() {
     return { ...this.dailyRegimeScanStatus };
+  }
+
+  public getManualAlertScanStatus(userId: string): ManualAlertScanStatus {
+    const status = this.manualAlertScanStatuses.get(userId);
+    if (status?.running && status.scope === 'full') {
+      return {
+        ...status,
+        scannedAssets: this.dailyRegimeScanStatus.scannedAssets,
+        totalAssets: this.dailyRegimeScanStatus.totalAssets || status.totalAssets,
+        matches: this.dailyRegimeScanStatus.matches,
+        errors: this.dailyRegimeScanStatus.errors
+      };
+    }
+    return { ...(status || {
+      scope: 'quick',
+      running: false,
+      scannedAssets: 0,
+      totalAssets: 0,
+      matches: 0,
+      errors: 0
+    }) };
+  }
+
+  public getManualAlertScanCooldown(userId: string, scope: ManualAlertScanScope) {
+    return Math.max(0, (this.manualAlertScanNextAllowed.get(`${userId}:${scope}`) || 0) - Date.now());
+  }
+
+  public runManualAlertScan(
+    userId: string,
+    scope: ManualAlertScanScope,
+    watchlist: ManualAlertScanAssetInput[] = []
+  ): Promise<ManualAlertScanStatus> {
+    const existing = this.manualAlertScanPromises.get(userId);
+    if (existing) return existing;
+
+    const cooldownMs = this.getManualAlertScanCooldown(userId, scope);
+    if (cooldownMs > 0) {
+      const retryAfterSeconds = Math.max(1, Math.ceil(cooldownMs / 1000));
+      return Promise.reject(Object.assign(
+        new Error(`Scanarea poate fi pornită din nou în ${retryAfterSeconds} secunde.`),
+        { code: 'SCAN_COOLDOWN', retryAfterSeconds }
+      ));
+    }
+
+    const startedAt = Date.now();
+    const cooldownDuration = scope === 'full' ? 10 * 60_000 : 60_000;
+    this.manualAlertScanNextAllowed.set(`${userId}:${scope}`, startedAt + cooldownDuration);
+    this.manualAlertScanStatuses.set(userId, {
+      scope,
+      running: true,
+      scannedAssets: 0,
+      totalAssets: 0,
+      matches: 0,
+      errors: 0,
+      lastStartedAt: startedAt,
+      nextAllowedAt: startedAt + cooldownDuration
+    });
+
+    const promise = (scope === 'full'
+      ? this.executeManualFullScan(userId)
+      : this.executeManualQuickScan(userId, watchlist)
+    ).finally(() => {
+      this.manualAlertScanPromises.delete(userId);
+    });
+    this.manualAlertScanPromises.set(userId, promise);
+    return promise;
+  }
+
+  private updateManualAlertScanStatus(userId: string, patch: Partial<ManualAlertScanStatus>) {
+    const current = this.getManualAlertScanStatus(userId);
+    const next = { ...current, ...patch };
+    this.manualAlertScanStatuses.set(userId, next);
+    return next;
+  }
+
+  private async executeManualFullScan(userId: string): Promise<ManualAlertScanStatus> {
+    try {
+      const result = await this.runDailyRegimeScan();
+      return this.updateManualAlertScanStatus(userId, {
+        scope: 'full',
+        running: false,
+        scannedAssets: result.scannedAssets,
+        totalAssets: result.totalAssets || result.scannedAssets,
+        matches: result.matches,
+        errors: result.errors,
+        lastCompletedAt: Date.now(),
+        lastError: result.lastError
+      });
+    } catch (error) {
+      return this.updateManualAlertScanStatus(userId, {
+        scope: 'full',
+        running: false,
+        lastCompletedAt: Date.now(),
+        lastError: error instanceof Error ? error.message : 'Scanarea completă a eșuat.'
+      });
+    }
+  }
+
+  private async executeManualQuickScan(
+    userId: string,
+    watchlist: ManualAlertScanAssetInput[]
+  ): Promise<ManualAlertScanStatus> {
+    try {
+      // A manual scan may be the first request handled by a fresh Cloud Run
+      // instance. Restore persisted history before checking idempotency keys.
+      await this.restoreDailyRegimeState(true);
+      const activeRules = this.listBullishCloudAlerts(userId);
+      const universe = new Map<string, { symbol: string; marketClass: AssetMarketClass }>();
+      const addAsset = (symbol: string, marketClass: AssetMarketClass) => {
+        const normalizedSymbol = symbol.replace(/^[$#]/, '').trim().toUpperCase();
+        if (!/^[A-Z0-9._-]{1,30}$/.test(normalizedSymbol)) return;
+        universe.set(`${marketClass}:${normalizedSymbol}`, { symbol: normalizedSymbol, marketClass });
+      };
+
+      activeRules.forEach(rule => addAsset(rule.symbol, rule.marketClass));
+      const catalog = getScannerAssets('ALL');
+      const normalizedWatchlist = watchlist.slice(0, 50).map(item => ({
+        symbol: String(item.symbol || '').replace(/^[$#]/, '').trim().toUpperCase(),
+        marketClass: item.marketClass
+      })).filter(item => /^[A-Z0-9._-]{1,30}$/.test(item.symbol));
+      const unresolvedSymbols: string[] = [];
+
+      normalizedWatchlist.forEach(item => {
+        const catalogAsset = item.marketClass
+          ? catalog.find(asset => asset.symbol === item.symbol && asset.marketClass === item.marketClass)
+          : catalog.find(asset => asset.symbol === item.symbol);
+        const marketClass = item.marketClass || catalogAsset?.marketClass;
+        if (marketClass === 'crypto' || marketClass === 'stocks' || marketClass === 'metals') {
+          addAsset(item.symbol, marketClass);
+        } else {
+          unresolvedSymbols.push(item.symbol);
+        }
+      });
+
+      if (unresolvedSymbols.length) {
+        const liveCrypto = await this.marketData.getTopCryptoAssets(100);
+        unresolvedSymbols.forEach(symbol => {
+          if (liveCrypto.some(asset => asset.symbol.toUpperCase() === symbol)) addAsset(symbol, 'crypto');
+        });
+      }
+
+      const assets = Array.from(universe.values());
+      let errors = normalizedWatchlist.filter(item =>
+        !assets.some(asset => asset.symbol === item.symbol && (!item.marketClass || asset.marketClass === item.marketClass))
+      ).length;
+      const matches: DailyRegimeMatch[] = [];
+      this.updateManualAlertScanStatus(userId, {
+        scope: 'quick',
+        running: true,
+        scannedAssets: 0,
+        totalAssets: assets.length,
+        matches: 0,
+        errors
+      });
+
+      const concurrency = 4;
+      for (let index = 0; index < assets.length; index += concurrency) {
+        const batch = assets.slice(index, index + concurrency);
+        const settled = await Promise.allSettled(batch.map(async asset => {
+          const matchingRules = activeRules.filter(rule =>
+            rule.symbol === asset.symbol && rule.marketClass === asset.marketClass
+          );
+          const [dailyRaw, weeklyRaw] = await Promise.all([
+            this.marketData.getCandles(asset.symbol, '1d', 320, asset.marketClass),
+            this.marketData.getCandles(asset.symbol, '1w', 260, asset.marketClass)
+          ]);
+          await Promise.allSettled(matchingRules.map(rule => this.evaluateBullishCloudAlert(rule)));
+
+          const currentUtcDay = new Date();
+          currentUtcDay.setUTCHours(0, 0, 0, 0);
+          const dailyCandles = dailyRaw.map(candle =>
+            candle.isClosed === false && candle.timestamp < currentUtcDay.getTime()
+              ? { ...candle, isClosed: true }
+              : candle
+          );
+          return this.evaluateDailyRegimeAsset(
+            asset.symbol,
+            asset.marketClass,
+            dailyCandles,
+            weeklyRaw
+          );
+        }));
+
+        settled.forEach(result => {
+          if (result.status === 'fulfilled') {
+            if (result.value) matches.push(result.value);
+          } else {
+            errors += 1;
+            console.warn('Quick manual alert scan failed:', result.reason instanceof Error ? result.reason.message : result.reason);
+          }
+        });
+        this.updateManualAlertScanStatus(userId, {
+          scannedAssets: Math.min(assets.length, index + batch.length),
+          matches: matches.length,
+          errors
+        });
+      }
+
+      await this.publishDailyRegimeMatches(matches, 'manual quick scan');
+      await this.persistDailyRegimeState();
+      return this.updateManualAlertScanStatus(userId, {
+        scope: 'quick',
+        running: false,
+        scannedAssets: assets.length,
+        totalAssets: assets.length,
+        matches: matches.length,
+        errors,
+        lastCompletedAt: Date.now(),
+        lastError: undefined
+      });
+    } catch (error) {
+      return this.updateManualAlertScanStatus(userId, {
+        scope: 'quick',
+        running: false,
+        lastCompletedAt: Date.now(),
+        lastError: error instanceof Error ? error.message : 'Scanarea rapidă a eșuat.'
+      });
+    }
   }
 
   /**
@@ -195,6 +438,7 @@ export class AppState {
       const universe = [...liveCrypto, ...stocks, ...metals].filter(
         asset => asset.marketClass === 'crypto' || asset.marketClass === 'stocks' || asset.marketClass === 'metals'
       );
+      this.dailyRegimeScanStatus.totalAssets = universe.length;
       const matches: DailyRegimeMatch[] = [];
       let errors = 0;
       const concurrency = 6;
@@ -230,79 +474,7 @@ export class AppState {
         this.dailyRegimeScanStatus.scannedAssets += settled.filter(result => result.status === 'fulfilled').length;
       }
 
-      const freshMatches = matches.filter(match => {
-        const idempotencyKey = `daily-regime:${match.scenario}:${match.symbol}:${match.dailyCandleTimestamp}`;
-        return !this.alertHistory.some(alert => alert.idempotencyKey === idempotencyKey);
-      });
-      const dashboardBaseUrl = process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app';
-      let delivered = false;
-
-      if (freshMatches.length) {
-        const riskOff = freshMatches.filter(match => match.scenario === 'WEEKLY_BULL_DAILY_BEAR');
-        const reversal = freshMatches.filter(match => match.scenario === 'WEEKLY_BEAR_DAILY_BULL');
-        const lines = [
-          `🚨 *SCANARE GENERALĂ ML 1W / ML 1D / SMA 50*`,
-          `*${freshMatches.length} setup${freshMatches.length === 1 ? '' : '-uri'} nou${freshMatches.length === 1 ? '' : 'e'} confirmat${freshMatches.length === 1 ? '' : 'e'} pe lumânări închise*`,
-          ''
-        ];
-        if (riskOff.length) {
-          lines.push(`🔴 *RISK-OFF — 1W bullish, 1D flip bearish sub SMA 50*`);
-          riskOff.forEach(match => lines.push(
-            `▼ *$${match.symbol}* · ${formatAlertPrice(match.price)} · SMA50 ${formatAlertPrice(match.sma50)} · ML1W ${match.weeklyTier} (${match.weeklyScore > 0 ? '+' : ''}${match.weeklyScore}) · ML1D ${match.dailyTier} (${match.dailyScore})`
-          ));
-          lines.push('');
-        }
-        if (reversal.length) {
-          lines.push(`🟢 *REVERSAL LONG — 1W bearish, 1D flip bullish peste SMA 50*`);
-          reversal.forEach(match => lines.push(
-            `▲ *$${match.symbol}* · ${formatAlertPrice(match.price)} · SMA50 ${formatAlertPrice(match.sma50)} · ML1W ${match.weeklyTier} (${match.weeklyScore}) · ML1D ${match.dailyTier} (+${match.dailyScore})`
-          ));
-          lines.push('');
-        }
-        lines.push(
-          `_Scanarea rulează automat o dată pe zi, la 12:00 Europe/Oslo. Semnalele sunt tehnice, nu recomandări financiare._`,
-          `🔗 [Deschide pagina Alerte](${dashboardBaseUrl})`
-        );
-        delivered = await this.telegramBot.sendMarkdown(lines.join('\n'));
-      }
-
-      freshMatches.forEach(match => {
-        const isRiskOff = match.scenario === 'WEEKLY_BULL_DAILY_BEAR';
-        const reason = isRiskOff
-          ? 'ML 1W este bullish, ML 1D a devenit bearish și închiderea zilnică este sub SMA 50.'
-          : 'ML 1W este bearish, ML 1D a devenit bullish și închiderea zilnică este peste SMA 50.';
-        this.alertHistory.unshift({
-          id: `daily_regime_${Date.now()}_${match.symbol}_${Math.floor(Math.random() * 1000)}`,
-          idempotencyKey: `daily-regime:${match.scenario}:${match.symbol}:${match.dailyCandleTimestamp}`,
-          ruleId: 'global:daily-regime-scan',
-          symbol: match.symbol,
-          type: 'MultiTimeframeReversal',
-          title: isRiskOff ? 'Risk-off Daily în context Weekly bullish' : 'Reversal bullish Daily în context Weekly bearish',
-          message: reason,
-          timeframe: '1d',
-          price: match.price,
-          tier: match.dailyTier,
-          previousTier: match.previousDailyTier,
-          reason,
-          confidence: Math.min(1, Math.abs(match.dailyScore - match.weeklyScore) / 100),
-          timestamp: Date.now(),
-          dashboardLink: dashboardBaseUrl,
-          isDelivered: delivered,
-          regimeScan: {
-            scenario: match.scenario,
-            marketClass: match.marketClass,
-            weeklyTier: match.weeklyTier,
-            weeklyScore: match.weeklyScore,
-            dailyTier: match.dailyTier,
-            previousDailyTier: match.previousDailyTier,
-            dailyScore: match.dailyScore,
-            dailyCandleTimestamp: match.dailyCandleTimestamp,
-            sma50: match.sma50,
-            distanceToSma50Percent: match.distanceToSma50Percent
-          }
-        });
-      });
-      if (this.alertHistory.length > 250) this.alertHistory.splice(250);
+      await this.publishDailyRegimeMatches(matches, 'scheduled/full scan');
 
       this.dailyRegimeScanStatus = {
         ...this.dailyRegimeScanStatus,
@@ -324,6 +496,90 @@ export class AppState {
     }
 
     return { ...this.dailyRegimeScanStatus };
+  }
+
+  private async publishDailyRegimeMatches(
+    matches: DailyRegimeMatch[],
+    source: 'scheduled/full scan' | 'manual quick scan'
+  ) {
+    const freshMatches = matches.filter(match => {
+      const idempotencyKey = `daily-regime:${match.scenario}:${match.symbol}:${match.dailyCandleTimestamp}`;
+      return !this.alertHistory.some(alert => alert.idempotencyKey === idempotencyKey);
+    });
+    const dashboardBaseUrl = process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app';
+    let delivered = false;
+
+    if (freshMatches.length) {
+      const riskOff = freshMatches.filter(match => match.scenario === 'WEEKLY_BULL_DAILY_BEAR');
+      const reversal = freshMatches.filter(match => match.scenario === 'WEEKLY_BEAR_DAILY_BULL');
+      const lines = [
+        source === 'manual quick scan'
+          ? `⚡ *SCANARE RAPIDĂ WATCHLIST / ALERTE*`
+          : `🚨 *SCANARE GENERALĂ ML 1W / ML 1D / SMA 50*`,
+        `*${freshMatches.length} setup${freshMatches.length === 1 ? '' : '-uri'} nou${freshMatches.length === 1 ? '' : 'e'} confirmat${freshMatches.length === 1 ? '' : 'e'} pe lumânări închise*`,
+        ''
+      ];
+      if (riskOff.length) {
+        lines.push(`🔴 *RISK-OFF — 1W bullish, 1D flip bearish sub SMA 50*`);
+        riskOff.forEach(match => lines.push(
+          `▼ *$${match.symbol}* · ${formatAlertPrice(match.price)} · SMA50 ${formatAlertPrice(match.sma50)} · ML1W ${match.weeklyTier} (${match.weeklyScore > 0 ? '+' : ''}${match.weeklyScore}) · ML1D ${match.dailyTier} (${match.dailyScore})`
+        ));
+        lines.push('');
+      }
+      if (reversal.length) {
+        lines.push(`🟢 *REVERSAL LONG — 1W bearish, 1D flip bullish peste SMA 50*`);
+        reversal.forEach(match => lines.push(
+          `▲ *$${match.symbol}* · ${formatAlertPrice(match.price)} · SMA50 ${formatAlertPrice(match.sma50)} · ML1W ${match.weeklyTier} (${match.weeklyScore}) · ML1D ${match.dailyTier} (+${match.dailyScore})`
+        ));
+        lines.push('');
+      }
+      lines.push(
+        source === 'manual quick scan'
+          ? `_Scanare inițiată manual. Semnalele folosesc numai lumânări închise și nu se trimit din nou pentru aceeași lumânare._`
+          : `_Scanarea rulează automat o dată pe zi, la 12:00 Europe/Oslo. Semnalele sunt tehnice, nu recomandări financiare._`,
+        `🔗 [Deschide pagina Alerte](${dashboardBaseUrl})`
+      );
+      delivered = await this.telegramBot.sendMarkdown(lines.join('\n'));
+    }
+
+    freshMatches.forEach(match => {
+      const isRiskOff = match.scenario === 'WEEKLY_BULL_DAILY_BEAR';
+      const reason = isRiskOff
+        ? 'ML 1W este bullish, ML 1D a devenit bearish și închiderea zilnică este sub SMA 50.'
+        : 'ML 1W este bearish, ML 1D a devenit bullish și închiderea zilnică este peste SMA 50.';
+      this.alertHistory.unshift({
+        id: `daily_regime_${Date.now()}_${match.symbol}_${Math.floor(Math.random() * 1000)}`,
+        idempotencyKey: `daily-regime:${match.scenario}:${match.symbol}:${match.dailyCandleTimestamp}`,
+        ruleId: 'global:daily-regime-scan',
+        symbol: match.symbol,
+        type: 'MultiTimeframeReversal',
+        title: isRiskOff ? 'Risk-off Daily în context Weekly bullish' : 'Reversal bullish Daily în context Weekly bearish',
+        message: reason,
+        timeframe: '1d',
+        price: match.price,
+        tier: match.dailyTier,
+        previousTier: match.previousDailyTier,
+        reason,
+        confidence: Math.min(1, Math.abs(match.dailyScore - match.weeklyScore) / 100),
+        timestamp: Date.now(),
+        dashboardLink: dashboardBaseUrl,
+        isDelivered: delivered,
+        regimeScan: {
+          scenario: match.scenario,
+          marketClass: match.marketClass,
+          weeklyTier: match.weeklyTier,
+          weeklyScore: match.weeklyScore,
+          dailyTier: match.dailyTier,
+          previousDailyTier: match.previousDailyTier,
+          dailyScore: match.dailyScore,
+          dailyCandleTimestamp: match.dailyCandleTimestamp,
+          sma50: match.sma50,
+          distanceToSma50Percent: match.distanceToSma50Percent
+        }
+      });
+    });
+    if (this.alertHistory.length > 250) this.alertHistory.splice(250);
+    return freshMatches.length;
   }
 
   private dailyRegimeDocument() {

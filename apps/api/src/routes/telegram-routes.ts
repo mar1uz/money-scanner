@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { AppState } from '../services/app-state.js';
 import { AssetMarketClass, MoneyLineSignal, Timeframe } from '@money-scanner/shared';
-import { AuthenticatedRequest } from '../middleware/auth.js';
+import { AuthenticatedRequest, validateCsrfToken } from '../middleware/auth.js';
 
 export const telegramRouter = Router();
 
@@ -101,6 +101,44 @@ telegramRouter.get('/alerts/dashboard', async (req: AuthenticatedRequest, res) =
   const dashboard = await AppState.getInstance().getAlertsDashboard(req.user.id);
   res.set('Cache-Control', 'no-store');
   res.json(dashboard);
+});
+
+telegramRouter.post('/alerts/manual-scan', async (req: AuthenticatedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
+  if (!validateCsrfToken(req)) {
+    return res.status(403).json({ error: 'Invalid CSRF token.', code: 'CSRF_INVALID' });
+  }
+
+  const scope = req.body?.scope === 'full' ? 'full' : req.body?.scope === 'quick' ? 'quick' : undefined;
+  if (!scope) return res.status(400).json({ error: 'Tipul scanării trebuie să fie quick sau full.' });
+  const watchlist = Array.isArray(req.body?.watchlist)
+    ? req.body.watchlist.slice(0, 50).flatMap((item: unknown) => {
+      if (typeof item === 'string') return [{ symbol: item }];
+      if (!item || typeof item !== 'object') return [];
+      const value = item as { symbol?: unknown; marketClass?: unknown };
+      const marketClass = value.marketClass === 'crypto' || value.marketClass === 'stocks' || value.marketClass === 'metals'
+        ? value.marketClass
+        : undefined;
+      return typeof value.symbol === 'string' ? [{ symbol: value.symbol, marketClass }] : [];
+    })
+    : [];
+
+  try {
+    const status = await AppState.getInstance().runManualAlertScan(req.user.id, scope, watchlist);
+    res.set('Cache-Control', 'no-store');
+    return res.json(status);
+  } catch (error) {
+    const scanError = error as Error & { code?: string; retryAfterSeconds?: number };
+    if (scanError.code === 'SCAN_COOLDOWN') {
+      res.set('Retry-After', String(scanError.retryAfterSeconds || 1));
+      return res.status(429).json({
+        error: scanError.message,
+        code: scanError.code,
+        retryAfterSeconds: scanError.retryAfterSeconds
+      });
+    }
+    return res.status(500).json({ error: scanError.message || 'Scanarea manuală a eșuat.' });
+  }
 });
 
 // Invoked only by Cloud Scheduler. It deliberately sits outside browser auth

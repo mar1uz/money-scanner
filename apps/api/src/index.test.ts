@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from './server.js';
+import { AppState } from './services/app-state.js';
 import http from 'node:http';
 
 // The production API always requires a verified Firebase session. Integration
@@ -124,6 +125,8 @@ describe('API Server Integration Tests', () => {
     assert.equal(dashboard.dailyRegimeScan.enabled, true);
     assert.equal(dashboard.dailyRegimeScan.timezone, 'Europe/Oslo');
     assert.equal(dashboard.dailyRegimeScan.schedule, '0 12 * * *');
+    assert.equal(dashboard.manualScan.running, false);
+    assert.equal(dashboard.manualScan.scope, 'quick');
     assert.equal(typeof dashboard.updatedAt, 'number');
 
     await new Promise<void>(resolve => server.close(() => resolve()));
@@ -139,5 +142,51 @@ describe('API Server Integration Tests', () => {
     assert.equal(res.status, 401);
 
     await new Promise<void>(resolve => server.close(() => resolve()));
+  });
+
+  it('requires CSRF and starts an authenticated manual scan', async (t) => {
+    const state = AppState.getInstance();
+    const original = state.runManualAlertScan.bind(state);
+    state.runManualAlertScan = (async (_userId, scope) => ({
+      scope,
+      running: false,
+      scannedAssets: 5,
+      totalAssets: 5,
+      matches: 1,
+      errors: 0,
+      lastStartedAt: Date.now(),
+      lastCompletedAt: Date.now()
+    })) as typeof state.runManualAlertScan;
+    t.after(() => { state.runManualAlertScan = original; });
+
+    const app = createServer();
+    const server = http.createServer(app);
+    await new Promise<void>(resolve => server.listen(0, resolve));
+    t.after(() => new Promise<void>(resolve => server.close(() => resolve())));
+    const port = (server.address() as any).port;
+
+    const rejected = await fetch(`http://127.0.0.1:${port}/api/alerts/manual-scan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scope: 'quick' })
+    });
+    assert.equal(rejected.status, 403);
+
+    const csrfResponse = await fetch(`http://127.0.0.1:${port}/api/auth/csrf`);
+    const csrf = await csrfResponse.json() as { csrfToken: string };
+    const cookie = String(csrfResponse.headers.get('set-cookie')).split(';')[0];
+    const accepted = await fetch(`http://127.0.0.1:${port}/api/alerts/manual-scan`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrf.csrfToken,
+        Cookie: cookie
+      },
+      body: JSON.stringify({ scope: 'quick', watchlist: [{ symbol: 'BTC', marketClass: 'crypto' }] })
+    });
+    assert.equal(accepted.status, 200);
+    const status = await accepted.json() as any;
+    assert.equal(status.scope, 'quick');
+    assert.equal(status.scannedAssets, 5);
   });
 });
