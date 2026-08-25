@@ -7,7 +7,10 @@ import {
   NewsItem,
   NewsSynthesisPayload,
   AIAnalysisPayload,
-  BacktestResult
+  BacktestResult,
+  BacktestComparisonResult,
+  BacktestDirectionMode,
+  AssetMarketClass
 } from '@money-scanner/shared';
 import { AssetDetailResponse } from '../types.js';
 import { requestCsrfToken } from './firebase-auth.js';
@@ -160,6 +163,32 @@ export async function fetchBacktest(
   const params = new URLSearchParams({ timeframe, entryTier, exitTier });
   const res = await fetch(`${API_BASE}/backtest/${symbol}?${params.toString()}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to run backtest`);
+  return res.json();
+}
+
+export async function fetchWeeklyReclaimBacktest(
+  symbol: string,
+  marketClass: AssetMarketClass,
+  directionMode: BacktestDirectionMode = 'LONG_ONLY'
+): Promise<BacktestResult> {
+  const params = new URLSearchParams({
+    strategy: 'weekly_reclaim',
+    timeframe: '1d',
+    marketClass,
+    directionMode
+  });
+  const res = await fetchWithDeadline(`${API_BASE}/backtest/${symbol}?${params.toString()}`, undefined, 45_000);
+  const payload = await res.json().catch(() => ({})) as BacktestResult & { error?: string; details?: string };
+  if (!res.ok) throw new Error(payload.details || payload.error || `HTTP ${res.status}: Backtest indisponibil`);
+  return payload;
+}
+
+export async function fetchWeeklyReclaimComparison(
+  directionMode: BacktestDirectionMode = 'LONG_ONLY'
+): Promise<BacktestComparisonResult> {
+  const params = new URLSearchParams({ directionMode });
+  const res = await fetchWithDeadline(`${API_BASE}/backtest-compare?${params.toString()}`, undefined, 90_000);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Comparația multi-asset nu a putut fi rulată.`);
   return res.json();
 }
 

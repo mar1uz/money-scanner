@@ -109,6 +109,28 @@ describe('API Server Integration Tests', () => {
     await new Promise<void>(resolve => server.close(() => resolve()));
   });
 
+  it('runs the multi-timeframe Weekly reclaim strategy without look-ahead fields missing', async () => {
+    const app = createServer();
+    const server = http.createServer(app);
+
+    await new Promise<void>(resolve => server.listen(0, resolve));
+    const port = (server.address() as any).port;
+    const res = await fetch(
+      `http://127.0.0.1:${port}/api/backtest/BTC?strategy=weekly_reclaim&marketClass=crypto&directionMode=LONG_ONLY`
+    );
+    assert.equal(res.status, 200);
+    const backtest = await res.json() as any;
+
+    assert.equal(backtest.params.strategy, 'weekly_reclaim');
+    assert.equal(backtest.params.timeframe, '1d');
+    assert.ok(Array.isArray(backtest.priceSeries) && backtest.priceSeries.length > 0);
+    assert.equal(backtest.priceSeries.length, backtest.equityCurve.length);
+    assert.equal(typeof backtest.expectancyR, 'number');
+    assert.equal(typeof backtest.sharpeRatio, 'number');
+
+    await new Promise<void>(resolve => server.close(() => resolve()));
+  });
+
   it('serves the authenticated alerts command center payload', async () => {
     const app = createServer();
     const server = http.createServer(app);

@@ -1,16 +1,146 @@
 import { Router } from 'express';
 import { AppState } from '../services/app-state.js';
 import { BacktestSimulatorService } from '../services/backtest-service.js';
-import { Timeframe } from '@money-scanner/shared';
+import {
+  AssetMarketClass,
+  BacktestComparisonResult,
+  BacktestDirectionMode,
+  BacktestParams,
+  Timeframe
+} from '@money-scanner/shared';
 
 export const backtestRouter = Router();
 const simulator = new BacktestSimulatorService();
+
+const validMarketClasses = new Set<AssetMarketClass>(['crypto', 'stocks', 'metals']);
+const parseMarketClass = (value: unknown): AssetMarketClass | undefined => {
+  const marketClass = String(value || '') as AssetMarketClass;
+  return validMarketClasses.has(marketClass) ? marketClass : undefined;
+};
+
+const runWeeklyReclaim = async (
+  symbol: string,
+  marketClass: AssetMarketClass,
+  params: Partial<BacktestParams>
+) => {
+  const marketData = AppState.getInstance().marketData;
+  const [daily, weekly, confirmation] = await Promise.all([
+    marketData.getCandles(symbol, '1d', 1000, marketClass),
+    marketData.getCandles(symbol, '1w', 300, marketClass),
+    marketData.getCandles(symbol, '8h', 2000, marketClass)
+  ]);
+  return simulator.runWeeklyReclaimBacktest(symbol, daily, weekly, confirmation, {
+    ...params,
+    timeframe: '1d',
+    strategy: 'weekly_reclaim',
+    marketClass
+  });
+};
+
+backtestRouter.get('/backtest-compare', async (req, res) => {
+  const directionMode: BacktestDirectionMode = req.query.directionMode === 'LONG_SHORT' ? 'LONG_SHORT' : 'LONG_ONLY';
+  const assets: Array<{ symbol: string; marketClass: AssetMarketClass }> = [
+    { symbol: 'BTC', marketClass: 'crypto' },
+    { symbol: 'ETH', marketClass: 'crypto' },
+    { symbol: 'SOL', marketClass: 'crypto' },
+    { symbol: 'SPY', marketClass: 'stocks' },
+    { symbol: 'QQQ', marketClass: 'stocks' },
+    { symbol: 'NVDA', marketClass: 'stocks' },
+    { symbol: 'XAU', marketClass: 'metals' },
+    { symbol: 'XAG', marketClass: 'metals' },
+    { symbol: 'COPPER', marketClass: 'metals' }
+  ];
+  const rows: BacktestComparisonResult['rows'] = [];
+  const concurrency = 3;
+
+  for (let index = 0; index < assets.length; index += concurrency) {
+    const batch = assets.slice(index, index + concurrency);
+    const settled = await Promise.allSettled(batch.map(async asset => ({
+      asset,
+      result: await runWeeklyReclaim(asset.symbol, asset.marketClass, { directionMode })
+    })));
+    settled.forEach((entry, batchIndex) => {
+      const asset = batch[batchIndex];
+      if (entry.status === 'fulfilled') {
+        const result = entry.value.result;
+        rows.push({
+          symbol: asset.symbol,
+          marketClass: asset.marketClass,
+          totalTrades: result.totalTrades,
+          winRate: result.winRate,
+          profitFactor: result.profitFactor,
+          expectancyR: result.expectancyR || 0,
+          totalReturnPercent: result.totalReturnPercent,
+          buyAndHoldReturnPercent: result.buyAndHoldReturnPercent,
+          maxDrawdownPercent: result.maxDrawdownPercent,
+          sharpeRatio: result.sharpeRatio,
+          periodStart: result.params.startTimestamp,
+          periodEnd: result.params.endTimestamp
+        });
+      } else {
+        rows.push({
+          symbol: asset.symbol,
+          marketClass: asset.marketClass,
+          totalTrades: 0,
+          winRate: 0,
+          profitFactor: 0,
+          expectancyR: 0,
+          totalReturnPercent: 0,
+          buyAndHoldReturnPercent: 0,
+          maxDrawdownPercent: 0,
+          sharpeRatio: 0,
+          periodStart: 0,
+          periodEnd: 0,
+          error: entry.reason instanceof Error ? entry.reason.message : 'Backtest indisponibil.'
+        });
+      }
+    });
+  }
+
+  const validRows = rows.filter(row => !row.error);
+  const totalTrades = validRows.reduce((sum, row) => sum + row.totalTrades, 0);
+  const sortedProfitFactors = validRows.map(row => row.profitFactor).sort((left, right) => left - right);
+  const medianProfitFactor = sortedProfitFactors.length
+    ? sortedProfitFactors[Math.floor(sortedProfitFactors.length / 2)]
+    : 0;
+  const average = (values: number[]) => values.length
+    ? values.reduce((sum, value) => sum + value, 0) / values.length
+    : 0;
+  const payload: BacktestComparisonResult = {
+    strategy: 'weekly_reclaim',
+    directionMode,
+    rows,
+    aggregate: {
+      testedAssets: validRows.length,
+      profitableAssets: validRows.filter(row => row.totalReturnPercent > 0).length,
+      totalTrades,
+      weightedWinRate: totalTrades
+        ? Number((validRows.reduce((sum, row) => sum + row.winRate * row.totalTrades, 0) / totalTrades).toFixed(1))
+        : 0,
+      medianProfitFactor: Number(medianProfitFactor.toFixed(2)),
+      averageExpectancyR: Number(average(validRows.map(row => row.expectancyR)).toFixed(2)),
+      averageReturnPercent: Number(average(validRows.map(row => row.totalReturnPercent)).toFixed(2)),
+      averageMaxDrawdownPercent: Number(average(validRows.map(row => row.maxDrawdownPercent)).toFixed(2))
+    },
+    generatedAt: Date.now()
+  };
+  res.set('Cache-Control', 'no-store');
+  res.json(payload);
+});
 
 backtestRouter.get('/backtest/:symbol', async (req, res) => {
   try {
     const symbol = req.params.symbol.toUpperCase();
     const timeframe = (req.query.timeframe as Timeframe) || '1h';
     const appState = AppState.getInstance();
+
+    if (req.query.strategy === 'weekly_reclaim') {
+      const marketClass = parseMarketClass(req.query.marketClass) || 'crypto';
+      const result = await runWeeklyReclaim(symbol, marketClass, {
+        directionMode: req.query.directionMode === 'LONG_SHORT' ? 'LONG_SHORT' : 'LONG_ONLY'
+      });
+      return res.json(result);
+    }
 
     const candles = await appState.marketData.getCandles(symbol, timeframe, 250);
     const result = simulator.runBacktest(symbol, candles, {
@@ -31,6 +161,12 @@ backtestRouter.post('/backtest/:symbol', async (req, res) => {
     const appState = AppState.getInstance();
     const params = req.body || {};
     const timeframe = (params.timeframe as Timeframe) || '1h';
+
+    if (params.strategy === 'weekly_reclaim') {
+      const marketClass = parseMarketClass(params.marketClass) || 'crypto';
+      const result = await runWeeklyReclaim(symbol, marketClass, params);
+      return res.json(result);
+    }
 
     const candles = await appState.marketData.getCandles(symbol, timeframe, 250);
     const result = simulator.runBacktest(symbol, candles, params);

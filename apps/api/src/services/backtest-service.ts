@@ -4,9 +4,11 @@ import {
   BacktestParams,
   BacktestResult,
   BacktestTrade,
-  MoneyLineTier
+  MoneyLineTier,
+  BacktestDirectionMode,
+  BacktestPricePoint
 } from '@money-scanner/shared';
-import { MoneyLineEngine } from '@money-scanner/money-line';
+import { calculateMoneyLineCloud, MoneyLineEngine } from '@money-scanner/money-line';
 
 export class BacktestSimulatorService {
   private engine: MoneyLineEngine;
@@ -161,6 +163,367 @@ export class BacktestSimulatorService {
       equityCurve,
       trades,
       disclaimer: 'Historical simulation is provided for decision-support and research only. Past performance does not guarantee future results.'
+    };
+  }
+
+  /**
+   * Closed-candle, multi-timeframe implementation of the Weekly regime +
+   * Daily SMA50 reclaim strategy. Signals are evaluated after the Daily close
+   * and filled at the next Daily open, preventing close-to-close look-ahead.
+   * Weekly and 8H candles only become visible after their period has ended.
+   */
+  public runWeeklyReclaimBacktest(
+    symbol: string,
+    dailyInput: Candle[],
+    weeklyInput: Candle[],
+    confirmationInput: Candle[],
+    params: Partial<BacktestParams> = {}
+  ): BacktestResult {
+    const daily = dailyInput.filter(candle => candle.isClosed !== false).sort((a, b) => a.timestamp - b.timestamp);
+    const weekly = weeklyInput.filter(candle => candle.isClosed !== false).sort((a, b) => a.timestamp - b.timestamp);
+    const confirmation = confirmationInput.filter(candle => candle.isClosed !== false).sort((a, b) => a.timestamp - b.timestamp);
+    const directionMode: BacktestDirectionMode = params.directionMode === 'LONG_SHORT' ? 'LONG_SHORT' : 'LONG_ONLY';
+    const fullParams: BacktestParams = {
+      symbol,
+      timeframe: '1d',
+      startTimestamp: daily[0]?.timestamp || 0,
+      endTimestamp: daily[daily.length - 1]?.timestamp || Date.now(),
+      initialCapital: params.initialCapital || 10_000,
+      feePercentPerTrade: params.feePercentPerTrade ?? 0.075,
+      slippagePercent: params.slippagePercent ?? 0.05,
+      entryTierThreshold: 'Bullish',
+      exitTierThreshold: 'Bearish',
+      strategy: 'weekly_reclaim',
+      directionMode,
+      marketClass: params.marketClass,
+      targetRiskReward: params.targetRiskReward || 2.5,
+      atrStopBuffer: params.atrStopBuffer ?? 0.25,
+      requireSma200: params.requireSma200 !== false,
+      requireSma50Slope: params.requireSma50Slope !== false
+    };
+
+    if (daily.length < 210 || weekly.length < 20 || confirmation.length < 30) {
+      throw new Error('Sunt necesare minimum 210 lumânări Daily și istoric Weekly/8H suficient pentru un backtest matur.');
+    }
+
+    const dailyCloud = calculateMoneyLineCloud(daily, '1d');
+    const weeklyCloud = calculateMoneyLineCloud(weekly, '1w');
+    const confirmationCloud = calculateMoneyLineCloud(confirmation, '8h');
+    const dailySignals = this.engine.calculateSeries(symbol, '1d', daily);
+    const trades: BacktestTrade[] = [];
+    const equityCurve: BacktestResult['equityCurve'] = [];
+    const priceSeries: BacktestPricePoint[] = [];
+    const dayMs = 24 * 60 * 60 * 1000;
+    const weekMs = 7 * dayMs;
+    const confirmationMs = 8 * 60 * 60 * 1000;
+    const feeRoundTrip = fullParams.feePercentPerTrade * 2;
+    const firstEligibleIndex = daily.findIndex((candle, index) => index >= 200
+      && candle.timestamp + dayMs >= weekly[0].timestamp + weekMs
+      && candle.timestamp + dayMs >= confirmation[0].timestamp + confirmationMs);
+    if (firstEligibleIndex < 0) throw new Error('Perioadele Daily, Weekly și 8H nu au suficient istoric comun.');
+    fullParams.startTimestamp = daily[firstEligibleIndex].timestamp;
+    const initialPrice = daily[firstEligibleIndex].close;
+    let capital = fullParams.initialCapital;
+    let peakEquity = capital;
+    let maxDrawdown = 0;
+    let armedLong = false;
+    let armedShort = false;
+    let longReclaimExpiresAt = -1;
+    let shortReclaimExpiresAt = -1;
+    let weeklyIndex = -1;
+    let confirmationIndex = -1;
+    let pendingEntry: { side: 'LONG' | 'SHORT'; signalIndex: number; reason: string } | undefined;
+    let pendingExit: { reason: string } | undefined;
+    let position: {
+      side: 'LONG' | 'SHORT';
+      entryPrice: number;
+      entryTimestamp: number;
+      entryTier: MoneyLineTier;
+      initialStop: number;
+      targetPrice: number;
+      initialRiskPercent: number;
+      reason: string;
+    } | undefined;
+
+    const isWeeklyBullish = (index: number) => index >= 0
+      && weeklyCloud.dirFast[index] < 0
+      && weeklyCloud.dirSlow[index] < 0;
+    const isWeeklyBearish = (index: number) => index >= 0
+      && weeklyCloud.dirFast[index] > 0
+      && weeklyCloud.dirSlow[index] > 0;
+    const markToMarket = (close: number) => {
+      if (!position) return capital;
+      const gross = position.side === 'LONG'
+        ? ((close - position.entryPrice) / position.entryPrice) * 100
+        : ((position.entryPrice - close) / position.entryPrice) * 100;
+      return capital * (1 + (gross - fullParams.feePercentPerTrade) / 100);
+    };
+    const closePosition = (
+      rawPrice: number,
+      timestamp: number,
+      exitReason: BacktestTrade['exitReason'],
+      detail: string,
+      exitTier: MoneyLineTier
+    ) => {
+      if (!position) return;
+      const effectiveExitPrice = position.side === 'LONG'
+        ? rawPrice * (1 - fullParams.slippagePercent / 100)
+        : rawPrice * (1 + fullParams.slippagePercent / 100);
+      const grossPercent = position.side === 'LONG'
+        ? ((effectiveExitPrice - position.entryPrice) / position.entryPrice) * 100
+        : ((position.entryPrice - effectiveExitPrice) / position.entryPrice) * 100;
+      const netPercent = Number((grossPercent - feeRoundTrip).toFixed(3));
+      const pnlNetUsd = Number((capital * netPercent / 100).toFixed(2));
+      const riskCashPercent = Math.max(0.01, position.initialRiskPercent);
+      const rMultiple = Number((netPercent / riskCashPercent).toFixed(2));
+      capital = Number((capital + pnlNetUsd).toFixed(2));
+      trades.push({
+        id: `trade_${trades.length + 1}`,
+        symbol,
+        side: position.side,
+        entryTimestamp: position.entryTimestamp,
+        entryPrice: position.entryPrice,
+        exitTimestamp: timestamp,
+        exitPrice: effectiveExitPrice,
+        entrySignalTier: position.entryTier,
+        exitSignalTier: exitTier,
+        pnlPercent: netPercent,
+        pnlNetUsd,
+        holdingHours: Number(((timestamp - position.entryTimestamp) / 3_600_000).toFixed(1)),
+        exitReason,
+        initialStop: position.initialStop,
+        targetPrice: position.targetPrice,
+        initialRiskPercent: position.initialRiskPercent,
+        rMultiple,
+        entryReason: position.reason,
+        exitReasonDetail: detail
+      });
+      position = undefined;
+      pendingExit = undefined;
+    };
+
+    for (let index = 0; index < daily.length; index++) {
+      const candle = daily[index];
+      const availableAt = candle.timestamp + dayMs;
+      while (weeklyIndex + 1 < weekly.length && weekly[weeklyIndex + 1].timestamp + weekMs <= availableAt) weeklyIndex += 1;
+      while (
+        confirmationIndex + 1 < confirmation.length
+        && confirmation[confirmationIndex + 1].timestamp + confirmationMs <= availableAt
+      ) confirmationIndex += 1;
+
+      const signal = dailySignals[index];
+      const sma50 = dailyCloud.sma50[index];
+      const sma200 = dailyCloud.sma200[index];
+      const weeklyBullish = isWeeklyBullish(weeklyIndex);
+      const weeklyBearish = isWeeklyBearish(weeklyIndex);
+      const weeklyRegime: BacktestPricePoint['weeklyRegime'] = weeklyBullish
+        ? 'BULLISH'
+        : weeklyBearish ? 'BEARISH' : 'TRANSITION';
+      const dailyFastBullish = dailyCloud.dirFast[index] < 0;
+      const dailyFastBearish = dailyCloud.dirFast[index] > 0;
+      const confirmationSlowBullish = confirmationIndex >= 0 && confirmationCloud.dirSlow[confirmationIndex] < 0;
+      const confirmationSlowBearish = confirmationIndex >= 0 && confirmationCloud.dirSlow[confirmationIndex] > 0;
+      const mature = index >= 200 && Boolean(signal) && weeklyIndex >= 0 && confirmationIndex >= 0;
+      const sma50Rising = index >= 5 && sma50 > dailyCloud.sma50[index - 5];
+      const sma50Falling = index >= 5 && sma50 < dailyCloud.sma50[index - 5];
+      const previousBelow = index > 0 && daily[index - 1].close <= dailyCloud.sma50[index - 1];
+      const previousAbove = index > 0 && daily[index - 1].close >= dailyCloud.sma50[index - 1];
+      const reclaimUp = previousBelow && candle.close > sma50;
+      const reclaimDown = previousAbove && candle.close < sma50;
+      const atr = signal?.rawIndicators.atr14 || Math.max(candle.high - candle.low, candle.close * 0.01);
+      const notExtendedLong = candle.close <= sma50 + atr;
+      const notExtendedShort = candle.close >= sma50 - atr;
+      const sma200LongOk = !fullParams.requireSma200 || candle.close > sma200;
+      const sma200ShortOk = !fullParams.requireSma200 || candle.close < sma200;
+      const slopeLongOk = !fullParams.requireSma50Slope || sma50Rising;
+      const slopeShortOk = !fullParams.requireSma50Slope || sma50Falling;
+
+      if (!weeklyBullish) {
+        armedLong = false;
+        longReclaimExpiresAt = -1;
+      } else if (candle.close < sma50) {
+        armedLong = true;
+        longReclaimExpiresAt = -1;
+      }
+      if (!weeklyBearish) {
+        armedShort = false;
+        shortReclaimExpiresAt = -1;
+      } else if (candle.close > sma50) {
+        armedShort = true;
+        shortReclaimExpiresAt = -1;
+      }
+      // MoneyLine confirmation may arrive shortly after the exact SMA50
+      // crossing. Keep a five-close confirmation window instead of requiring
+      // every condition on the same bar.
+      if (armedLong && weeklyBullish && reclaimUp) longReclaimExpiresAt = index + 5;
+      if (armedShort && weeklyBearish && reclaimDown) shortReclaimExpiresAt = index + 5;
+      const longReclaimActive = longReclaimExpiresAt >= index && candle.close > sma50;
+      const shortReclaimActive = shortReclaimExpiresAt >= index && candle.close < sma50;
+
+      const longTrigger = mature && !position && !pendingEntry && armedLong && weeklyBullish
+        && longReclaimActive && dailyFastBullish && confirmationSlowBullish
+        && sma200LongOk && slopeLongOk && notExtendedLong;
+      const shortTrigger = directionMode === 'LONG_SHORT' && mature && !position && !pendingEntry && armedShort
+        && weeklyBearish && shortReclaimActive && dailyFastBearish && confirmationSlowBearish
+        && sma200ShortOk && slopeShortOk && notExtendedShort;
+
+      // Orders generated by yesterday's close are filled at today's open.
+      if (pendingExit && position) {
+        closePosition(candle.open, candle.timestamp, 'SignalReversal', pendingExit.reason, signal?.tier || 'Neutral');
+      }
+      if (pendingEntry && !position) {
+        const sourceIndex = pendingEntry.signalIndex;
+        const sourceSignal = dailySignals[sourceIndex];
+        const entryPrice = pendingEntry.side === 'LONG'
+          ? candle.open * (1 + fullParams.slippagePercent / 100)
+          : candle.open * (1 - fullParams.slippagePercent / 100);
+        const sourceAtr = sourceSignal?.rawIndicators.atr14 || atr;
+        const swingStart = Math.max(0, sourceIndex - 5);
+        const sourceSlice = daily.slice(swingStart, sourceIndex + 1);
+        const initialStop = pendingEntry.side === 'LONG'
+          ? Math.min(...sourceSlice.map(value => value.low), dailyCloud.sma50[sourceIndex] - fullParams.atrStopBuffer! * sourceAtr)
+          : Math.max(...sourceSlice.map(value => value.high), dailyCloud.sma50[sourceIndex] + fullParams.atrStopBuffer! * sourceAtr);
+        const riskPerUnit = pendingEntry.side === 'LONG' ? entryPrice - initialStop : initialStop - entryPrice;
+        const initialRiskPercent = riskPerUnit > 0 ? (riskPerUnit / entryPrice) * 100 : 0;
+        const stillNearReclaim = pendingEntry.side === 'LONG'
+          ? entryPrice <= dailyCloud.sma50[sourceIndex] + sourceAtr * 1.5
+          : entryPrice >= dailyCloud.sma50[sourceIndex] - sourceAtr * 1.5;
+        if (initialRiskPercent > 0 && initialRiskPercent <= 8 && stillNearReclaim) {
+          position = {
+            side: pendingEntry.side,
+            entryPrice,
+            entryTimestamp: candle.timestamp,
+            entryTier: sourceSignal?.tier || 'Neutral',
+            initialStop,
+            targetPrice: pendingEntry.side === 'LONG'
+              ? entryPrice + riskPerUnit * fullParams.targetRiskReward!
+              : entryPrice - riskPerUnit * fullParams.targetRiskReward!,
+            initialRiskPercent,
+            reason: pendingEntry.reason
+          };
+        }
+        pendingEntry = undefined;
+      }
+
+      if (position) {
+        const stopHit = position.side === 'LONG' ? candle.low <= position.initialStop : candle.high >= position.initialStop;
+        const targetHit = position.side === 'LONG' ? candle.high >= position.targetPrice : candle.low <= position.targetPrice;
+        // When both levels occur inside one Daily bar the pessimistic ordering
+        // is used because intraday tick order is unavailable.
+        if (stopHit) {
+          const gapAdjustedStop = position.side === 'LONG'
+            ? Math.min(candle.open, position.initialStop)
+            : Math.max(candle.open, position.initialStop);
+          closePosition(gapAdjustedStop, candle.timestamp, 'StopLoss', 'Stop structural/ATR atins.', signal?.tier || 'Neutral');
+        } else if (targetHit) {
+          closePosition(position.targetPrice, candle.timestamp, 'TakeProfit', `Ținta ${fullParams.targetRiskReward}R atinsă.`, signal?.tier || 'Neutral');
+        } else if (
+          position.side === 'LONG'
+            ? !weeklyBullish || (candle.close < sma50 && dailyFastBearish)
+            : !weeklyBearish || (candle.close > sma50 && dailyFastBullish)
+        ) {
+          pendingExit = {
+            reason: position.side === 'LONG'
+              ? 'Regimul Weekly a slăbit sau Daily a închis sub SMA50 cu Fast bearish.'
+              : 'Regimul Weekly a slăbit sau Daily a închis peste SMA50 cu Fast bullish.'
+          };
+        }
+      }
+
+      if (longTrigger) {
+        pendingEntry = {
+          side: 'LONG',
+          signalIndex: index,
+          reason: 'Weekly Fast+Slow bullish; Daily reclaim SMA50; Daily Fast și 8H Slow bullish; SMA50 în urcare; preț peste SMA200.'
+        };
+        armedLong = false;
+        longReclaimExpiresAt = -1;
+      } else if (shortTrigger) {
+        pendingEntry = {
+          side: 'SHORT',
+          signalIndex: index,
+          reason: 'Weekly Fast+Slow bearish; Daily pierde SMA50; Daily Fast și 8H Slow bearish; SMA50 în coborâre; preț sub SMA200.'
+        };
+        armedShort = false;
+        shortReclaimExpiresAt = -1;
+      }
+
+      if (index === daily.length - 1 && position) {
+        closePosition(candle.close, candle.timestamp, 'EndPeriod', 'Sfârșitul perioadei testate.', signal?.tier || 'Neutral');
+      }
+
+      if (index >= firstEligibleIndex) {
+        const equity = markToMarket(candle.close);
+        peakEquity = Math.max(peakEquity, equity);
+        maxDrawdown = Math.max(maxDrawdown, peakEquity > 0 ? ((peakEquity - equity) / peakEquity) * 100 : 0);
+        equityCurve.push({
+          timestamp: candle.timestamp,
+          strategyEquity: Number(equity.toFixed(2)),
+          benchmarkEquity: Number((fullParams.initialCapital * candle.close / initialPrice).toFixed(2))
+        });
+        priceSeries.push({
+          timestamp: candle.timestamp,
+          close: candle.close,
+          sma50,
+          sma200,
+          weeklyRegime,
+          armedLong,
+          armedShort,
+          longTrigger,
+          shortTrigger
+        });
+      }
+    }
+
+    const winners = trades.filter(trade => trade.pnlPercent > 0);
+    const losers = trades.filter(trade => trade.pnlPercent <= 0);
+    const grossProfit = winners.reduce((sum, trade) => sum + trade.pnlNetUsd, 0);
+    const grossLoss = Math.abs(losers.reduce((sum, trade) => sum + trade.pnlNetUsd, 0));
+    const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 99 : 0;
+    const dailyReturns = equityCurve.slice(1).map((point, index) => {
+      const previous = equityCurve[index].strategyEquity;
+      return previous > 0 ? (point.strategyEquity - previous) / previous : 0;
+    });
+    const meanReturn = dailyReturns.length ? dailyReturns.reduce((sum, value) => sum + value, 0) / dailyReturns.length : 0;
+    const variance = dailyReturns.length > 1
+      ? dailyReturns.reduce((sum, value) => sum + (value - meanReturn) ** 2, 0) / (dailyReturns.length - 1)
+      : 0;
+    const sharpe = variance > 0 ? (meanReturn / Math.sqrt(variance)) * Math.sqrt(252) : 0;
+    const expectancyR = trades.length
+      ? trades.reduce((sum, trade) => sum + (trade.rMultiple || 0), 0) / trades.length
+      : 0;
+    const finalBenchmark = equityCurve[equityCurve.length - 1]?.benchmarkEquity || fullParams.initialCapital;
+
+    return {
+      params: fullParams,
+      totalTrades: trades.length,
+      winningTrades: winners.length,
+      losingTrades: losers.length,
+      winRate: trades.length ? Number((winners.length / trades.length * 100).toFixed(1)) : 0,
+      profitFactor: Number(profitFactor.toFixed(2)),
+      totalReturnPercent: Number(((capital / fullParams.initialCapital - 1) * 100).toFixed(2)),
+      buyAndHoldReturnPercent: Number(((finalBenchmark / fullParams.initialCapital - 1) * 100).toFixed(2)),
+      maxDrawdownPercent: Number(maxDrawdown.toFixed(2)),
+      sharpeRatio: Number(sharpe.toFixed(2)),
+      averageTradeDurationHours: trades.length
+        ? Number((trades.reduce((sum, trade) => sum + trade.holdingHours, 0) / trades.length).toFixed(1))
+        : 0,
+      averageTradeReturnPercent: trades.length
+        ? Number((trades.reduce((sum, trade) => sum + trade.pnlPercent, 0) / trades.length).toFixed(2))
+        : 0,
+      expectancyR: Number(expectancyR.toFixed(2)),
+      strategyName: 'Weekly Regime + Daily SMA50 Reclaim + ML 8H Confirmation',
+      strategyRules: [
+        'Regim: MoneyLine Cloud Weekly Fast și Slow în aceeași direcție.',
+        'Armare: Daily trece temporar pe partea opusă a SMA50.',
+        'Trigger: reclaim Daily SMA50, apoi confirmare în maximum 5 închideri prin Daily Fast + 8H Slow + pantă SMA50 + SMA200.',
+        'Execuție: următoarea deschidere Daily, cu slippage și comisioane.',
+        `Risc: stop structural cu buffer ATR; țintă ${fullParams.targetRiskReward}R; ieșire la invalidarea regimului.`
+      ],
+      equityCurve,
+      priceSeries,
+      trades,
+      disclaimer: 'Backtest determinist pe lumânări închise. Rezultatele istorice, inclusiv win rate și expectancy, nu garantează performanțe viitoare.'
     };
   }
 }

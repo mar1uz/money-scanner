@@ -1,5 +1,8 @@
-import { Timeframe } from './market.js';
+import { AssetMarketClass, Timeframe } from './market.js';
 import { MoneyLineTier } from './indicators.js';
+
+export type BacktestStrategy = 'money_line_tier' | 'weekly_reclaim';
+export type BacktestDirectionMode = 'LONG_ONLY' | 'LONG_SHORT';
 
 export interface BacktestTrade {
   id: string;
@@ -15,6 +18,12 @@ export interface BacktestTrade {
   pnlNetUsd: number;
   holdingHours: number;
   exitReason: 'SignalReversal' | 'TakeProfit' | 'StopLoss' | 'EndPeriod';
+  initialStop?: number;
+  targetPrice?: number;
+  initialRiskPercent?: number;
+  rMultiple?: number;
+  entryReason?: string;
+  exitReasonDetail?: string;
 }
 
 export interface BacktestParams {
@@ -29,6 +38,25 @@ export interface BacktestParams {
   exitTierThreshold: MoneyLineTier;  // e.g. 'Bearish'
   stopLossPercent?: number;
   takeProfitPercent?: number;
+  strategy?: BacktestStrategy;
+  directionMode?: BacktestDirectionMode;
+  marketClass?: AssetMarketClass;
+  targetRiskReward?: number;
+  atrStopBuffer?: number;
+  requireSma200?: boolean;
+  requireSma50Slope?: boolean;
+}
+
+export interface BacktestPricePoint {
+  timestamp: number;
+  close: number;
+  sma50: number;
+  sma200: number;
+  weeklyRegime: 'BULLISH' | 'BEARISH' | 'TRANSITION';
+  armedLong: boolean;
+  armedShort: boolean;
+  longTrigger: boolean;
+  shortTrigger: boolean;
 }
 
 export interface BacktestResult {
@@ -43,11 +71,49 @@ export interface BacktestResult {
   maxDrawdownPercent: number;
   sharpeRatio: number;
   averageTradeDurationHours: number;
+  averageTradeReturnPercent?: number;
+  expectancyR?: number;
+  strategyName?: string;
+  strategyRules?: string[];
   equityCurve: {
     timestamp: number;
     strategyEquity: number;
     benchmarkEquity: number;
   }[];
+  priceSeries?: BacktestPricePoint[];
   trades: BacktestTrade[];
   disclaimer: string;
+}
+
+export interface BacktestComparisonRow {
+  symbol: string;
+  marketClass: AssetMarketClass;
+  totalTrades: number;
+  winRate: number;
+  profitFactor: number;
+  expectancyR: number;
+  totalReturnPercent: number;
+  buyAndHoldReturnPercent: number;
+  maxDrawdownPercent: number;
+  sharpeRatio: number;
+  periodStart: number;
+  periodEnd: number;
+  error?: string;
+}
+
+export interface BacktestComparisonResult {
+  strategy: 'weekly_reclaim';
+  directionMode: BacktestDirectionMode;
+  rows: BacktestComparisonRow[];
+  aggregate: {
+    testedAssets: number;
+    profitableAssets: number;
+    totalTrades: number;
+    weightedWinRate: number;
+    medianProfitFactor: number;
+    averageExpectancyR: number;
+    averageReturnPercent: number;
+    averageMaxDrawdownPercent: number;
+  };
+  generatedAt: number;
 }

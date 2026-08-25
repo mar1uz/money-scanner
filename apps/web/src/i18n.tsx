@@ -158,6 +158,7 @@ const RO_TO_EN = ([
   ['Telegram trimis', 'Telegram Sent'],
   ['Netrimis', 'Not Sent'],
   ['Închidere 1D', 'Daily Close'],
+  ['Cercetare pe lumânări închise', 'Closed-candle strategy research'],
   ['Alertă veche — fără snapshot SL/TP', 'Legacy alert — no SL/TP snapshot'],
   ['Plan indisponibil', 'Plan Unavailable'],
   ['Așteaptă retest', 'Wait for Retest'],

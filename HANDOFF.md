@@ -861,3 +861,56 @@ Initial full scan: HTTP 200, ten populated candidates verified
 Cloud Scheduler: token rotated/synchronized; manual execution HTTP 200
 Mobile verification: 390x844, ten real cards and no horizontal overflow
 ```
+
+## 21. Weekly regime + Daily SMA 50 reclaim backtest
+
+Implemented locally on 25 August 2026. This change is committed separately from the last deployed Cloud Run revision and must not be described as deployed until a new deployment is explicitly made.
+
+Strategy rules:
+
+```text
+LONG:
+- both Weekly MoneyLine cloud directions are bullish
+- a closed Daily candle trades below SMA 50 and arms the pullback
+- Daily close reclaims SMA 50
+- Daily Fast MoneyLine and 8H Slow MoneyLine confirm within five Daily closes
+- Daily SMA 50 is rising, close is above SMA 200 and entry is not more than 1 ATR extended
+
+SHORT (optional mode):
+- exact inverse of the LONG rules
+
+Execution and risk:
+- signals use closed candles only
+- orders fill at the next Daily open, including configured slippage
+- initial stop uses the wider of the recent five-day structural extreme and SMA 50 +/- 0.25 ATR
+- positions with more than 8% initial price risk are rejected
+- target is 2.5R
+- a confirmed Weekly regime invalidation exits at the next Daily open
+- if stop and target are both touched during one Daily candle, the pessimistic stop-first assumption is used
+```
+
+UI and API:
+
+- `Backtest Lab` now defaults to this strategy and plots close, SMA 50, SMA 200, entries and exits on the price chart.
+- The equity curve is mark-to-market, rather than being updated only when a trade closes.
+- Users can switch between long-only and long+short modes.
+- `GET /api/backtest/:symbol?strategy=weekly_reclaim` runs one asset.
+- `GET /api/backtest-compare` compares BTC, ETH, SOL, SPY, QQQ, NVDA, XAU, XAG and COPPER.
+
+Initial live-data sample, long-only:
+
+| Asset | Trades | Win rate | Expectancy | Return | Max drawdown |
+|---|---:|---:|---:|---:|---:|
+| BTC | 2 | 50.0% | +0.70R | +0.78% | 12.06% |
+| ETH | 1 | 0.0% | -1.08R | -2.83% | 4.39% |
+| SOL | 0 | - | - | 0.00% | 0.00% |
+| SPY | 1 | 0.0% | -1.47R | -1.22% | 1.22% |
+| QQQ | 1 | 0.0% | -1.53R | -4.28% | 4.79% |
+| NVDA | 3 | 33.3% | +0.13R | +1.38% | 15.33% |
+| XAU | 1 | 0.0% | -1.36R | -0.75% | 0.75% |
+| XAG | 0 | - | - | 0.00% | 0.00% |
+| COPPER | 1 | 100.0% | +0.87R | +4.21% | 3.65% |
+
+Aggregate: ten trades, 30% win rate, approximately -0.42R mean expectancy per asset and -0.30% mean return per asset. Long+short improved BTC materially but did not make the basket robust.
+
+Important limitation: the common test window is constrained by the available 8H provider history (roughly October 2024 for crypto and June 2025 for stocks/metals). This is an implementation/behavior check, not statistically sufficient strategy validation. Before using it as an automated production alert, compare a Daily-only variant over 5-10 years against the strict Daily+8H variant, then run walk-forward/out-of-sample validation.
