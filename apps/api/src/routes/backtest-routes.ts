@@ -6,6 +6,8 @@ import {
   BacktestComparisonResult,
   BacktestDirectionMode,
   BacktestParams,
+  BacktestStrategy,
+  Candle,
   Timeframe
 } from '@money-scanner/shared';
 
@@ -37,8 +39,58 @@ const runWeeklyReclaim = async (
   });
 };
 
+const loadDeepDailyHistory = async (
+  symbol: string,
+  marketClass: AssetMarketClass,
+  targetCount = 2000
+): Promise<Candle[]> => {
+  const marketData = AppState.getInstance().marketData;
+  let candles = await marketData.getCandles(symbol, '1d', Math.min(1000, targetCount), marketClass);
+  for (let page = 0; page < 3 && candles.length < targetCount && candles.length > 0; page += 1) {
+    let older: Candle[];
+    try {
+      older = await marketData.getCandlesBefore(
+        symbol,
+        '1d',
+        candles[0].timestamp,
+        Math.min(1000, targetCount - candles.length),
+        marketClass
+      );
+    } catch {
+      break;
+    }
+    const known = new Set(candles.map(candle => candle.timestamp));
+    const uniqueOlder = older.filter(candle => !known.has(candle.timestamp));
+    if (!uniqueOlder.length) break;
+    candles = [...uniqueOlder, ...candles].sort((left, right) => left.timestamp - right.timestamp);
+  }
+  return candles.slice(-targetCount);
+};
+
+const runConnorsRsi2 = async (
+  symbol: string,
+  marketClass: AssetMarketClass,
+  params: Partial<BacktestParams>
+) => simulator.runConnorsRsi2Backtest(
+  symbol,
+  await loadDeepDailyHistory(symbol, marketClass),
+  { ...params, timeframe: '1d', strategy: 'connors_rsi2', marketClass }
+);
+
+const runResearchStrategy = (
+  strategy: Extract<BacktestStrategy, 'weekly_reclaim' | 'connors_rsi2'>,
+  symbol: string,
+  marketClass: AssetMarketClass,
+  params: Partial<BacktestParams>
+) => strategy === 'connors_rsi2'
+  ? runConnorsRsi2(symbol, marketClass, params)
+  : runWeeklyReclaim(symbol, marketClass, params);
+
 backtestRouter.get('/backtest-compare', async (req, res) => {
   const directionMode: BacktestDirectionMode = req.query.directionMode === 'LONG_SHORT' ? 'LONG_SHORT' : 'LONG_ONLY';
+  const strategy: Extract<BacktestStrategy, 'weekly_reclaim' | 'connors_rsi2'> = req.query.strategy === 'weekly_reclaim'
+    ? 'weekly_reclaim'
+    : 'connors_rsi2';
   const assets: Array<{ symbol: string; marketClass: AssetMarketClass }> = [
     { symbol: 'BTC', marketClass: 'crypto' },
     { symbol: 'ETH', marketClass: 'crypto' },
@@ -46,6 +98,7 @@ backtestRouter.get('/backtest-compare', async (req, res) => {
     { symbol: 'SPY', marketClass: 'stocks' },
     { symbol: 'QQQ', marketClass: 'stocks' },
     { symbol: 'NVDA', marketClass: 'stocks' },
+    { symbol: 'AAPL', marketClass: 'stocks' },
     { symbol: 'XAU', marketClass: 'metals' },
     { symbol: 'XAG', marketClass: 'metals' },
     { symbol: 'COPPER', marketClass: 'metals' }
@@ -57,7 +110,7 @@ backtestRouter.get('/backtest-compare', async (req, res) => {
     const batch = assets.slice(index, index + concurrency);
     const settled = await Promise.allSettled(batch.map(async asset => ({
       asset,
-      result: await runWeeklyReclaim(asset.symbol, asset.marketClass, { directionMode })
+      result: await runResearchStrategy(strategy, asset.symbol, asset.marketClass, { directionMode })
     })));
     settled.forEach((entry, batchIndex) => {
       const asset = batch[batchIndex];
@@ -107,7 +160,7 @@ backtestRouter.get('/backtest-compare', async (req, res) => {
     ? values.reduce((sum, value) => sum + value, 0) / values.length
     : 0;
   const payload: BacktestComparisonResult = {
-    strategy: 'weekly_reclaim',
+    strategy,
     directionMode,
     rows,
     aggregate: {
@@ -141,6 +194,13 @@ backtestRouter.get('/backtest/:symbol', async (req, res) => {
       });
       return res.json(result);
     }
+    if (req.query.strategy === 'connors_rsi2') {
+      const marketClass = parseMarketClass(req.query.marketClass) || 'crypto';
+      const result = await runConnorsRsi2(symbol, marketClass, {
+        directionMode: req.query.directionMode === 'LONG_SHORT' ? 'LONG_SHORT' : 'LONG_ONLY'
+      });
+      return res.json(result);
+    }
 
     const candles = await appState.marketData.getCandles(symbol, timeframe, 250);
     const result = simulator.runBacktest(symbol, candles, {
@@ -165,6 +225,11 @@ backtestRouter.post('/backtest/:symbol', async (req, res) => {
     if (params.strategy === 'weekly_reclaim') {
       const marketClass = parseMarketClass(params.marketClass) || 'crypto';
       const result = await runWeeklyReclaim(symbol, marketClass, params);
+      return res.json(result);
+    }
+    if (params.strategy === 'connors_rsi2') {
+      const marketClass = parseMarketClass(params.marketClass) || 'crypto';
+      const result = await runConnorsRsi2(symbol, marketClass, params);
       return res.json(result);
     }
 

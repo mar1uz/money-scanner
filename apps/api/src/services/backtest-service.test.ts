@@ -44,3 +44,40 @@ describe('Weekly regime + Daily SMA50 reclaim backtest', () => {
     ), /minimum 210 lumânări Daily/);
   });
 });
+
+describe('Connors RSI(2) trend pullback backtest', () => {
+  const connorsDaily = candles(700, 86_400_000, index => {
+    const trend = 100 + index * 0.12;
+    const phase = index % 28;
+    if (phase === 20) return trend - 2;
+    if (phase === 21) return trend - 5;
+    if (phase === 22) return trend - 8;
+    if (phase === 23) return trend - 3;
+    return trend + Math.sin(index / 9) * 0.4;
+  });
+
+  it('buys an RSI2 pullback only after the signal close and exits on SMA5 mean reversion', () => {
+    const result = new BacktestSimulatorService().runConnorsRsi2Backtest(
+      'TEST', connorsDaily, { directionMode: 'LONG_ONLY' }
+    );
+
+    assert.equal(result.params.strategy, 'connors_rsi2');
+    assert.ok(result.totalTrades >= 10);
+    assert.ok(result.winRate > 50);
+    assert.ok(result.trades.every(trade => trade.side === 'LONG'));
+    assert.ok(result.trades.every(trade => (trade.initialStop || 0) > 0 && Number.isFinite(trade.rMultiple)));
+    assert.ok(result.priceSeries?.every(point => Number.isFinite(point.sma5) && Number.isFinite(point.rsi2)));
+    assert.ok(result.strategySources?.some(source => source.url.includes('stockcharts.com')));
+  });
+
+  it('keeps mature indicators but starts the out-of-sample equity window at the requested timestamp', () => {
+    const evaluationStartTimestamp = connorsDaily[520].timestamp;
+    const result = new BacktestSimulatorService().runConnorsRsi2Backtest(
+      'TEST', connorsDaily, { evaluationStartTimestamp }
+    );
+
+    assert.equal(result.params.startTimestamp, evaluationStartTimestamp);
+    assert.equal(result.priceSeries?.[0].timestamp, evaluationStartTimestamp);
+    assert.ok(result.totalTrades > 0);
+  });
+});

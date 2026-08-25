@@ -1,7 +1,7 @@
 import { AssetMarketClass, Timeframe } from './market.js';
 import { MoneyLineTier } from './indicators.js';
 
-export type BacktestStrategy = 'money_line_tier' | 'weekly_reclaim';
+export type BacktestStrategy = 'money_line_tier' | 'weekly_reclaim' | 'connors_rsi2';
 export type BacktestDirectionMode = 'LONG_ONLY' | 'LONG_SHORT';
 
 export interface BacktestTrade {
@@ -45,6 +45,9 @@ export interface BacktestParams {
   atrStopBuffer?: number;
   requireSma200?: boolean;
   requireSma50Slope?: boolean;
+  rsi2EntryThreshold?: number;
+  atrStopMultiple?: number;
+  evaluationStartTimestamp?: number;
 }
 
 export interface BacktestPricePoint {
@@ -57,6 +60,24 @@ export interface BacktestPricePoint {
   armedShort: boolean;
   longTrigger: boolean;
   shortTrigger: boolean;
+  sma5?: number;
+  rsi2?: number;
+}
+
+export interface BacktestStrategySource {
+  label: string;
+  url: string;
+}
+
+export interface BacktestValidationSummary {
+  method: 'chronological_holdout_30';
+  startTimestamp: number;
+  totalTrades: number;
+  winRate: number;
+  profitFactor: number;
+  totalReturnPercent: number;
+  maxDrawdownPercent: number;
+  profitable: boolean;
 }
 
 export interface BacktestResult {
@@ -75,6 +96,8 @@ export interface BacktestResult {
   expectancyR?: number;
   strategyName?: string;
   strategyRules?: string[];
+  strategySources?: BacktestStrategySource[];
+  validation?: BacktestValidationSummary;
   equityCurve: {
     timestamp: number;
     strategyEquity: number;
@@ -102,7 +125,7 @@ export interface BacktestComparisonRow {
 }
 
 export interface BacktestComparisonResult {
-  strategy: 'weekly_reclaim';
+  strategy: Extract<BacktestStrategy, 'weekly_reclaim' | 'connors_rsi2'>;
   directionMode: BacktestDirectionMode;
   rows: BacktestComparisonRow[];
   aggregate: {

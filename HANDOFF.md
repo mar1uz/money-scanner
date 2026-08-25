@@ -914,3 +914,55 @@ Initial live-data sample, long-only:
 Aggregate: ten trades, 30% win rate, approximately -0.42R mean expectancy per asset and -0.30% mean return per asset. Long+short improved BTC materially but did not make the basket robust.
 
 Important limitation: the common test window is constrained by the available 8H provider history (roughly October 2024 for crypto and June 2025 for stocks/metals). This is an implementation/behavior check, not statistically sufficient strategy validation. Before using it as an automated production alert, compare a Daily-only variant over 5-10 years against the strict Daily+8H variant, then run walk-forward/out-of-sample validation.
+
+## 22. Connors RSI(2) trend-pullback research strategy
+
+Implemented locally on 25 August 2026. This section is not a production deployment record. The last deployed Cloud Run revision remains the one recorded in section 20 until a new deployment is explicitly made.
+
+Research basis:
+
+- StockCharts documents Larry Connors' RSI(2) setup: use SMA200 for the long-term trend, RSI(2) below 5 for a selective pullback entry, and a close above SMA5 for the long exit. It also explicitly warns that the original no-stop approach can produce outsized losses.
+- AQR's long-horizon evidence supports trading with, rather than against, persistent trends across many markets. It does not imply that RSI(2) itself is universally profitable.
+- A July 2026 SSRN preprint found that RSI(2) mean-reversion did not retain a statistically significant edge after realistic costs and multiple-testing correction on its equity-index sample. The application links this critical result alongside the supporting sources; the local holdout is evidence for continued research, not proof of a durable edge.
+
+Implemented rules:
+
+```text
+Recommended mode: LONG_ONLY
+Signal: Daily close > SMA200 and RSI(2) < 5
+Entry: next Daily open
+Exit: first Daily close > SMA5, filled at the next Daily open
+Protection: catastrophe stop 3 ATR below entry
+Costs: 0.075% commission per side + 0.05% slippage per side
+Data: up to 2,000 closed Daily candles, assembled from recent and older provider pages
+Validation: final chronological 30% reported separately; earlier data remains indicator warm-up only
+```
+
+The symmetric SHORT mode remains available for research but is not recommended by default. It materially degraded ETH, SOL and NVDA during the tested period. The default scope is liquid crypto and liquid US stocks/ETFs; metals are still displayed to expose non-transferability rather than conceal it.
+
+Full-sample LONG_ONLY comparison on 25 August 2026:
+
+| Asset | Trades | Win rate | Profit factor | Return | Max drawdown |
+|---|---:|---:|---:|---:|---:|
+| BTC | 21 | 76.2% | 2.63 | +38.98% | 11.98% |
+| ETH | 20 | 65.0% | 3.26 | +40.43% | 17.65% |
+| SOL | 19 | 68.4% | 1.11 | +7.15% | 22.19% |
+| SPY | 37 | 70.3% | 1.56 | +11.33% | 10.07% |
+| QQQ | 33 | 69.7% | 2.17 | +21.70% | 6.98% |
+| NVDA | 27 | 77.8% | 2.24 | +53.10% | 17.93% |
+| AAPL | 34 | 61.8% | 1.24 | +9.50% | 13.54% |
+| XAU | 28 | 53.6% | 0.63 | -11.38% | 17.85% |
+| XAG | 19 | 52.6% | 1.03 | +0.87% | 16.24% |
+| COPPER | 24 | 70.8% | 1.35 | +7.50% | 18.37% |
+
+All ten assets: 262 trades, 66.8% weighted win rate, nine profitable assets, median profit factor 1.56. For the intended crypto+stocks scope only: all seven assets were profitable in the full sample, with 191 trades and approximately 69.6% weighted win rate.
+
+Chronological final-30% holdout for the intended crypto+stocks scope: 75 trades, 68.0% weighted win rate, six of seven assets profitable. NVDA was the exception at -2.39% despite a 72.7% win rate, demonstrating why win rate must never be treated as expected profitability. Metals passed only one of three holdouts and therefore remain outside the recommended scope.
+
+Backtest Lab changes:
+
+- strategy selector with Connors RSI(2) as the research default and MoneyLine Reclaim retained;
+- price chart with SMA5, SMA200, entry/exit markers and a separate RSI(2) strip;
+- full-sample metrics plus the chronological 30% holdout for the selected asset;
+- source links and an explicit scope/risk warning;
+- ten-asset comparison with no per-asset parameter optimization.

@@ -8,7 +8,13 @@ import {
   BacktestDirectionMode,
   BacktestPricePoint
 } from '@money-scanner/shared';
-import { calculateMoneyLineCloud, MoneyLineEngine } from '@money-scanner/money-line';
+import {
+  calculateATR,
+  calculateMoneyLineCloud,
+  calculateRSI,
+  calculateSMA,
+  MoneyLineEngine
+} from '@money-scanner/money-line';
 
 export class BacktestSimulatorService {
   private engine: MoneyLineEngine;
@@ -493,7 +499,6 @@ export class BacktestSimulatorService {
       ? trades.reduce((sum, trade) => sum + (trade.rMultiple || 0), 0) / trades.length
       : 0;
     const finalBenchmark = equityCurve[equityCurve.length - 1]?.benchmarkEquity || fullParams.initialCapital;
-
     return {
       params: fullParams,
       totalTrades: trades.length,
@@ -524,6 +529,294 @@ export class BacktestSimulatorService {
       priceSeries,
       trades,
       disclaimer: 'Backtest determinist pe lumânări închise. Rezultatele istorice, inclusiv win rate și expectancy, nu garantează performanțe viitoare.'
+    };
+  }
+
+  /**
+   * Risk-managed implementation of Larry Connors' RSI(2) trend-pullback
+   * model. The published setup uses SMA200 as the trend filter, RSI(2) as
+   * the pullback trigger and SMA5 as the mean-reversion exit. This version
+   * enters/exits at the following Daily open and adds a 3 ATR catastrophe
+   * stop because an unbounded loss is unsuitable for an alerting product.
+   */
+  public runConnorsRsi2Backtest(
+    symbol: string,
+    dailyInput: Candle[],
+    params: Partial<BacktestParams> = {}
+  ): BacktestResult {
+    const daily = dailyInput
+      .filter(candle => candle.isClosed !== false)
+      .sort((left, right) => left.timestamp - right.timestamp);
+    const directionMode: BacktestDirectionMode = params.directionMode === 'LONG_SHORT' ? 'LONG_SHORT' : 'LONG_ONLY';
+    const fullParams: BacktestParams = {
+      symbol,
+      timeframe: '1d',
+      startTimestamp: daily[0]?.timestamp || 0,
+      endTimestamp: daily[daily.length - 1]?.timestamp || Date.now(),
+      initialCapital: params.initialCapital || 10_000,
+      feePercentPerTrade: params.feePercentPerTrade ?? 0.075,
+      slippagePercent: params.slippagePercent ?? 0.05,
+      entryTierThreshold: 'Bullish',
+      exitTierThreshold: 'Neutral',
+      strategy: 'connors_rsi2',
+      directionMode,
+      marketClass: params.marketClass,
+      requireSma200: true,
+      rsi2EntryThreshold: params.rsi2EntryThreshold ?? 5,
+      atrStopMultiple: params.atrStopMultiple ?? 3,
+      evaluationStartTimestamp: params.evaluationStartTimestamp
+    };
+
+    if (daily.length < 220) {
+      throw new Error('Sunt necesare minimum 220 lumânări Daily pentru RSI(2), SMA5, SMA200 și ATR14.');
+    }
+
+    const closes = daily.map(candle => candle.close);
+    const highs = daily.map(candle => candle.high);
+    const lows = daily.map(candle => candle.low);
+    const rsi2 = calculateRSI(closes, 2);
+    const sma5 = calculateSMA(closes, 5);
+    const sma200 = calculateSMA(closes, 200);
+    const atr14 = calculateATR(highs, lows, closes, 14);
+    const firstEligibleIndex = daily.findIndex((candle, index) => index >= 199
+      && (!fullParams.evaluationStartTimestamp || candle.timestamp >= fullParams.evaluationStartTimestamp));
+    if (firstEligibleIndex < 0) throw new Error('Perioada selectată nu conține suficient istoric matur pentru SMA200.');
+
+    fullParams.startTimestamp = daily[firstEligibleIndex].timestamp;
+    const initialPrice = daily[firstEligibleIndex].close;
+    const feeRoundTrip = fullParams.feePercentPerTrade * 2;
+    const trades: BacktestTrade[] = [];
+    const equityCurve: BacktestResult['equityCurve'] = [];
+    const priceSeries: BacktestPricePoint[] = [];
+    let capital = fullParams.initialCapital;
+    let peakEquity = capital;
+    let maxDrawdown = 0;
+    let pendingEntry: { side: 'LONG' | 'SHORT'; signalIndex: number } | undefined;
+    let pendingExit: { reason: string } | undefined;
+    let position: {
+      side: 'LONG' | 'SHORT';
+      entryPrice: number;
+      entryTimestamp: number;
+      initialStop: number;
+      initialRiskPercent: number;
+      reason: string;
+    } | undefined;
+
+    const markToMarket = (close: number) => {
+      if (!position) return capital;
+      const gross = position.side === 'LONG'
+        ? ((close - position.entryPrice) / position.entryPrice) * 100
+        : ((position.entryPrice - close) / position.entryPrice) * 100;
+      return capital * (1 + (gross - fullParams.feePercentPerTrade) / 100);
+    };
+    const closePosition = (
+      rawPrice: number,
+      timestamp: number,
+      exitReason: BacktestTrade['exitReason'],
+      detail: string
+    ) => {
+      if (!position) return;
+      const effectiveExitPrice = position.side === 'LONG'
+        ? rawPrice * (1 - fullParams.slippagePercent / 100)
+        : rawPrice * (1 + fullParams.slippagePercent / 100);
+      const grossPercent = position.side === 'LONG'
+        ? ((effectiveExitPrice - position.entryPrice) / position.entryPrice) * 100
+        : ((position.entryPrice - effectiveExitPrice) / position.entryPrice) * 100;
+      const netPercent = Number((grossPercent - feeRoundTrip).toFixed(3));
+      const pnlNetUsd = Number((capital * netPercent / 100).toFixed(2));
+      const rMultiple = Number((netPercent / Math.max(0.01, position.initialRiskPercent)).toFixed(2));
+      capital = Number((capital + pnlNetUsd).toFixed(2));
+      trades.push({
+        id: `trade_${trades.length + 1}`,
+        symbol,
+        side: position.side,
+        entryTimestamp: position.entryTimestamp,
+        entryPrice: position.entryPrice,
+        exitTimestamp: timestamp,
+        exitPrice: effectiveExitPrice,
+        entrySignalTier: position.side === 'LONG' ? 'Bullish' : 'Bearish',
+        exitSignalTier: 'Neutral',
+        pnlPercent: netPercent,
+        pnlNetUsd,
+        holdingHours: Number(((timestamp - position.entryTimestamp) / 3_600_000).toFixed(1)),
+        exitReason,
+        initialStop: position.initialStop,
+        initialRiskPercent: position.initialRiskPercent,
+        rMultiple,
+        entryReason: position.reason,
+        exitReasonDetail: detail
+      });
+      position = undefined;
+      pendingExit = undefined;
+    };
+
+    for (let index = firstEligibleIndex; index < daily.length; index++) {
+      const candle = daily[index];
+
+      // Signals generated on yesterday's close are executed at today's open.
+      if (pendingExit && position) {
+        closePosition(candle.open, candle.timestamp, 'SignalReversal', pendingExit.reason);
+      }
+      if (pendingEntry && !position) {
+        const signalIndex = pendingEntry.signalIndex;
+        const signalAtr = atr14[signalIndex];
+        const entryPrice = pendingEntry.side === 'LONG'
+          ? candle.open * (1 + fullParams.slippagePercent / 100)
+          : candle.open * (1 - fullParams.slippagePercent / 100);
+        const initialStop = pendingEntry.side === 'LONG'
+          ? entryPrice - fullParams.atrStopMultiple! * signalAtr
+          : entryPrice + fullParams.atrStopMultiple! * signalAtr;
+        const initialRiskPercent = Math.abs(entryPrice - initialStop) / entryPrice * 100;
+        if (Number.isFinite(initialStop) && initialStop > 0 && initialRiskPercent > 0) {
+          position = {
+            side: pendingEntry.side,
+            entryPrice,
+            entryTimestamp: candle.timestamp,
+            initialStop,
+            initialRiskPercent,
+            reason: pendingEntry.side === 'LONG'
+              ? `Close peste SMA200 și RSI(2) sub ${fullParams.rsi2EntryThreshold}.`
+              : `Close sub SMA200 și RSI(2) peste ${100 - fullParams.rsi2EntryThreshold!}.`
+          };
+        }
+        pendingEntry = undefined;
+      }
+
+      if (position) {
+        const stopHit = position.side === 'LONG'
+          ? candle.low <= position.initialStop
+          : candle.high >= position.initialStop;
+        if (stopHit) {
+          const gapAdjustedStop = position.side === 'LONG'
+            ? Math.min(candle.open, position.initialStop)
+            : Math.max(candle.open, position.initialStop);
+          closePosition(gapAdjustedStop, candle.timestamp, 'StopLoss', `Stop de protecție ${fullParams.atrStopMultiple} ATR atins.`);
+        } else if (position.side === 'LONG' ? candle.close > sma5[index] : candle.close < sma5[index]) {
+          pendingExit = {
+            reason: position.side === 'LONG'
+              ? 'Mean reversion confirmată: Daily a închis peste SMA5.'
+              : 'Mean reversion confirmată: Daily a închis sub SMA5.'
+          };
+        }
+      }
+
+      const longTrigger = !position && !pendingEntry && candle.close > sma200[index]
+        && rsi2[index] < fullParams.rsi2EntryThreshold!;
+      const shortTrigger = directionMode === 'LONG_SHORT' && !position && !pendingEntry
+        && candle.close < sma200[index] && rsi2[index] > 100 - fullParams.rsi2EntryThreshold!;
+      if (longTrigger) pendingEntry = { side: 'LONG', signalIndex: index };
+      else if (shortTrigger) pendingEntry = { side: 'SHORT', signalIndex: index };
+
+      if (index === daily.length - 1 && position) {
+        closePosition(candle.close, candle.timestamp, 'EndPeriod', 'Sfârșitul perioadei testate.');
+      }
+
+      const equity = markToMarket(candle.close);
+      peakEquity = Math.max(peakEquity, equity);
+      maxDrawdown = Math.max(maxDrawdown, peakEquity > 0 ? ((peakEquity - equity) / peakEquity) * 100 : 0);
+      equityCurve.push({
+        timestamp: candle.timestamp,
+        strategyEquity: Number(equity.toFixed(2)),
+        benchmarkEquity: Number((fullParams.initialCapital * candle.close / initialPrice).toFixed(2))
+      });
+      priceSeries.push({
+        timestamp: candle.timestamp,
+        close: candle.close,
+        sma50: sma5[index],
+        sma5: sma5[index],
+        sma200: sma200[index],
+        rsi2: rsi2[index],
+        weeklyRegime: candle.close > sma200[index] ? 'BULLISH' : 'BEARISH',
+        armedLong: false,
+        armedShort: false,
+        longTrigger,
+        shortTrigger
+      });
+    }
+
+    const winners = trades.filter(trade => trade.pnlPercent > 0);
+    const losers = trades.filter(trade => trade.pnlPercent <= 0);
+    const grossProfit = winners.reduce((sum, trade) => sum + trade.pnlNetUsd, 0);
+    const grossLoss = Math.abs(losers.reduce((sum, trade) => sum + trade.pnlNetUsd, 0));
+    const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 99 : 0;
+    const dailyReturns = equityCurve.slice(1).map((point, index) => {
+      const previous = equityCurve[index].strategyEquity;
+      return previous > 0 ? (point.strategyEquity - previous) / previous : 0;
+    });
+    const meanReturn = dailyReturns.length ? dailyReturns.reduce((sum, value) => sum + value, 0) / dailyReturns.length : 0;
+    const variance = dailyReturns.length > 1
+      ? dailyReturns.reduce((sum, value) => sum + (value - meanReturn) ** 2, 0) / (dailyReturns.length - 1)
+      : 0;
+    const sharpe = variance > 0 ? (meanReturn / Math.sqrt(variance)) * Math.sqrt(252) : 0;
+    const expectancyR = trades.length
+      ? trades.reduce((sum, trade) => sum + (trade.rMultiple || 0), 0) / trades.length
+      : 0;
+    const finalBenchmark = equityCurve[equityCurve.length - 1]?.benchmarkEquity || fullParams.initialCapital;
+    const validation = !params.evaluationStartTimestamp
+      ? (() => {
+          const startTimestamp = daily[Math.max(199, Math.floor(daily.length * 0.7))].timestamp;
+          const holdout = this.runConnorsRsi2Backtest(symbol, daily, {
+            ...params,
+            evaluationStartTimestamp: startTimestamp
+          });
+          return {
+            method: 'chronological_holdout_30' as const,
+            startTimestamp,
+            totalTrades: holdout.totalTrades,
+            winRate: holdout.winRate,
+            profitFactor: holdout.profitFactor,
+            totalReturnPercent: holdout.totalReturnPercent,
+            maxDrawdownPercent: holdout.maxDrawdownPercent,
+            profitable: holdout.totalReturnPercent > 0
+          };
+        })()
+      : undefined;
+
+    return {
+      params: fullParams,
+      totalTrades: trades.length,
+      winningTrades: winners.length,
+      losingTrades: losers.length,
+      winRate: trades.length ? Number((winners.length / trades.length * 100).toFixed(1)) : 0,
+      profitFactor: Number(profitFactor.toFixed(2)),
+      totalReturnPercent: Number(((capital / fullParams.initialCapital - 1) * 100).toFixed(2)),
+      buyAndHoldReturnPercent: Number(((finalBenchmark / fullParams.initialCapital - 1) * 100).toFixed(2)),
+      maxDrawdownPercent: Number(maxDrawdown.toFixed(2)),
+      sharpeRatio: Number(sharpe.toFixed(2)),
+      averageTradeDurationHours: trades.length
+        ? Number((trades.reduce((sum, trade) => sum + trade.holdingHours, 0) / trades.length).toFixed(1))
+        : 0,
+      averageTradeReturnPercent: trades.length
+        ? Number((trades.reduce((sum, trade) => sum + trade.pnlPercent, 0) / trades.length).toFixed(2))
+        : 0,
+      expectancyR: Number(expectancyR.toFixed(2)),
+      strategyName: 'Connors RSI(2) Trend Pullback · Risk Managed',
+      strategyRules: [
+        'Regim LONG: închiderea Daily este peste SMA200.',
+        `Trigger: RSI(2) închide sub ${fullParams.rsi2EntryThreshold}; intrare la următorul open Daily.`,
+        'Exit: prima închidere Daily peste SMA5, executată la următorul open.',
+        `Protecție adăugată: stop-catastrofă la ${fullParams.atrStopMultiple} ATR de entry.`,
+        'Costuri incluse: 0,075% comision pe sens și 0,05% slippage pe sens.'
+      ],
+      strategySources: [
+        {
+          label: 'StockCharts ChartSchool · RSI(2)',
+          url: 'https://chartschool.stockcharts.com/table-of-contents/trading-strategies-and-models/trading-strategies/rsi-2'
+        },
+        {
+          label: 'AQR · A Century of Evidence on Trend-Following Investing',
+          url: 'https://www.aqr.com/Insights/Research/Journal-Article/A-Century-of-Evidence-on-Trend-Following-Investing'
+        },
+        {
+          label: 'SSRN · Technical rules under realistic costs (2026)',
+          url: 'https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6977700'
+        }
+      ],
+      validation,
+      equityCurve,
+      priceSeries,
+      trades,
+      disclaimer: 'Strategie de cercetare, nu recomandare financiară. Un win rate ridicat nu garantează profit: pierderile pot fi mai mari decât câștigurile, iar rezultatele istorice nu garantează performanța viitoare.'
     };
   }
 }

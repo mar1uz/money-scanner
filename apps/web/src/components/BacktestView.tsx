@@ -3,13 +3,15 @@ import {
   AssetMarketClass,
   BacktestComparisonResult,
   BacktestDirectionMode,
-  BacktestResult
+  BacktestResult,
+  BacktestStrategy
 } from '../types.js';
-import { fetchWeeklyReclaimBacktest, fetchWeeklyReclaimComparison } from '../services/api.js';
+import { fetchResearchBacktest, fetchResearchComparison } from '../services/api.js';
 import {
   Activity,
   AlertTriangle,
   BarChart3,
+  ExternalLink,
   GitCompareArrows,
   LineChart,
   Play,
@@ -39,6 +41,20 @@ const BACKTEST_ASSETS: BacktestAssetOption[] = [
   { symbol: 'COPPER', name: 'Copper', marketClass: 'metals' }
 ];
 
+type ResearchStrategy = Extract<BacktestStrategy, 'connors_rsi2' | 'weekly_reclaim'>;
+const STRATEGY_META: Record<ResearchStrategy, { title: string; description: string; scope: string }> = {
+  connors_rsi2: {
+    title: 'Connors RSI(2) Trend Pullback',
+    description: 'Cumpără o corecție foarte scurtă numai peste SMA200, apoi iese când prețul revine peste SMA5. Varianta testată adaugă un stop-catastrofă de 3 ATR.',
+    scope: 'Recomandat pentru cercetare: LONG pe crypto lichid și acțiuni/ETF-uri lichide. Nu este recomandat implicit pentru metale.'
+  },
+  weekly_reclaim: {
+    title: 'Weekly Trend + Daily SMA50 Reclaim',
+    description: 'Regimul Weekly decide direcția. Pullback-ul Daily armează setup-ul, iar reclaim-ul SMA50 este confirmat de MoneyLine Fast Daily și Slow 8H.',
+    scope: 'Model MoneyLine experimental, cu frecvență mai redusă și istoric comun limitat de datele 8H.'
+  }
+};
+
 const formatPercent = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 const formatPrice = (value?: number) => value && Number.isFinite(value)
   ? `$${value.toLocaleString('en-US', { maximumFractionDigits: value < 1 ? 6 : 2 })}`
@@ -48,6 +64,7 @@ const formatDate = (value: number) => new Date(value).toLocaleDateString('ro-RO'
 });
 
 export const BacktestView: React.FC = () => {
+  const [strategy, setStrategy] = useState<ResearchStrategy>('connors_rsi2');
   const [assetKey, setAssetKey] = useState('crypto:BTC');
   const [directionMode, setDirectionMode] = useState<BacktestDirectionMode>('LONG_ONLY');
   const [result, setResult] = useState<BacktestResult | null>(null);
@@ -63,7 +80,7 @@ export const BacktestView: React.FC = () => {
   const runSimulation = () => {
     setLoading(true);
     setError('');
-    fetchWeeklyReclaimBacktest(selectedAsset.symbol, selectedAsset.marketClass, directionMode)
+    fetchResearchBacktest(strategy, selectedAsset.symbol, selectedAsset.marketClass, directionMode)
       .then(setResult)
       .catch(loadError => setError(loadError instanceof Error ? loadError.message : 'Backtest indisponibil.'))
       .finally(() => setLoading(false));
@@ -72,7 +89,7 @@ export const BacktestView: React.FC = () => {
   const runComparison = () => {
     setComparisonLoading(true);
     setError('');
-    fetchWeeklyReclaimComparison(directionMode)
+    fetchResearchComparison(strategy, directionMode)
       .then(setComparison)
       .catch(loadError => setError(loadError instanceof Error ? loadError.message : 'Comparația nu a putut fi rulată.'))
       .finally(() => setComparisonLoading(false));
@@ -80,7 +97,11 @@ export const BacktestView: React.FC = () => {
 
   useEffect(() => {
     runSimulation();
-  }, [assetKey, directionMode]);
+  }, [assetKey, directionMode, strategy]);
+
+  useEffect(() => {
+    setComparison(null);
+  }, [strategy, directionMode]);
 
   return (
     <div className="space-y-6 pb-8">
@@ -91,13 +112,22 @@ export const BacktestView: React.FC = () => {
               <LineChart className="h-5 w-5" />
               <span className="font-mono text-[10px] font-bold uppercase tracking-[0.2em]">Cercetare pe lumânări închise</span>
             </div>
-            <h1 className="mt-2 text-xl font-bold text-white sm:text-2xl">Weekly Trend + Daily SMA50 Reclaim</h1>
+            <h1 className="mt-2 text-xl font-bold text-white sm:text-2xl">{STRATEGY_META[strategy].title}</h1>
             <p className="mt-2 text-sm leading-6 text-slate-400">
-              Regimul Weekly decide direcția. Pullback-ul Daily armează setup-ul, iar reclaim-ul SMA50 este confirmat de MoneyLine Fast Daily și Slow 8H. Ordinul intră la următoarea deschidere Daily.
+              {STRATEGY_META[strategy].description} Ordinul intră la următoarea deschidere Daily.
             </p>
+            <div className="mt-3 inline-flex rounded-lg border border-emerald-500/20 bg-emerald-500/[0.07] px-2.5 py-1.5 text-[10px] leading-4 text-emerald-200/80">{STRATEGY_META[strategy].scope}</div>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-[minmax(180px,1fr)_auto_auto]">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(190px,1fr)_minmax(180px,1fr)_auto_auto]">
+            <select
+              value={strategy}
+              onChange={event => setStrategy(event.target.value as ResearchStrategy)}
+              className="rounded-xl border border-emerald-500/25 bg-background-surface px-3 py-2.5 text-xs font-mono text-emerald-200 outline-none focus:border-emerald-500/50"
+            >
+              <option value="connors_rsi2">Recomandată · Connors RSI(2)</option>
+              <option value="weekly_reclaim">Experimentală · MoneyLine Reclaim</option>
+            </select>
             <select
               value={assetKey}
               onChange={event => setAssetKey(event.target.value)}
@@ -114,8 +144,8 @@ export const BacktestView: React.FC = () => {
               onChange={event => setDirectionMode(event.target.value as BacktestDirectionMode)}
               className="rounded-xl border border-white/[0.09] bg-background-surface px-3 py-2.5 text-xs font-mono text-slate-200 outline-none focus:border-cyan-500/50"
             >
-              <option value="LONG_ONLY">Doar LONG în Weekly bullish</option>
-              <option value="LONG_SHORT">LONG + SHORT după Weekly</option>
+              <option value="LONG_ONLY">Doar LONG · recomandat</option>
+              <option value="LONG_SHORT">LONG + SHORT · cercetare</option>
             </select>
             <button
               type="button"
@@ -148,6 +178,24 @@ export const BacktestView: React.FC = () => {
             <MetricCard label="Sharpe anualizat" value={result.sharpeRatio.toFixed(2)} detail={`${Math.round(result.averageTradeDurationHours / 24)} zile mediu`} tone="violet" icon={ShieldAlert} />
           </section>
 
+          {result.validation && (
+            <section className={`rounded-xl border p-3 sm:p-4 ${result.validation.profitable ? 'border-emerald-500/25 bg-emerald-500/[0.055]' : 'border-rose-500/25 bg-rose-500/[0.055]'}`}>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Verificare cronologică · ultimele 30% din istoric</div>
+                  <div className="mt-1 text-xs text-slate-500">Perioadă ținută separat începând cu {formatDate(result.validation.startTimestamp)}; indicatorii păstrează istoricul anterior numai pentru încălzire.</div>
+                </div>
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+                  <MiniStat label="Trades" value={String(result.validation.totalTrades)} />
+                  <MiniStat label="Win rate" value={`${result.validation.winRate.toFixed(1)}%`} />
+                  <MiniStat label="PF" value={result.validation.profitFactor.toFixed(2)} />
+                  <MiniStat label="Return" value={formatPercent(result.validation.totalReturnPercent)} />
+                  <MiniStat label="Max DD" value={`-${result.validation.maxDrawdownPercent.toFixed(2)}%`} />
+                </div>
+              </div>
+            </section>
+          )}
+
           <section className="grid gap-4 xl:grid-cols-[1.45fr_0.55fr]">
             <PriceChart result={result} />
             <div className="rounded-2xl border border-white/[0.07] bg-background-card p-4">
@@ -160,8 +208,19 @@ export const BacktestView: React.FC = () => {
                 ))}
               </div>
               <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/[0.06] p-3 text-[10px] leading-5 text-amber-100/70">
-                Un semnal produs la închiderea Daily se execută la următoarea deschidere. Dacă stopul și ținta sunt atinse în aceeași lumânare, backtestul presupune conservator că stopul a fost primul.
+                {result.params.strategy === 'connors_rsi2'
+                  ? 'Un semnal produs la închiderea Daily se execută la următoarea deschidere. Stopul de 3 ATR limitează riscul de coadă pe care varianta Connors originală, fără stop, îl lasă neacoperit.'
+                  : 'Un semnal produs la închiderea Daily se execută la următoarea deschidere. Dacă stopul și ținta sunt atinse în aceeași lumânare, backtestul presupune conservator că stopul a fost primul.'}
               </div>
+              {!!result.strategySources?.length && (
+                <div className="mt-3 space-y-1.5">
+                  {result.strategySources.map(source => (
+                    <a key={source.url} href={source.url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-[10px] text-cyan-300/75 hover:text-cyan-200">
+                      <ExternalLink className="h-3 w-3" /> {source.label}
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
           </section>
 
@@ -171,7 +230,7 @@ export const BacktestView: React.FC = () => {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="flex items-center gap-2"><GitCompareArrows className="h-4 w-4 text-violet-300" /><h2 className="text-sm font-bold text-slate-100">Verificare multi-asset</h2></div>
-                <p className="mt-1 text-xs text-slate-500">BTC, ETH, SOL, SPY, QQQ, NVDA, aur, argint și cupru — aceleași reguli, fără optimizare individuală.</p>
+                <p className="mt-1 text-xs text-slate-500">BTC, ETH, SOL, SPY, QQQ, NVDA, AAPL, aur, argint și cupru — aceleași reguli, fără optimizare individuală.</p>
               </div>
               <button
                 type="button"
@@ -179,7 +238,7 @@ export const BacktestView: React.FC = () => {
                 disabled={comparisonLoading}
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-2.5 text-xs font-bold text-violet-200 transition hover:bg-violet-500/20 disabled:opacity-60"
               >
-                <GitCompareArrows className={`h-4 w-4 ${comparisonLoading ? 'animate-pulse' : ''}`} /> {comparisonLoading ? 'Compar…' : 'Compară 9 active'}
+                <GitCompareArrows className={`h-4 w-4 ${comparisonLoading ? 'animate-pulse' : ''}`} /> {comparisonLoading ? 'Compar…' : 'Compară 10 active'}
               </button>
             </div>
             {comparison && <ComparisonTable comparison={comparison} />}
@@ -222,9 +281,12 @@ const MetricCard: React.FC<{
 const PriceChart: React.FC<{ result: BacktestResult }> = ({ result }) => {
   const points = result.priceSeries || [];
   if (!points.length) return null;
+  const isConnors = result.params.strategy === 'connors_rsi2';
+  const rsiThreshold = result.params.rsi2EntryThreshold ?? 5;
   const width = 900;
   const height = 300;
-  const values = points.flatMap(point => [point.close, point.sma50, point.sma200]).filter(Number.isFinite);
+  const fastValue = (point: typeof points[number]) => isConnors ? (point.sma5 ?? point.sma50) : point.sma50;
+  const values = points.flatMap(point => [point.close, fastValue(point), point.sma200]).filter(Number.isFinite);
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
   const range = maxValue - minValue || 1;
@@ -236,6 +298,11 @@ const PriceChart: React.FC<{ result: BacktestResult }> = ({ result }) => {
   const path = (selector: (point: typeof points[number]) => number) => points.map((point, index) =>
     `${index ? 'L' : 'M'} ${x(point.timestamp).toFixed(2)} ${y(selector(point)).toFixed(2)}`
   ).join(' ');
+  const rsiPath = points.map((point, index) => {
+    const value = Math.max(0, Math.min(100, point.rsi2 ?? 50));
+    const rsiY = 66 - value / 100 * 58;
+    return `${index ? 'L' : 'M'} ${x(point.timestamp).toFixed(2)} ${rsiY.toFixed(2)}`;
+  }).join(' ');
   const pointAt = (timestamp: number) => points.reduce((best, point) =>
     Math.abs(point.timestamp - timestamp) < Math.abs(best.timestamp - timestamp) ? point : best
   , points[0]);
@@ -244,18 +311,18 @@ const PriceChart: React.FC<{ result: BacktestResult }> = ({ result }) => {
     <div className="rounded-2xl border border-white/[0.07] bg-background-card p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-sm font-bold text-slate-100">Preț, SMA50 și execuții</h2>
+          <h2 className="text-sm font-bold text-slate-100">Preț, {isConnors ? 'SMA5' : 'SMA50'} și execuții</h2>
           <p className="mt-1 font-mono text-[10px] text-slate-600">{formatDate(points[0].timestamp)} — {formatDate(points[points.length - 1].timestamp)}</p>
         </div>
         <div className="flex flex-wrap gap-3 text-[9px] font-bold uppercase">
-          <span className="text-slate-200">● Preț</span><span className="text-cyan-300">— SMA50</span><span className="text-amber-300">— SMA200</span><span className="text-emerald-300">▲ Entry</span><span className="text-rose-300">× Exit</span>
+          <span className="text-slate-200">● Preț</span><span className="text-cyan-300">— {isConnors ? 'SMA5' : 'SMA50'}</span><span className="text-amber-300">— SMA200</span><span className="text-emerald-300">▲ Entry</span><span className="text-rose-300">× Exit</span>
         </div>
       </div>
       <div className="mt-4 overflow-hidden rounded-xl border border-white/[0.05] bg-[#070b14] p-2">
         <svg viewBox={`0 0 ${width} ${height}`} className="h-64 w-full" role="img" aria-label="Grafic backtest cu intrări și ieșiri">
           {[0.25, 0.5, 0.75].map(level => <line key={level} x1="0" y1={height * level} x2={width} y2={height * level} stroke="#172033" strokeDasharray="4 5" />)}
           <path d={path(point => point.close)} fill="none" stroke="#e2e8f0" strokeWidth="1.5" opacity="0.9" />
-          <path d={path(point => point.sma50)} fill="none" stroke="#22d3ee" strokeWidth="1.7" />
+          <path d={path(fastValue)} fill="none" stroke="#22d3ee" strokeWidth="1.7" />
           <path d={path(point => point.sma200)} fill="none" stroke="#fbbf24" strokeWidth="1.7" />
           {result.trades.map(trade => {
             const entryPoint = pointAt(trade.entryTimestamp);
@@ -275,6 +342,16 @@ const PriceChart: React.FC<{ result: BacktestResult }> = ({ result }) => {
           })}
         </svg>
       </div>
+      {isConnors && (
+        <div className="mt-2 rounded-xl border border-white/[0.05] bg-[#070b14] px-2 py-1.5">
+          <div className="mb-1 flex items-center justify-between font-mono text-[8px] uppercase text-slate-600"><span>RSI(2)</span><span>Trigger LONG &lt; {rsiThreshold}</span></div>
+          <svg viewBox={`0 0 ${width} 72`} className="h-16 w-full" role="img" aria-label="RSI 2 și pragul de intrare">
+            <line x1="0" y1={66 - rsiThreshold / 100 * 58} x2={width} y2={66 - rsiThreshold / 100 * 58} stroke="#34d399" strokeDasharray="4 5" opacity="0.75" />
+            <line x1="0" y1={66 - (100 - rsiThreshold) / 100 * 58} x2={width} y2={66 - (100 - rsiThreshold) / 100 * 58} stroke="#fb7185" strokeDasharray="4 5" opacity="0.45" />
+            <path d={rsiPath} fill="none" stroke="#a78bfa" strokeWidth="1.5" />
+          </svg>
+        </div>
+      )}
     </div>
   );
 };
