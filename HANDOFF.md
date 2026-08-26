@@ -1091,3 +1091,20 @@ QQQ Bear Rally live-data sample: 7 trades, 71.4% win rate, PF 1.62, +2.38%; hold
 ```
 
 The samples are historical research outputs, not forward-performance claims. The QQQ holdout loss is intentionally retained as evidence that the strategy is not universally profitable.
+
+Production deployment on 26 August 2026:
+
+```text
+Git implementation commit: d6d3894
+Cloud Build: b274d556-a114-4c39-98c4-5f17cac6a143
+Cloud Build status: SUCCESS
+Cloud Run revision: market-scanner-360-00096-4dz
+Container digest: sha256:235b25de6f4bd2898da17075468fdf07b4455f06c1903636abf0fe1850cce749
+Traffic: 100%
+Canonical URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health verification: HTTP 200
+Root application verification: HTTP 200, bundle index-Citj7w3r.js
+Production bundle verification: Strategia 1, Strategia 2, Bear Rally Fade, bear_rally_fade and RSI arm label present
+Unauthenticated Bear Rally backtest verification: HTTP 401 (expected)
+Production login view: rendered successfully at desktop and 390x844 mobile viewport
+```
