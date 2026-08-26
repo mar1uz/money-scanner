@@ -1164,3 +1164,83 @@ Root bundle: index-CwIF4L2I.js
 Bundle verification: RSI(2) > 50 waiting text, conservative confirmation copy, arm and confirmation chart labels present
 Unauthenticated Alerts dashboard: HTTP 401 (expected)
 ```
+
+## 26. Research-only stocks strategy retained for future paper alerts
+
+Researched on 26 August 2026 and intentionally **not deployed**. The retained candidate is:
+
+```text
+WEEKLY_TREND_DONCHIAN_55_20_LONG
+Scope: liquid US stocks and ETFs only
+Regime: MoneyLine Weekly Fast+Slow bullish; Weekly close > rising SMA40
+Daily filter: close > SMA200; SMA50 > SMA200; both rising; positive 252-session momentum
+Volatility filter: ATR14% outside the highest-volatility 30% of its one-year history
+Trigger: closed Daily candle above the previous 55-session high
+Execution: following Daily open; skip gaps larger than 1 ATR
+Initial stop: wider of two-bar structural stop minus 0.1 ATR and 2 ATR below entry
+Risk gate: reject stop distance > 4%; risk no more than 0.5% of portfolio
+Exit: rising 20-session Donchian low or Weekly regime invalidation
+```
+
+Chronological research result for stocks/ETFs:
+
+```text
+Calibration 70%: 140 trades, 42.86% win rate, PF 1.79, +0.45R expectancy, 3.22% median stop
+Holdout 30%: 61 trades, 40.98% win rate, PF 1.55, +0.31R expectancy, 3.03% median stop
+Double-cost holdout: PF 1.39, +0.23R expectancy
+```
+
+Crypto failed the holdout (five trades, PF 0.03, -0.77R expectancy), so this strategy must not be presented as cross-asset or enabled for crypto. Full methodology and limitations are in `docs/backtests/2026-08-26-strategy-candidate-research.md`; reproducible research code is in `scripts/research-strategy-candidates.mjs`. If implemented later, begin with paper alerts and forward validation rather than executable trade claims.
+
+## 27. Preliminary cross-asset strategy research
+
+Researched on 26 August 2026 and not deployed. The best cross-asset candidate is `12M_MOMENTUM_DONCHIAN_55_20_LONG`: positive 252-session momentum, ATR14% outside the highest-volatility 20% of its own one-year history, Daily close above the prior 55-session high, next-open entry, 2 ATR initial stop, 20-session Donchian trailing exit, 0.5% portfolio risk and a preferred universal 6% maximum stop gate.
+
+The frozen 60/20/20 protocol remained positive in the final 20% for all three classes, but with important limitations:
+
+```text
+Stocks: 96 trades, PF 1.33, +0.21R expectancy, 4.44% median stop
+Crypto: 6 trades, PF 2.43, +0.80R expectancy, 5.25% median stop
+Metals: 12 trades, PF 11.05, +4.21R expectancy, 3.51% median stop
+```
+
+The crypto result is sparse and the metals result is dominated by large gold/silver trends. A separate cross-sectional holdout of 23 previously unused crypto assets generated only 17 eligible trades under the 6% risk gate (PF 3.28, +1.06R), dominated by TRX. Reducing the stop to 1 ATR increased coverage but failed in the most recent 20% (PF 0.77, -0.21R). Therefore this candidate may scan every asset, but it must reject most high-volatility crypto setups rather than force coverage. It is approved only for further paper-alert/forward research, not production trading claims. Full evidence: `docs/backtests/2026-08-26-cross-asset-strategy-research.md`.
+
+## 28. Asymmetric 3R strategy research
+
+Researched on 26 August 2026 and not deployed. The retained candidate is `ASYMMETRIC_DONCHIAN_55_3R_LONG`: Daily 252-session positive momentum, close above SMA200, rising SMA50, ATR14% outside the highest-volatility 20% of its trailing year, close above the prior 55-session high, next-open entry, wider of a two-candle structural stop and 2 ATR, hard rejection above 10% stop distance, fixed 3R take-profit, 0.5% portfolio risk, and SMA50/90-session fallback exits.
+
+Frozen 60/20/20 result across 33 stocks/ETFs, crypto and metal proxies:
+
+```text
+Calibration: 373 trades, 41.6% WR, PF 1.68, +0.39R, 4.16% median stop
+Validation: 171 trades, 51.5% WR, PF 2.49, +0.68R, 4.30% median stop
+Final: 145 trades, 37.2% WR, PF 1.49, +0.30R, 4.51% median stop
+Final doubled costs: 144 trades, PF 1.40, +0.26R
+```
+
+Final stocks were only PF 1.17/+0.11R (PF 1.10/+0.07R at doubled costs); crypto had only 10 trades and metals only 18. Treat this as a paper-alert candidate, not a proven universal or live-execution strategy. Full methodology is in `docs/backtests/2026-08-26-asymmetric-strategy-research.md`; reproducible code is in `scripts/research-asymmetric-strategies.mjs`.
+
+## 29. Rejected mechanical SHORT mirror on 86 assets
+
+Researched on 26 August 2026 and not deployed. `WEEKLY_TREND_DONCHIAN_55_20_SHORT` mirrored the retained LONG candidate: bearish Weekly Fast+Slow MoneyLine, close below falling Weekly SMA40, bearish Daily SMA50/SMA200 stack and slopes, negative 252-session momentum, controlled ATR percentile, Daily close below the prior 55-session low, next-open SHORT, wider of a two-candle structural stop and 2 ATR, 0.25% equity risk, and a 20-session Donchian-high trailing exit.
+
+The test covered 86 valid assets (63 stocks/ETFs, 20 crypto and three metal proxies) with a chronological 70/30 split, fees and slippage but an optimistic zero borrow/funding cost:
+
+```text
+4% stop gate in-sample: 23 trades, 21.7% WR, PF 0.91, -0.07R
+4% stop gate holdout: 5 trades, 20.0% WR, PF 0.66, -0.29R
+6% holdout: 9 trades, PF 0.41, -0.45R
+8% holdout: 15 trades, PF 0.49, -0.33R
+10% holdout: 21 trades, PF 0.36, -0.42R
+```
+
+The mechanical SHORT mirror is rejected: widening the stop increases coverage but worsens the edge, and real borrow/dividend/funding costs would make results weaker. Do not add it to live alerts. Research report: `docs/backtests/2026-08-26-weekly-donchian-short-86-assets.md`; reproducible script: `scripts/backtest-weekly-donchian-short-50plus.mjs`.
+
+## 30. Extended search for a profitable SHORT strategy
+
+Researched on 26 August 2026 and not deployed. The saved LONG candidate remains `WEEKLY_TREND_DONCHIAN_55_20_LONG`. No SHORT candidate passed every calibration, validation and untouched final check, so no new live SHORT alert is approved.
+
+The most promising paper-only pattern is `RELATIVE_WEAKNESS_BEAR_FLAG_2_5R_SHORT`: Fast+Slow SPY bear state, bearish Weekly/Daily asset regime, 63-session underperformance versus SPY of at least 5%, compact six-session bear flag, breakdown trigger, next-open short, structural/2 ATR stop rejected above 10%, 2.5R target and 0.25% portfolio risk. It produced PF 2.61/+0.34R in calibration, PF 2.35/+0.46R in validation and PF 2.52/+0.38R on 39 previously unused stocks (PF 2.21/+0.33R under doubled friction and 6% borrow). However, the locked temporal final had only three stock trades and failed at PF 0.14/-0.32R. Retain only for paper observation; do not call it robustly profitable.
+
+A separate weakest-decile cross-sectional momentum model also failed: 140 calibration trades at PF 1.42/+0.21R, then 16 validation trades at PF 0.29/-0.42R. A deep-bear variant was PF 1.68/+0.35R historically but PF 0.04/-0.81R during 2020–2026. Full evidence: `docs/backtests/2026-08-26-profitable-short-strategy-search.md`. Reproduction scripts: `scripts/research-profitable-short-strategies.mjs` and `scripts/research-cross-sectional-short.mjs`.
