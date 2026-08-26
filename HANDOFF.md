@@ -1039,4 +1039,6 @@ Health verification: HTTP 200
 Root application verification: HTTP 200, bundle index-DIEPESkX.js
 Production bundle verification: Connors RSI(2), Bear Rally Fade and Strategii Daily automate present
 Unauthenticated Alerts dashboard verification: HTTP 401 (expected)
+Cloud Scheduler: money-scanner-daily-regime-scan ENABLED at 12:00 Europe/Oslo
+Secret bindings preserved: DAILY_SCAN_TOKEN, GEMINI_API_KEY, TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID
 ```
