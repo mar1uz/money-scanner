@@ -1042,3 +1042,52 @@ Unauthenticated Alerts dashboard verification: HTTP 401 (expected)
 Cloud Scheduler: money-scanner-daily-regime-scan ENABLED at 12:00 Europe/Oslo
 Secret bindings preserved: DAILY_SCAN_TOKEN, GEMINI_API_KEY, TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID
 ```
+
+## 24. Backtest Lab for both production RSI(2) strategies
+
+Implemented on 26 August 2026. This section is completed by the deployment record below after Cloud Run verification.
+
+Backtest Lab now exposes the two live alert strategies as explicit, independent choices:
+
+```text
+Strategy 1 — Connors RSI(2) Pullback LONG
+- Daily close > SMA200
+- RSI(2) < 5
+- entry at next Daily open
+- exit at next open after close > SMA5
+- catastrophe stop 3 ATR below entry
+
+Strategy 2 — Bear Rally Fade SHORT
+- asset close < SMA200, SMA50 < SMA200 and SMA200 falling versus 20 closes ago
+- benchmark confirmation: BTC for crypto, SPY for US stocks
+- RSI(2) cross above 95 arms the setup only
+- RSI(2) cross below 50 within three closed Daily candles confirms it
+- entry at next Daily open
+- exit at next open after close < SMA5
+- catastrophe stop 3 ATR above entry
+```
+
+Both simulations use up to 2,000 closed Daily candles, next-open execution, 0.075% commission per side, 0.05% slippage per side, mark-to-market equity and a separately reported chronological final-30% holdout. Bear Rally Fade is forced to `SHORT_ONLY`; Connors is forced to `LONG_ONLY` in the UI so Backtest Lab matches the live alert definitions. Metals are excluded from these two strategy scopes. The older Weekly MoneyLine Reclaim remains available as an experimental third option.
+
+UI changes:
+
+- expanded liquid asset selector for individual tests;
+- dedicated LONG/SHORT strategy labels and fixed direction badges;
+- RSI(2) strip for Bear Rally Fade with separate arm (>95) and confirmation (<50) levels;
+- markers for armed and confirmed short signals;
+- multi-asset comparison across BTC, ETH, SOL, SPY, QQQ, NVDA and AAPL without per-asset optimization;
+- strategy rules, source links, trade log, full-sample statistics, holdout, drawdown and risk disclaimer remain visible.
+
+Verification before deployment:
+
+```text
+npm run build: PASS
+npm test: PASS
+API integration suite: 11/11 PASS
+Bear Rally deterministic unit tests: 2/2 PASS
+BTC Connors live-data sample: 21 trades, 76.2% win rate, PF 2.63, +38.98%; holdout +2.17%
+ETH Bear Rally live-data sample: 5 trades, 60.0% win rate, PF 7.83, +16.01%; holdout +1.04%
+QQQ Bear Rally live-data sample: 7 trades, 71.4% win rate, PF 1.62, +2.38%; holdout -1.59%
+```
+
+The samples are historical research outputs, not forward-performance claims. The QQQ holdout loss is intentionally retained as evidence that the strategy is not universally profitable.

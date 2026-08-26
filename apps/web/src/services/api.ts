@@ -186,7 +186,7 @@ export async function fetchWeeklyReclaimBacktest(
 }
 
 export async function fetchResearchBacktest(
-  strategy: Extract<BacktestStrategy, 'weekly_reclaim' | 'connors_rsi2'>,
+  strategy: Extract<BacktestStrategy, 'weekly_reclaim' | 'connors_rsi2' | 'bear_rally_fade'>,
   symbol: string,
   marketClass: AssetMarketClass,
   directionMode: BacktestDirectionMode = 'LONG_ONLY'
@@ -208,7 +208,7 @@ export async function fetchWeeklyReclaimComparison(
 }
 
 export async function fetchResearchComparison(
-  strategy: Extract<BacktestStrategy, 'weekly_reclaim' | 'connors_rsi2'>,
+  strategy: Extract<BacktestStrategy, 'weekly_reclaim' | 'connors_rsi2' | 'bear_rally_fade'>,
   directionMode: BacktestDirectionMode = 'LONG_ONLY'
 ): Promise<BacktestComparisonResult> {
   const params = new URLSearchParams({ strategy, directionMode });

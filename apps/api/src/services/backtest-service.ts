@@ -819,4 +819,332 @@ export class BacktestSimulatorService {
       disclaimer: 'Strategie de cercetare, nu recomandare financiară. Un win rate ridicat nu garantează profit: pierderile pot fi mai mari decât câștigurile, iar rezultatele istorice nu garantează performanța viitoare.'
     };
   }
+
+  /**
+   * Benchmark-confirmed bear-market rebound fade used by the live Daily
+   * strategy alerts. RSI(2) above 95 only arms the setup; the short is filled
+   * at the next Daily open after RSI(2) crosses back below 50 within three
+   * closed candles. BTC confirms crypto and SPY confirms US stocks.
+   */
+  public runBearRallyFadeBacktest(
+    symbol: string,
+    dailyInput: Candle[],
+    benchmarkInput: Candle[],
+    params: Partial<BacktestParams> = {}
+  ): BacktestResult {
+    const daily = dailyInput
+      .filter(candle => candle.isClosed !== false)
+      .sort((left, right) => left.timestamp - right.timestamp);
+    const benchmark = benchmarkInput
+      .filter(candle => candle.isClosed !== false)
+      .sort((left, right) => left.timestamp - right.timestamp);
+    const fullParams: BacktestParams = {
+      symbol,
+      timeframe: '1d',
+      startTimestamp: daily[0]?.timestamp || 0,
+      endTimestamp: daily[daily.length - 1]?.timestamp || Date.now(),
+      initialCapital: params.initialCapital || 10_000,
+      feePercentPerTrade: params.feePercentPerTrade ?? 0.075,
+      slippagePercent: params.slippagePercent ?? 0.05,
+      entryTierThreshold: 'Bearish',
+      exitTierThreshold: 'Neutral',
+      strategy: 'bear_rally_fade',
+      directionMode: 'SHORT_ONLY',
+      marketClass: params.marketClass,
+      requireSma200: true,
+      requireSma50Slope: true,
+      rsi2EntryThreshold: params.rsi2EntryThreshold ?? 95,
+      rsi2ConfirmationThreshold: params.rsi2ConfirmationThreshold ?? 50,
+      confirmationWindowBars: params.confirmationWindowBars ?? 3,
+      atrStopMultiple: params.atrStopMultiple ?? 3,
+      evaluationStartTimestamp: params.evaluationStartTimestamp
+    };
+
+    if (daily.length < 240 || benchmark.length < 220) {
+      throw new Error('Sunt necesare minimum 240 lumânări Daily pentru asset și 220 pentru benchmark.');
+    }
+
+    const closes = daily.map(candle => candle.close);
+    const highs = daily.map(candle => candle.high);
+    const lows = daily.map(candle => candle.low);
+    const rsi2 = calculateRSI(closes, 2);
+    const sma5 = calculateSMA(closes, 5);
+    const sma50 = calculateSMA(closes, 50);
+    const sma200 = calculateSMA(closes, 200);
+    const atr14 = calculateATR(highs, lows, closes, 14);
+    const benchmarkCloses = benchmark.map(candle => candle.close);
+    const benchmarkSma50 = calculateSMA(benchmarkCloses, 50);
+    const benchmarkSma200 = calculateSMA(benchmarkCloses, 200);
+    const benchmarkIndexFor = (timestamp: number) => {
+      let low = 0;
+      let high = benchmark.length - 1;
+      let found = -1;
+      while (low <= high) {
+        const middle = Math.floor((low + high) / 2);
+        if (benchmark[middle].timestamp <= timestamp) {
+          found = middle;
+          low = middle + 1;
+        } else {
+          high = middle - 1;
+        }
+      }
+      return found;
+    };
+    const assetBearishAt = (index: number) => index >= 219
+      && closes[index] < sma200[index]
+      && sma50[index] < sma200[index]
+      && sma200[index] < sma200[index - 20];
+    const benchmarkBearishAt = (index: number) => index >= 199
+      && benchmarkCloses[index] < benchmarkSma200[index]
+      && benchmarkSma50[index] < benchmarkSma200[index];
+    const firstEligibleIndex = daily.findIndex((candle, index) => index >= 219
+      && benchmarkIndexFor(candle.timestamp) >= 199
+      && (!fullParams.evaluationStartTimestamp || candle.timestamp >= fullParams.evaluationStartTimestamp));
+    if (firstEligibleIndex < 0) throw new Error('Perioada comună nu conține suficient istoric matur pentru regimul bearish.');
+
+    fullParams.startTimestamp = daily[firstEligibleIndex].timestamp;
+    const initialPrice = daily[firstEligibleIndex].close;
+    const feeRoundTrip = fullParams.feePercentPerTrade * 2;
+    const trades: BacktestTrade[] = [];
+    const equityCurve: BacktestResult['equityCurve'] = [];
+    const priceSeries: BacktestPricePoint[] = [];
+    let capital = fullParams.initialCapital;
+    let peakEquity = capital;
+    let maxDrawdown = 0;
+    let armedIndex = -1;
+    let pendingEntry: { signalIndex: number; armedIndex: number } | undefined;
+    let pendingExit: { reason: string } | undefined;
+    let position: {
+      entryPrice: number;
+      entryTimestamp: number;
+      initialStop: number;
+      initialRiskPercent: number;
+      reason: string;
+    } | undefined;
+
+    const markToMarket = (close: number) => {
+      if (!position) return capital;
+      const gross = ((position.entryPrice - close) / position.entryPrice) * 100;
+      return capital * (1 + (gross - fullParams.feePercentPerTrade) / 100);
+    };
+    const closePosition = (
+      rawPrice: number,
+      timestamp: number,
+      exitReason: BacktestTrade['exitReason'],
+      detail: string
+    ) => {
+      if (!position) return;
+      const effectiveExitPrice = rawPrice * (1 + fullParams.slippagePercent / 100);
+      const grossPercent = ((position.entryPrice - effectiveExitPrice) / position.entryPrice) * 100;
+      const netPercent = Number((grossPercent - feeRoundTrip).toFixed(3));
+      const pnlNetUsd = Number((capital * netPercent / 100).toFixed(2));
+      const rMultiple = Number((netPercent / Math.max(0.01, position.initialRiskPercent)).toFixed(2));
+      capital = Number((capital + pnlNetUsd).toFixed(2));
+      trades.push({
+        id: `trade_${trades.length + 1}`,
+        symbol,
+        side: 'SHORT',
+        entryTimestamp: position.entryTimestamp,
+        entryPrice: position.entryPrice,
+        exitTimestamp: timestamp,
+        exitPrice: effectiveExitPrice,
+        entrySignalTier: 'Bearish',
+        exitSignalTier: 'Neutral',
+        pnlPercent: netPercent,
+        pnlNetUsd,
+        holdingHours: Number(((timestamp - position.entryTimestamp) / 3_600_000).toFixed(1)),
+        exitReason,
+        initialStop: position.initialStop,
+        initialRiskPercent: position.initialRiskPercent,
+        rMultiple,
+        entryReason: position.reason,
+        exitReasonDetail: detail
+      });
+      position = undefined;
+      pendingExit = undefined;
+    };
+
+    for (let index = firstEligibleIndex; index < daily.length; index++) {
+      const candle = daily[index];
+      const benchmarkIndex = benchmarkIndexFor(candle.timestamp);
+      const assetBearish = assetBearishAt(index);
+      const benchmarkBearish = benchmarkBearishAt(benchmarkIndex);
+
+      // A signal generated on the previous close is executed at today's open.
+      if (pendingExit && position) {
+        closePosition(candle.open, candle.timestamp, 'SignalReversal', pendingExit.reason);
+      }
+      if (pendingEntry && !position) {
+        const signalAtr = atr14[pendingEntry.signalIndex];
+        const entryPrice = candle.open * (1 - fullParams.slippagePercent / 100);
+        const initialStop = entryPrice + fullParams.atrStopMultiple! * signalAtr;
+        const initialRiskPercent = ((initialStop - entryPrice) / entryPrice) * 100;
+        if (Number.isFinite(initialStop) && initialStop > entryPrice && initialRiskPercent > 0) {
+          position = {
+            entryPrice,
+            entryTimestamp: candle.timestamp,
+            initialStop,
+            initialRiskPercent,
+            reason: `Regim bear asset + benchmark; RSI(2) > ${fullParams.rsi2EntryThreshold} la armare și confirmare sub ${fullParams.rsi2ConfirmationThreshold} în ${pendingEntry.signalIndex - pendingEntry.armedIndex} închideri.`
+          };
+        }
+        pendingEntry = undefined;
+      }
+
+      if (position) {
+        if (candle.high >= position.initialStop) {
+          closePosition(
+            Math.max(candle.open, position.initialStop),
+            candle.timestamp,
+            'StopLoss',
+            `Stop de protecție ${fullParams.atrStopMultiple} ATR atins.`
+          );
+        } else if (candle.close < sma5[index]) {
+          pendingExit = { reason: 'Mean reversion bearish confirmată: Daily a închis sub SMA5.' };
+        }
+      }
+
+      if (armedIndex >= 0 && (
+        index - armedIndex > fullParams.confirmationWindowBars!
+        || !assetBearish
+        || !benchmarkBearish
+      )) armedIndex = -1;
+
+      const crossedAboveExtreme = index > 0
+        && rsi2[index] > fullParams.rsi2EntryThreshold!
+        && rsi2[index - 1] <= fullParams.rsi2EntryThreshold!;
+      if (!position && !pendingEntry && crossedAboveExtreme && assetBearish && benchmarkBearish) {
+        armedIndex = index;
+      }
+
+      const barsSinceArm = armedIndex >= 0 ? index - armedIndex : -1;
+      const shortTrigger = !position && !pendingEntry && armedIndex >= 0
+        && barsSinceArm >= 1
+        && barsSinceArm <= fullParams.confirmationWindowBars!
+        && rsi2[index - 1] >= fullParams.rsi2ConfirmationThreshold!
+        && rsi2[index] < fullParams.rsi2ConfirmationThreshold!
+        && assetBearish
+        && benchmarkBearish;
+      if (shortTrigger) {
+        pendingEntry = { signalIndex: index, armedIndex };
+        armedIndex = -1;
+      }
+
+      if (index === daily.length - 1 && position) {
+        closePosition(candle.close, candle.timestamp, 'EndPeriod', 'Sfârșitul perioadei testate.');
+      }
+
+      const equity = markToMarket(candle.close);
+      peakEquity = Math.max(peakEquity, equity);
+      maxDrawdown = Math.max(maxDrawdown, peakEquity > 0 ? ((peakEquity - equity) / peakEquity) * 100 : 0);
+      equityCurve.push({
+        timestamp: candle.timestamp,
+        strategyEquity: Number(equity.toFixed(2)),
+        benchmarkEquity: Number((fullParams.initialCapital * candle.close / initialPrice).toFixed(2))
+      });
+      priceSeries.push({
+        timestamp: candle.timestamp,
+        close: candle.close,
+        sma5: sma5[index],
+        sma50: sma50[index],
+        sma200: sma200[index],
+        rsi2: rsi2[index],
+        benchmarkClose: benchmarkCloses[benchmarkIndex],
+        benchmarkSma50: benchmarkSma50[benchmarkIndex],
+        benchmarkSma200: benchmarkSma200[benchmarkIndex],
+        benchmarkBearish,
+        weeklyRegime: assetBearish ? 'BEARISH' : closes[index] > sma200[index] ? 'BULLISH' : 'TRANSITION',
+        armedLong: false,
+        armedShort: armedIndex >= 0,
+        longTrigger: false,
+        shortTrigger
+      });
+    }
+
+    const winners = trades.filter(trade => trade.pnlPercent > 0);
+    const losers = trades.filter(trade => trade.pnlPercent <= 0);
+    const grossProfit = winners.reduce((sum, trade) => sum + trade.pnlNetUsd, 0);
+    const grossLoss = Math.abs(losers.reduce((sum, trade) => sum + trade.pnlNetUsd, 0));
+    const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 99 : 0;
+    const dailyReturns = equityCurve.slice(1).map((point, index) => {
+      const previous = equityCurve[index].strategyEquity;
+      return previous > 0 ? (point.strategyEquity - previous) / previous : 0;
+    });
+    const meanReturn = dailyReturns.length ? dailyReturns.reduce((sum, value) => sum + value, 0) / dailyReturns.length : 0;
+    const variance = dailyReturns.length > 1
+      ? dailyReturns.reduce((sum, value) => sum + (value - meanReturn) ** 2, 0) / (dailyReturns.length - 1)
+      : 0;
+    const sharpe = variance > 0 ? (meanReturn / Math.sqrt(variance)) * Math.sqrt(252) : 0;
+    const expectancyR = trades.length
+      ? trades.reduce((sum, trade) => sum + (trade.rMultiple || 0), 0) / trades.length
+      : 0;
+    const finalBenchmark = equityCurve[equityCurve.length - 1]?.benchmarkEquity || fullParams.initialCapital;
+    const validation = !params.evaluationStartTimestamp
+      ? (() => {
+          const startTimestamp = daily[Math.max(219, Math.floor(daily.length * 0.7))].timestamp;
+          const holdout = this.runBearRallyFadeBacktest(symbol, daily, benchmark, {
+            ...params,
+            evaluationStartTimestamp: startTimestamp
+          });
+          return {
+            method: 'chronological_holdout_30' as const,
+            startTimestamp,
+            totalTrades: holdout.totalTrades,
+            winRate: holdout.winRate,
+            profitFactor: holdout.profitFactor,
+            totalReturnPercent: holdout.totalReturnPercent,
+            maxDrawdownPercent: holdout.maxDrawdownPercent,
+            profitable: holdout.totalReturnPercent > 0
+          };
+        })()
+      : undefined;
+
+    return {
+      params: fullParams,
+      totalTrades: trades.length,
+      winningTrades: winners.length,
+      losingTrades: losers.length,
+      winRate: trades.length ? Number((winners.length / trades.length * 100).toFixed(1)) : 0,
+      profitFactor: Number(profitFactor.toFixed(2)),
+      totalReturnPercent: Number(((capital / fullParams.initialCapital - 1) * 100).toFixed(2)),
+      buyAndHoldReturnPercent: Number(((finalBenchmark / fullParams.initialCapital - 1) * 100).toFixed(2)),
+      maxDrawdownPercent: Number(maxDrawdown.toFixed(2)),
+      sharpeRatio: Number(sharpe.toFixed(2)),
+      averageTradeDurationHours: trades.length
+        ? Number((trades.reduce((sum, trade) => sum + trade.holdingHours, 0) / trades.length).toFixed(1))
+        : 0,
+      averageTradeReturnPercent: trades.length
+        ? Number((trades.reduce((sum, trade) => sum + trade.pnlPercent, 0) / trades.length).toFixed(2))
+        : 0,
+      expectancyR: Number(expectancyR.toFixed(2)),
+      strategyName: 'Bear Rally Fade · RSI(2) Reversal Confirmation',
+      strategyRules: [
+        'Regim asset: close sub SMA200, SMA50 sub SMA200 și SMA200 în scădere față de acum 20 de închideri.',
+        `Regim benchmark: ${fullParams.marketClass === 'crypto' ? 'BTC' : 'SPY'} are close sub SMA200 și SMA50 sub SMA200.`,
+        `Armare: RSI(2) trece peste ${fullParams.rsi2EntryThreshold}; încă nu se intră.`,
+        `Trigger: RSI(2) revine sub ${fullParams.rsi2ConfirmationThreshold} în maximum ${fullParams.confirmationWindowBars} închideri; SHORT la următorul open.`,
+        `Protecție: stop la ${fullParams.atrStopMultiple} ATR; acoperire la următorul open după close sub SMA5.`,
+        'Costuri incluse: 0,075% comision pe sens și 0,05% slippage pe sens.'
+      ],
+      strategySources: [
+        {
+          label: 'StockCharts ChartSchool · RSI(2) și confirmarea sub nivelul median',
+          url: 'https://chartschool.stockcharts.com/table-of-contents/trading-strategies-and-models/trading-strategies/rsi-2'
+        },
+        {
+          label: 'AQR · Time Series Momentum',
+          url: 'https://www.aqr.com/Insights/Research/Journal-Article/Time-Series-Momentum'
+        },
+        {
+          label: 'FINRA · riscurile pozițiilor short',
+          url: 'https://www.finra.org/rules-guidance/rulebooks/finra-rules/2270'
+        }
+      ],
+      validation,
+      equityCurve,
+      priceSeries,
+      trades,
+      disclaimer: 'Strategie SHORT de cercetare, nu recomandare financiară. Pierderile short pot depăși capitalul inițial, iar rezultatele istorice nu garantează performanța viitoare.'
+    };
+  }
 }

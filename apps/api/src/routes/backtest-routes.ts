@@ -77,32 +77,67 @@ const runConnorsRsi2 = async (
   { ...params, timeframe: '1d', strategy: 'connors_rsi2', marketClass }
 );
 
-const runResearchStrategy = (
-  strategy: Extract<BacktestStrategy, 'weekly_reclaim' | 'connors_rsi2'>,
+const runBearRallyFade = async (
   symbol: string,
   marketClass: AssetMarketClass,
   params: Partial<BacktestParams>
-) => strategy === 'connors_rsi2'
-  ? runConnorsRsi2(symbol, marketClass, params)
-  : runWeeklyReclaim(symbol, marketClass, params);
+) => {
+  if (marketClass === 'metals') {
+    throw new Error('Bear Rally Fade este disponibil pentru crypto și acțiuni/ETF-uri, nu pentru metale.');
+  }
+  const benchmarkSymbol = marketClass === 'crypto' ? 'BTC' : 'SPY';
+  const benchmarkMarketClass: AssetMarketClass = marketClass === 'crypto' ? 'crypto' : 'stocks';
+  const [daily, benchmark] = await Promise.all([
+    loadDeepDailyHistory(symbol, marketClass),
+    symbol === benchmarkSymbol && marketClass === benchmarkMarketClass
+      ? loadDeepDailyHistory(symbol, marketClass)
+      : loadDeepDailyHistory(benchmarkSymbol, benchmarkMarketClass)
+  ]);
+  return simulator.runBearRallyFadeBacktest(symbol, daily, benchmark, {
+    ...params,
+    timeframe: '1d',
+    strategy: 'bear_rally_fade',
+    directionMode: 'SHORT_ONLY',
+    marketClass
+  });
+};
+
+const runResearchStrategy = (
+  strategy: Extract<BacktestStrategy, 'weekly_reclaim' | 'connors_rsi2' | 'bear_rally_fade'>,
+  symbol: string,
+  marketClass: AssetMarketClass,
+  params: Partial<BacktestParams>
+) => {
+  if (strategy === 'connors_rsi2') return runConnorsRsi2(symbol, marketClass, params);
+  if (strategy === 'bear_rally_fade') return runBearRallyFade(symbol, marketClass, params);
+  return runWeeklyReclaim(symbol, marketClass, params);
+};
 
 backtestRouter.get('/backtest-compare', async (req, res) => {
-  const directionMode: BacktestDirectionMode = req.query.directionMode === 'LONG_SHORT' ? 'LONG_SHORT' : 'LONG_ONLY';
-  const strategy: Extract<BacktestStrategy, 'weekly_reclaim' | 'connors_rsi2'> = req.query.strategy === 'weekly_reclaim'
+  const requestedDirection = String(req.query.directionMode || 'LONG_ONLY');
+  const strategy: Extract<BacktestStrategy, 'weekly_reclaim' | 'connors_rsi2' | 'bear_rally_fade'> = req.query.strategy === 'weekly_reclaim'
     ? 'weekly_reclaim'
-    : 'connors_rsi2';
-  const assets: Array<{ symbol: string; marketClass: AssetMarketClass }> = [
+    : req.query.strategy === 'bear_rally_fade'
+      ? 'bear_rally_fade'
+      : 'connors_rsi2';
+  const directionMode: BacktestDirectionMode = strategy === 'bear_rally_fade'
+    ? 'SHORT_ONLY'
+    : requestedDirection === 'LONG_SHORT' ? 'LONG_SHORT' : 'LONG_ONLY';
+  const liquidAssets: Array<{ symbol: string; marketClass: AssetMarketClass }> = [
     { symbol: 'BTC', marketClass: 'crypto' },
     { symbol: 'ETH', marketClass: 'crypto' },
     { symbol: 'SOL', marketClass: 'crypto' },
     { symbol: 'SPY', marketClass: 'stocks' },
     { symbol: 'QQQ', marketClass: 'stocks' },
     { symbol: 'NVDA', marketClass: 'stocks' },
-    { symbol: 'AAPL', marketClass: 'stocks' },
+    { symbol: 'AAPL', marketClass: 'stocks' }
+  ];
+  const metals: Array<{ symbol: string; marketClass: AssetMarketClass }> = [
     { symbol: 'XAU', marketClass: 'metals' },
     { symbol: 'XAG', marketClass: 'metals' },
     { symbol: 'COPPER', marketClass: 'metals' }
   ];
+  const assets = strategy === 'weekly_reclaim' ? [...liquidAssets, ...metals] : liquidAssets;
   const rows: BacktestComparisonResult['rows'] = [];
   const concurrency = 3;
 
@@ -201,6 +236,11 @@ backtestRouter.get('/backtest/:symbol', async (req, res) => {
       });
       return res.json(result);
     }
+    if (req.query.strategy === 'bear_rally_fade') {
+      const marketClass = parseMarketClass(req.query.marketClass) || 'crypto';
+      const result = await runBearRallyFade(symbol, marketClass, { directionMode: 'SHORT_ONLY' });
+      return res.json(result);
+    }
 
     const candles = await appState.marketData.getCandles(symbol, timeframe, 250);
     const result = simulator.runBacktest(symbol, candles, {
@@ -230,6 +270,11 @@ backtestRouter.post('/backtest/:symbol', async (req, res) => {
     if (params.strategy === 'connors_rsi2') {
       const marketClass = parseMarketClass(params.marketClass) || 'crypto';
       const result = await runConnorsRsi2(symbol, marketClass, params);
+      return res.json(result);
+    }
+    if (params.strategy === 'bear_rally_fade') {
+      const marketClass = parseMarketClass(params.marketClass) || 'crypto';
+      const result = await runBearRallyFade(symbol, marketClass, { ...params, directionMode: 'SHORT_ONLY' });
       return res.json(result);
     }
 

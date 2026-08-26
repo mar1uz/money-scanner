@@ -32,21 +32,36 @@ const BACKTEST_ASSETS: BacktestAssetOption[] = [
   { symbol: 'ETH', name: 'Ethereum', marketClass: 'crypto' },
   { symbol: 'SOL', name: 'Solana', marketClass: 'crypto' },
   { symbol: 'BNB', name: 'BNB', marketClass: 'crypto' },
+  { symbol: 'XRP', name: 'XRP', marketClass: 'crypto' },
+  { symbol: 'DOGE', name: 'Dogecoin', marketClass: 'crypto' },
+  { symbol: 'LINK', name: 'Chainlink', marketClass: 'crypto' },
+  { symbol: 'SUI', name: 'Sui', marketClass: 'crypto' },
   { symbol: 'SPY', name: 'S&P 500 ETF', marketClass: 'stocks' },
   { symbol: 'QQQ', name: 'Nasdaq 100 ETF', marketClass: 'stocks' },
+  { symbol: 'IWM', name: 'Russell 2000 ETF', marketClass: 'stocks' },
   { symbol: 'NVDA', name: 'NVIDIA', marketClass: 'stocks' },
   { symbol: 'AAPL', name: 'Apple', marketClass: 'stocks' },
+  { symbol: 'MSFT', name: 'Microsoft', marketClass: 'stocks' },
+  { symbol: 'AMZN', name: 'Amazon', marketClass: 'stocks' },
+  { symbol: 'META', name: 'Meta', marketClass: 'stocks' },
+  { symbol: 'GOOGL', name: 'Alphabet', marketClass: 'stocks' },
+  { symbol: 'TSLA', name: 'Tesla', marketClass: 'stocks' },
   { symbol: 'XAU', name: 'Gold', marketClass: 'metals' },
   { symbol: 'XAG', name: 'Silver', marketClass: 'metals' },
   { symbol: 'COPPER', name: 'Copper', marketClass: 'metals' }
 ];
 
-type ResearchStrategy = Extract<BacktestStrategy, 'connors_rsi2' | 'weekly_reclaim'>;
+type ResearchStrategy = Extract<BacktestStrategy, 'connors_rsi2' | 'bear_rally_fade' | 'weekly_reclaim'>;
 const STRATEGY_META: Record<ResearchStrategy, { title: string; description: string; scope: string }> = {
   connors_rsi2: {
-    title: 'Connors RSI(2) Trend Pullback',
+    title: 'Strategia 1 · Connors RSI(2) Pullback LONG',
     description: 'Cumpără o corecție foarte scurtă numai peste SMA200, apoi iese când prețul revine peste SMA5. Varianta testată adaugă un stop-catastrofă de 3 ATR.',
     scope: 'Recomandat pentru cercetare: LONG pe crypto lichid și acțiuni/ETF-uri lichide. Nu este recomandat implicit pentru metale.'
+  },
+  bear_rally_fade: {
+    title: 'Strategia 2 · Bear Rally Fade SHORT',
+    description: 'Vinde revenirea numai într-un regim bearish confirmat de asset și de benchmark. RSI(2) peste 95 armează setup-ul, iar revenirea sub 50 în maximum 3 închideri confirmă intrarea.',
+    scope: 'SHORT pe crypto lichid (confirmare BTC) și acțiuni/ETF-uri SUA lichide (confirmare SPY). Nu se aplică metalelor; riscul short poate fi nelimitat.'
   },
   weekly_reclaim: {
     title: 'Weekly Trend + Daily SMA50 Reclaim',
@@ -72,15 +87,22 @@ export const BacktestView: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [error, setError] = useState('');
+  const availableAssets = useMemo(
+    () => strategy === 'weekly_reclaim' ? BACKTEST_ASSETS : BACKTEST_ASSETS.filter(asset => asset.marketClass !== 'metals'),
+    [strategy]
+  );
+  const effectiveDirectionMode: BacktestDirectionMode = strategy === 'bear_rally_fade'
+    ? 'SHORT_ONLY'
+    : strategy === 'connors_rsi2' ? 'LONG_ONLY' : directionMode;
   const selectedAsset = useMemo(() => {
     const [marketClass, symbol] = assetKey.split(':') as [AssetMarketClass, string];
-    return BACKTEST_ASSETS.find(asset => asset.symbol === symbol && asset.marketClass === marketClass) || BACKTEST_ASSETS[0];
-  }, [assetKey]);
+    return availableAssets.find(asset => asset.symbol === symbol && asset.marketClass === marketClass) || availableAssets[0];
+  }, [assetKey, availableAssets]);
 
   const runSimulation = () => {
     setLoading(true);
     setError('');
-    fetchResearchBacktest(strategy, selectedAsset.symbol, selectedAsset.marketClass, directionMode)
+    fetchResearchBacktest(strategy, selectedAsset.symbol, selectedAsset.marketClass, effectiveDirectionMode)
       .then(setResult)
       .catch(loadError => setError(loadError instanceof Error ? loadError.message : 'Backtest indisponibil.'))
       .finally(() => setLoading(false));
@@ -89,7 +111,7 @@ export const BacktestView: React.FC = () => {
   const runComparison = () => {
     setComparisonLoading(true);
     setError('');
-    fetchResearchComparison(strategy, directionMode)
+    fetchResearchComparison(strategy, effectiveDirectionMode)
       .then(setComparison)
       .catch(loadError => setError(loadError instanceof Error ? loadError.message : 'Comparația nu a putut fi rulată.'))
       .finally(() => setComparisonLoading(false));
@@ -97,11 +119,17 @@ export const BacktestView: React.FC = () => {
 
   useEffect(() => {
     runSimulation();
-  }, [assetKey, directionMode, strategy]);
+  }, [assetKey, effectiveDirectionMode, strategy]);
 
   useEffect(() => {
     setComparison(null);
-  }, [strategy, directionMode]);
+  }, [strategy, effectiveDirectionMode]);
+
+  useEffect(() => {
+    if (!availableAssets.some(asset => `${asset.marketClass}:${asset.symbol}` === assetKey)) {
+      setAssetKey(`${availableAssets[0].marketClass}:${availableAssets[0].symbol}`);
+    }
+  }, [assetKey, availableAssets]);
 
   return (
     <div className="space-y-6 pb-8">
@@ -125,7 +153,8 @@ export const BacktestView: React.FC = () => {
               onChange={event => setStrategy(event.target.value as ResearchStrategy)}
               className="rounded-xl border border-emerald-500/25 bg-background-surface px-3 py-2.5 text-xs font-mono text-emerald-200 outline-none focus:border-emerald-500/50"
             >
-              <option value="connors_rsi2">Recomandată · Connors RSI(2)</option>
+              <option value="connors_rsi2">Strategia 1 · LONG RSI(2)</option>
+              <option value="bear_rally_fade">Strategia 2 · SHORT Bear Rally</option>
               <option value="weekly_reclaim">Experimentală · MoneyLine Reclaim</option>
             </select>
             <select
@@ -133,20 +162,26 @@ export const BacktestView: React.FC = () => {
               onChange={event => setAssetKey(event.target.value)}
               className="rounded-xl border border-white/[0.09] bg-background-surface px-3 py-2.5 text-xs font-mono text-cyan-200 outline-none focus:border-cyan-500/50"
             >
-              {BACKTEST_ASSETS.map(asset => (
+              {availableAssets.map(asset => (
                 <option key={`${asset.marketClass}:${asset.symbol}`} value={`${asset.marketClass}:${asset.symbol}`}>
                   ${asset.symbol} · {asset.name} · {asset.marketClass}
                 </option>
               ))}
             </select>
-            <select
-              value={directionMode}
-              onChange={event => setDirectionMode(event.target.value as BacktestDirectionMode)}
-              className="rounded-xl border border-white/[0.09] bg-background-surface px-3 py-2.5 text-xs font-mono text-slate-200 outline-none focus:border-cyan-500/50"
-            >
-              <option value="LONG_ONLY">Doar LONG · recomandat</option>
-              <option value="LONG_SHORT">LONG + SHORT · cercetare</option>
-            </select>
+            {strategy === 'weekly_reclaim' ? (
+              <select
+                value={directionMode}
+                onChange={event => setDirectionMode(event.target.value as BacktestDirectionMode)}
+                className="rounded-xl border border-white/[0.09] bg-background-surface px-3 py-2.5 text-xs font-mono text-slate-200 outline-none focus:border-cyan-500/50"
+              >
+                <option value="LONG_ONLY">Doar LONG</option>
+                <option value="LONG_SHORT">LONG + SHORT · cercetare</option>
+              </select>
+            ) : (
+              <div className={`inline-flex items-center justify-center rounded-xl border px-3 py-2.5 font-mono text-xs font-bold ${strategy === 'bear_rally_fade' ? 'border-rose-500/25 bg-rose-500/10 text-rose-200' : 'border-emerald-500/25 bg-emerald-500/10 text-emerald-200'}`}>
+                {strategy === 'bear_rally_fade' ? 'Doar SHORT' : 'Doar LONG'}
+              </div>
+            )}
             <button
               type="button"
               onClick={runSimulation}
@@ -210,6 +245,8 @@ export const BacktestView: React.FC = () => {
               <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/[0.06] p-3 text-[10px] leading-5 text-amber-100/70">
                 {result.params.strategy === 'connors_rsi2'
                   ? 'Un semnal produs la închiderea Daily se execută la următoarea deschidere. Stopul de 3 ATR limitează riscul de coadă pe care varianta Connors originală, fără stop, îl lasă neacoperit.'
+                  : result.params.strategy === 'bear_rally_fade'
+                    ? 'RSI(2) peste 95 doar armează setup-ul. Intrarea SHORT are loc numai după confirmarea sub 50, la următorul open. Riscul unei poziții short poate depăși capitalul inițial.'
                   : 'Un semnal produs la închiderea Daily se execută la următoarea deschidere. Dacă stopul și ținta sunt atinse în aceeași lumânare, backtestul presupune conservator că stopul a fost primul.'}
               </div>
               {!!result.strategySources?.length && (
@@ -230,7 +267,7 @@ export const BacktestView: React.FC = () => {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="flex items-center gap-2"><GitCompareArrows className="h-4 w-4 text-violet-300" /><h2 className="text-sm font-bold text-slate-100">Verificare multi-asset</h2></div>
-                <p className="mt-1 text-xs text-slate-500">BTC, ETH, SOL, SPY, QQQ, NVDA, AAPL, aur, argint și cupru — aceleași reguli, fără optimizare individuală.</p>
+                <p className="mt-1 text-xs text-slate-500">{strategy === 'weekly_reclaim' ? '10 active din crypto, acțiuni și metale' : '7 active lichide din crypto și acțiuni'} — aceleași reguli, fără optimizare individuală.</p>
               </div>
               <button
                 type="button"
@@ -238,7 +275,7 @@ export const BacktestView: React.FC = () => {
                 disabled={comparisonLoading}
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-2.5 text-xs font-bold text-violet-200 transition hover:bg-violet-500/20 disabled:opacity-60"
               >
-                <GitCompareArrows className={`h-4 w-4 ${comparisonLoading ? 'animate-pulse' : ''}`} /> {comparisonLoading ? 'Compar…' : 'Compară 10 active'}
+                <GitCompareArrows className={`h-4 w-4 ${comparisonLoading ? 'animate-pulse' : ''}`} /> {comparisonLoading ? 'Compar…' : `Compară ${strategy === 'weekly_reclaim' ? 10 : 7} active`}
               </button>
             </div>
             {comparison && <ComparisonTable comparison={comparison} />}
@@ -282,10 +319,13 @@ const PriceChart: React.FC<{ result: BacktestResult }> = ({ result }) => {
   const points = result.priceSeries || [];
   if (!points.length) return null;
   const isConnors = result.params.strategy === 'connors_rsi2';
+  const isBearRally = result.params.strategy === 'bear_rally_fade';
+  const isRsiStrategy = isConnors || isBearRally;
   const rsiThreshold = result.params.rsi2EntryThreshold ?? 5;
+  const rsiConfirmation = result.params.rsi2ConfirmationThreshold ?? 50;
   const width = 900;
   const height = 300;
-  const fastValue = (point: typeof points[number]) => isConnors ? (point.sma5 ?? point.sma50) : point.sma50;
+  const fastValue = (point: typeof points[number]) => isRsiStrategy ? (point.sma5 ?? point.sma50) : point.sma50;
   const values = points.flatMap(point => [point.close, fastValue(point), point.sma200]).filter(Number.isFinite);
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
@@ -311,11 +351,11 @@ const PriceChart: React.FC<{ result: BacktestResult }> = ({ result }) => {
     <div className="rounded-2xl border border-white/[0.07] bg-background-card p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-sm font-bold text-slate-100">Preț, {isConnors ? 'SMA5' : 'SMA50'} și execuții</h2>
+          <h2 className="text-sm font-bold text-slate-100">Preț, {isRsiStrategy ? 'SMA5' : 'SMA50'} și execuții</h2>
           <p className="mt-1 font-mono text-[10px] text-slate-600">{formatDate(points[0].timestamp)} — {formatDate(points[points.length - 1].timestamp)}</p>
         </div>
         <div className="flex flex-wrap gap-3 text-[9px] font-bold uppercase">
-          <span className="text-slate-200">● Preț</span><span className="text-cyan-300">— {isConnors ? 'SMA5' : 'SMA50'}</span><span className="text-amber-300">— SMA200</span><span className="text-emerald-300">▲ Entry</span><span className="text-rose-300">× Exit</span>
+          <span className="text-slate-200">● Preț</span><span className="text-cyan-300">— {isRsiStrategy ? 'SMA5' : 'SMA50'}</span><span className="text-amber-300">— SMA200</span><span className="text-emerald-300">▲ Entry</span><span className="text-rose-300">× Exit</span>
         </div>
       </div>
       <div className="mt-4 overflow-hidden rounded-xl border border-white/[0.05] bg-[#070b14] p-2">
@@ -342,13 +382,20 @@ const PriceChart: React.FC<{ result: BacktestResult }> = ({ result }) => {
           })}
         </svg>
       </div>
-      {isConnors && (
+      {isRsiStrategy && (
         <div className="mt-2 rounded-xl border border-white/[0.05] bg-[#070b14] px-2 py-1.5">
-          <div className="mb-1 flex items-center justify-between font-mono text-[8px] uppercase text-slate-600"><span>RSI(2)</span><span>Trigger LONG &lt; {rsiThreshold}</span></div>
+          <div className="mb-1 flex items-center justify-between font-mono text-[8px] uppercase text-slate-600">
+            <span>RSI(2)</span>
+            <span>{isBearRally ? `Armare > ${rsiThreshold} · confirmare < ${rsiConfirmation}` : `Trigger LONG < ${rsiThreshold}`}</span>
+          </div>
           <svg viewBox={`0 0 ${width} 72`} className="h-16 w-full" role="img" aria-label="RSI 2 și pragul de intrare">
-            <line x1="0" y1={66 - rsiThreshold / 100 * 58} x2={width} y2={66 - rsiThreshold / 100 * 58} stroke="#34d399" strokeDasharray="4 5" opacity="0.75" />
-            <line x1="0" y1={66 - (100 - rsiThreshold) / 100 * 58} x2={width} y2={66 - (100 - rsiThreshold) / 100 * 58} stroke="#fb7185" strokeDasharray="4 5" opacity="0.45" />
+            <line x1="0" y1={66 - rsiThreshold / 100 * 58} x2={width} y2={66 - rsiThreshold / 100 * 58} stroke={isBearRally ? '#fb7185' : '#34d399'} strokeDasharray="4 5" opacity="0.75" />
+            {isBearRally && <line x1="0" y1={66 - rsiConfirmation / 100 * 58} x2={width} y2={66 - rsiConfirmation / 100 * 58} stroke="#fbbf24" strokeDasharray="4 5" opacity="0.65" />}
             <path d={rsiPath} fill="none" stroke="#a78bfa" strokeWidth="1.5" />
+            {isBearRally && points.filter(point => point.armedShort || point.shortTrigger).map(point => {
+              const value = Math.max(0, Math.min(100, point.rsi2 ?? 50));
+              return <circle key={point.timestamp} cx={x(point.timestamp)} cy={66 - value / 100 * 58} r={point.shortTrigger ? 3.6 : 2.6} fill={point.shortTrigger ? '#fb7185' : '#fbbf24'} />;
+            })}
           </svg>
         </div>
       )}
