@@ -14,10 +14,11 @@ import {
   ShieldAlert,
   Target,
   Trash2,
+  TrendingDown,
   TrendingUp,
   Zap
 } from 'lucide-react';
-import { AssetScannerRow, Timeframe } from '../types.js';
+import { AssetScannerRow, StrategyAlertSnapshot, Timeframe } from '../types.js';
 import {
   ActiveAlertDashboardItem,
   AlertsDashboardResponse,
@@ -154,7 +155,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
   const summary = useMemo(() => {
     const active = data?.activeAlerts || [];
     return {
-      active: active.length,
+      active: active.length + (data?.strategySetups?.length || 0),
       close: active.filter(alert => ['AWAITING_CLOSE', 'VERY_CLOSE', 'CLOSE'].includes(alert.status)).length,
       confirmed: data?.history.length || 0
     };
@@ -250,7 +251,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
             </div>
             <h1 className="text-xl font-bold text-white sm:text-2xl">Alertele mele MoneyLine</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-              Urmărește cât mai este până la confirmarea bullish. Telegram trimite automat planul tehnic după ce Fast și Slow sunt confirmate pe o lumânare închisă.
+              MoneyLine, Connors RSI(2) LONG și Bear Rally Fade SHORT sunt evaluate numai pe lumânări închise. Confirmările și planurile tehnice sunt trimise automat pe Telegram.
             </p>
           </div>
           <button
@@ -349,6 +350,34 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
           <AlertTriangle className="h-4 w-4 shrink-0" /> {error}
         </div>
       )}
+
+      <section className="space-y-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <Target className="h-4 w-4 text-cyan-300" />
+            <h2 className="text-sm font-bold text-slate-100">Strategii Daily automate</h2>
+          </div>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
+            LONG caută un pullback RSI(2) sub 5 peste SMA 200. SHORT armează reboundul peste RSI(2) 95 într-un bear market și confirmă doar la revenirea sub 50 în maximum trei închideri.
+          </p>
+        </div>
+
+        {data?.strategySetups?.length ? (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {data.strategySetups.map(setup => (
+              <StrategySetupCard
+                key={setup.id}
+                setup={setup}
+                onOpen={() => onOpenAsset(setup.symbol, setup.marketClass, '1d')}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.02] px-5 py-7 text-center text-xs text-slate-500">
+            Niciun setup LONG/SHORT activ la ultima scanare. Apasă „Rapid” pentru watchlist sau „Complet” pentru întregul univers.
+          </div>
+        )}
+      </section>
 
       <section className="space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -456,13 +485,24 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
             {data.history.map(item => {
               const plan = item.tradePlan;
               const regime = item.regimeScan;
+              const strategy = item.strategySetup;
               const isRiskOff = regime?.scenario === 'WEEKLY_BULL_DAILY_BEAR';
+              const isStrategyShort = strategy?.side === 'SHORT';
+              const strategyArmed = strategy?.stage === 'ARMED';
               return (
                 <div key={item.id} className="rounded-2xl border border-white/[0.07] bg-background-card p-4">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div className="flex min-w-0 items-center gap-3">
-                      <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border ${isRiskOff ? 'border-rose-500/25 bg-rose-500/10' : 'border-emerald-500/25 bg-emerald-500/10'}`}>
-                        {regime
+                      <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border ${strategyArmed
+                        ? 'border-amber-500/25 bg-amber-500/10'
+                        : isRiskOff || isStrategyShort
+                          ? 'border-rose-500/25 bg-rose-500/10'
+                          : 'border-emerald-500/25 bg-emerald-500/10'}`}>
+                        {strategy
+                          ? isStrategyShort
+                            ? <TrendingDown className={`h-5 w-5 ${strategyArmed ? 'text-amber-400' : 'text-rose-400'}`} />
+                            : <TrendingUp className="h-5 w-5 text-emerald-400" />
+                          : regime
                           ? <TrendingUp className={`h-5 w-5 ${isRiskOff ? 'rotate-180 text-rose-400' : 'text-emerald-400'}`} />
                           : <CheckCircle2 className="h-5 w-5 text-emerald-400" />}
                       </div>
@@ -478,7 +518,21 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                       </div>
                     </div>
 
-                    {plan ? (
+                    {strategy ? strategyArmed ? (
+                      <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-4 lg:max-w-3xl">
+                        <LevelBox label="Close semnal" value={formatPrice(strategy.signalPrice)} tone="slate" />
+                        <LevelBox label="RSI(2)" value={strategy.rsi2.toFixed(2)} tone="amber" />
+                        <LevelBox label="Confirmare" value={`Sub 50 · max ${strategy.confirmationWindowRemaining ?? 3} close`} tone="amber" />
+                        <LevelBox label={`Benchmark ${strategy.benchmarkSymbol}`} value={strategy.benchmarkBearish ? 'Bearish' : 'Neconfirmat'} tone={strategy.benchmarkBearish ? 'rose' : 'slate'} />
+                      </div>
+                    ) : (
+                      <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-4 lg:max-w-3xl">
+                        <LevelBox label="Entry referință" value={formatPrice(strategy.entryReference)} tone="cyan" />
+                        <LevelBox label={`Stop · ${strategy.riskPercent.toFixed(2)}%`} value={formatPrice(strategy.stopLoss)} tone="rose" />
+                        <LevelBox label="Țintă · 1.5R" value={formatPrice(strategy.target1)} tone="amber" />
+                        <LevelBox label="Țintă · 2.5R" value={formatPrice(strategy.target2)} tone="emerald" />
+                      </div>
+                    ) : plan ? (
                       <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-4 lg:max-w-3xl">
                         <LevelBox label="Entry" value={formatPrice(plan.suggestedEntry)} tone="cyan" />
                         <LevelBox label="Stop loss" value={formatPrice(plan.stopLoss)} tone="rose" />
@@ -497,11 +551,12 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                     )}
 
                     <div className="flex items-center gap-3 lg:justify-end">
+                      {strategy && <span className={`font-mono text-xs font-bold ${strategyArmed ? 'text-amber-300' : isStrategyShort ? 'text-rose-300' : 'text-emerald-300'}`}>{strategyArmed ? 'SHORT ARMAT' : `${strategy.side} CONFIRMAT`}</span>}
                       {plan && <span className="font-mono text-xs font-bold text-slate-300">{actionLabel(plan.action)} · {plan.confidence}/100</span>}
                       {regime && <span className={`font-mono text-xs font-bold ${isRiskOff ? 'text-rose-300' : 'text-emerald-300'}`}>{isRiskOff ? 'RISK-OFF' : 'REVERSAL LONG'}</span>}
                       <button
                         type="button"
-                        onClick={() => onOpenAsset(item.symbol, regime?.marketClass, item.timeframe)}
+                        onClick={() => onOpenAsset(item.symbol, strategy?.marketClass || regime?.marketClass, item.timeframe)}
                         className="grid h-8 w-8 place-items-center rounded-lg border border-white/[0.07] text-slate-400 transition hover:border-cyan-500/30 hover:text-cyan-300"
                         title="Deschide graficul"
                       ><ChevronRight className="h-4 w-4" /></button>
@@ -531,6 +586,67 @@ const SummaryCard: React.FC<{ icon: React.ElementType; label: string; value: num
       <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider opacity-75"><Icon className="h-3.5 w-3.5" /> {label}</div>
       <div className="mt-2 font-mono text-lg font-bold text-white">{value}</div>
     </div>
+  );
+};
+
+const StrategySetupCard: React.FC<{ setup: StrategyAlertSnapshot; onOpen: () => void }> = ({ setup, onOpen }) => {
+  const isLong = setup.side === 'LONG';
+  const armed = setup.stage === 'ARMED';
+  const tone = isLong
+    ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
+    : armed
+      ? 'border-amber-500/25 bg-amber-500/10 text-amber-300'
+      : 'border-rose-500/25 bg-rose-500/10 text-rose-300';
+  const title = setup.strategy === 'CONNORS_RSI2_LONG'
+    ? 'Connors RSI(2) Pullback'
+    : 'Bear Rally Fade';
+
+  return (
+    <article className="rounded-2xl border border-white/[0.07] bg-background-card p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <button type="button" onClick={onOpen} className="flex min-w-0 items-start gap-3 text-left">
+          <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border ${tone}`}>
+            {isLong ? <TrendingUp className="h-5 w-5" /> : <TrendingDown className="h-5 w-5" />}
+          </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <strong className="font-mono text-lg text-white">${setup.symbol}</strong>
+              <span className="rounded-md border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-cyan-300">1D</span>
+              <span className="rounded-md border border-white/[0.07] bg-white/[0.03] px-1.5 py-0.5 text-[9px] uppercase text-slate-500">{setup.marketClass}</span>
+            </div>
+            <div className="mt-1 text-[11px] text-slate-400">{title}</div>
+          </div>
+        </button>
+        <span className={`shrink-0 rounded-lg border px-2 py-1 font-mono text-[10px] font-black ${tone}`}>
+          {armed ? '⚠ ARMAT' : isLong ? '▲ LONG CONFIRMAT' : '▼ SHORT CONFIRMAT'}
+        </span>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <LevelBox label="Close semnal" value={formatPrice(setup.signalPrice)} tone="slate" />
+        <LevelBox label="RSI(2)" value={setup.rsi2.toFixed(2)} tone={armed ? 'amber' : isLong ? 'emerald' : 'rose'} />
+        <LevelBox label="SMA 200" value={formatPrice(setup.sma200)} tone="cyan" />
+        <LevelBox label="ATR 14" value={formatPrice(setup.atr14)} tone="slate" />
+      </div>
+
+      {armed ? (
+        <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2.5 text-xs leading-5 text-amber-100/80">
+          Nu intra încă. Așteaptă RSI(2) sub 50; fereastră rămasă: <strong>{setup.confirmationWindowRemaining ?? 3} închideri Daily</strong>.
+        </div>
+      ) : (
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <LevelBox label="Entry referință" value={formatPrice(setup.entryReference)} tone="cyan" />
+          <LevelBox label={`Stop · ${setup.riskPercent.toFixed(2)}%`} value={formatPrice(setup.stopLoss)} tone="rose" />
+          <LevelBox label="Țintă · 1.5R" value={formatPrice(setup.target1)} tone="amber" />
+          <LevelBox label="Țintă · 2.5R" value={formatPrice(setup.target2)} tone="emerald" />
+        </div>
+      )}
+
+      <button type="button" onClick={onOpen} className="mt-3 flex w-full items-center justify-between border-t border-white/[0.05] pt-3 text-[11px] text-slate-500 transition hover:text-cyan-300">
+        <span>{armed ? `Benchmark ${setup.benchmarkSymbol} bearish confirmat` : 'Execuție la următorul open Daily; nivelurile se recalculează la fill'}</span>
+        <span className="flex items-center gap-1">Deschide 1D <ChevronRight className="h-3.5 w-3.5" /></span>
+      </button>
+    </article>
   );
 };
 

@@ -157,7 +157,9 @@ telegramRouter.get('/alerts/history', (req: AuthenticatedRequest, res) => {
   const appState = AppState.getInstance();
   if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
   res.json(appState.alertHistory.filter(alert =>
-    alert.ruleId?.startsWith(`${req.user!.id}:`) || alert.type === 'MultiTimeframeReversal'
+    alert.ruleId?.startsWith(`${req.user!.id}:`)
+    || alert.type === 'MultiTimeframeReversal'
+    || alert.type === 'StrategySetup'
   ));
 });
 

@@ -164,6 +164,7 @@ describe('API Server Integration Tests', () => {
     const dashboard = await res.json() as any;
     assert.ok(Array.isArray(dashboard.activeAlerts));
     assert.ok(Array.isArray(dashboard.history));
+    assert.ok(Array.isArray(dashboard.strategySetups));
     assert.equal(typeof dashboard.telegramConfigured, 'boolean');
     assert.equal(dashboard.dailyRegimeScan.enabled, true);
     assert.equal(dashboard.dailyRegimeScan.timezone, 'Europe/Oslo');

@@ -1,9 +1,10 @@
-import { Timeframe } from './market.js';
+import { AssetMarketClass, Timeframe } from './market.js';
 import { MoneyLineTier } from './indicators.js';
 
 export type AlertType = 
   | 'MoneyLineTransition'
   | 'MultiTimeframeReversal'
+  | 'StrategySetup'
   | 'VolumeSpike'
   | 'VolatilitySpike'
   | 'BreakingNews'
@@ -44,6 +45,43 @@ export interface DispatchedAlert {
   isDelivered: boolean;
   tradePlan?: AlertTradePlanSnapshot;
   regimeScan?: DailyRegimeScanSnapshot;
+  strategySetup?: StrategyAlertSnapshot;
+}
+
+export type StrategyAlertStrategy = 'CONNORS_RSI2_LONG' | 'BEAR_RALLY_FADE_SHORT';
+export type StrategyAlertStage = 'ARMED' | 'CONFIRMED';
+
+export interface StrategyAlertSnapshot {
+  id: string;
+  strategy: StrategyAlertStrategy;
+  stage: StrategyAlertStage;
+  side: 'LONG' | 'SHORT';
+  symbol: string;
+  marketClass: Extract<AssetMarketClass, 'crypto' | 'stocks'>;
+  timeframe: '1d';
+  candleTimestamp: number;
+  armedCandleTimestamp?: number;
+  expiresAfterCandleTimestamp?: number;
+  confirmationWindowRemaining?: number;
+  signalPrice: number;
+  entryReference: number;
+  stopLoss: number;
+  target1: number;
+  target2: number;
+  riskPercent: number;
+  atr14: number;
+  rsi2: number;
+  previousRsi2: number;
+  sma5: number;
+  sma50: number;
+  sma200: number;
+  sma200TwentyDaysAgo: number;
+  exitRule: string;
+  benchmarkSymbol?: 'BTC' | 'SPY';
+  benchmarkClose?: number;
+  benchmarkSma50?: number;
+  benchmarkSma200?: number;
+  benchmarkBearish?: boolean;
 }
 
 export interface DailyRegimeScanSnapshot {

@@ -966,3 +966,61 @@ Backtest Lab changes:
 - full-sample metrics plus the chronological 30% holdout for the selected asset;
 - source links and an explicit scope/risk warning;
 - ten-asset comparison with no per-asset parameter optimization.
+
+## 23. Production alert engine for the two RSI(2) strategies
+
+Implemented locally on 26 August 2026. This section is not a production deployment record; Cloud Run remains on the last revision recorded in section 20 until the user explicitly requests deployment.
+
+The existing authenticated Alerts Center, manual scanner, daily Cloud Scheduler endpoint, Telegram bot and Firestore persistence now support two global Daily strategy alerts for crypto and US stocks:
+
+```text
+CONNORS_RSI2_LONG
+- latest closed Daily candle closes above SMA200
+- RSI(2) crosses into the extreme zone below 5
+- alert stage: CONFIRMED
+- execution reference: following Daily open
+- protection: 3 ATR(14) below the signal-close reference
+- primary exit: next open after a Daily close above SMA5
+
+BEAR_RALLY_FADE_SHORT
+- asset close < SMA200
+- asset SMA50 < SMA200
+- asset SMA200 is lower than 20 Daily closes ago
+- benchmark is also bearish: BTC for crypto, SPY for stocks
+- RSI(2) crossing above 95 emits ARMED / DO NOT ENTER
+- RSI(2) crossing back below 50 within the next three closed Daily candles emits CONFIRMED SHORT
+- protection: 3 ATR(14) above the signal-close reference
+- primary exit: next open after a Daily close below SMA5
+```
+
+Operational behavior:
+
+- every signal is based only on closed Daily candles;
+- the current scheduled/full scan evaluates Top 50 crypto plus Market 360 stocks; metals are deliberately excluded because the research scope did not validate them;
+- the quick manual scan evaluates the user's watchlist and active alert assets;
+- ARMED and CONFIRMED are separate Telegram messages with unmistakable LONG/SHORT direction;
+- confirmed alerts include entry reference, stop, 1.5R and 2.5R reference targets, ATR, RSI(2), SMA5/SMA200 and benchmark context;
+- the message explicitly says that the exact fill and levels must be recalculated at the real next open;
+- Firestore stores active strategy setups and idempotency-protected history across Cloud Run cold starts;
+- the Alerts Center shows active strategy cards and historical ARMED/CONFIRMED snapshots alongside existing MoneyLine alerts;
+- repeated scans of the same closed candle cannot resend the same strategy stage.
+
+Implementation files:
+
+- pure evaluator: `apps/api/src/services/strategy-alert-service.ts`
+- scanner, Telegram, persistence and dashboard: `apps/api/src/services/app-state.ts`
+- API history exposure: `apps/api/src/routes/telegram-routes.ts`
+- shared snapshot model: `packages/shared/src/types/alerts.ts`
+- UI: `apps/web/src/components/AlertsCenterView.tsx`
+- deterministic unit coverage: `apps/api/src/services/strategy-alert-service.test.ts`
+
+Verification on 26 August 2026:
+
+```text
+npm run build: PASS
+npm test: PASS
+strategy unit tests: 4/4 PASS
+live read-only smoke check: BTC, ETH, SOL, SPY, QQQ, NVDA and AAPL evaluated successfully
+live smoke result: no current setup on those seven assets (expected valid empty state; no Telegram test sent)
+mobile UI verification: 390x844, strategy section visible and body/main horizontal overflow = 0px
+```

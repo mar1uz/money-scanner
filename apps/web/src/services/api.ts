@@ -11,7 +11,8 @@ import {
   BacktestComparisonResult,
   BacktestDirectionMode,
   BacktestStrategy,
-  AssetMarketClass
+  AssetMarketClass,
+  StrategyAlertSnapshot
 } from '@money-scanner/shared';
 import { AssetDetailResponse } from '../types.js';
 import { requestCsrfToken } from './firebase-auth.js';
@@ -337,6 +338,7 @@ export interface AlertHistoryDashboardItem {
     sma50: number;
     distanceToSma50Percent: number;
   };
+  strategySetup?: StrategyAlertSnapshot;
 }
 
 export interface DailyRegimeScanStatus {
@@ -348,6 +350,8 @@ export interface DailyRegimeScanStatus {
   scannedAssets: number;
   totalAssets?: number;
   matches: number;
+  strategyMatches?: number;
+  strategyArmed?: number;
   errors: number;
   running: boolean;
   lastError?: string;
@@ -407,6 +411,7 @@ export interface AlertsDashboardResponse {
   dailyRegimeScan: DailyRegimeScanStatus;
   manualScan: ManualAlertScanStatus;
   flipCandidates: FlipCandidateDashboardItem[];
+  strategySetups: StrategyAlertSnapshot[];
   updatedAt: number;
 }
 

@@ -5,11 +5,13 @@ import {
   MarketNarrativeId,
   Timeframe,
   AssetScannerRow,
+  Candle,
   MoneyLineSignal,
   MoneyLineTier,
   DispatchedAlert,
   ScannerMarketClass,
-  AssetMarketClass
+  AssetMarketClass,
+  StrategyAlertSnapshot
 } from '@money-scanner/shared';
 import { MarketDataService } from '@money-scanner/market-data';
 import {
@@ -26,6 +28,7 @@ import { AIMarketAnalystService } from '@money-scanner/ai-analysis';
 import { AlertDispatcher, TelegramBotHandler } from '@money-scanner/notifications';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { evaluateDailyStrategyAlerts, StrategyAlertEvaluation } from './strategy-alert-service.js';
 
 export interface BullishCloudAlertRule {
   id: string;
@@ -51,6 +54,8 @@ export interface DailyRegimeScanStatus {
   scannedAssets: number;
   totalAssets?: number;
   matches: number;
+  strategyMatches?: number;
+  strategyArmed?: number;
   errors: number;
   running: boolean;
   lastError?: string;
@@ -161,6 +166,7 @@ export class AppState {
   private manualAlertScanStatuses = new Map<string, ManualAlertScanStatus>();
   private manualAlertScanNextAllowed = new Map<string, number>();
   private flipCandidates: FlipCandidate[] = [];
+  private strategySetups: StrategyAlertSnapshot[] = [];
   private dailyRegimeScanStatus: DailyRegimeScanStatus = {
     enabled: true,
     schedule: '0 12 * * *',
@@ -205,7 +211,9 @@ export class AppState {
     }
 
     const history = this.alertHistory.filter(alert =>
-      alert.ruleId?.startsWith(`${userId}:`) || alert.type === 'MultiTimeframeReversal'
+      alert.ruleId?.startsWith(`${userId}:`)
+      || alert.type === 'MultiTimeframeReversal'
+      || alert.type === 'StrategySetup'
     );
     return {
       activeAlerts,
@@ -213,6 +221,7 @@ export class AppState {
       dailyRegimeScan: { ...this.dailyRegimeScanStatus },
       manualScan: this.getManualAlertScanStatus(userId),
       flipCandidates: this.flipCandidates.map(candidate => ({ ...candidate })),
+      strategySetups: this.strategySetups.map(setup => ({ ...setup })),
       updatedAt: Date.now(),
       ...this.telegramBot.getDeliveryConfiguration()
     };
@@ -366,6 +375,9 @@ export class AppState {
         !assets.some(asset => asset.symbol === item.symbol && (!item.marketClass || asset.marketClass === item.marketClass))
       ).length;
       const matches: DailyRegimeMatch[] = [];
+      const strategyEvaluations: StrategyAlertEvaluation[] = [];
+      const strategyEvents: StrategyAlertSnapshot[] = [];
+      const strategyBenchmarks = await this.getDailyStrategyBenchmarks();
       this.updateManualAlertScanStatus(userId, {
         scope: 'quick',
         running: true,
@@ -395,17 +407,30 @@ export class AppState {
               ? { ...candle, isClosed: true }
               : candle
           );
-          return this.evaluateDailyRegimeAsset(
-            asset.symbol,
-            asset.marketClass,
-            dailyCandles,
-            weeklyRaw
-          );
+          const strategy = asset.marketClass === 'crypto' || asset.marketClass === 'stocks'
+            ? evaluateDailyStrategyAlerts(
+              asset.symbol,
+              asset.marketClass,
+              dailyCandles,
+              strategyBenchmarks[asset.marketClass]
+            )
+            : { events: [] };
+          return {
+            regime: this.evaluateDailyRegimeAsset(
+              asset.symbol,
+              asset.marketClass,
+              dailyCandles,
+              weeklyRaw
+            ),
+            strategy
+          };
         }));
 
         settled.forEach(result => {
           if (result.status === 'fulfilled') {
-            if (result.value) matches.push(result.value);
+            if (result.value.regime) matches.push(result.value.regime);
+            strategyEvaluations.push(result.value.strategy);
+            strategyEvents.push(...result.value.strategy.events);
           } else {
             errors += 1;
             console.warn('Quick manual alert scan failed:', result.reason instanceof Error ? result.reason.message : result.reason);
@@ -413,19 +438,24 @@ export class AppState {
         });
         this.updateManualAlertScanStatus(userId, {
           scannedAssets: Math.min(assets.length, index + batch.length),
-          matches: matches.length,
+          matches: matches.length + strategyEvaluations.filter(result => result.current).length,
           errors
         });
       }
 
       await this.publishDailyRegimeMatches(matches, 'manual quick scan');
+      await this.publishStrategyEvents(strategyEvents, 'manual quick scan');
+      this.mergeStrategySetups(
+        assets.map(asset => `${asset.marketClass}:${asset.symbol}`),
+        strategyEvaluations.flatMap(result => result.current ? [result.current] : [])
+      );
       await this.persistDailyRegimeState();
       return this.updateManualAlertScanStatus(userId, {
         scope: 'quick',
         running: false,
         scannedAssets: assets.length,
         totalAssets: assets.length,
-        matches: matches.length,
+        matches: matches.length + strategyEvaluations.filter(result => result.current).length,
         errors,
         lastCompletedAt: Date.now(),
         lastError: undefined
@@ -466,6 +496,8 @@ export class AppState {
       running: true,
       scannedAssets: 0,
       matches: 0,
+      strategyMatches: 0,
+      strategyArmed: 0,
       errors: 0,
       lastError: undefined
     };
@@ -479,8 +511,11 @@ export class AppState {
       const universe = [...liveCrypto, ...stocks, ...metals].filter(
         asset => asset.marketClass === 'crypto' || asset.marketClass === 'stocks' || asset.marketClass === 'metals'
       );
+      const strategyBenchmarks = await this.getDailyStrategyBenchmarks();
       this.dailyRegimeScanStatus.totalAssets = universe.length;
       const matches: DailyRegimeMatch[] = [];
+      const strategyEvaluations: StrategyAlertEvaluation[] = [];
+      const strategyEvents: StrategyAlertSnapshot[] = [];
       const preliminaryFlipAssets: PreliminaryFlipAsset[] = [];
       let errors = 0;
       const concurrency = 6;
@@ -519,6 +554,14 @@ export class AppState {
             : undefined;
           return {
             match: this.evaluateDailyRegimeAsset(asset.symbol, marketClass, dailyCandles, weeklyRaw),
+            strategy: marketClass === 'crypto' || marketClass === 'stocks'
+              ? evaluateDailyStrategyAlerts(
+                asset.symbol,
+                marketClass,
+                dailyCandles,
+                strategyBenchmarks[marketClass]
+              )
+              : { events: [] },
             preliminary: preliminaryCandidate && weeklySignal
               ? {
                 symbol: asset.symbol,
@@ -535,6 +578,8 @@ export class AppState {
         settled.forEach(result => {
           if (result.status === 'fulfilled') {
             if (result.value.match) matches.push(result.value.match);
+            strategyEvaluations.push(result.value.strategy);
+            strategyEvents.push(...result.value.strategy.events);
             if (result.value.preliminary) preliminaryFlipAssets.push(result.value.preliminary);
           } else {
             errors += 1;
@@ -545,13 +590,17 @@ export class AppState {
       }
 
       this.flipCandidates = await this.enrichAndRankFlipCandidates(preliminaryFlipAssets);
+      this.strategySetups = strategyEvaluations.flatMap(result => result.current ? [result.current] : []);
 
       await this.publishDailyRegimeMatches(matches, 'scheduled/full scan');
+      await this.publishStrategyEvents(strategyEvents, 'scheduled/full scan');
 
       this.dailyRegimeScanStatus = {
         ...this.dailyRegimeScanStatus,
         lastCompletedAt: Date.now(),
-        matches: matches.length,
+        matches: matches.length + this.strategySetups.length,
+        strategyMatches: this.strategySetups.filter(setup => setup.stage === 'CONFIRMED').length,
+        strategyArmed: this.strategySetups.filter(setup => setup.stage === 'ARMED').length,
         errors,
         running: false
       };
@@ -568,6 +617,110 @@ export class AppState {
     }
 
     return { ...this.dailyRegimeScanStatus };
+  }
+
+  private async getDailyStrategyBenchmarks(): Promise<Record<'crypto' | 'stocks', Candle[]>> {
+    const [btcRaw, spyRaw] = await Promise.all([
+      this.marketData.getCandles('BTC', '1d', 340, 'crypto'),
+      this.marketData.getCandles('SPY', '1d', 340, 'stocks')
+    ]);
+    const currentUtcDay = new Date();
+    currentUtcDay.setUTCHours(0, 0, 0, 0);
+    const normalize = (candles: Candle[]) => candles.map(candle =>
+      candle.isClosed === false && candle.timestamp < currentUtcDay.getTime()
+        ? { ...candle, isClosed: true }
+        : candle
+    );
+    return { crypto: normalize(btcRaw), stocks: normalize(spyRaw) };
+  }
+
+  private mergeStrategySetups(evaluatedAssetKeys: string[], current: StrategyAlertSnapshot[]) {
+    const evaluated = new Set(evaluatedAssetKeys);
+    const retained = this.strategySetups.filter(setup => !evaluated.has(`${setup.marketClass}:${setup.symbol}`));
+    this.strategySetups = [...current, ...retained]
+      .sort((left, right) => right.candleTimestamp - left.candleTimestamp)
+      .slice(0, 100);
+  }
+
+  private async publishStrategyEvents(
+    events: StrategyAlertSnapshot[],
+    source: 'scheduled/full scan' | 'manual quick scan'
+  ) {
+    const dashboardBaseUrl = process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app';
+    const freshEvents = events.filter(event => {
+      const idempotencyKey = `strategy:${event.strategy}:${event.stage}:${event.symbol}:${event.candleTimestamp}`;
+      return !this.alertHistory.some(alert => alert.idempotencyKey === idempotencyKey);
+    });
+
+    for (const event of freshEvents) {
+      const isLong = event.side === 'LONG';
+      const isArmed = event.stage === 'ARMED';
+      const strategyName = isLong ? 'Connors RSI(2) Trend Pullback' : 'Bear Rally Fade';
+      const headline = isArmed
+        ? `⚠️ *SHORT REBOUND ARMAT — NU INTRA ÎNCĂ*`
+        : isLong
+          ? `🟢 *SETUP LONG CONFIRMAT*`
+          : `🔴 *SETUP SHORT CONFIRMAT*`;
+      const actionLines = isArmed
+        ? [
+            `*Acțiune:* așteaptă RSI(2) să treacă sub 50 în maximum ${event.confirmationWindowRemaining ?? 3} închideri Daily.`,
+            `*Invalidare:* expiră după trei lumânări sau dacă regimul bearish este pierdut.`
+          ]
+        : [
+            `*Execuție:* la următorul open Daily; ${formatAlertPrice(event.entryReference)} este doar referința închiderii-semnal.`,
+            `*STOP LOSS de referință:* ${formatAlertPrice(event.stopLoss)} (${event.riskPercent.toFixed(2)}%)`,
+            `*Ținta orientativă 1 (1.5R):* ${formatAlertPrice(event.target1)}`,
+            `*Ținta orientativă 2 (2.5R):* ${formatAlertPrice(event.target2)}`,
+            `*Ieșire principală:* ${event.exitRule}`
+          ];
+      const contextLines = isLong
+        ? [
+            `*Trend:* close ${formatAlertPrice(event.signalPrice)} > SMA200 ${formatAlertPrice(event.sma200)}`,
+            `*Trigger:* RSI(2) ${event.rsi2.toFixed(2)} < 5`
+          ]
+        : [
+            `*RSI(2):* ${event.previousRsi2.toFixed(2)} → ${event.rsi2.toFixed(2)}${isArmed ? ' (>95)' : ' (confirmare sub 50)'}`,
+            `*Asset bearish:* close < SMA200, SMA50 < SMA200 și SMA200 în scădere`,
+            `*Benchmark ${event.benchmarkSymbol}:* ${event.benchmarkBearish ? 'bearish confirmat' : 'neconfirmat'} · close ${formatAlertPrice(event.benchmarkClose || 0)} · SMA200 ${formatAlertPrice(event.benchmarkSma200 || 0)}`
+          ];
+      const message = [
+        headline,
+        `*${strategyName} · Daily*`,
+        `\n*$${event.symbol}* • ${event.marketClass.toUpperCase()} • ${formatAlertPrice(event.signalPrice)}`,
+        ...contextLines,
+        `*ATR(14):* ${formatAlertPrice(event.atr14)} | *SMA5:* ${formatAlertPrice(event.sma5)}`,
+        '',
+        ...actionLines,
+        `\n_Semnal determinist pe lumânare Daily închisă. Nivelurile trebuie recalculate la execuția reală și nu garantează profitul._`,
+        source === 'manual quick scan' ? `_Sursă: scanare manuală rapidă._` : `_Sursă: scanare automată/completă._`,
+        `\n🔗 [Deschide pagina Alerte](${dashboardBaseUrl})`
+      ].join('\n');
+      const delivered = await this.telegramBot.sendMarkdown(message);
+      const reason = isArmed
+        ? 'Rebound bearish armat: RSI(2) a trecut peste 95 în regim bearish confirmat; intrarea așteaptă revenirea sub 50.'
+        : isLong
+          ? 'Connors LONG confirmat: închidere Daily peste SMA200 și RSI(2) sub 5.'
+          : 'Bear Rally Fade SHORT confirmat: după RSI(2) peste 95, RSI(2) a revenit sub 50 în fereastra de trei lumânări.';
+      this.alertHistory.unshift({
+        id: `strategy_${Date.now()}_${event.symbol}_${Math.floor(Math.random() * 1000)}`,
+        idempotencyKey: `strategy:${event.strategy}:${event.stage}:${event.symbol}:${event.candleTimestamp}`,
+        ruleId: 'global:daily-strategy-scan',
+        symbol: event.symbol,
+        type: 'StrategySetup',
+        title: `${strategyName}: ${event.stage === 'ARMED' ? 'armat' : `${event.side} confirmat`} — ${event.symbol}`,
+        message,
+        timeframe: '1d',
+        price: event.signalPrice,
+        reason,
+        confidence: isArmed ? 0.5 : isLong ? 0.68 : 0.67,
+        timestamp: Date.now(),
+        dashboardLink: dashboardBaseUrl,
+        isDelivered: delivered,
+        strategySetup: event
+      });
+    }
+    if (this.alertHistory.length > 250) this.alertHistory.splice(250);
+    return freshEvents.length;
   }
 
   private async publishDailyRegimeMatches(
@@ -671,11 +824,15 @@ export class AppState {
         status?: DailyRegimeScanStatus;
         alerts?: DispatchedAlert[];
         flipCandidates?: FlipCandidate[];
+        strategySetups?: StrategyAlertSnapshot[];
       } | undefined;
       if (stored?.status) this.dailyRegimeScanStatus = { ...stored.status, running: false };
       if (Array.isArray(stored?.flipCandidates)) this.flipCandidates = stored.flipCandidates.slice(0, 10);
+      if (Array.isArray(stored?.strategySetups)) this.strategySetups = stored.strategySetups.slice(0, 100);
       if (Array.isArray(stored?.alerts)) {
-        const individual = this.alertHistory.filter(alert => alert.type !== 'MultiTimeframeReversal');
+        const individual = this.alertHistory.filter(alert =>
+          alert.type !== 'MultiTimeframeReversal' && alert.type !== 'StrategySetup'
+        );
         this.alertHistory = [...stored.alerts, ...individual]
           .sort((left, right) => right.timestamp - left.timestamp)
           .slice(0, 250);
@@ -691,14 +848,15 @@ export class AppState {
   private async persistDailyRegimeState() {
     try {
       const alerts = this.alertHistory
-        .filter(alert => alert.type === 'MultiTimeframeReversal')
-        .slice(0, 100);
+        .filter(alert => alert.type === 'MultiTimeframeReversal' || alert.type === 'StrategySetup')
+        .slice(0, 200);
       // JSON normalization strips optional undefined values rejected by
       // Firestore while preserving the exact dashboard payload shape.
       const payload = JSON.parse(JSON.stringify({
         status: this.dailyRegimeScanStatus,
         alerts,
         flipCandidates: this.flipCandidates,
+        strategySetups: this.strategySetups,
         updatedAt: Date.now()
       }));
       await this.dailyRegimeDocument().set(payload, { merge: true });
