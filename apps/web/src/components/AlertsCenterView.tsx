@@ -75,6 +75,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
   const [removingId, setRemovingId] = useState('');
   const [preparingId, setPreparingId] = useState('');
   const [candidateFilter, setCandidateFilter] = useState<'ALL' | 'BULLISH' | 'BEARISH'>('ALL');
+  const [strategyFilter, setStrategyFilter] = useState<'ALL' | 'MACRO' | 'CONNORS' | 'SNIPER' | 'BEAR_FADE'>('ALL');
   const restoredBrowserRules = useRef(false);
 
   const loadDashboard = useCallback(async () => {
@@ -240,6 +241,16 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
     candidateFilter === 'ALL' || candidate.direction === candidateFilter
   );
 
+  const visibleStrategies = useMemo(() => {
+    if (!data?.strategySetups) return [];
+    if (strategyFilter === 'ALL') return data.strategySetups;
+    if (strategyFilter === 'MACRO') return data.strategySetups.filter(s => s.strategy === 'MONEYLINE_MACRO_LONG');
+    if (strategyFilter === 'CONNORS') return data.strategySetups.filter(s => s.strategy === 'CONNORS_RSI2_LONG');
+    if (strategyFilter === 'SNIPER') return data.strategySetups.filter(s => s.strategy === 'MONEYLINE_4H_SNIPER_LONG');
+    if (strategyFilter === 'BEAR_FADE') return data.strategySetups.filter(s => s.strategy === 'BEAR_RALLY_FADE_SHORT');
+    return data.strategySetups;
+  }, [data?.strategySetups, strategyFilter]);
+
   return (
     <div className="space-y-6">
       <section className="overflow-hidden rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-cyan-500/[0.08] via-background-card to-violet-500/[0.05] p-4 sm:p-6">
@@ -352,29 +363,53 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
       )}
 
       <section className="space-y-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <Target className="h-4 w-4 text-cyan-300" />
-            <h2 className="text-sm font-bold text-slate-100">Strategii Daily automate</h2>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-cyan-300" />
+              <h2 className="text-sm font-bold text-slate-100">Strategii Validate Live & Alerte Automate</h2>
+            </div>
+            <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
+              Semnale pe lumânări închise cu filtre macro: MoneyLine Macro Trend (Daily), Connors RSI(2) Dip-Pullback, 4H Sniper Confluence și Bear Rally Fade.
+            </p>
           </div>
-          <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
-            LONG se armează sub RSI(2) 5 peste SMA200 și confirmă conservator numai după revenirea peste 50. SHORT armează reboundul peste RSI(2) 95 într-un bear market și confirmă la revenirea sub 50 în maximum trei închideri.
-          </p>
+          <div className="flex flex-wrap gap-1 rounded-lg border border-white/[0.06] bg-white/[0.025] p-1">
+            {([
+              { id: 'ALL', label: 'TOATE' },
+              { id: 'MACRO', label: 'ML MACRO' },
+              { id: 'CONNORS', label: 'CONNORS RSI(2)' },
+              { id: 'SNIPER', label: '4H SNIPER' },
+              { id: 'BEAR_FADE', label: 'BEAR FADE' }
+            ] as const).map(filter => (
+              <button
+                key={filter.id}
+                type="button"
+                onClick={() => setStrategyFilter(filter.id)}
+                className={`rounded-md px-2.5 py-1 text-[10px] font-bold transition ${
+                  strategyFilter === filter.id
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {data?.strategySetups?.length ? (
+        {visibleStrategies.length ? (
           <div className="grid gap-3 lg:grid-cols-2">
-            {data.strategySetups.map(setup => (
+            {visibleStrategies.map(setup => (
               <StrategySetupCard
                 key={setup.id}
                 setup={setup}
-                onOpen={() => onOpenAsset(setup.symbol, setup.marketClass, '1d')}
+                onOpen={() => onOpenAsset(setup.symbol, setup.marketClass, setup.timeframe)}
               />
             ))}
           </div>
         ) : (
           <div className="rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.02] px-5 py-7 text-center text-xs text-slate-500">
-            Niciun setup LONG/SHORT activ la ultima scanare. Apasă „Rapid” pentru watchlist sau „Complet” pentru întregul univers.
+            Niciun setup {strategyFilter === 'ALL' ? '' : strategyFilter} activ la ultima scanare. Apasă „Rapid” pentru watchlist sau „Complet” pentru întregul univers.
           </div>
         )}
       </section>
@@ -522,7 +557,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                     {strategy ? strategyArmed ? (
                       <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-4 lg:max-w-3xl">
                         <LevelBox label="Close semnal" value={formatPrice(strategy.signalPrice)} tone="slate" />
-                        <LevelBox label="RSI(2)" value={strategy.rsi2.toFixed(2)} tone="amber" />
+                        <LevelBox label="RSI(2)" value={strategy.rsi2 !== undefined ? strategy.rsi2.toFixed(2) : '—'} tone="amber" />
                         <LevelBox label="Confirmare" value={isStrategyLong ? 'RSI(2) peste 50' : `Sub 50 · max ${strategy.confirmationWindowRemaining ?? 3} close`} tone="amber" />
                         {isStrategyLong
                           ? <LevelBox label="Invalidare" value={`Close sub ${formatPrice(strategy.sma200)}`} tone="slate" />
@@ -533,7 +568,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                         <LevelBox label="Entry referință" value={formatPrice(strategy.entryReference)} tone="cyan" />
                         <LevelBox label={`Stop · ${strategy.riskPercent.toFixed(2)}%`} value={formatPrice(strategy.stopLoss)} tone="rose" />
                         <LevelBox label="Țintă · 1.5R" value={formatPrice(strategy.target1)} tone="amber" />
-                        <LevelBox label="Țintă · 2.5R" value={formatPrice(strategy.target2)} tone="emerald" />
+                        <LevelBox label="Țintă · 3.0R" value={formatPrice(strategy.target2)} tone="emerald" />
                       </div>
                     ) : plan ? (
                       <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-4 lg:max-w-3xl">
@@ -600,9 +635,14 @@ const StrategySetupCard: React.FC<{ setup: StrategyAlertSnapshot; onOpen: () => 
     : isLong
     ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
     : 'border-rose-500/25 bg-rose-500/10 text-rose-300';
+
   const title = setup.strategy === 'CONNORS_RSI2_LONG'
-    ? 'Connors RSI(2) Pullback'
-    : 'Bear Rally Fade';
+    ? 'Connors RSI(2) Dip-Pullback'
+    : setup.strategy === 'BEAR_RALLY_FADE_SHORT'
+    ? 'Bear Rally Fade'
+    : setup.strategy === 'MONEYLINE_MACRO_LONG'
+    ? 'MoneyLine Macro Trend Breakout'
+    : 'MoneyLine 4H Sniper Confluence';
 
   return (
     <article className="rounded-2xl border border-white/[0.07] bg-background-card p-4 shadow-sm">
@@ -614,10 +654,10 @@ const StrategySetupCard: React.FC<{ setup: StrategyAlertSnapshot; onOpen: () => 
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <strong className="font-mono text-lg text-white">${setup.symbol}</strong>
-              <span className="rounded-md border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-cyan-300">1D</span>
+              <span className="rounded-md border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-cyan-300">{setup.timeframe.toUpperCase()}</span>
               <span className="rounded-md border border-white/[0.07] bg-white/[0.03] px-1.5 py-0.5 text-[9px] uppercase text-slate-500">{setup.marketClass}</span>
             </div>
-            <div className="mt-1 text-[11px] text-slate-400">{title}</div>
+            <div className="mt-1 text-[11px] font-medium text-slate-300">{title}</div>
           </div>
         </button>
         <span className={`shrink-0 rounded-lg border px-2 py-1 font-mono text-[10px] font-black ${tone}`}>
@@ -627,7 +667,11 @@ const StrategySetupCard: React.FC<{ setup: StrategyAlertSnapshot; onOpen: () => 
 
       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <LevelBox label="Close semnal" value={formatPrice(setup.signalPrice)} tone="slate" />
-        <LevelBox label="RSI(2)" value={setup.rsi2.toFixed(2)} tone={armed ? 'amber' : isLong ? 'emerald' : 'rose'} />
+        {setup.rsi2 !== undefined ? (
+          <LevelBox label="RSI(2)" value={setup.rsi2.toFixed(2)} tone={armed ? 'amber' : isLong ? 'emerald' : 'rose'} />
+        ) : (
+          <LevelBox label="SMA 50" value={formatPrice(setup.sma50)} tone="amber" />
+        )}
         <LevelBox label="SMA 200" value={formatPrice(setup.sma200)} tone="cyan" />
         <LevelBox label="ATR 14" value={formatPrice(setup.atr14)} tone="slate" />
       </div>
@@ -643,15 +687,15 @@ const StrategySetupCard: React.FC<{ setup: StrategyAlertSnapshot; onOpen: () => 
           <LevelBox label="Entry referință" value={formatPrice(setup.entryReference)} tone="cyan" />
           <LevelBox label={`Stop · ${setup.riskPercent.toFixed(2)}%`} value={formatPrice(setup.stopLoss)} tone="rose" />
           <LevelBox label="Țintă · 1.5R" value={formatPrice(setup.target1)} tone="amber" />
-          <LevelBox label="Țintă · 2.5R" value={formatPrice(setup.target2)} tone="emerald" />
+          <LevelBox label="Țintă · 3.0R" value={formatPrice(setup.target2)} tone="emerald" />
         </div>
       )}
 
       <button type="button" onClick={onOpen} className="mt-3 flex w-full items-center justify-between border-t border-white/[0.05] pt-3 text-[11px] text-slate-500 transition hover:text-cyan-300">
         <span>{armed
           ? isLong ? 'Confirmare conservatoare: RSI(2) trebuie să revină peste 50' : `Benchmark ${setup.benchmarkSymbol} bearish confirmat`
-          : 'Execuție la următorul open Daily; nivelurile se recalculează la fill'}</span>
-        <span className="flex items-center gap-1">Deschide 1D <ChevronRight className="h-3.5 w-3.5" /></span>
+          : setup.exitRule || `Execuție la următorul open ${setup.timeframe.toUpperCase()}; nivelurile se recalculează la fill`}</span>
+        <span className="flex items-center gap-1 font-semibold text-cyan-300">Deschide {setup.timeframe.toUpperCase()} <ChevronRight className="h-3.5 w-3.5" /></span>
       </button>
     </article>
   );

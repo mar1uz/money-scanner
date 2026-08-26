@@ -48,7 +48,11 @@ export interface DispatchedAlert {
   strategySetup?: StrategyAlertSnapshot;
 }
 
-export type StrategyAlertStrategy = 'CONNORS_RSI2_LONG' | 'BEAR_RALLY_FADE_SHORT';
+export type StrategyAlertStrategy =
+  | 'CONNORS_RSI2_LONG'
+  | 'BEAR_RALLY_FADE_SHORT'
+  | 'MONEYLINE_MACRO_LONG'
+  | 'MONEYLINE_4H_SNIPER_LONG';
 export type StrategyAlertStage = 'ARMED' | 'CONFIRMED';
 
 export interface StrategyAlertSnapshot {
@@ -57,8 +61,8 @@ export interface StrategyAlertSnapshot {
   stage: StrategyAlertStage;
   side: 'LONG' | 'SHORT';
   symbol: string;
-  marketClass: Extract<AssetMarketClass, 'crypto' | 'stocks'>;
-  timeframe: '1d';
+  marketClass: AssetMarketClass;
+  timeframe: '1d' | '4h';
   candleTimestamp: number;
   armedCandleTimestamp?: number;
   expiresAfterCandleTimestamp?: number;
@@ -70,13 +74,15 @@ export interface StrategyAlertSnapshot {
   target2: number;
   riskPercent: number;
   atr14: number;
-  rsi2: number;
-  previousRsi2: number;
-  sma5: number;
-  sma50: number;
-  sma200: number;
-  sma200TwentyDaysAgo: number;
+  rsi2?: number;
+  previousRsi2?: number;
+  sma5?: number;
+  sma50?: number;
+  sma200?: number;
+  sma200TwentyDaysAgo?: number;
   exitRule: string;
+  weeklyTier?: MoneyLineTier;
+  weeklyScore?: number;
   benchmarkSymbol?: 'BTC' | 'SPY';
   benchmarkClose?: number;
   benchmarkSma50?: number;

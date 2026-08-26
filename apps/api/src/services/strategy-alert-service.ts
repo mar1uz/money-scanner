@@ -1,5 +1,5 @@
 import { Candle, AssetMarketClass, StrategyAlertSnapshot } from '@money-scanner/shared';
-import { calculateATR, calculateRSI, calculateSMA } from '@money-scanner/money-line';
+import { calculateATR, calculateRSI, calculateSMA, calculateMoneyLineCloud } from '@money-scanner/money-line';
 
 export interface StrategyAlertEvaluation {
   current?: StrategyAlertSnapshot;
@@ -13,20 +13,24 @@ const closedCandles = (candles: Candle[]) => candles
   .sort((left, right) => left.timestamp - right.timestamp);
 
 /**
- * Evaluates the two production research strategies on the latest closed Daily
- * candle. It deliberately emits events only on a fresh threshold transition;
- * repeated scans of the same candle are handled again by persisted
- * idempotency keys in AppState.
+ * Evaluates the production research & MoneyLine strategies on the latest closed candles.
+ * Emits events only on fresh threshold transitions; repeated scans of the same candle
+ * are protected by persisted idempotency keys in AppState.
  */
 export const evaluateDailyStrategyAlerts = (
   symbol: string,
-  marketClass: Extract<AssetMarketClass, 'crypto' | 'stocks'>,
+  marketClass: AssetMarketClass,
   candleInput: Candle[],
-  benchmarkInput: Candle[]
+  benchmarkInput: Candle[],
+  weeklyInput: Candle[] = [],
+  candles4hInput: Candle[] = []
 ): StrategyAlertEvaluation => {
   const daily = closedCandles(candleInput);
   const benchmark = closedCandles(benchmarkInput);
-  if (daily.length < 220 || benchmark.length < 220) return { events: [] };
+  const weekly = closedCandles(weeklyInput);
+  const candles4h = closedCandles(candles4hInput);
+
+  if (daily.length < 200) return { events: [] };
 
   const closes = daily.map(candle => candle.close);
   const highs = daily.map(candle => candle.high);
@@ -43,6 +47,7 @@ export const evaluateDailyStrategyAlerts = (
   const benchmarkSma50 = calculateSMA(benchmarkCloses, 50);
   const benchmarkSma200 = calculateSMA(benchmarkCloses, 200);
   const benchmarkSymbol = marketClass === 'crypto' ? 'BTC' as const : 'SPY' as const;
+
   const benchmarkIndexFor = (timestamp: number) => {
     let low = 0;
     let high = benchmark.length - 1;
@@ -58,9 +63,8 @@ export const evaluateDailyStrategyAlerts = (
     }
     return result;
   };
-  const latestBenchmarkIndex = benchmarkIndexFor(daily[lastIndex].timestamp);
-  if (latestBenchmarkIndex < 199) return { events: [] };
 
+  const latestBenchmarkIndex = benchmark.length >= 200 ? benchmarkIndexFor(daily[lastIndex].timestamp) : -1;
   const benchmarkBearishAt = (index: number) => index >= 199
     && benchmarkCloses[index] < benchmarkSma200[index]
     && benchmarkSma50[index] < benchmarkSma200[index];
@@ -68,30 +72,46 @@ export const evaluateDailyStrategyAlerts = (
     && closes[index] < sma200[index]
     && sma50[index] < sma200[index]
     && sma200[index] < sma200[index - 20];
-  const latestBenchmarkBearish = benchmarkBearishAt(latestBenchmarkIndex);
+  const latestBenchmarkBearish = latestBenchmarkIndex >= 199 && benchmarkBearishAt(latestBenchmarkIndex);
 
   const createSnapshot = (
     strategy: StrategyAlertSnapshot['strategy'],
     stage: StrategyAlertSnapshot['stage'],
     side: StrategyAlertSnapshot['side'],
-    armedIndex?: number
+    timeframe: '1d' | '4h' = '1d',
+    customRisk?: number,
+    customStop?: number,
+    armedIndex?: number,
+    customPrice?: number,
+    customTimestamp?: number
   ): StrategyAlertSnapshot => {
-    const signalPrice = closes[lastIndex];
+    const signalPrice = customPrice !== undefined ? customPrice : closes[lastIndex];
     const atr = atr14[lastIndex];
-    const risk = Math.max(Number.isFinite(atr) ? atr * 3 : signalPrice * 0.03, signalPrice * 0.005);
-    const stopLoss = side === 'LONG'
-      ? Math.max(signalPrice * 0.01, signalPrice - risk)
-      : signalPrice + risk;
+    const risk = customRisk !== undefined ? customRisk : Math.max(Number.isFinite(atr) ? atr * 2.5 : signalPrice * 0.03, signalPrice * 0.005);
+    const stopLoss = customStop !== undefined ? customStop : (side === 'LONG' ? Math.max(signalPrice * 0.01, signalPrice - risk) : signalPrice + risk);
+    const candleTimestamp = customTimestamp !== undefined ? customTimestamp : daily[lastIndex].timestamp;
+
+    let exitRule = '';
+    if (strategy === 'CONNORS_RSI2_LONG') {
+      exitRule = 'Ieșire la următorul open după o închidere Daily peste SMA 5 (sau stop 3 ATR).';
+    } else if (strategy === 'BEAR_RALLY_FADE_SHORT') {
+      exitRule = 'Acoperire la următorul open după o închidere Daily sub SMA 5 (sau stop 3 ATR).';
+    } else if (strategy === 'MONEYLINE_MACRO_LONG') {
+      exitRule = 'Take-Profit 1.5R / 3.0R sau ieșire la Bear Flip pe MoneyLine Daily.';
+    } else if (strategy === 'MONEYLINE_4H_SNIPER_LONG') {
+      exitRule = 'Take-Profit 1.5R / 3.0R sau ieșire la Bear Flip pe MoneyLine 4H.';
+    }
+
     return {
-      id: `${marketClass}:${symbol}:${strategy}`,
+      id: `${marketClass}:${symbol}:${strategy}:${timeframe}`,
       strategy,
       stage,
       side,
       symbol,
       marketClass,
-      timeframe: '1d',
-      candleTimestamp: daily[lastIndex].timestamp,
-      armedCandleTimestamp: armedIndex === undefined ? undefined : daily[armedIndex].timestamp,
+      timeframe,
+      candleTimestamp,
+      armedCandleTimestamp: armedIndex === undefined ? undefined : daily[armedIndex]?.timestamp,
       confirmationWindowRemaining: armedIndex === undefined || strategy === 'CONNORS_RSI2_LONG'
         ? undefined
         : Math.max(0, 3 - (lastIndex - armedIndex)),
@@ -99,90 +119,146 @@ export const evaluateDailyStrategyAlerts = (
       entryReference: roundPrice(signalPrice),
       stopLoss: roundPrice(stopLoss),
       target1: roundPrice(side === 'LONG' ? signalPrice + risk * 1.5 : signalPrice - risk * 1.5),
-      target2: roundPrice(side === 'LONG' ? signalPrice + risk * 2.5 : signalPrice - risk * 2.5),
+      target2: roundPrice(side === 'LONG' ? signalPrice + risk * 3.0 : signalPrice - risk * 3.0),
       riskPercent: Number((risk / signalPrice * 100).toFixed(2)),
       atr14: roundPrice(atr),
-      rsi2: Number(rsi2[lastIndex].toFixed(2)),
-      previousRsi2: Number(rsi2[previousIndex].toFixed(2)),
-      sma5: roundPrice(sma5[lastIndex]),
-      sma50: roundPrice(sma50[lastIndex]),
-      sma200: roundPrice(sma200[lastIndex]),
-      sma200TwentyDaysAgo: roundPrice(sma200[lastIndex - 20]),
-      exitRule: side === 'LONG'
-        ? 'Ieșire la următorul open după o închidere Daily peste SMA 5.'
-        : 'Acoperire la următorul open după o închidere Daily sub SMA 5.',
+      rsi2: Number(rsi2[lastIndex]?.toFixed(2) || 0),
+      previousRsi2: Number(rsi2[previousIndex]?.toFixed(2) || 0),
+      sma5: roundPrice(sma5[lastIndex] || 0),
+      sma50: roundPrice(sma50[lastIndex] || 0),
+      sma200: roundPrice(sma200[lastIndex] || 0),
+      sma200TwentyDaysAgo: roundPrice(sma200[Math.max(0, lastIndex - 20)] || 0),
+      exitRule,
       benchmarkSymbol,
-      benchmarkClose: roundPrice(benchmarkCloses[latestBenchmarkIndex]),
-      benchmarkSma50: roundPrice(benchmarkSma50[latestBenchmarkIndex]),
-      benchmarkSma200: roundPrice(benchmarkSma200[latestBenchmarkIndex]),
+      benchmarkClose: latestBenchmarkIndex >= 0 ? roundPrice(benchmarkCloses[latestBenchmarkIndex]) : undefined,
+      benchmarkSma50: latestBenchmarkIndex >= 0 ? roundPrice(benchmarkSma50[latestBenchmarkIndex]) : undefined,
+      benchmarkSma200: latestBenchmarkIndex >= 0 ? roundPrice(benchmarkSma200[latestBenchmarkIndex]) : undefined,
       benchmarkBearish: latestBenchmarkBearish
     };
   };
 
   const events: StrategyAlertSnapshot[] = [];
+  let currentSnapshot: StrategyAlertSnapshot | undefined;
 
-  // Conservative Connors variant: RSI(2) below 5 only arms the pullback.
-  // Entry is confirmed after a fresh cross back above 50 while the asset is
-  // still above SMA200. The setup is invalidated if that long-term regime is
-  // lost before confirmation.
-  let longArmedIndex = -1;
-  for (let index = lastIndex; index >= 199; index--) {
-    if (closes[index] <= sma200[index]) break;
-    if (rsi2[index] < 5) {
-      longArmedIndex = index;
-      break;
-    }
-    if (index < lastIndex && rsi2[index] > 50) break;
-  }
+  // --- 1. STRATEGY: MONEYLINE MACRO TREND LONG (Weekly Bull + Daily Bull Flip + Price > SMA 200) ---
+  if (weekly.length >= 40) {
+    const dailyCloud = calculateMoneyLineCloud(daily, '1d');
+    const weeklyCloud = calculateMoneyLineCloud(weekly, '1w');
+    const lastWeeklyIdx = weekly.length - 1;
 
-  if (longArmedIndex >= 0) {
-    const longConfirmed = lastIndex > longArmedIndex
-      && rsi2[previousIndex] <= 50
-      && rsi2[lastIndex] > 50
-      && closes[lastIndex] > sma200[lastIndex];
-    if (longConfirmed) {
-      const snapshot = createSnapshot('CONNORS_RSI2_LONG', 'CONFIRMED', 'LONG', longArmedIndex);
-      events.push(snapshot);
-      return { current: snapshot, events };
-    }
+    const isWeeklyBull = weeklyCloud.dirSlow[lastWeeklyIdx] === -1; // -1 = Bullish in MoneyLine Cloud
+    const isDailyBullFlip = dailyCloud.buySignals[lastIndex] || (dailyCloud.dirSlow[lastIndex] === -1 && dailyCloud.dirSlow[previousIndex] === 1);
+    const isAboveSma200 = closes[lastIndex] > (sma200[lastIndex] || 0);
+    const isRisingSma50 = (sma50[lastIndex] || 0) >= (sma50[Math.max(0, lastIndex - 10)] || 0);
 
-    const snapshot = createSnapshot('CONNORS_RSI2_LONG', 'ARMED', 'LONG', longArmedIndex);
-    const freshArm = longArmedIndex === lastIndex
-      && rsi2[previousIndex] >= 5
-      && closes[previousIndex] > sma200[previousIndex];
-    if (freshArm) events.push(snapshot);
-    return { current: snapshot, events };
-  }
+    if (isWeeklyBull && isAboveSma200 && isRisingSma50) {
+      const stop = Math.max(dailyCloud.lineSlow[lastIndex] || 0, closes[lastIndex] - 2.2 * atr14[lastIndex]);
+      const risk = closes[lastIndex] - stop;
 
-  // Bear Rally Fade: the rebound is armed only while both the asset and its
-  // broad benchmark remain in the pre-defined bear regime. Entry requires an
-  // RSI(2) cross back below 50 within the next three closed Daily candles.
-  let armedIndex = -1;
-  for (let index = lastIndex; index >= Math.max(220, lastIndex - 3); index--) {
-    const benchmarkIndex = benchmarkIndexFor(daily[index].timestamp);
-    const crossedAbove95 = rsi2[index] > 95 && rsi2[index - 1] <= 95;
-    if (crossedAbove95 && assetBearishAt(index) && benchmarkBearishAt(benchmarkIndex)) {
-      armedIndex = index;
-      break;
+      if (risk > 0 && risk / closes[lastIndex] <= 0.12) {
+        const snapshot = createSnapshot(
+          'MONEYLINE_MACRO_LONG',
+          'CONFIRMED',
+          'LONG',
+          '1d',
+          risk,
+          stop
+        );
+        currentSnapshot = snapshot;
+        if (isDailyBullFlip) events.push(snapshot);
+      }
     }
   }
 
-  if (armedIndex >= 0 && assetBearishAt(lastIndex) && latestBenchmarkBearish) {
-    const barsSinceArm = lastIndex - armedIndex;
-    const confirmed = barsSinceArm >= 1 && barsSinceArm <= 3
-      && rsi2[previousIndex] >= 50 && rsi2[lastIndex] < 50;
-    if (confirmed) {
-      const snapshot = createSnapshot('BEAR_RALLY_FADE_SHORT', 'CONFIRMED', 'SHORT', armedIndex);
-      events.push(snapshot);
-      return { current: snapshot, events };
-    }
+  // --- 2. STRATEGY: MONEYLINE 4H SNIPER CONFLUENCE (Weekly/Daily Bull + 4H Bull Flip) ---
+  if (candles4h.length >= 50) {
+    const cloud4h = calculateMoneyLineCloud(candles4h, '4h');
+    const dailyCloud = calculateMoneyLineCloud(daily, '1d');
+    const last4hIdx = candles4h.length - 1;
+    const prev4hIdx = last4hIdx - 1;
 
-    if (barsSinceArm <= 3 && rsi2[lastIndex] >= 50) {
-      const snapshot = createSnapshot('BEAR_RALLY_FADE_SHORT', 'ARMED', 'SHORT', armedIndex);
-      if (barsSinceArm === 0) events.push(snapshot);
-      return { current: snapshot, events };
+    const isDailyBull = dailyCloud.dirSlow[lastIndex] === -1;
+    const is4hBullFlip = cloud4h.buySignals[last4hIdx] || (cloud4h.dirSlow[last4hIdx] === -1 && cloud4h.dirSlow[prev4hIdx] === 1);
+    const c4hClose = candles4h[last4hIdx].close;
+    const stop4h = cloud4h.lineSlow[last4hIdx] || (c4hClose * 0.95);
+    const risk4h = c4hClose - stop4h;
+
+    if (isDailyBull && risk4h > 0 && risk4h / c4hClose <= 0.07) {
+      const snapshot = createSnapshot(
+        'MONEYLINE_4H_SNIPER_LONG',
+        'CONFIRMED',
+        'LONG',
+        '4h',
+        risk4h,
+        stop4h,
+        undefined,
+        c4hClose,
+        candles4h[last4hIdx].timestamp
+      );
+      if (!currentSnapshot) currentSnapshot = snapshot;
+      if (is4hBullFlip) events.push(snapshot);
     }
   }
 
-  return { events };
+  // --- 3. STRATEGY: CONNORS RSI(2) PULLBACK LONG (Conservative: Arm < 5 -> Confirm > 50) ---
+  if (marketClass === 'crypto' || marketClass === 'stocks') {
+    let longArmedIndex = -1;
+    for (let index = lastIndex; index >= Math.max(0, lastIndex - 15); index--) {
+      if (closes[index] <= sma200[index]) break;
+      if (rsi2[index] < 5) {
+        longArmedIndex = index;
+        break;
+      }
+      if (index < lastIndex && rsi2[index] > 50) break;
+    }
+
+    if (longArmedIndex >= 0 && closes[lastIndex] > sma200[lastIndex]) {
+      const longConfirmed = lastIndex > longArmedIndex
+        && rsi2[previousIndex] <= 50
+        && rsi2[lastIndex] > 50;
+
+      if (longConfirmed) {
+        const snapshot = createSnapshot('CONNORS_RSI2_LONG', 'CONFIRMED', 'LONG', '1d', undefined, undefined, longArmedIndex);
+        events.push(snapshot);
+        if (!currentSnapshot) currentSnapshot = snapshot;
+      } else if (rsi2[lastIndex] < 50) {
+        const snapshot = createSnapshot('CONNORS_RSI2_LONG', 'ARMED', 'LONG', '1d', undefined, undefined, longArmedIndex);
+        const freshArm = longArmedIndex === lastIndex && rsi2[previousIndex] >= 5;
+        if (freshArm) events.push(snapshot);
+        if (!currentSnapshot) currentSnapshot = snapshot;
+      }
+    }
+  }
+
+  // --- 4. STRATEGY: BEAR RALLY FADE SHORT (Arm > 95 -> Confirm < 50 in 3 bars) ---
+  if ((marketClass === 'crypto' || marketClass === 'stocks') && latestBenchmarkIndex >= 199) {
+    let armedIndex = -1;
+    for (let index = lastIndex; index >= Math.max(220, lastIndex - 3); index--) {
+      const benchmarkIndex = benchmarkIndexFor(daily[index].timestamp);
+      const crossedAbove95 = rsi2[index] > 95 && rsi2[index - 1] <= 95;
+      if (crossedAbove95 && assetBearishAt(index) && benchmarkBearishAt(benchmarkIndex)) {
+        armedIndex = index;
+        break;
+      }
+    }
+
+    if (armedIndex >= 0 && assetBearishAt(lastIndex) && latestBenchmarkBearish) {
+      const barsSinceArm = lastIndex - armedIndex;
+      const confirmed = barsSinceArm >= 1 && barsSinceArm <= 3
+        && rsi2[previousIndex] >= 50 && rsi2[lastIndex] < 50;
+
+      if (confirmed) {
+        const snapshot = createSnapshot('BEAR_RALLY_FADE_SHORT', 'CONFIRMED', 'SHORT', '1d', undefined, undefined, armedIndex);
+        events.push(snapshot);
+        if (!currentSnapshot) currentSnapshot = snapshot;
+      } else if (barsSinceArm <= 3 && rsi2[lastIndex] >= 50) {
+        const snapshot = createSnapshot('BEAR_RALLY_FADE_SHORT', 'ARMED', 'SHORT', '1d', undefined, undefined, armedIndex);
+        if (barsSinceArm === 0) events.push(snapshot);
+        if (!currentSnapshot) currentSnapshot = snapshot;
+      }
+    }
+  }
+
+  return { current: currentSnapshot, events };
 };
+

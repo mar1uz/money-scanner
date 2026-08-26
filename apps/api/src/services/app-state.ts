@@ -407,14 +407,18 @@ export class AppState {
               ? { ...candle, isClosed: true }
               : candle
           );
-          const strategy = asset.marketClass === 'crypto' || asset.marketClass === 'stocks'
-            ? evaluateDailyStrategyAlerts(
-              asset.symbol,
-              asset.marketClass,
-              dailyCandles,
-              strategyBenchmarks[asset.marketClass]
-            )
-            : { events: [] };
+          const candles4hRaw = asset.marketClass === 'crypto'
+            ? await this.marketData.getCandles(asset.symbol, '4h', 100, asset.marketClass).catch(() => [])
+            : [];
+          const benchmarkCandles = strategyBenchmarks[asset.marketClass === 'crypto' ? 'crypto' : 'stocks'] || [];
+          const strategy = evaluateDailyStrategyAlerts(
+            asset.symbol,
+            asset.marketClass,
+            dailyCandles,
+            benchmarkCandles,
+            weeklyRaw,
+            candles4hRaw
+          );
           return {
             regime: this.evaluateDailyRegimeAsset(
               asset.symbol,
@@ -552,16 +556,20 @@ export class AppState {
               weeklySignal.score
             )
             : undefined;
+          const candles4hRaw = marketClass === 'crypto'
+            ? await this.marketData.getCandles(asset.symbol, '4h', 100, marketClass).catch(() => [])
+            : [];
+          const benchmarkCandles = strategyBenchmarks[marketClass === 'crypto' ? 'crypto' : 'stocks'] || [];
           return {
             match: this.evaluateDailyRegimeAsset(asset.symbol, marketClass, dailyCandles, weeklyRaw),
-            strategy: marketClass === 'crypto' || marketClass === 'stocks'
-              ? evaluateDailyStrategyAlerts(
-                asset.symbol,
-                marketClass,
-                dailyCandles,
-                strategyBenchmarks[marketClass]
-              )
-              : { events: [] },
+            strategy: evaluateDailyStrategyAlerts(
+              asset.symbol,
+              marketClass,
+              dailyCandles,
+              benchmarkCandles,
+              weeklyRaw,
+              candles4hRaw
+            ),
             preliminary: preliminaryCandidate && weeklySignal
               ? {
                 symbol: asset.symbol,
@@ -657,14 +665,26 @@ export class AppState {
       const isArmed = event.stage === 'ARMED';
       const isLongArmed = isLong && isArmed;
       const isShortArmed = !isLong && isArmed;
-      const strategyName = isLong ? 'Connors RSI(2) Trend Pullback' : 'Bear Rally Fade';
-      const headline = isLongArmed
-        ? `🟡 *PULLBACK LONG ARMAT — NU INTRA ÎNCĂ*`
+      const strategyName = event.strategy === 'CONNORS_RSI2_LONG'
+        ? 'Connors RSI(2) Dip-Pullback'
+        : event.strategy === 'BEAR_RALLY_FADE_SHORT'
+        ? 'Bear Rally Fade'
+        : event.strategy === 'MONEYLINE_MACRO_LONG'
+        ? 'MoneyLine Macro Trend Breakout'
+        : 'MoneyLine 4H Sniper Confluence';
+
+      const headline = event.strategy === 'MONEYLINE_MACRO_LONG'
+        ? `🚀 *MONEYLINE MACRO BULL FLIP CONFIRMAT*`
+        : event.strategy === 'MONEYLINE_4H_SNIPER_LONG'
+        ? `⚡ *MONEYLINE 4H SNIPER FLIP CONFIRMAT*`
+        : isLongArmed
+        ? `🟡 *DIP LONG ARMAT (RSI < 5) — NU INTRA ÎNCĂ*`
         : isShortArmed
         ? `⚠️ *SHORT REBOUND ARMAT — NU INTRA ÎNCĂ*`
         : isLong
-          ? `🟢 *SETUP LONG CONFIRMAT*`
-          : `🔴 *SETUP SHORT CONFIRMAT*`;
+        ? `🟢 *CONNORS LONG CONFIRMAT (RSI > 50)*`
+        : `🔴 *BEAR RALLY SHORT CONFIRMAT*`;
+
       const actionLines = isLongArmed
         ? [
             `*Acțiune:* așteaptă RSI(2) să treacă peste 50 pe o lumânare Daily închisă.`,
@@ -676,44 +696,70 @@ export class AppState {
             `*Invalidare:* expiră după trei lumânări sau dacă regimul bearish este pierdut.`
           ]
         : [
-            `*Execuție:* la următorul open Daily; ${formatAlertPrice(event.entryReference)} este doar referința închiderii-semnal.`,
+            `*Execuție:* la următorul open; ${formatAlertPrice(event.entryReference)} este referința închiderii-semnal.`,
             `*STOP LOSS de referință:* ${formatAlertPrice(event.stopLoss)} (${event.riskPercent.toFixed(2)}%)`,
             `*Ținta orientativă 1 (1.5R):* ${formatAlertPrice(event.target1)}`,
-            `*Ținta orientativă 2 (2.5R):* ${formatAlertPrice(event.target2)}`,
+            `*Ținta orientativă 2 (3.0R):* ${formatAlertPrice(event.target2)}`,
             `*Ieșire principală:* ${event.exitRule}`
           ];
-      const contextLines = isLong
-        ? [
-            `*Trend:* close ${formatAlertPrice(event.signalPrice)} > SMA200 ${formatAlertPrice(event.sma200)}`,
-            isArmed
-              ? `*Armare:* RSI(2) ${event.rsi2.toFixed(2)} < 5`
-              : `*Confirmare:* RSI(2) ${event.previousRsi2.toFixed(2)} → ${event.rsi2.toFixed(2)} (>50)`
-          ]
-        : [
-            `*RSI(2):* ${event.previousRsi2.toFixed(2)} → ${event.rsi2.toFixed(2)}${isArmed ? ' (>95)' : ' (confirmare sub 50)'}`,
-            `*Asset bearish:* close < SMA200, SMA50 < SMA200 și SMA200 în scădere`,
-            `*Benchmark ${event.benchmarkSymbol}:* ${event.benchmarkBearish ? 'bearish confirmat' : 'neconfirmat'} · close ${formatAlertPrice(event.benchmarkClose || 0)} · SMA200 ${formatAlertPrice(event.benchmarkSma200 || 0)}`
-          ];
+
+      let contextLines: string[] = [];
+      if (event.strategy === 'MONEYLINE_MACRO_LONG') {
+        contextLines = [
+          `*Regim:* Weekly MoneyLine Bullish + Daily Bull Flip`,
+          `*Trend:* close ${formatAlertPrice(event.signalPrice)} > SMA200 ${formatAlertPrice(event.sma200 || 0)}`,
+          `*SMA 50:* ${formatAlertPrice(event.sma50 || 0)} (în creștere)`
+        ];
+      } else if (event.strategy === 'MONEYLINE_4H_SNIPER_LONG') {
+        contextLines = [
+          `*Timeframe:* 4H (Intrare Sniper pe lumânare închisă)`,
+          `*Regim:* Daily MoneyLine Bullish`,
+          `*Trend 4H:* Bull Flip confirmat`
+        ];
+      } else if (isLong) {
+        contextLines = [
+          `*Trend:* close ${formatAlertPrice(event.signalPrice)} > SMA200 ${formatAlertPrice(event.sma200 || 0)}`,
+          isArmed
+            ? `*Armare:* RSI(2) ${event.rsi2?.toFixed(2) || '0'} < 5`
+            : `*Confirmare:* RSI(2) ${event.previousRsi2?.toFixed(2) || '0'} → ${event.rsi2?.toFixed(2) || '0'} (>50)`
+        ];
+      } else {
+        contextLines = [
+          `*RSI(2):* ${event.previousRsi2?.toFixed(2) || '0'} → ${event.rsi2?.toFixed(2) || '0'}${isArmed ? ' (>95)' : ' (confirmare sub 50)'}`,
+          `*Asset bearish:* close < SMA200, SMA50 < SMA200 și SMA200 în scădere`,
+          `*Benchmark ${event.benchmarkSymbol}:* ${event.benchmarkBearish ? 'bearish confirmat' : 'neconfirmat'} · close ${formatAlertPrice(event.benchmarkClose || 0)}`
+        ];
+      }
+
       const message = [
         headline,
-        `*${strategyName} · Daily*`,
+        `*${strategyName} · ${event.timeframe.toUpperCase()}*`,
         `\n*$${event.symbol}* • ${event.marketClass.toUpperCase()} • ${formatAlertPrice(event.signalPrice)}`,
         ...contextLines,
-        `*ATR(14):* ${formatAlertPrice(event.atr14)} | *SMA5:* ${formatAlertPrice(event.sma5)}`,
+        `*ATR(14):* ${formatAlertPrice(event.atr14)}${event.sma5 ? ` | *SMA5:* ${formatAlertPrice(event.sma5)}` : ''}`,
         '',
         ...actionLines,
-        `\n_Semnal determinist pe lumânare Daily închisă. Nivelurile trebuie recalculate la execuția reală și nu garantează profitul._`,
+        `\n_Semnal determinist pe lumânare închisă. Nivelurile trebuie recalculate la execuția reală și nu garantează profitul._`,
         source === 'manual quick scan' ? `_Sursă: scanare manuală rapidă._` : `_Sursă: scanare automată/completă._`,
         `\n🔗 [Deschide pagina Alerte](${dashboardBaseUrl})`
       ].join('\n');
       const delivered = await this.telegramBot.sendMarkdown(message);
-      const reason = isArmed
-        ? isLong
+
+      let reason = '';
+      if (event.strategy === 'MONEYLINE_MACRO_LONG') {
+        reason = 'MoneyLine Macro Breakout: Bull Flip pe Daily confirmat de Weekly Bullish și preț peste SMA 200.';
+      } else if (event.strategy === 'MONEYLINE_4H_SNIPER_LONG') {
+        reason = 'MoneyLine 4H Sniper: Bull Flip pe 4H apărut într-un regim Daily/Weekly Bullish.';
+      } else if (isArmed) {
+        reason = isLong
           ? 'Pullback LONG armat: prețul este peste SMA200 și RSI(2) a coborât sub 5; intrarea așteaptă confirmarea peste 50.'
-          : 'Rebound bearish armat: RSI(2) a trecut peste 95 în regim bearish confirmat; intrarea așteaptă revenirea sub 50.'
-        : isLong
+          : 'Rebound bearish armat: RSI(2) a trecut peste 95 în regim bearish confirmat; intrarea așteaptă revenirea sub 50.';
+      } else {
+        reason = isLong
           ? 'Connors LONG confirmat conservator: după armarea sub 5, RSI(2) a revenit peste 50 cu Daily încă peste SMA200.'
           : 'Bear Rally Fade SHORT confirmat: după RSI(2) peste 95, RSI(2) a revenit sub 50 în fereastra de trei lumânări.';
+      }
+
       this.alertHistory.unshift({
         id: `strategy_${Date.now()}_${event.symbol}_${Math.floor(Math.random() * 1000)}`,
         idempotencyKey: `strategy:${event.strategy}:${event.stage}:${event.symbol}:${event.candleTimestamp}`,
@@ -722,7 +768,7 @@ export class AppState {
         type: 'StrategySetup',
         title: `${strategyName}: ${event.stage === 'ARMED' ? 'armat' : `${event.side} confirmat`} — ${event.symbol}`,
         message,
-        timeframe: '1d',
+        timeframe: event.timeframe,
         price: event.signalPrice,
         reason,
         confidence: isArmed ? 0.5 : isLong ? 0.68 : 0.67,
@@ -848,7 +894,7 @@ export class AppState {
           // confirmed snapshot must contain the cross back above 50.
           .filter(setup => setup.strategy !== 'CONNORS_RSI2_LONG'
             || setup.stage !== 'CONFIRMED'
-            || setup.rsi2 > 50)
+            || (setup.rsi2 ?? 0) > 50)
           .slice(0, 100);
       }
       if (Array.isArray(stored?.alerts)) {
