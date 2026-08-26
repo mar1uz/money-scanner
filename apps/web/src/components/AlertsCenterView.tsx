@@ -251,7 +251,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
             </div>
             <h1 className="text-xl font-bold text-white sm:text-2xl">Alertele mele MoneyLine</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-              MoneyLine, Connors RSI(2) LONG și Bear Rally Fade SHORT sunt evaluate numai pe lumânări închise. Confirmările și planurile tehnice sunt trimise automat pe Telegram.
+              MoneyLine, Connors RSI(2) LONG și Bear Rally Fade SHORT sunt evaluate numai pe lumânări închise. Armările nu recomandă intrarea; doar confirmările sunt trimise ca setup executabil.
             </p>
           </div>
           <button
@@ -358,7 +358,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
             <h2 className="text-sm font-bold text-slate-100">Strategii Daily automate</h2>
           </div>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
-            LONG caută un pullback RSI(2) sub 5 peste SMA 200. SHORT armează reboundul peste RSI(2) 95 într-un bear market și confirmă doar la revenirea sub 50 în maximum trei închideri.
+            LONG se armează sub RSI(2) 5 peste SMA200 și confirmă conservator numai după revenirea peste 50. SHORT armează reboundul peste RSI(2) 95 într-un bear market și confirmă la revenirea sub 50 în maximum trei închideri.
           </p>
         </div>
 
@@ -487,6 +487,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
               const regime = item.regimeScan;
               const strategy = item.strategySetup;
               const isRiskOff = regime?.scenario === 'WEEKLY_BULL_DAILY_BEAR';
+              const isStrategyLong = strategy?.side === 'LONG';
               const isStrategyShort = strategy?.side === 'SHORT';
               const strategyArmed = strategy?.stage === 'ARMED';
               return (
@@ -501,7 +502,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                         {strategy
                           ? isStrategyShort
                             ? <TrendingDown className={`h-5 w-5 ${strategyArmed ? 'text-amber-400' : 'text-rose-400'}`} />
-                            : <TrendingUp className="h-5 w-5 text-emerald-400" />
+                            : <TrendingUp className={`h-5 w-5 ${strategyArmed ? 'text-amber-400' : 'text-emerald-400'}`} />
                           : regime
                           ? <TrendingUp className={`h-5 w-5 ${isRiskOff ? 'rotate-180 text-rose-400' : 'text-emerald-400'}`} />
                           : <CheckCircle2 className="h-5 w-5 text-emerald-400" />}
@@ -522,8 +523,10 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                       <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-4 lg:max-w-3xl">
                         <LevelBox label="Close semnal" value={formatPrice(strategy.signalPrice)} tone="slate" />
                         <LevelBox label="RSI(2)" value={strategy.rsi2.toFixed(2)} tone="amber" />
-                        <LevelBox label="Confirmare" value={`Sub 50 · max ${strategy.confirmationWindowRemaining ?? 3} close`} tone="amber" />
-                        <LevelBox label={`Benchmark ${strategy.benchmarkSymbol}`} value={strategy.benchmarkBearish ? 'Bearish' : 'Neconfirmat'} tone={strategy.benchmarkBearish ? 'rose' : 'slate'} />
+                        <LevelBox label="Confirmare" value={isStrategyLong ? 'RSI(2) peste 50' : `Sub 50 · max ${strategy.confirmationWindowRemaining ?? 3} close`} tone="amber" />
+                        {isStrategyLong
+                          ? <LevelBox label="Invalidare" value={`Close sub ${formatPrice(strategy.sma200)}`} tone="slate" />
+                          : <LevelBox label={`Benchmark ${strategy.benchmarkSymbol}`} value={strategy.benchmarkBearish ? 'Bearish' : 'Neconfirmat'} tone={strategy.benchmarkBearish ? 'rose' : 'slate'} />}
                       </div>
                     ) : (
                       <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-4 lg:max-w-3xl">
@@ -551,7 +554,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                     )}
 
                     <div className="flex items-center gap-3 lg:justify-end">
-                      {strategy && <span className={`font-mono text-xs font-bold ${strategyArmed ? 'text-amber-300' : isStrategyShort ? 'text-rose-300' : 'text-emerald-300'}`}>{strategyArmed ? 'SHORT ARMAT' : `${strategy.side} CONFIRMAT`}</span>}
+                      {strategy && <span className={`font-mono text-xs font-bold ${strategyArmed ? 'text-amber-300' : isStrategyShort ? 'text-rose-300' : 'text-emerald-300'}`}>{strategyArmed ? `${strategy.side} ARMAT` : `${strategy.side} CONFIRMAT`}</span>}
                       {plan && <span className="font-mono text-xs font-bold text-slate-300">{actionLabel(plan.action)} · {plan.confidence}/100</span>}
                       {regime && <span className={`font-mono text-xs font-bold ${isRiskOff ? 'text-rose-300' : 'text-emerald-300'}`}>{isRiskOff ? 'RISK-OFF' : 'REVERSAL LONG'}</span>}
                       <button
@@ -592,11 +595,11 @@ const SummaryCard: React.FC<{ icon: React.ElementType; label: string; value: num
 const StrategySetupCard: React.FC<{ setup: StrategyAlertSnapshot; onOpen: () => void }> = ({ setup, onOpen }) => {
   const isLong = setup.side === 'LONG';
   const armed = setup.stage === 'ARMED';
-  const tone = isLong
+  const tone = armed
+    ? 'border-amber-500/25 bg-amber-500/10 text-amber-300'
+    : isLong
     ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
-    : armed
-      ? 'border-amber-500/25 bg-amber-500/10 text-amber-300'
-      : 'border-rose-500/25 bg-rose-500/10 text-rose-300';
+    : 'border-rose-500/25 bg-rose-500/10 text-rose-300';
   const title = setup.strategy === 'CONNORS_RSI2_LONG'
     ? 'Connors RSI(2) Pullback'
     : 'Bear Rally Fade';
@@ -631,7 +634,9 @@ const StrategySetupCard: React.FC<{ setup: StrategyAlertSnapshot; onOpen: () => 
 
       {armed ? (
         <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2.5 text-xs leading-5 text-amber-100/80">
-          Nu intra încă. Așteaptă RSI(2) sub 50; fereastră rămasă: <strong>{setup.confirmationWindowRemaining ?? 3} închideri Daily</strong>.
+          {isLong
+            ? <>Nu intra încă. Așteaptă RSI(2) peste 50 pe o lumânare Daily închisă. Setup-ul se invalidează sub SMA200.</>
+            : <>Nu intra încă. Așteaptă RSI(2) sub 50; fereastră rămasă: <strong>{setup.confirmationWindowRemaining ?? 3} închideri Daily</strong>.</>}
         </div>
       ) : (
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -643,7 +648,9 @@ const StrategySetupCard: React.FC<{ setup: StrategyAlertSnapshot; onOpen: () => 
       )}
 
       <button type="button" onClick={onOpen} className="mt-3 flex w-full items-center justify-between border-t border-white/[0.05] pt-3 text-[11px] text-slate-500 transition hover:text-cyan-300">
-        <span>{armed ? `Benchmark ${setup.benchmarkSymbol} bearish confirmat` : 'Execuție la următorul open Daily; nivelurile se recalculează la fill'}</span>
+        <span>{armed
+          ? isLong ? 'Confirmare conservatoare: RSI(2) trebuie să revină peste 50' : `Benchmark ${setup.benchmarkSymbol} bearish confirmat`
+          : 'Execuție la următorul open Daily; nivelurile se recalculează la fill'}</span>
         <span className="flex items-center gap-1">Deschide 1D <ChevronRight className="h-3.5 w-3.5" /></span>
       </button>
     </article>

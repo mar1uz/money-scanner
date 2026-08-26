@@ -92,7 +92,9 @@ export const evaluateDailyStrategyAlerts = (
       timeframe: '1d',
       candleTimestamp: daily[lastIndex].timestamp,
       armedCandleTimestamp: armedIndex === undefined ? undefined : daily[armedIndex].timestamp,
-      confirmationWindowRemaining: armedIndex === undefined ? undefined : Math.max(0, 3 - (lastIndex - armedIndex)),
+      confirmationWindowRemaining: armedIndex === undefined || strategy === 'CONNORS_RSI2_LONG'
+        ? undefined
+        : Math.max(0, 3 - (lastIndex - armedIndex)),
       signalPrice: roundPrice(signalPrice),
       entryReference: roundPrice(signalPrice),
       stopLoss: roundPrice(stopLoss),
@@ -119,13 +121,36 @@ export const evaluateDailyStrategyAlerts = (
 
   const events: StrategyAlertSnapshot[] = [];
 
-  // Published Connors RSI(2) long pullback: trend above SMA200, extreme RSI(2)
-  // below 5, then execute at the following Daily open.
-  const longTrigger = closes[lastIndex] > sma200[lastIndex] && rsi2[lastIndex] < 5;
-  const previousLongTrigger = closes[previousIndex] > sma200[previousIndex] && rsi2[previousIndex] < 5;
-  if (longTrigger && !previousLongTrigger) {
-    const snapshot = createSnapshot('CONNORS_RSI2_LONG', 'CONFIRMED', 'LONG');
-    events.push(snapshot);
+  // Conservative Connors variant: RSI(2) below 5 only arms the pullback.
+  // Entry is confirmed after a fresh cross back above 50 while the asset is
+  // still above SMA200. The setup is invalidated if that long-term regime is
+  // lost before confirmation.
+  let longArmedIndex = -1;
+  for (let index = lastIndex; index >= 199; index--) {
+    if (closes[index] <= sma200[index]) break;
+    if (rsi2[index] < 5) {
+      longArmedIndex = index;
+      break;
+    }
+    if (index < lastIndex && rsi2[index] > 50) break;
+  }
+
+  if (longArmedIndex >= 0) {
+    const longConfirmed = lastIndex > longArmedIndex
+      && rsi2[previousIndex] <= 50
+      && rsi2[lastIndex] > 50
+      && closes[lastIndex] > sma200[lastIndex];
+    if (longConfirmed) {
+      const snapshot = createSnapshot('CONNORS_RSI2_LONG', 'CONFIRMED', 'LONG', longArmedIndex);
+      events.push(snapshot);
+      return { current: snapshot, events };
+    }
+
+    const snapshot = createSnapshot('CONNORS_RSI2_LONG', 'ARMED', 'LONG', longArmedIndex);
+    const freshArm = longArmedIndex === lastIndex
+      && rsi2[previousIndex] >= 5
+      && closes[previousIndex] > sma200[previousIndex];
+    if (freshArm) events.push(snapshot);
     return { current: snapshot, events };
   }
 

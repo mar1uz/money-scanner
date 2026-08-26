@@ -534,10 +534,10 @@ export class BacktestSimulatorService {
 
   /**
    * Risk-managed implementation of Larry Connors' RSI(2) trend-pullback
-   * model. The published setup uses SMA200 as the trend filter, RSI(2) as
-   * the pullback trigger and SMA5 as the mean-reversion exit. This version
-   * enters/exits at the following Daily open and adds a 3 ATR catastrophe
-   * stop because an unbounded loss is unsuitable for an alerting product.
+   * model. RSI(2) below 5 only arms the setup; this conservative version
+   * waits for RSI(2) to cross back above 50 before entering at the following
+   * Daily open. SMA200 remains the trend filter, SMA5 the mean-reversion exit,
+   * and a 3 ATR catastrophe stop limits otherwise unbounded tail risk.
    */
   public runConnorsRsi2Backtest(
     symbol: string,
@@ -563,6 +563,7 @@ export class BacktestSimulatorService {
       marketClass: params.marketClass,
       requireSma200: true,
       rsi2EntryThreshold: params.rsi2EntryThreshold ?? 5,
+      rsi2ConfirmationThreshold: params.rsi2ConfirmationThreshold ?? 50,
       atrStopMultiple: params.atrStopMultiple ?? 3,
       evaluationStartTimestamp: params.evaluationStartTimestamp
     };
@@ -591,7 +592,8 @@ export class BacktestSimulatorService {
     let capital = fullParams.initialCapital;
     let peakEquity = capital;
     let maxDrawdown = 0;
-    let pendingEntry: { side: 'LONG' | 'SHORT'; signalIndex: number } | undefined;
+    let armedLongIndex = -1;
+    let pendingEntry: { side: 'LONG' | 'SHORT'; signalIndex: number; armedIndex?: number } | undefined;
     let pendingExit: { reason: string } | undefined;
     let position: {
       side: 'LONG' | 'SHORT';
@@ -675,7 +677,7 @@ export class BacktestSimulatorService {
             initialStop,
             initialRiskPercent,
             reason: pendingEntry.side === 'LONG'
-              ? `Close peste SMA200 și RSI(2) sub ${fullParams.rsi2EntryThreshold}.`
+              ? `Close peste SMA200; RSI(2) armat sub ${fullParams.rsi2EntryThreshold} și confirmat peste ${fullParams.rsi2ConfirmationThreshold} după ${signalIndex - (pendingEntry.armedIndex ?? signalIndex)} închideri.`
               : `Close sub SMA200 și RSI(2) peste ${100 - fullParams.rsi2EntryThreshold!}.`
           };
         }
@@ -700,11 +702,24 @@ export class BacktestSimulatorService {
         }
       }
 
-      const longTrigger = !position && !pendingEntry && candle.close > sma200[index]
-        && rsi2[index] < fullParams.rsi2EntryThreshold!;
+      if (armedLongIndex >= 0 && candle.close <= sma200[index]) armedLongIndex = -1;
+      const freshLongArm = index > 0 && !position && !pendingEntry && armedLongIndex < 0
+        && candle.close > sma200[index]
+        && rsi2[index] < fullParams.rsi2EntryThreshold!
+        && rsi2[index - 1] >= fullParams.rsi2EntryThreshold!;
+      if (freshLongArm) armedLongIndex = index;
+
+      const longTrigger = index > 0 && !position && !pendingEntry && armedLongIndex >= 0
+        && index > armedLongIndex
+        && candle.close > sma200[index]
+        && rsi2[index - 1] <= fullParams.rsi2ConfirmationThreshold!
+        && rsi2[index] > fullParams.rsi2ConfirmationThreshold!;
       const shortTrigger = directionMode === 'LONG_SHORT' && !position && !pendingEntry
         && candle.close < sma200[index] && rsi2[index] > 100 - fullParams.rsi2EntryThreshold!;
-      if (longTrigger) pendingEntry = { side: 'LONG', signalIndex: index };
+      if (longTrigger) {
+        pendingEntry = { side: 'LONG', signalIndex: index, armedIndex: armedLongIndex };
+        armedLongIndex = -1;
+      }
       else if (shortTrigger) pendingEntry = { side: 'SHORT', signalIndex: index };
 
       if (index === daily.length - 1 && position) {
@@ -727,7 +742,7 @@ export class BacktestSimulatorService {
         sma200: sma200[index],
         rsi2: rsi2[index],
         weeklyRegime: candle.close > sma200[index] ? 'BULLISH' : 'BEARISH',
-        armedLong: false,
+        armedLong: armedLongIndex >= 0,
         armedShort: false,
         longTrigger,
         shortTrigger
@@ -790,10 +805,11 @@ export class BacktestSimulatorService {
         ? Number((trades.reduce((sum, trade) => sum + trade.pnlPercent, 0) / trades.length).toFixed(2))
         : 0,
       expectancyR: Number(expectancyR.toFixed(2)),
-      strategyName: 'Connors RSI(2) Trend Pullback · Risk Managed',
+      strategyName: 'Connors RSI(2) Trend Pullback · Conservative Confirmation',
       strategyRules: [
         'Regim LONG: închiderea Daily este peste SMA200.',
-        `Trigger: RSI(2) închide sub ${fullParams.rsi2EntryThreshold}; intrare la următorul open Daily.`,
+        `Armare: RSI(2) închide sub ${fullParams.rsi2EntryThreshold}; încă nu se intră.`,
+        `Confirmare: RSI(2) revine peste ${fullParams.rsi2ConfirmationThreshold} cu Daily încă peste SMA200; intrare la următorul open.`,
         'Exit: prima închidere Daily peste SMA5, executată la următorul open.',
         `Protecție adăugată: stop-catastrofă la ${fullParams.atrStopMultiple} ATR de entry.`,
         'Costuri incluse: 0,075% comision pe sens și 0,05% slippage pe sens.'

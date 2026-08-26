@@ -56,17 +56,19 @@ describe('Connors RSI(2) trend pullback backtest', () => {
     return trend + Math.sin(index / 9) * 0.4;
   });
 
-  it('buys an RSI2 pullback only after the signal close and exits on SMA5 mean reversion', () => {
+  it('arms below RSI2 5, buys only after confirmation above 50 and exits on SMA5 mean reversion', () => {
     const result = new BacktestSimulatorService().runConnorsRsi2Backtest(
       'TEST', connorsDaily, { directionMode: 'LONG_ONLY' }
     );
 
     assert.equal(result.params.strategy, 'connors_rsi2');
     assert.ok(result.totalTrades >= 10);
-    assert.ok(result.winRate > 50);
     assert.ok(result.trades.every(trade => trade.side === 'LONG'));
     assert.ok(result.trades.every(trade => (trade.initialStop || 0) > 0 && Number.isFinite(trade.rMultiple)));
     assert.ok(result.priceSeries?.every(point => Number.isFinite(point.sma5) && Number.isFinite(point.rsi2)));
+    assert.ok(result.priceSeries?.some(point => point.armedLong));
+    assert.ok(result.priceSeries?.some(point => point.longTrigger && (point.rsi2 || 0) > 50));
+    assert.ok(result.strategyName?.includes('Conservative Confirmation'));
     assert.ok(result.strategySources?.some(source => source.url.includes('stockcharts.com')));
   });
 

@@ -55,7 +55,7 @@ type ResearchStrategy = Extract<BacktestStrategy, 'connors_rsi2' | 'bear_rally_f
 const STRATEGY_META: Record<ResearchStrategy, { title: string; description: string; scope: string }> = {
   connors_rsi2: {
     title: 'Strategia 1 · Connors RSI(2) Pullback LONG',
-    description: 'Cumpără o corecție foarte scurtă numai peste SMA200, apoi iese când prețul revine peste SMA5. Varianta testată adaugă un stop-catastrofă de 3 ATR.',
+    description: 'RSI(2) sub 5 doar armează corecția peste SMA200. Intrarea are loc numai după revenirea RSI(2) peste 50, iar ieșirea urmează regula SMA5. Varianta testată include un stop-catastrofă de 3 ATR.',
     scope: 'Recomandat pentru cercetare: LONG pe crypto lichid și acțiuni/ETF-uri lichide. Nu este recomandat implicit pentru metale.'
   },
   bear_rally_fade: {
@@ -244,7 +244,7 @@ export const BacktestView: React.FC = () => {
               </div>
               <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/[0.06] p-3 text-[10px] leading-5 text-amber-100/70">
                 {result.params.strategy === 'connors_rsi2'
-                  ? 'Un semnal produs la închiderea Daily se execută la următoarea deschidere. Stopul de 3 ATR limitează riscul de coadă pe care varianta Connors originală, fără stop, îl lasă neacoperit.'
+                  ? 'RSI(2) sub 5 este doar armare. LONG se execută la următorul open numai după un cross Daily închis peste 50, dacă prețul rămâne peste SMA200. Stopul de 3 ATR limitează riscul de coadă.'
                   : result.params.strategy === 'bear_rally_fade'
                     ? 'RSI(2) peste 95 doar armează setup-ul. Intrarea SHORT are loc numai după confirmarea sub 50, la următorul open. Riscul unei poziții short poate depăși capitalul inițial.'
                   : 'Un semnal produs la închiderea Daily se execută la următoarea deschidere. Dacă stopul și ținta sunt atinse în aceeași lumânare, backtestul presupune conservator că stopul a fost primul.'}
@@ -386,15 +386,16 @@ const PriceChart: React.FC<{ result: BacktestResult }> = ({ result }) => {
         <div className="mt-2 rounded-xl border border-white/[0.05] bg-[#070b14] px-2 py-1.5">
           <div className="mb-1 flex items-center justify-between font-mono text-[8px] uppercase text-slate-600">
             <span>RSI(2)</span>
-            <span>{isBearRally ? `Armare > ${rsiThreshold} · confirmare < ${rsiConfirmation}` : `Trigger LONG < ${rsiThreshold}`}</span>
+            <span>{isBearRally ? `Armare > ${rsiThreshold} · confirmare < ${rsiConfirmation}` : `Armare < ${rsiThreshold} · confirmare > ${rsiConfirmation}`}</span>
           </div>
           <svg viewBox={`0 0 ${width} 72`} className="h-16 w-full" role="img" aria-label="RSI 2 și pragul de intrare">
             <line x1="0" y1={66 - rsiThreshold / 100 * 58} x2={width} y2={66 - rsiThreshold / 100 * 58} stroke={isBearRally ? '#fb7185' : '#34d399'} strokeDasharray="4 5" opacity="0.75" />
-            {isBearRally && <line x1="0" y1={66 - rsiConfirmation / 100 * 58} x2={width} y2={66 - rsiConfirmation / 100 * 58} stroke="#fbbf24" strokeDasharray="4 5" opacity="0.65" />}
+            <line x1="0" y1={66 - rsiConfirmation / 100 * 58} x2={width} y2={66 - rsiConfirmation / 100 * 58} stroke={isBearRally ? '#fbbf24' : '#34d399'} strokeDasharray="4 5" opacity="0.65" />
             <path d={rsiPath} fill="none" stroke="#a78bfa" strokeWidth="1.5" />
-            {isBearRally && points.filter(point => point.armedShort || point.shortTrigger).map(point => {
+            {points.filter(point => isBearRally ? point.armedShort || point.shortTrigger : point.armedLong || point.longTrigger).map(point => {
               const value = Math.max(0, Math.min(100, point.rsi2 ?? 50));
-              return <circle key={point.timestamp} cx={x(point.timestamp)} cy={66 - value / 100 * 58} r={point.shortTrigger ? 3.6 : 2.6} fill={point.shortTrigger ? '#fb7185' : '#fbbf24'} />;
+              const confirmed = isBearRally ? point.shortTrigger : point.longTrigger;
+              return <circle key={point.timestamp} cx={x(point.timestamp)} cy={66 - value / 100 * 58} r={confirmed ? 3.6 : 2.6} fill={confirmed ? (isBearRally ? '#fb7185' : '#34d399') : '#fbbf24'} />;
             })}
           </svg>
         </div>

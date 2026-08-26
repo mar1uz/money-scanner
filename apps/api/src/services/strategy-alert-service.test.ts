@@ -14,7 +14,7 @@ const toCandles = (closes: number[]): Candle[] => closes.map((close, index) => (
 }));
 
 describe('Daily strategy alert evaluation', () => {
-  it('confirms a fresh Connors RSI(2) long pullback above SMA200', () => {
+  it('arms a fresh Connors RSI(2) pullback below 5 without recommending entry', () => {
     const closes = Array.from({ length: 221 }, (_, index) => 100 + index * 0.5);
     closes[220] = closes[219] - 10;
     const benchmark = Array.from({ length: 221 }, (_, index) => 100 + index * 0.2);
@@ -23,11 +23,38 @@ describe('Daily strategy alert evaluation', () => {
 
     assert.equal(result.events.length, 1);
     assert.equal(result.current?.strategy, 'CONNORS_RSI2_LONG');
-    assert.equal(result.current?.stage, 'CONFIRMED');
+    assert.equal(result.current?.stage, 'ARMED');
     assert.equal(result.current?.side, 'LONG');
     assert.ok((result.current?.rsi2 || 100) < 5);
     assert.ok((result.current?.signalPrice || 0) > (result.current?.sma200 || Number.MAX_VALUE));
     assert.ok((result.current?.stopLoss || 0) < (result.current?.entryReference || 0));
+  });
+
+  it('confirms Connors LONG only after RSI(2) crosses back above 50 while price remains above SMA200', () => {
+    const closes = Array.from({ length: 220 }, (_, index) => 100 + index * 0.5);
+    closes.push(closes[219] - 10, closes[219] + 2);
+    const benchmark = Array.from({ length: closes.length }, (_, index) => 100 + index * 0.2);
+
+    const result = evaluateDailyStrategyAlerts('TEST', 'stocks', toCandles(closes), toCandles(benchmark));
+
+    assert.equal(result.events.length, 1);
+    assert.equal(result.current?.strategy, 'CONNORS_RSI2_LONG');
+    assert.equal(result.current?.stage, 'CONFIRMED');
+    assert.equal(result.current?.side, 'LONG');
+    assert.ok((result.current?.previousRsi2 || 100) <= 50);
+    assert.ok((result.current?.rsi2 || 0) > 50);
+    assert.ok((result.current?.signalPrice || 0) > (result.current?.sma200 || Number.MAX_VALUE));
+  });
+
+  it('invalidates an armed Connors pullback if Daily loses SMA200 before confirmation', () => {
+    const closes = Array.from({ length: 220 }, (_, index) => 100 + index * 0.5);
+    closes.push(140, 150);
+    const benchmark = Array.from({ length: closes.length }, (_, index) => 100 + index * 0.2);
+
+    const result = evaluateDailyStrategyAlerts('TEST', 'stocks', toCandles(closes), toCandles(benchmark));
+
+    assert.equal(result.current, undefined);
+    assert.equal(result.events.length, 0);
   });
 
   it('arms a Bear Rally Fade only after RSI(2) crosses above 95 in a confirmed bear regime', () => {

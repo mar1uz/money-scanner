@@ -1108,3 +1108,43 @@ Production bundle verification: Strategia 1, Strategia 2, Bear Rally Fade, bear_
 Unauthenticated Bear Rally backtest verification: HTTP 401 (expected)
 Production login view: rendered successfully at desktop and 390x844 mobile viewport
 ```
+
+## 25. Conservative Connors LONG confirmation
+
+Implemented on 26 August 2026. Deployment evidence is appended below after production verification.
+
+The live Connors alert and Backtest Lab now use the same conservative two-stage rule:
+
+```text
+ARMED / NO ENTRY:
+- closed Daily price remains above SMA200
+- RSI(2) crosses below 5
+
+CONFIRMED LONG:
+- an armed setup exists
+- RSI(2) crosses back above 50 on a closed Daily candle
+- Daily price is still above SMA200
+- execution reference is the following Daily open
+
+INVALIDATION:
+- Daily closes at or below SMA200 before RSI(2) confirmation
+```
+
+Telegram and Alerts Center distinguish the amber `LONG ARMAT — NU INTRA ÎNCĂ` stage from the green executable `LONG CONFIRMAT` stage. Armed LONG cards show the RSI(2) > 50 requirement and SMA200 invalidation. Stored active confirmations created by the previous aggressive RSI(2) < 5 rule are filtered during restore; historical alert records remain immutable.
+
+Backtest Lab plots the <5 arm level, >50 confirmation level, armed markers and confirmed entry markers. It retains next-open execution, 3 ATR catastrophe stop, SMA5 exit, costs, slippage and chronological 30% holdout.
+
+Verification before deployment:
+
+```text
+npm run build: PASS
+npm test: PASS
+API integration suite: 11/11 PASS
+focused API/service suites: 22/22 PASS
+GD current state under the new evaluator: ARMED, RSI(2) 1.16, no executable LONG confirmation
+legacy GD active confirmation after state restore: removed
+```
+
+GD historical comparison under the conservative rule: 18 trades, 66.7% win rate, PF 1.81, +4.87% return and 4.68% max drawdown; final-30% holdout produced eight trades, 62.5% win rate, PF 1.50 and +1.47%. The earlier aggressive GD variant had more return but a lower win rate and larger drawdown.
+
+The seven-asset conservative basket was not universally improved: only BTC and ETH were profitable in the full sample; aggregate expectancy was approximately flat and mean return negative. This limitation is intentionally retained in Backtest Lab. Conservative here means later price confirmation and reduced early-entry risk, not guaranteed or universally superior profitability.

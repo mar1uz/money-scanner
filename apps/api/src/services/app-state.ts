@@ -655,13 +655,22 @@ export class AppState {
     for (const event of freshEvents) {
       const isLong = event.side === 'LONG';
       const isArmed = event.stage === 'ARMED';
+      const isLongArmed = isLong && isArmed;
+      const isShortArmed = !isLong && isArmed;
       const strategyName = isLong ? 'Connors RSI(2) Trend Pullback' : 'Bear Rally Fade';
-      const headline = isArmed
+      const headline = isLongArmed
+        ? `🟡 *PULLBACK LONG ARMAT — NU INTRA ÎNCĂ*`
+        : isShortArmed
         ? `⚠️ *SHORT REBOUND ARMAT — NU INTRA ÎNCĂ*`
         : isLong
           ? `🟢 *SETUP LONG CONFIRMAT*`
           : `🔴 *SETUP SHORT CONFIRMAT*`;
-      const actionLines = isArmed
+      const actionLines = isLongArmed
+        ? [
+            `*Acțiune:* așteaptă RSI(2) să treacă peste 50 pe o lumânare Daily închisă.`,
+            `*Invalidare:* setup-ul se anulează dacă Daily închide sub SMA200 înaintea confirmării.`
+          ]
+        : isShortArmed
         ? [
             `*Acțiune:* așteaptă RSI(2) să treacă sub 50 în maximum ${event.confirmationWindowRemaining ?? 3} închideri Daily.`,
             `*Invalidare:* expiră după trei lumânări sau dacă regimul bearish este pierdut.`
@@ -676,7 +685,9 @@ export class AppState {
       const contextLines = isLong
         ? [
             `*Trend:* close ${formatAlertPrice(event.signalPrice)} > SMA200 ${formatAlertPrice(event.sma200)}`,
-            `*Trigger:* RSI(2) ${event.rsi2.toFixed(2)} < 5`
+            isArmed
+              ? `*Armare:* RSI(2) ${event.rsi2.toFixed(2)} < 5`
+              : `*Confirmare:* RSI(2) ${event.previousRsi2.toFixed(2)} → ${event.rsi2.toFixed(2)} (>50)`
           ]
         : [
             `*RSI(2):* ${event.previousRsi2.toFixed(2)} → ${event.rsi2.toFixed(2)}${isArmed ? ' (>95)' : ' (confirmare sub 50)'}`,
@@ -697,9 +708,11 @@ export class AppState {
       ].join('\n');
       const delivered = await this.telegramBot.sendMarkdown(message);
       const reason = isArmed
-        ? 'Rebound bearish armat: RSI(2) a trecut peste 95 în regim bearish confirmat; intrarea așteaptă revenirea sub 50.'
+        ? isLong
+          ? 'Pullback LONG armat: prețul este peste SMA200 și RSI(2) a coborât sub 5; intrarea așteaptă confirmarea peste 50.'
+          : 'Rebound bearish armat: RSI(2) a trecut peste 95 în regim bearish confirmat; intrarea așteaptă revenirea sub 50.'
         : isLong
-          ? 'Connors LONG confirmat: închidere Daily peste SMA200 și RSI(2) sub 5.'
+          ? 'Connors LONG confirmat conservator: după armarea sub 5, RSI(2) a revenit peste 50 cu Daily încă peste SMA200.'
           : 'Bear Rally Fade SHORT confirmat: după RSI(2) peste 95, RSI(2) a revenit sub 50 în fereastra de trei lumânări.';
       this.alertHistory.unshift({
         id: `strategy_${Date.now()}_${event.symbol}_${Math.floor(Math.random() * 1000)}`,
@@ -828,7 +841,16 @@ export class AppState {
       } | undefined;
       if (stored?.status) this.dailyRegimeScanStatus = { ...stored.status, running: false };
       if (Array.isArray(stored?.flipCandidates)) this.flipCandidates = stored.flipCandidates.slice(0, 10);
-      if (Array.isArray(stored?.strategySetups)) this.strategySetups = stored.strategySetups.slice(0, 100);
+      if (Array.isArray(stored?.strategySetups)) {
+        this.strategySetups = stored.strategySetups
+          // Remove active Connors confirmations produced by the previous
+          // aggressive rule (RSI below 5). Under the conservative rule a
+          // confirmed snapshot must contain the cross back above 50.
+          .filter(setup => setup.strategy !== 'CONNORS_RSI2_LONG'
+            || setup.stage !== 'CONFIRMED'
+            || setup.rsi2 > 50)
+          .slice(0, 100);
+      }
       if (Array.isArray(stored?.alerts)) {
         const individual = this.alertHistory.filter(alert =>
           alert.type !== 'MultiTimeframeReversal' && alert.type !== 'StrategySetup'
