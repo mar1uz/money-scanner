@@ -969,7 +969,7 @@ Backtest Lab changes:
 
 ## 23. Production alert engine for the two RSI(2) strategies
 
-Implemented locally on 26 August 2026. This section is not a production deployment record; Cloud Run remains on the last revision recorded in section 20 until the user explicitly requests deployment.
+Implemented and deployed on 26 August 2026. Production details and verification evidence are recorded at the end of this section.
 
 The existing authenticated Alerts Center, manual scanner, daily Cloud Scheduler endpoint, Telegram bot and Firestore persistence now support two global Daily strategy alerts for crypto and US stocks:
 
@@ -1023,4 +1023,20 @@ strategy unit tests: 4/4 PASS
 live read-only smoke check: BTC, ETH, SOL, SPY, QQQ, NVDA and AAPL evaluated successfully
 live smoke result: no current setup on those seven assets (expected valid empty state; no Telegram test sent)
 mobile UI verification: 390x844, strategy section visible and body/main horizontal overflow = 0px
+```
+
+Production deployment on 26 August 2026:
+
+```text
+Git implementation commit: 0cfad9e
+Cloud Build: 3815ee0f-90a9-4fec-8f3f-ef5953b69fa4
+Cloud Build status: SUCCESS
+Cloud Run revision: market-scanner-360-00095-9kq
+Container digest: sha256:9ad8025b3e976fa467f4030f2af23145f92ba25277a85667cd872149a5c750e8
+Traffic: 100%
+Canonical URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health verification: HTTP 200
+Root application verification: HTTP 200, bundle index-DIEPESkX.js
+Production bundle verification: Connors RSI(2), Bear Rally Fade and Strategii Daily automate present
+Unauthenticated Alerts dashboard verification: HTTP 401 (expected)
 ```
