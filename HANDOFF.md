@@ -1244,3 +1244,19 @@ Researched on 26 August 2026 and not deployed. The saved LONG candidate remains 
 The most promising paper-only pattern is `RELATIVE_WEAKNESS_BEAR_FLAG_2_5R_SHORT`: Fast+Slow SPY bear state, bearish Weekly/Daily asset regime, 63-session underperformance versus SPY of at least 5%, compact six-session bear flag, breakdown trigger, next-open short, structural/2 ATR stop rejected above 10%, 2.5R target and 0.25% portfolio risk. It produced PF 2.61/+0.34R in calibration, PF 2.35/+0.46R in validation and PF 2.52/+0.38R on 39 previously unused stocks (PF 2.21/+0.33R under doubled friction and 6% borrow). However, the locked temporal final had only three stock trades and failed at PF 0.14/-0.32R. Retain only for paper observation; do not call it robustly profitable.
 
 A separate weakest-decile cross-sectional momentum model also failed: 140 calibration trades at PF 1.42/+0.21R, then 16 validation trades at PF 0.29/-0.42R. A deep-bear variant was PF 1.68/+0.35R historically but PF 0.04/-0.81R during 2020–2026. Full evidence: `docs/backtests/2026-08-26-profitable-short-strategy-search.md`. Reproduction scripts: `scripts/research-profitable-short-strategies.mjs` and `scripts/research-cross-sectional-short.mjs`.
+
+## 31. Research archive deployment
+
+Deployed on 27 August 2026 from Git commit `d0977c0` through Cloud Build `cf2159b1-f853-4963-9858-3c8500b885f1`.
+
+```text
+Cloud Run service: market-scanner-360
+Cloud Run revision: market-scanner-360-00098-xwf
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Root: HTTP 200
+Health: HTTP 200, status ok
+Secret bindings preserved: DAILY_SCAN_TOKEN, GEMINI_API_KEY, TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID
+```
+
+This revision packages the saved research reports and reproducible backtest scripts but does not activate either research candidate in the live UI, scanner, or Telegram alerts. `WEEKLY_TREND_DONCHIAN_55_20_LONG` remains a stocks/ETF paper candidate, and no SHORT strategy has passed the locked final validation required for live activation.
