@@ -1148,3 +1148,19 @@ legacy GD active confirmation after state restore: removed
 GD historical comparison under the conservative rule: 18 trades, 66.7% win rate, PF 1.81, +4.87% return and 4.68% max drawdown; final-30% holdout produced eight trades, 62.5% win rate, PF 1.50 and +1.47%. The earlier aggressive GD variant had more return but a lower win rate and larger drawdown.
 
 The seven-asset conservative basket was not universally improved: only BTC and ETH were profitable in the full sample; aggregate expectancy was approximately flat and mean return negative. This limitation is intentionally retained in Backtest Lab. Conservative here means later price confirmation and reduced early-entry risk, not guaranteed or universally superior profitability.
+
+Production deployment on 26 August 2026:
+
+```text
+Git implementation commit: 4a9557a
+Cloud Build: 5c7f4284-e0ab-46f5-9583-230cacd263af
+Cloud Build status: SUCCESS
+Cloud Run revision: market-scanner-360-00097-jjl
+Container digest: sha256:a53add7e13f28f8e3807fdd9dfa88e36e082697e9380c68f26000e06675ef739
+Traffic: 100%
+Canonical URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health verification: HTTP 200
+Root bundle: index-CwIF4L2I.js
+Bundle verification: RSI(2) > 50 waiting text, conservative confirmation copy, arm and confirmation chart labels present
+Unauthenticated Alerts dashboard: HTTP 401 (expected)
+```
