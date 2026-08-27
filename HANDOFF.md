@@ -1366,3 +1366,49 @@ Bundle verification: Flip-Only, Top 10 near/confirmed and delete-history labels 
 Cloud Scheduler: ENABLED, cron 5 */4 * * *, UTC, next scheduled run 16:05 UTC
 Production full scan: HTTP 200 in 6.62s; 177/177 assets; 0 errors; 4 confirmed flips; 0 strategy matches
 ```
+
+## 35. Dual Independent Scanners: Trading Strategies (Donchian 55/20 LONG) & Top 10 MoneyLine Flips
+
+Implemented on 27 August 2026. The backend and Alerts Center UI now provide two completely separate, independent full-universe scan engines covering all 177 assets (Top 50 crypto, stocks/ETFs, and metals):
+
+1. **Cross-Asset Donchian 55/20 LONG Strategy Engine (`apps/api/src/services/strategy-alert-service.ts`)**:
+   - Extended `WEEKLY_DONCHIAN_55_LONG` across all asset classes (`stocks`, `crypto`, `metals`).
+   - Dynamic maximum initial risk gating: $\le 4\%$ for stocks/ETFs, $\le 8\%$ for crypto, $\le 6\%$ for metals.
+   - Evaluates:
+     - Weekly Trend: Fast & Slow lines bullish (`dirFast < 0 && dirSlow < 0`), Weekly Close above rising 40-week SMA.
+     - Broad Daily Trend: Close > SMA200, SMA50 > SMA200, both rising over 20 bars.
+     - 12-Month Momentum: Positive 252-day return.
+     - Volatility Gate: ATR rank $\le 70\%$ (or $\le 75\%$ for crypto).
+     - Trigger: Daily close above 55-day High (`CONFIRMED`) or within 1 ATR below (`ARMED`).
+     - Exit: Trailing 20-day Donchian Low with initial stop at $\min(\text{structural}, 2 \times \text{ATR})$.
+
+2. **Backend Dual Execution Architecture (`apps/api/src/services/app-state.ts`)**:
+   - `executeStrategiesScan(userId?)`: Scans all 177 assets for Daily/Weekly trading strategy setups (`WEEKLY_DONCHIAN_55_LONG`, `MONEYLINE_MACRO_LONG`, `MONEYLINE_4H_SNIPER_LONG`, `BEAR_RALLY_FADE_SHORT`), updates `strategySetups`, and dispatches Telegram notifications.
+   - `executeDailyRegimeScan()`: Scans all 177 assets across 4H, 8H, and 1D for MoneyLine proximity and flips, populating `flipCandidates` and `confirmedFlips`.
+   - `POST /api/alerts/manual-scan`: Accepts `scope: 'strategies' | 'flips' | 'quick' | 'full'`.
+   - Firestore persistence in `operations/daily-regime-scan` preserves `strategySetups` and `confirmedFlips` independently.
+
+3. **Alerts Center User Interface (`apps/web/src/components/AlertsCenterView.tsx`)**:
+   - Distinct Action Buttons in Header:
+     - ⚡ **Scanare Strategii (Donchian 55)**: Triggers strategy evaluation.
+     - ⚡ **Scanare Top 10 Flips**: Triggers multi-timeframe flip evaluation.
+     - ⚡ **Rapid (Watchlist)**: Scans tracked watchlist and active alerts.
+   - Filter Tabs: `TOATE`, `STRATEGII DE TRADING`, `TOP 10 FLIPURI`, `ALERTE URMĂRITE`.
+   - Rich `StrategySetupCard`: Visualizes signal price, Donchian High 55, Trailing Low 20, Stop Loss, Target 1 (1.5R), Target 2 (3.0R), ATR percentile, and direct link to chart.
+
+Pre-deployment verification:
+```text
+npm run build: passed
+npm test: 51 passed, 0 failed
+Production bundle: index-mcJSfdrr.js
+```
+
+Deployment evidence:
+```text
+Git commit: aafa39c
+Cloud Build: a7273ffe-ef47-4fab-ad37-682294624e90 (SUCCESS)
+Cloud Run revision: market-scanner-360-00103-wrx
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
