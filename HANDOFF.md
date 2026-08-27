@@ -1545,3 +1545,15 @@ Completed on 27 August 2026. The user authorized an initial stop up to 8% and re
 - Conclusion: no candidate was robustly more profitable. Production strategy code and its 4% gate were not changed; no Cloud Run deployment was performed.
 - Full report: `docs/backtests/2026-08-27-long-strategy-8pct-search.md`.
 - Reproducible scripts: `scripts/research-long-strategy-8pct.mjs`, `scripts/research-long-strategy-8pct-round2.mjs`.
+
+## 41. Confirmed RSI(2) Pullback Search — Higher Win Rate Rejected
+
+Completed locally on 27 August 2026; no production code or deployment changed.
+
+- Tested 14 confirmed RSI(2) pullback candidates over 63 development stocks/ETFs, with two additional 48/40-symbol universes reserved for candidates passing selection.
+- All candidates retained the strict Weekly/Daily MoneyLine trend, SMA50/SMA200, momentum and ATR-percentile filters. Stops were 2–3 ATR and capped at 8%.
+- Several validation results showed 55–65% win rates and PF 1.67–1.97, but the identical fixed rules had calibration PF 0.59–1.00 and non-positive expectancy.
+- No candidate passed the predeclared calibration + validation gate. Final holdouts were not opened for a selected candidate, preventing retrospective cherry-picking.
+- Conclusion: the higher win rate was not a stable profitable edge. Do not enable RSI(2) production alerts and do not relax D55.
+- Report: `docs/backtests/2026-08-27-confirmed-rsi2-pullback-search.md`.
+- Script: `scripts/research-confirmed-rsi2-pullback.mjs`.
