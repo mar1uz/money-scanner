@@ -1305,3 +1305,9 @@ Production bundle: index-BRmvk08t.js
 Bundle verification: Donchian labels present; Connors RSI(2) label absent
 Cloud Scheduler: money-scanner-daily-regime-scan ENABLED at 12:00 Europe/Oslo
 ```
+
+## 33. Alerts Center Top Flips-only filter
+
+Implemented on 27 August 2026. Added `TOP FLIPURI` to the existing strategy filter bar in Alerts Center. Selecting it switches the page content to a dedicated Top 10 flip view with the existing `TOATE / BULLISH / BEARISH` subfilters. Strategy setup cards, individually tracked alerts and alert history are hidden in this focused mode; the summary and manual/full scan controls remain available so the ranking can be refreshed. Returning to any strategy filter restores the existing page sections unchanged.
+
+Pre-deployment verification: `npm run build` passed; `npm test` passed 50/50.

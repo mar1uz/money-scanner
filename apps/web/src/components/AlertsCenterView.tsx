@@ -75,7 +75,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
   const [removingId, setRemovingId] = useState('');
   const [preparingId, setPreparingId] = useState('');
   const [candidateFilter, setCandidateFilter] = useState<'ALL' | 'BULLISH' | 'BEARISH'>('ALL');
-  const [strategyFilter, setStrategyFilter] = useState<'ALL' | 'MACRO' | 'DONCHIAN' | 'SNIPER' | 'BEAR_FADE'>('ALL');
+  const [strategyFilter, setStrategyFilter] = useState<'ALL' | 'FLIPS' | 'MACRO' | 'DONCHIAN' | 'SNIPER' | 'BEAR_FADE'>('ALL');
   const restoredBrowserRules = useRef(false);
 
   const loadDashboard = useCallback(async () => {
@@ -243,6 +243,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
 
   const visibleStrategies = useMemo(() => {
     if (!data?.strategySetups) return [];
+    if (strategyFilter === 'FLIPS') return [];
     if (strategyFilter === 'ALL') return data.strategySetups;
     if (strategyFilter === 'MACRO') return data.strategySetups.filter(s => s.strategy === 'MONEYLINE_MACRO_LONG');
     if (strategyFilter === 'DONCHIAN') return data.strategySetups.filter(s => s.strategy === 'WEEKLY_DONCHIAN_55_LONG');
@@ -250,6 +251,54 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
     if (strategyFilter === 'BEAR_FADE') return data.strategySetups.filter(s => s.strategy === 'BEAR_RALLY_FADE_SHORT');
     return data.strategySetups;
   }, [data?.strategySetups, strategyFilter]);
+  const showOnlyFlips = strategyFilter === 'FLIPS';
+
+  const candidateFilterControls = (
+    <div className="grid grid-cols-3 gap-1 rounded-lg border border-white/[0.06] bg-white/[0.025] p-1">
+      {(['ALL', 'BULLISH', 'BEARISH'] as const).map(filter => (
+        <button
+          key={filter}
+          type="button"
+          onClick={() => setCandidateFilter(filter)}
+          className={`rounded-md px-2.5 py-1.5 text-[10px] font-bold transition ${candidateFilter === filter
+            ? filter === 'BULLISH'
+              ? 'bg-emerald-500/15 text-emerald-300'
+              : filter === 'BEARISH'
+                ? 'bg-rose-500/15 text-rose-300'
+                : 'bg-violet-500/15 text-violet-200'
+            : 'text-slate-500 hover:text-slate-300'}`}
+        >{filter === 'ALL' ? 'TOATE' : filter}</button>
+      ))}
+    </div>
+  );
+
+  const flipCandidateCards = visibleCandidates.length ? (
+    <div className="grid gap-3 lg:grid-cols-2">
+      {visibleCandidates.map((candidate, index) => (
+        <FlipCandidateCard
+          key={candidate.id}
+          candidate={candidate}
+          rank={(data?.flipCandidates || []).findIndex(item => item.id === candidate.id) + 1 || index + 1}
+          preparing={preparingId === candidate.id}
+          alertActive={Boolean(data?.activeAlerts.some(alert =>
+            alert.symbol === candidate.symbol && alert.timeframe === candidate.timeframe
+          ))}
+          onPrepare={() => void prepareCandidateAlert(candidate)}
+          onOpen={() => onOpenAsset(candidate.symbol, candidate.marketClass, candidate.timeframe)}
+        />
+      ))}
+    </div>
+  ) : data?.dailyRegimeScan.lastCompletedAt ? (
+    <div className="rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.02] px-5 py-8 text-center text-xs text-slate-500">
+      Nu există candidați {candidateFilter === 'ALL' ? '' : candidateFilter.toLowerCase()} în Top 10 curent.
+    </div>
+  ) : (
+    <div className="rounded-2xl border border-dashed border-violet-500/20 bg-violet-500/[0.04] px-5 py-8 text-center">
+      <ScanSearch className="mx-auto h-7 w-7 text-violet-400" />
+      <h3 className="mt-3 text-sm font-semibold text-slate-200">Rulează prima scanare completă</h3>
+      <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">Top 10 va fi populat după analiza universului crypto, stocks și metale.</p>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -366,16 +415,19 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-cyan-300" />
-              <h2 className="text-sm font-bold text-slate-100">Strategii Validate Live & Alerte Automate</h2>
+              {showOnlyFlips ? <Radar className="h-4 w-4 text-violet-300" /> : <Target className="h-4 w-4 text-cyan-300" />}
+              <h2 className="text-sm font-bold text-slate-100">{showOnlyFlips ? 'Top 10 flipuri apropiate' : 'Strategii Validate Live & Alerte Automate'}</h2>
             </div>
             <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
-              Semnale pe lumânări închise cu filtre macro: MoneyLine Macro Trend, Weekly Trend + Donchian 55/20 LONG, 4H Sniper Confluence și Bear Rally Fade.
+              {showOnlyFlips
+                ? 'Vizualizare dedicată exclusiv celor mai apropiate flipuri, ordonate după distanța ATR și confirmările multi-timeframe.'
+                : 'Semnale pe lumânări închise cu filtre macro: MoneyLine Macro Trend, Weekly Trend + Donchian 55/20 LONG, 4H Sniper Confluence și Bear Rally Fade.'}
             </p>
           </div>
           <div className="flex flex-wrap gap-1 rounded-lg border border-white/[0.06] bg-white/[0.025] p-1">
             {([
               { id: 'ALL', label: 'TOATE' },
+              { id: 'FLIPS', label: 'TOP FLIPURI' },
               { id: 'MACRO', label: 'ML MACRO' },
               { id: 'DONCHIAN', label: 'DONCHIAN 55 LONG' },
               { id: 'SNIPER', label: '4H SNIPER' },
@@ -397,7 +449,12 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
           </div>
         </div>
 
-        {visibleStrategies.length ? (
+        {showOnlyFlips ? (
+          <div className="space-y-3">
+            <div className="flex justify-end">{candidateFilterControls}</div>
+            {flipCandidateCards}
+          </div>
+        ) : visibleStrategies.length ? (
           <div className="grid gap-3 lg:grid-cols-2">
             {visibleStrategies.map(setup => (
               <StrategySetupCard
@@ -414,7 +471,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
         )}
       </section>
 
-      <section className="space-y-3">
+      {!showOnlyFlips && <section className="space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <div className="flex items-center gap-2">
@@ -425,54 +482,13 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
               Clasament după distanța până la Slow normalizată cu ATR, contextul ML 1W, SMA 50/200 și volum. Se actualizează după scanarea completă.
             </p>
           </div>
-          <div className="grid grid-cols-3 gap-1 rounded-lg border border-white/[0.06] bg-white/[0.025] p-1">
-            {(['ALL', 'BULLISH', 'BEARISH'] as const).map(filter => (
-              <button
-                key={filter}
-                type="button"
-                onClick={() => setCandidateFilter(filter)}
-                className={`rounded-md px-2.5 py-1.5 text-[10px] font-bold transition ${candidateFilter === filter
-                  ? filter === 'BULLISH'
-                    ? 'bg-emerald-500/15 text-emerald-300'
-                    : filter === 'BEARISH'
-                      ? 'bg-rose-500/15 text-rose-300'
-                      : 'bg-violet-500/15 text-violet-200'
-                  : 'text-slate-500 hover:text-slate-300'}`}
-              >{filter === 'ALL' ? 'TOATE' : filter}</button>
-            ))}
-          </div>
+          {candidateFilterControls}
         </div>
 
-        {visibleCandidates.length ? (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {visibleCandidates.map((candidate, index) => (
-              <FlipCandidateCard
-                key={candidate.id}
-                candidate={candidate}
-                rank={(data?.flipCandidates || []).findIndex(item => item.id === candidate.id) + 1 || index + 1}
-                preparing={preparingId === candidate.id}
-                alertActive={Boolean(data?.activeAlerts.some(alert =>
-                  alert.symbol === candidate.symbol && alert.timeframe === candidate.timeframe
-                ))}
-                onPrepare={() => void prepareCandidateAlert(candidate)}
-                onOpen={() => onOpenAsset(candidate.symbol, candidate.marketClass, candidate.timeframe)}
-              />
-            ))}
-          </div>
-        ) : data?.dailyRegimeScan.lastCompletedAt ? (
-          <div className="rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.02] px-5 py-8 text-center text-xs text-slate-500">
-            Nu există candidați {candidateFilter === 'ALL' ? '' : candidateFilter.toLowerCase()} în Top 10 curent.
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-dashed border-violet-500/20 bg-violet-500/[0.04] px-5 py-8 text-center">
-            <ScanSearch className="mx-auto h-7 w-7 text-violet-400" />
-            <h3 className="mt-3 text-sm font-semibold text-slate-200">Rulează prima scanare completă</h3>
-            <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">Top 10 va fi populat după analiza universului crypto, stocks și metale.</p>
-          </div>
-        )}
-      </section>
+        {flipCandidateCards}
+      </section>}
 
-      <section className="space-y-3">
+      {!showOnlyFlips && <section className="space-y-3">
         <div className="flex items-end justify-between gap-3">
           <div>
             <h2 className="text-sm font-bold text-slate-100">Alerte urmărite</h2>
@@ -507,9 +523,9 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
             <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">Deschide un asset, alege timeframe-ul și apasă „Alertă plan”. Aplicația îl va monitoriza automat.</p>
           </div>
         )}
-      </section>
+      </section>}
 
-      <section className="space-y-3 pb-6">
+      {!showOnlyFlips && <section className="space-y-3 pb-6">
         <div>
           <h2 className="text-sm font-bold text-slate-100">Istoric alerte declanșate</h2>
           <p className="mt-1 text-xs text-slate-500">Nivelurile sunt snapshot-ul calculat când alerta a fost trimisă; nu se modifică ulterior.</p>
@@ -608,7 +624,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
         ) : (
           <div className="rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.02] px-5 py-8 text-center text-xs text-slate-500">Istoricul se va popula după prima alertă MoneyLine declanșată.</div>
         )}
-      </section>
+      </section>}
     </div>
   );
 };
