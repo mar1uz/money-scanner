@@ -1557,3 +1557,28 @@ Completed locally on 27 August 2026; no production code or deployment changed.
 - Conclusion: the higher win rate was not a stable profitable edge. Do not enable RSI(2) production alerts and do not relax D55.
 - Report: `docs/backtests/2026-08-27-confirmed-rsi2-pullback-search.md`.
 - Script: `scripts/research-confirmed-rsi2-pullback.mjs`.
+
+## 42. Two-ATR Donchian Preparation Radar Deployment
+
+Deployed on 27 August 2026 after explicit user approval.
+
+- Published the informational Donchian preparation radar implemented in commit `0987dfc`:
+  - `WATCH / DE URMĂRIT` between one and two ATR below Donchian 55;
+  - `ARMED / ARMAT` at or below one ATR;
+  - `CONFIRMED` only after a fresh closed Daily breakout.
+- WATCH never creates a Telegram event and never claims an executable entry.
+- Production execution remains the stocks/ETF-only Weekly Trend + Donchian 55/20 LONG strategy with the validated 4% maximum stop. The rejected 8% and RSI(2) research candidates remain scripts/documentation only.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 6d2a73c
+Local build: passed
+Local tests: 49 passed, 0 failed
+Cloud Build: fed2edd6-8e2e-482f-a8ec-652d50f545a7 (SUCCESS)
+Cloud Run revision: market-scanner-360-00109-nqp
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+Production bundle: index-DFZwLsho.js
+```
