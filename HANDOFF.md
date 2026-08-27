@@ -1350,3 +1350,19 @@ npm test: 51 passed, 0 failed
 API integration: 13 passed, 0 failed
 Production bundle: index-Bh2LUpcH.js
 ```
+
+Deployment evidence:
+
+```text
+Git commit: 98390e0
+Cloud Build: 1d8da785-6acf-4c1c-bbf4-1c4c76d34382 (SUCCESS)
+Cloud Run revision: market-scanner-360-00102-qnw
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Root: HTTP 200
+Health: HTTP 200, status ok
+Production bundle: index-Bh2LUpcH.js
+Bundle verification: Flip-Only, Top 10 near/confirmed and delete-history labels present
+Cloud Scheduler: ENABLED, cron 5 */4 * * *, UTC, next scheduled run 16:05 UTC
+Production full scan: HTTP 200 in 6.62s; 177/177 assets; 0 errors; 4 confirmed flips; 0 strategy matches
+```
