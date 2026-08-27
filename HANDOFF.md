@@ -1311,3 +1311,17 @@ Cloud Scheduler: money-scanner-daily-regime-scan ENABLED at 12:00 Europe/Oslo
 Implemented on 27 August 2026. Added `TOP FLIPURI` to the existing strategy filter bar in Alerts Center. Selecting it switches the page content to a dedicated Top 10 flip view with the existing `TOATE / BULLISH / BEARISH` subfilters. Strategy setup cards, individually tracked alerts and alert history are hidden in this focused mode; the summary and manual/full scan controls remain available so the ranking can be refreshed. Returning to any strategy filter restores the existing page sections unchanged.
 
 Pre-deployment verification: `npm run build` passed; `npm test` passed 50/50.
+
+Deployment evidence:
+
+```text
+Git commit: cd87fe6
+Cloud Build: 3682f9cd-72ff-4b22-b891-8bc886dcba50 (SUCCESS)
+Cloud Run revision: market-scanner-360-00101-gjc
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Root: HTTP 200
+Health: HTTP 200
+Production bundle: index-DO5HH98-.js
+Bundle verification: TOP FLIPURI and the focused flip-view label are present
+```
