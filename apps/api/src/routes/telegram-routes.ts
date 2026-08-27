@@ -109,8 +109,11 @@ telegramRouter.post('/alerts/manual-scan', async (req: AuthenticatedRequest, res
     return res.status(403).json({ error: 'Invalid CSRF token.', code: 'CSRF_INVALID' });
   }
 
-  const scope = req.body?.scope === 'full' ? 'full' : req.body?.scope === 'quick' ? 'quick' : undefined;
-  if (!scope) return res.status(400).json({ error: 'Tipul scanării trebuie să fie quick sau full.' });
+  const rawScope = req.body?.scope;
+  const scope = (rawScope === 'full' || rawScope === 'flips' || rawScope === 'strategies' || rawScope === 'quick')
+    ? (rawScope as 'full' | 'flips' | 'strategies' | 'quick')
+    : undefined;
+  if (!scope) return res.status(400).json({ error: 'Tipul scanării trebuie să fie quick, full, flips sau strategies.' });
   const watchlist = Array.isArray(req.body?.watchlist)
     ? req.body.watchlist.slice(0, 50).flatMap((item: unknown) => {
       if (typeof item === 'string') return [{ symbol: item }];

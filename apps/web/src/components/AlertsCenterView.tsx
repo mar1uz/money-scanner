@@ -12,12 +12,14 @@ import {
   ScanSearch,
   Send,
   ShieldAlert,
+  Sparkles,
   Target,
   Trash2,
   TrendingUp,
   Zap
 } from 'lucide-react';
 import { AssetScannerRow, Timeframe } from '../types.js';
+import { StrategyAlertSnapshot } from '@money-scanner/shared';
 import {
   ActiveAlertDashboardItem,
   AlertsDashboardResponse,
@@ -68,6 +70,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
   const [removingId, setRemovingId] = useState('');
   const [clearingTarget, setClearingTarget] = useState<'active' | 'history' | 'all' | null>(null);
   const [preparingId, setPreparingId] = useState('');
+  const [activeTab, setActiveTab] = useState<'ALL' | 'STRATEGIES' | 'FLIPS' | 'WATCHED'>('ALL');
   const [candidateFilter, setCandidateFilter] = useState<'ALL' | 'BULLISH' | 'BEARISH'>('ALL');
   const restoredBrowserRules = useRef(false);
 
@@ -151,7 +154,8 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
     return {
       active: active.length,
       close: data?.flipCandidates.length || 0,
-      confirmed: data?.confirmedFlips?.length || 0
+      confirmed: data?.confirmedFlips?.length || 0,
+      strategies: data?.strategySetups?.length || 0
     };
   }, [data]);
 
@@ -230,9 +234,14 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
     try {
       const result = await runManualAlertScan(scope, watchlistPayload);
       if (result.lastError) throw new Error(result.lastError);
+      const scanTypeLabel = scope === 'strategies'
+        ? 'Scanarea de strategii (Donchian 55 & Macro)'
+        : scope === 'quick'
+          ? 'Scanarea rapidă (Watchlist)'
+          : 'Scanarea de flips (4H/8H/1D)';
       setScanMessage(
-        `${scope === 'quick' ? 'Scanarea rapidă' : 'Scanarea completă'} flip-only s-a încheiat: `
-        + `${result.scannedAssets}/${result.totalAssets} active verificate, ${result.matches} flipuri confirmate, ${result.errors} erori.`
+        `${scanTypeLabel} s-a încheiat cu succes: `
+        + `${result.scannedAssets}/${result.totalAssets} active verificate, ${result.matches} setupuri/semnale găsite, ${result.errors} erori.`
       );
       await loadDashboard();
     } catch (scanError) {
@@ -326,9 +335,9 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
               <BellRing className="h-5 w-5" />
               <span className="font-mono text-[11px] font-bold uppercase tracking-[0.2em]">Alert Command Center</span>
             </div>
-            <h1 className="text-xl font-bold text-white sm:text-2xl">Alertele mele MoneyLine</h1>
+            <h1 className="text-xl font-bold text-white sm:text-2xl">Alertele mele MoneyLine & Strategii</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-              Centrul scanează exclusiv flipuri MoneyLine pe lumânări închise. Strategiile LONG și SHORT rămân disponibile în Backtest Lab, dar nu mai sunt evaluate de scanarea alertelor.
+              Centrul oferă scanări separate pe toate cele 177 de active: <strong className="text-amber-300">Strategii de Trading</strong> (Weekly Trend + Donchian 55/20 LONG & Macro) și <strong className="text-violet-300">Top 10 Flips</strong> (4H/8H/1D).
             </p>
           </div>
           <button
@@ -342,10 +351,10 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <SummaryCard icon={BellRing} label="Alerte urmărite" value={summary.active} tone="cyan" />
-          <SummaryCard icon={TrendingUp} label="Top apropiate" value={summary.close} tone="amber" />
-          <SummaryCard icon={CheckCircle2} label="Flipuri confirmate" value={summary.confirmed} tone="emerald" />
-          <SummaryCard icon={Send} label="Telegram" value={data?.telegramConfigured ? 'Conectat' : 'Neconfigurat'} tone={data?.telegramConfigured ? 'emerald' : 'rose'} />
+          <SummaryCard icon={Sparkles} label="Strategii Trading (Donchian 55)" value={summary.strategies} tone="amber" />
+          <SummaryCard icon={TrendingUp} label="Top Aproape Flip" value={summary.close} tone="cyan" />
+          <SummaryCard icon={CheckCircle2} label="Flipuri Confirmate" value={summary.confirmed} tone="emerald" />
+          <SummaryCard icon={BellRing} label="Alerte Urmărite" value={summary.active} tone="slate" />
         </div>
 
         <div className="mt-4 rounded-xl border border-violet-500/20 bg-violet-500/[0.06] p-3">
@@ -355,9 +364,9 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                 <CalendarClock className="h-4 w-4 text-violet-300" />
               </div>
               <div>
-                <div className="text-xs font-bold text-violet-200">Scanare completă MoneyLine Flip-Only</div>
+                <div className="text-xs font-bold text-violet-200">Comenzi de Scanare Separată pe Întregul Univers (177 Active)</div>
                 <p className="mt-1 max-w-2xl text-[11px] leading-5 text-slate-400">
-                  Automat la <strong className="text-slate-200">5 minute după fiecare close 4H UTC</strong>. Rapid verifică watchlist-ul și alertele urmărite; Complet verifică flipurile 4H, 8H și 1D pentru întregul univers crypto, stocks și metale.
+                  Alege dacă vrei să scanezi <strong className="text-amber-300">Strategiile de Trading</strong> (Donchian 55, Macro, Sniper) sau <strong className="text-violet-300">Top 10 Flips</strong> (4H, 8H, 1D).
                 </p>
               </div>
             </div>
@@ -366,37 +375,43 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
               <div className="text-left sm:text-right">
                 <div className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
                   {activeScanScope
-                    ? `${activeScanScope === 'quick' ? 'Scanare rapidă' : 'Scanare completă'} în curs`
-                    : data?.dailyRegimeScan.lastCompletedAt ? 'Ultima scanare completă' : 'Programată'}
+                    ? `${activeScanScope === 'strategies' ? 'Scanare Strategii' : activeScanScope === 'quick' ? 'Scanare Rapidă' : 'Scanare Flips'} în curs`
+                    : data?.manualScan.lastCompletedAt ? 'Ultima scanare' : 'Gata de rulare'}
                 </div>
                 <div className="mt-1 font-mono text-xs font-bold text-violet-200">
                   {activeScanScope
                     ? activeManualScanStatus?.totalAssets
-                      ? `${activeManualScanStatus.scannedAssets}/${activeManualScanStatus.totalAssets} active · ${activeManualScanStatus.matches} flipuri`
+                      ? `${activeManualScanStatus.scannedAssets}/${activeManualScanStatus.totalAssets} active · ${activeManualScanStatus.matches} setupuri`
                       : 'Pregătesc universul de scanare…'
                     : data?.manualScan.lastCompletedAt
-                      ? `${formatDate(data.manualScan.lastCompletedAt)} · ${data.manualScan.matches} flipuri`
-                      : data?.dailyRegimeScan.lastCompletedAt
-                        ? `${formatDate(data.dailyRegimeScan.lastCompletedAt)} · ${data.dailyRegimeScan.matches} semnale`
-                        : 'Următoarea rulare: după close 4H'}
+                      ? `${formatDate(data.manualScan.lastCompletedAt)} · ${data.manualScan.matches} rezultate`
+                      : 'Apasă un buton pentru a porni scanarea'}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void startManualScan('strategies')}
+                  disabled={Boolean(activeScanScope)}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 py-2 text-[11px] font-bold text-amber-200 shadow-sm transition hover:bg-amber-500/25 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Sparkles className={`h-3.5 w-3.5 ${activeScanScope === 'strategies' ? 'animate-pulse' : ''}`} /> Scanare Strategii (Donchian 55)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void startManualScan('flips')}
+                  disabled={Boolean(activeScanScope)}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-violet-500/40 bg-violet-500/15 px-3 py-2 text-[11px] font-bold text-violet-200 transition hover:bg-violet-500/25 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <ScanSearch className={`h-3.5 w-3.5 ${activeScanScope === 'flips' || activeScanScope === 'full' ? 'animate-pulse' : ''}`} /> Scanare Top 10 Flips
+                </button>
                 <button
                   type="button"
                   onClick={() => void startManualScan('quick')}
                   disabled={Boolean(activeScanScope)}
                   className="inline-flex items-center justify-center gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-[11px] font-bold text-cyan-200 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <Zap className={`h-3.5 w-3.5 ${activeScanScope === 'quick' ? 'animate-pulse' : ''}`} /> Rapid
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void startManualScan('full')}
-                  disabled={Boolean(activeScanScope)}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-[11px] font-bold text-violet-200 transition hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <ScanSearch className={`h-3.5 w-3.5 ${activeScanScope === 'full' ? 'animate-pulse' : ''}`} /> Complet
+                  <Zap className={`h-3.5 w-3.5 ${activeScanScope === 'quick' ? 'animate-pulse' : ''}`} /> Rapid (Watchlist)
                 </button>
               </div>
             </div>
@@ -406,11 +421,11 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
             <div className="mt-3">
               <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-violet-400 transition-all duration-500"
+                  className="h-full rounded-full bg-gradient-to-r from-amber-400 via-cyan-400 to-violet-400 transition-all duration-500"
                   style={{ width: `${Math.max(3, scanProgress)}%` }}
                 />
               </div>
-              <p className="mt-2 text-[10px] text-slate-500">Poți rămâne pe această pagină; rezultatele și alertele Telegram sunt protejate împotriva duplicării.</p>
+              <p className="mt-2 text-[10px] text-slate-400">Scanarea rulează în fundal pe toate activele; semnalele eligibile vor trimite automat alertă pe Telegram.</p>
             </div>
           )}
         </div>
@@ -428,125 +443,304 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
         </div>
       )}
 
-      <section className="space-y-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <Radar className="h-4 w-4 text-violet-300" />
-              <h2 className="text-sm font-bold text-slate-100">Top 10 aproape de flip</h2>
+      {/* Filter Tabs */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.06] pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveTab('ALL')}
+          className={`rounded-xl px-3.5 py-2 text-xs font-bold transition ${activeTab === 'ALL' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-400 hover:text-slate-200'}`}
+        >
+          TOATE ({summary.strategies + summary.close + summary.confirmed + summary.active})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('STRATEGIES')}
+          className={`rounded-xl px-3.5 py-2 text-xs font-bold transition ${activeTab === 'STRATEGIES' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'text-slate-400 hover:text-slate-200'}`}
+        >
+          STRATEGII DE TRADING ({summary.strategies})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('FLIPS')}
+          className={`rounded-xl px-3.5 py-2 text-xs font-bold transition ${activeTab === 'FLIPS' ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30' : 'text-slate-400 hover:text-slate-200'}`}
+        >
+          TOP 10 FLIPURI ({summary.close + summary.confirmed})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('WATCHED')}
+          className={`rounded-xl px-3.5 py-2 text-xs font-bold transition ${activeTab === 'WATCHED' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-slate-200'}`}
+        >
+          ALERTE URMĂRITE ({summary.active})
+        </button>
+      </div>
+
+      {/* 1. STRATEGIES SECTION */}
+      {(activeTab === 'ALL' || activeTab === 'STRATEGIES') && (
+        <section className="space-y-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-amber-300" />
+                <h2 className="text-sm font-bold text-slate-100">Strategii de Trading (Weekly Trend + Donchian 55/20 LONG)</h2>
+              </div>
+              <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
+                Setupuri zilnice bazate pe trend săptămânal MoneyLine, SMA 40 crescător, SMA 50/200 aliniat, breakout peste maximul pe 55 de zile și volatilitate controlată.
+              </p>
             </div>
-            <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
-              Un singur candidat per asset, ordonat după distanța ATR, alinierea ML 1W, SMA 50/200, volum și prioritate pentru timeframe-ul 4H.
-            </p>
+            {data?.strategySetups?.length ? (
+              <span className="font-mono text-xs font-bold text-amber-300">
+                {data.strategySetups.length} setupuri active
+              </span>
+            ) : null}
           </div>
-          {candidateFilterControls}
-        </div>
 
-        {flipCandidateCards}
-      </section>
-
-      <section className="space-y-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-300" />
-              <h2 className="text-sm font-bold text-slate-100">Top 10 alerte de trading confirmate</h2>
-            </div>
-            <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
-              Cele mai recente flipuri pe lumânări închise, cu prioritate pentru 4H și confirmări 1W/SMA. Scorul este tehnic, nu procent de reușită.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => void clearAlertGroup('history')}
-            disabled={clearingTarget !== null || !data?.confirmedFlips?.length}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-rose-500/25 bg-rose-500/[0.06] px-3 py-2 text-[10px] font-bold text-rose-300 transition hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <Trash2 className={`h-3.5 w-3.5 ${clearingTarget === 'history' ? 'animate-pulse' : ''}`} /> Șterge istoricul
-          </button>
-        </div>
-
-        {topConfirmedFlips.length ? (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {topConfirmedFlips.map((candidate, index) => (
-              <ConfirmedFlipCard
-                key={`${candidate.id}:${candidate.candleTimestamp}`}
-                candidate={candidate}
-                rank={index + 1}
-                onOpen={() => onOpenAsset(candidate.symbol, candidate.marketClass, candidate.timeframe)}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.02] px-5 py-8 text-center text-xs text-slate-500">
-            Niciun flip recent în fereastra activă. Lista se populează după următoarea scanare flip-only.
-          </div>
-        )}
-      </section>
-
-      <section className="space-y-3">
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-bold text-slate-100">Alerte urmărite</h2>
-            <p className="mt-1 text-xs text-slate-500">Progresul este normalizat cu ATR până la Marginea Nor Slow, nivelul care confirmă flipul.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="hidden font-mono text-[10px] text-slate-600 sm:inline">AUTO REFRESH 60S</span>
-            <button
-              type="button"
-              onClick={() => void clearAlertGroup('active')}
-              disabled={clearingTarget !== null || !data?.activeAlerts.length}
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-500/25 bg-rose-500/[0.06] px-2.5 py-1.5 text-[10px] font-bold text-rose-300 transition hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Trash2 className={`h-3.5 w-3.5 ${clearingTarget === 'active' ? 'animate-pulse' : ''}`} /> Șterge toate
-            </button>
-          </div>
-        </div>
-
-        {loading && !data ? (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {[0, 1].map(item => <div key={item} className="h-56 animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.03]" />)}
-          </div>
-        ) : data?.activeAlerts.length ? (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {data.activeAlerts
-              .slice()
-              .sort((left, right) => right.progressPercent - left.progressPercent)
-              .map(alert => (
-                <ActiveAlertCard
-                  key={alert.id}
-                  alert={alert}
-                  removing={removingId === alert.id}
-                  onRemove={() => void removeAlert(alert)}
-                  onOpen={() => onOpenAsset(alert.symbol, alert.marketClass, alert.timeframe)}
+          {data?.strategySetups?.length ? (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {data.strategySetups.map((setup, index) => (
+                <StrategySetupCard
+                  key={`${setup.strategy}:${setup.symbol}:${setup.candleTimestamp || index}`}
+                  setup={setup}
+                  onOpen={() => onOpenAsset(setup.symbol, setup.marketClass, setup.timeframe)}
                 />
               ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-amber-500/20 bg-amber-500/[0.04] px-5 py-8 text-center">
+              <Sparkles className="mx-auto h-7 w-7 text-amber-400" />
+              <h3 className="mt-3 text-sm font-semibold text-slate-200">Niciun setup de strategie activ în memorie</h3>
+              <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-400">
+                Apasă pe butonul <strong className="text-amber-300">„Scanare Strategii (Donchian 55)”</strong> de mai sus pentru a analiza cele 177 de active pe Daily/Weekly.
+              </p>
+              <button
+                type="button"
+                onClick={() => void startManualScan('strategies')}
+                disabled={Boolean(activeScanScope)}
+                className="mt-4 inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/20 px-4 py-2 text-xs font-bold text-amber-200 transition hover:bg-amber-500/30 disabled:opacity-50"
+              >
+                <Sparkles className="h-4 w-4" /> Pornește Scanarea de Strategii
+              </button>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* 2. TOP 10 FLIPS SECTION */}
+      {(activeTab === 'ALL' || activeTab === 'FLIPS') && (
+        <>
+          <section className="space-y-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Radar className="h-4 w-4 text-violet-300" />
+                  <h2 className="text-sm font-bold text-slate-100">Top 10 aproape de flip</h2>
+                </div>
+                <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
+                  Un singur candidat per asset, ordonat după distanța ATR, alinierea ML 1W, SMA 50/200, volum și prioritate pentru timeframe-ul 4H.
+                </p>
+              </div>
+              {candidateFilterControls}
+            </div>
+
+            {flipCandidateCards}
+          </section>
+
+          <section className="space-y-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+                  <h2 className="text-sm font-bold text-slate-100">Top 10 alerte de trading confirmate</h2>
+                </div>
+                <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
+                  Cele mai recente flipuri pe lumânări închise, cu prioritate pentru 4H și confirmări 1W/SMA. Scorul este tehnic, nu procent de reușită.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void clearAlertGroup('history')}
+                disabled={clearingTarget !== null || !data?.confirmedFlips?.length}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-rose-500/25 bg-rose-500/[0.06] px-3 py-2 text-[10px] font-bold text-rose-300 transition hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Trash2 className={`h-3.5 w-3.5 ${clearingTarget === 'history' ? 'animate-pulse' : ''}`} /> Șterge istoricul
+              </button>
+            </div>
+
+            {topConfirmedFlips.length ? (
+              <div className="grid gap-3 lg:grid-cols-2">
+                {topConfirmedFlips.map((candidate, index) => (
+                  <ConfirmedFlipCard
+                    key={`${candidate.id}:${candidate.candleTimestamp}`}
+                    candidate={candidate}
+                    rank={index + 1}
+                    onOpen={() => onOpenAsset(candidate.symbol, candidate.marketClass, candidate.timeframe)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.02] px-5 py-8 text-center text-xs text-slate-500">
+                Niciun flip recent în fereastra activă. Lista se populează după următoarea scanare flip-only.
+              </div>
+            )}
+          </section>
+        </>
+      )}
+
+      {/* 3. WATCHED ALERTS SECTION */}
+      {(activeTab === 'ALL' || activeTab === 'WATCHED') && (
+        <section className="space-y-3">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-bold text-slate-100">Alerte urmărite</h2>
+              <p className="mt-1 text-xs text-slate-500">Progresul este normalizat cu ATR până la Marginea Nor Slow, nivelul care confirmă flipul.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="hidden font-mono text-[10px] text-slate-600 sm:inline">AUTO REFRESH 60S</span>
+              <button
+                type="button"
+                onClick={() => void clearAlertGroup('active')}
+                disabled={clearingTarget !== null || !data?.activeAlerts.length}
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-500/25 bg-rose-500/[0.06] px-2.5 py-1.5 text-[10px] font-bold text-rose-300 transition hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Trash2 className={`h-3.5 w-3.5 ${clearingTarget === 'active' ? 'animate-pulse' : ''}`} /> Șterge toate
+              </button>
+            </div>
           </div>
-        ) : (
-          <div className="rounded-2xl border border-dashed border-white/[0.10] bg-white/[0.02] px-5 py-12 text-center">
-            <BellRing className="mx-auto h-8 w-8 text-slate-600" />
-            <h3 className="mt-3 text-sm font-semibold text-slate-200">Nu ai alerte active</h3>
-            <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">Deschide un asset, alege timeframe-ul și apasă „Alertă plan”. Aplicația îl va monitoriza automat.</p>
-          </div>
-        )}
-      </section>
+
+          {loading && !data ? (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {[0, 1].map(item => <div key={item} className="h-56 animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.03]" />)}
+            </div>
+          ) : data?.activeAlerts.length ? (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {data.activeAlerts
+                .slice()
+                .sort((left, right) => right.progressPercent - left.progressPercent)
+                .map(alert => (
+                  <ActiveAlertCard
+                    key={alert.id}
+                    alert={alert}
+                    removing={removingId === alert.id}
+                    onRemove={() => void removeAlert(alert)}
+                    onOpen={() => onOpenAsset(alert.symbol, alert.marketClass, alert.timeframe)}
+                  />
+                ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-white/[0.10] bg-white/[0.02] px-5 py-12 text-center">
+              <BellRing className="mx-auto h-8 w-8 text-slate-600" />
+              <h3 className="mt-3 text-sm font-semibold text-slate-200">Nu ai alerte active</h3>
+              <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">Deschide un asset, alege timeframe-ul și apasă „Alertă plan”. Aplicația îl va monitoriza automat.</p>
+            </div>
+          )}
+        </section>
+      )}
 
     </div>
   );
 };
 
-const SummaryCard: React.FC<{ icon: React.ElementType; label: string; value: number | string; tone: 'cyan' | 'amber' | 'emerald' | 'rose' }> = ({ icon: Icon, label, value, tone }) => {
+const SummaryCard: React.FC<{ icon: React.ElementType; label: string; value: number | string; tone: 'cyan' | 'amber' | 'emerald' | 'rose' | 'slate' }> = ({ icon: Icon, label, value, tone }) => {
   const tones = {
     cyan: 'text-cyan-300 bg-cyan-500/10 border-cyan-500/20',
     amber: 'text-amber-300 bg-amber-500/10 border-amber-500/20',
     emerald: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20',
-    rose: 'text-rose-300 bg-rose-500/10 border-rose-500/20'
+    rose: 'text-rose-300 bg-rose-500/10 border-rose-500/20',
+    slate: 'text-slate-200 bg-white/[0.03] border-white/[0.08]'
   };
   return (
     <div className={`rounded-xl border p-3 ${tones[tone]}`}>
       <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider opacity-75"><Icon className="h-3.5 w-3.5" /> {label}</div>
       <div className="mt-2 font-mono text-lg font-bold text-white">{value}</div>
     </div>
+  );
+};
+
+const StrategySetupCard: React.FC<{
+  setup: StrategyAlertSnapshot;
+  onOpen: () => void;
+}> = ({ setup, onOpen }) => {
+  const isConfirmed = setup.stage === 'CONFIRMED';
+  const isLong = setup.side === 'LONG';
+  const isDonchian = setup.strategy === 'WEEKLY_DONCHIAN_55_LONG';
+  const isMacro = setup.strategy === 'MONEYLINE_MACRO_LONG';
+  const isSniper = setup.strategy === 'MONEYLINE_4H_SNIPER_LONG';
+
+  const strategyTitle = isDonchian
+    ? 'Weekly Trend + Donchian 55/20 LONG'
+    : isMacro
+      ? 'MoneyLine Macro Breakout LONG'
+      : isSniper
+        ? 'MoneyLine 4H Sniper LONG'
+        : 'Bear Rally Fade SHORT';
+
+  const tone = isConfirmed
+    ? isLong ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300' : 'border-rose-500/25 bg-rose-500/10 text-rose-300'
+    : 'border-amber-500/25 bg-amber-500/10 text-amber-300';
+
+  const stageLabel = isConfirmed
+    ? isDonchian ? 'Breakout Donchian 55 Confirmat' : 'Confirmat pe lumânare închisă'
+    : isDonchian ? 'Aproape de Donchian 55 (Armat)' : 'Setup Armat';
+
+  return (
+    <article className="overflow-hidden rounded-2xl border border-white/[0.07] bg-background-card p-4 shadow-sm transition hover:border-amber-500/20">
+      <div className="flex items-start justify-between gap-3">
+        <button type="button" onClick={onOpen} className="min-w-0 text-left">
+          <div className="flex flex-wrap items-center gap-2">
+            <strong className="font-mono text-lg text-white">${setup.symbol}</strong>
+            <span className="rounded-md border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-cyan-300">
+              {setup.timeframe.toUpperCase()}
+            </span>
+            <span className="rounded-md border border-white/[0.07] bg-white/[0.03] px-1.5 py-0.5 text-[9px] uppercase text-slate-500">
+              {setup.marketClass}
+            </span>
+          </div>
+          <div className="mt-1 text-xs font-semibold text-slate-200">{strategyTitle}</div>
+          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
+            <Clock3 className="h-3 w-3" /> {formatDate(setup.candleTimestamp)}
+          </div>
+        </button>
+        <span className={`shrink-0 rounded-lg border px-2 py-1 font-mono text-[10px] font-black ${tone}`}>
+          {isConfirmed ? (isLong ? '🟢 CONFIRMAT LONG' : '🔴 CONFIRMAT SHORT') : '🟡 ARMAT'}
+        </span>
+      </div>
+
+      <div className="mt-3 text-xs text-slate-400">
+        <span className={`font-semibold ${isConfirmed ? (isLong ? 'text-emerald-300' : 'text-rose-300') : 'text-amber-300'}`}>
+          {stageLabel}
+        </span>
+        {setup.distanceToBreakoutPercent !== undefined && !isConfirmed && (
+          <span className="ml-2 font-mono text-[11px] text-amber-200">
+            ({setup.distanceToBreakoutPercent.toFixed(2)}% sub Donchian 55)
+          </span>
+        )}
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <LevelBox label="Preț semnal" value={formatPrice(setup.signalPrice)} tone="slate" />
+        <LevelBox label="Stop Loss" value={formatPrice(setup.stopLoss)} tone="rose" />
+        <LevelBox label="Target 1 (1.5R)" value={formatPrice(setup.target1)} tone="emerald" />
+        <LevelBox label="Target 2 (3.0R)" value={formatPrice(setup.target2)} tone="emerald" />
+      </div>
+
+      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <LevelBox label="Risc maxim" value={`-${setup.riskPercent.toFixed(2)}%`} tone={setup.riskPercent <= 4 ? 'cyan' : 'amber'} />
+        <LevelBox label="Donchian 55" value={formatPrice(setup.donchianHigh55)} tone="cyan" />
+        <LevelBox label="Trailing Low 20" value={formatPrice(setup.donchianLow20)} tone="slate" />
+        <LevelBox label="ATR Percentile" value={setup.atrPercentile !== undefined ? `${setup.atrPercentile.toFixed(1)}%` : '—'} tone="slate" />
+      </div>
+
+      <button
+        type="button"
+        onClick={onOpen}
+        className="mt-3 flex w-full items-center justify-between border-t border-white/[0.05] pt-3 text-[11px] text-slate-500 transition hover:text-cyan-300"
+      >
+        <span className="truncate">{setup.exitRule}</span>
+        <span className="flex shrink-0 items-center gap-1 font-semibold text-cyan-300">
+          Deschide graficul <ChevronRight className="h-3.5 w-3.5" />
+        </span>
+      </button>
+    </article>
   );
 };
 

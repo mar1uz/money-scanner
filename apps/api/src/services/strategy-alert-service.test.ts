@@ -76,12 +76,15 @@ describe('Daily strategy alert evaluation', () => {
     assert.ok((signal?.distanceToBreakoutPercent || 100) >= 0);
   });
 
-  it('never enables the validated Donchian LONG strategy for crypto', () => {
+  it('confirms Weekly Trend + Donchian 55/20 on crypto when all filters pass', () => {
     const daily = breakoutDaily();
     const result = evaluateDailyStrategyAlerts('TEST', 'crypto', daily, toCandles(daily.map(candle => candle.close)), bullishWeekly());
+    const signal = result.events.find(event => event.strategy === 'WEEKLY_DONCHIAN_55_LONG');
 
-    assert.equal(result.events.some(event => event.strategy === 'WEEKLY_DONCHIAN_55_LONG'), false);
-    assert.notEqual(result.current?.strategy, 'WEEKLY_DONCHIAN_55_LONG');
+    assert.equal(signal?.stage, 'CONFIRMED');
+    assert.equal(signal?.side, 'LONG');
+    assert.equal(signal?.marketClass, 'crypto');
+    assert.ok((signal?.riskPercent || 100) <= 8);
   });
 
   it('rejects Donchian LONG when the Weekly regime is not bullish', () => {

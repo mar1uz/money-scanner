@@ -61,7 +61,7 @@ export interface DailyRegimeScanStatus {
   lastError?: string;
 }
 
-export type ManualAlertScanScope = 'quick' | 'full';
+export type ManualAlertScanScope = 'quick' | 'full' | 'flips' | 'strategies';
 
 export interface ManualAlertScanStatus {
   scope: ManualAlertScanScope;
@@ -258,7 +258,7 @@ export class AppState {
 
   public getManualAlertScanStatus(userId: string): ManualAlertScanStatus {
     const status = this.manualAlertScanStatuses.get(userId);
-    if (status?.running && status.scope === 'full') {
+    if (status?.running && (status.scope === 'full' || status.scope === 'flips')) {
       return {
         ...status,
         scannedAssets: this.dailyRegimeScanStatus.scannedAssets,
@@ -299,7 +299,7 @@ export class AppState {
     }
 
     const startedAt = Date.now();
-    const cooldownDuration = scope === 'full' ? 10 * 60_000 : 60_000;
+    const cooldownDuration = (scope === 'full' || scope === 'flips' || scope === 'strategies') ? 5 * 60_000 : 60_000;
     this.manualAlertScanNextAllowed.set(`${userId}:${scope}`, startedAt + cooldownDuration);
     this.manualAlertScanStatuses.set(userId, {
       scope,
@@ -312,9 +312,12 @@ export class AppState {
       nextAllowedAt: startedAt + cooldownDuration
     });
 
-    const promise = (scope === 'full'
-      ? this.executeManualFullScan(userId)
-      : this.executeManualQuickScan(userId, watchlist)
+    const promise = (
+      scope === 'strategies'
+        ? this.executeStrategiesScan(userId)
+        : scope === 'flips' || scope === 'full'
+          ? this.executeManualFullScan(userId, scope)
+          : this.executeManualQuickScan(userId, watchlist)
     ).finally(() => {
       this.manualAlertScanPromises.delete(userId);
     });
@@ -329,11 +332,11 @@ export class AppState {
     return next;
   }
 
-  private async executeManualFullScan(userId: string): Promise<ManualAlertScanStatus> {
+  private async executeManualFullScan(userId: string, scope: 'full' | 'flips' = 'full'): Promise<ManualAlertScanStatus> {
     try {
       const result = await this.runDailyRegimeScan();
       return this.updateManualAlertScanStatus(userId, {
-        scope: 'full',
+        scope,
         running: false,
         scannedAssets: result.scannedAssets,
         totalAssets: result.totalAssets || result.scannedAssets,
@@ -344,12 +347,139 @@ export class AppState {
       });
     } catch (error) {
       return this.updateManualAlertScanStatus(userId, {
-        scope: 'full',
+        scope,
         running: false,
         lastCompletedAt: Date.now(),
         lastError: error instanceof Error ? error.message : 'Scanarea completă a eșuat.'
       });
     }
+  }
+
+  public async runStrategyScan(userId?: string): Promise<ManualAlertScanStatus> {
+    return this.executeStrategiesScan(userId);
+  }
+
+  private async executeStrategiesScan(userId?: string): Promise<ManualAlertScanStatus> {
+    await this.restoreDailyRegimeState(true);
+    const startedAt = Date.now();
+    if (userId) {
+      this.updateManualAlertScanStatus(userId, {
+        scope: 'strategies',
+        running: true,
+        scannedAssets: 0,
+        totalAssets: 0,
+        matches: 0,
+        errors: 0,
+        lastStartedAt: startedAt
+      });
+    }
+
+    try {
+      const [liveCrypto, stocks, metals] = await Promise.all([
+        this.marketData.getTopCryptoAssets(50),
+        Promise.resolve(getScannerAssets('stocks')),
+        Promise.resolve(getScannerAssets('metals'))
+      ]);
+      const universe = [...liveCrypto, ...stocks, ...metals].filter(
+        asset => asset.marketClass === 'crypto' || asset.marketClass === 'stocks' || asset.marketClass === 'metals'
+      );
+      if (userId) {
+        this.updateManualAlertScanStatus(userId, {
+          totalAssets: universe.length
+        });
+      }
+
+      const benchmarks = await this.getDailyStrategyBenchmarks();
+      const currentSnapshots: StrategyAlertSnapshot[] = [];
+      const events: StrategyAlertSnapshot[] = [];
+      let errors = 0;
+      const concurrency = 4;
+
+      for (let index = 0; index < universe.length; index += concurrency) {
+        const batch = universe.slice(index, index + concurrency);
+        const settled = await Promise.allSettled(batch.map(asset =>
+          this.scanStrategyAsset(asset.symbol, asset.marketClass as AssetMarketClass, benchmarks)
+        ));
+
+        settled.forEach(result => {
+          if (result.status === 'fulfilled') {
+            if (result.value.current) currentSnapshots.push(result.value.current);
+            if (result.value.events.length) events.push(...result.value.events);
+          } else {
+            errors += 1;
+            console.warn('Strategy asset scan failed:', result.reason instanceof Error ? result.reason.message : result.reason);
+          }
+        });
+        if (userId) {
+          this.updateManualAlertScanStatus(userId, {
+            scannedAssets: Math.min(universe.length, index + batch.length),
+            totalAssets: universe.length,
+            matches: currentSnapshots.length,
+            errors
+          });
+        }
+      }
+
+      this.strategySetups = currentSnapshots
+        .sort((left, right) => {
+          if (left.stage !== right.stage) return left.stage === 'CONFIRMED' ? -1 : 1;
+          return (left.distanceToBreakoutPercent ?? 0) - (right.distanceToBreakoutPercent ?? 0);
+        })
+        .slice(0, 50);
+
+      await this.publishStrategyEvents(events, 'scheduled/full scan');
+      await this.persistDailyRegimeState();
+
+      const status: ManualAlertScanStatus = {
+        scope: 'strategies',
+        running: false,
+        scannedAssets: universe.length,
+        totalAssets: universe.length,
+        matches: currentSnapshots.length,
+        errors,
+        lastCompletedAt: Date.now(),
+        lastStartedAt: startedAt,
+        lastError: undefined
+      };
+      if (userId) this.updateManualAlertScanStatus(userId, status);
+      return status;
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : 'Scanarea de strategii a eșuat.';
+      const status: ManualAlertScanStatus = {
+        scope: 'strategies',
+        running: false,
+        scannedAssets: 0,
+        totalAssets: 0,
+        matches: 0,
+        errors: 1,
+        lastCompletedAt: Date.now(),
+        lastStartedAt: startedAt,
+        lastError: errMsg
+      };
+      if (userId) this.updateManualAlertScanStatus(userId, status);
+      return status;
+    }
+  }
+
+  private async scanStrategyAsset(
+    symbol: string,
+    marketClass: AssetMarketClass,
+    benchmarks: Record<'crypto' | 'stocks', Candle[]>
+  ): Promise<{ current?: StrategyAlertSnapshot; events: StrategyAlertSnapshot[] }> {
+    const [dailyRaw, weekly, candles4h] = await Promise.all([
+      this.marketData.getCandles(symbol, '1d', 340, marketClass),
+      this.marketData.getCandles(symbol, '1w', 260, marketClass),
+      this.marketData.getCandles(symbol, '4h', 320, marketClass).catch(() => [])
+    ]);
+    const currentUtcDay = new Date();
+    currentUtcDay.setUTCHours(0, 0, 0, 0);
+    const daily = dailyRaw.map(candle =>
+      candle.isClosed === false && candle.timestamp < currentUtcDay.getTime()
+        ? { ...candle, isClosed: true }
+        : candle
+    );
+    const benchmark = marketClass === 'crypto' ? benchmarks.crypto : benchmarks.stocks;
+    return evaluateDailyStrategyAlerts(symbol, marketClass, daily, benchmark, weekly, candles4h);
   }
 
   private async executeManualQuickScan(
@@ -437,7 +567,6 @@ export class AppState {
       await this.publishConfirmedFlipEvents(confirmed, 'manual quick scan');
       this.mergeConfirmedFlips(confirmed);
       this.flipCandidates = this.rankUpcomingCandidates([...candidates, ...this.flipCandidates]);
-      this.strategySetups = [];
       await this.persistDailyRegimeState();
       return this.updateManualAlertScanStatus(userId, {
         scope: 'quick',
@@ -526,7 +655,6 @@ export class AppState {
       this.flipCandidates = this.rankUpcomingCandidates(candidates);
       await this.publishConfirmedFlipEvents(confirmed, 'scheduled/full scan');
       this.mergeConfirmedFlips(confirmed);
-      this.strategySetups = [];
 
       this.dailyRegimeScanStatus = {
         ...this.dailyRegimeScanStatus,
@@ -842,14 +970,14 @@ export class AppState {
       };
       if (Array.isArray(stored?.flipCandidates)) this.flipCandidates = stored.flipCandidates.slice(0, 10);
       if (Array.isArray(stored?.confirmedFlips)) this.confirmedFlips = stored.confirmedFlips.slice(0, 100);
-      // Automated strategy scanning was retired from Alerts Center. Strategies
-      // remain available in Backtest Lab but persisted setup cards are ignored.
-      this.strategySetups = [];
+      if (Array.isArray(stored?.strategySetups)) this.strategySetups = stored.strategySetups.slice(0, 100);
       if (Array.isArray(stored?.alerts)) {
         const individual = this.alertHistory.filter(alert =>
           alert.type !== 'MultiTimeframeReversal' && alert.type !== 'StrategySetup'
         );
-        const migratedAlerts = stored.alerts.filter(alert => alert.ruleId === 'global:flip-scan');
+        const migratedAlerts = stored.alerts.filter(alert =>
+          alert.ruleId === 'global:flip-scan' || alert.ruleId === 'global:daily-strategy-scan'
+        );
         this.alertHistory = [...migratedAlerts, ...individual]
           .sort((left, right) => right.timestamp - left.timestamp)
           .slice(0, 250);

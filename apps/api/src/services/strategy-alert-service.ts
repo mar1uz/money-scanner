@@ -206,10 +206,9 @@ export const evaluateDailyStrategyAlerts = (
   }
 
   // --- 3. STRATEGY: WEEKLY TREND + DONCHIAN 55/20 LONG ---
-  // This replaces Connors in production. It is intentionally stocks/ETF-only,
-  // matching the validated holdout scope. A near-breakout state is informational;
-  // execution is confirmed only by a fresh Daily close above the prior 55-session high.
-  if (marketClass === 'stocks' && daily.length >= 261 && weekly.length >= 49) {
+  // Evaluates Weekly Trend + Donchian 55/20 across stocks, crypto and metals.
+  // A near-breakout state is ARMED; execution is CONFIRMED only by a fresh Daily close above Donchian High 55.
+  if (daily.length >= 252 && weekly.length >= 40) {
     const weeklyCloses = weekly.map(candle => candle.close);
     const weeklySma40 = calculateSMA(weeklyCloses, 40);
     const weeklyCloud = calculateMoneyLineCloud(weekly, '1w');
@@ -217,22 +216,22 @@ export const evaluateDailyStrategyAlerts = (
     const weeklyIndex = weekly.length - 1;
     const weeklyBullish = weeklyCloud.dirFast[weeklyIndex] < 0
       && weeklyCloud.dirSlow[weeklyIndex] < 0
-      && weeklyCloses[weeklyIndex] > weeklySma40[weeklyIndex]
-      && weeklySma40[weeklyIndex] > weeklySma40[weeklyIndex - 8];
-    const broadDailyTrend = closes[lastIndex] > sma200[lastIndex]
-      && sma50[lastIndex] > sma200[lastIndex]
-      && sma50[lastIndex] > sma50[lastIndex - 20]
-      && sma200[lastIndex] > sma200[lastIndex - 20];
-    const positiveMomentum = closes[lastIndex] > closes[lastIndex - 252];
+      && weeklyCloses[weeklyIndex] > (weeklySma40[weeklyIndex] || 0)
+      && (weeklyIndex < 8 || weeklySma40[weeklyIndex] >= (weeklySma40[weeklyIndex - 8] || 0));
+    const broadDailyTrend = closes[lastIndex] > (sma200[lastIndex] || 0)
+      && (sma50[lastIndex] || 0) > (sma200[lastIndex] || 0)
+      && (sma50[lastIndex] || 0) >= (sma50[Math.max(0, lastIndex - 20)] || 0)
+      && (sma200[lastIndex] || 0) >= (sma200[Math.max(0, lastIndex - 20)] || 0);
+    const positiveMomentum = closes[lastIndex] > (closes[Math.max(0, lastIndex - 252)] || 0);
     const currentAtrPercent = atr14[lastIndex] / closes[lastIndex] * 100;
-    const atrHistory = daily.slice(lastIndex - 252, lastIndex).map((candle, offset) => {
-      const sourceIndex = lastIndex - 252 + offset;
+    const atrHistory = daily.slice(Math.max(0, lastIndex - 252), lastIndex).map((candle, offset) => {
+      const sourceIndex = Math.max(0, lastIndex - 252) + offset;
       return atr14[sourceIndex] / candle.close * 100;
     });
     const atrRank = percentileRank(atrHistory, currentAtrPercent);
-    const controlledVolatility = atrRank <= 0.7;
-    const previousHigh55 = Math.max(...daily.slice(lastIndex - 55, lastIndex).map(candle => candle.high));
-    const previousHigh55AtPriorClose = Math.max(...daily.slice(previousIndex - 55, previousIndex).map(candle => candle.high));
+    const controlledVolatility = atrRank <= (marketClass === 'crypto' ? 0.75 : 0.70);
+    const previousHigh55 = Math.max(...daily.slice(Math.max(0, lastIndex - 55), lastIndex).map(candle => candle.high));
+    const previousHigh55AtPriorClose = Math.max(...daily.slice(Math.max(0, previousIndex - 55), previousIndex).map(candle => candle.high));
     const freshBreakout = closes[lastIndex] > previousHigh55
       && closes[previousIndex] <= previousHigh55AtPriorClose;
     const distanceToBreakout = previousHigh55 - closes[lastIndex];
@@ -247,9 +246,10 @@ export const evaluateDailyStrategyAlerts = (
       const volatilityStop = closes[lastIndex] - 2 * atr14[lastIndex];
       const stop = Math.min(structuralStop, volatilityStop);
       const risk = closes[lastIndex] - stop;
-      const riskPercent = risk / closes[lastIndex] * 100;
+      const riskPercent = (risk / closes[lastIndex]) * 100;
+      const maxRiskPercent = marketClass === 'crypto' ? 8 : marketClass === 'metals' ? 6 : 4;
 
-      if (risk > 0 && riskPercent <= 4) {
+      if (risk > 0 && riskPercent <= maxRiskPercent) {
         const stage: StrategyAlertSnapshot['stage'] = freshBreakout ? 'CONFIRMED' : 'ARMED';
         const snapshot: StrategyAlertSnapshot = {
           ...createSnapshot(
@@ -265,15 +265,15 @@ export const evaluateDailyStrategyAlerts = (
           previousRsi2: undefined,
           sma5: undefined,
           donchianHigh55: roundPrice(previousHigh55),
-          donchianLow20: roundPrice(Math.min(...daily.slice(lastIndex - 19, lastIndex + 1).map(candle => candle.low))),
-          weeklySma40: roundPrice(weeklySma40[weeklyIndex]),
-          weeklySma40EightWeeksAgo: roundPrice(weeklySma40[weeklyIndex - 8]),
+          donchianLow20: roundPrice(Math.min(...daily.slice(Math.max(0, lastIndex - 19), lastIndex + 1).map(candle => candle.low))),
+          weeklySma40: roundPrice(weeklySma40[weeklyIndex] || 0),
+          weeklySma40EightWeeksAgo: roundPrice(weeklySma40[Math.max(0, weeklyIndex - 8)] || 0),
           weeklyFastBullish: true,
           weeklySlowBullish: true,
           atrPercentile: Number((atrRank * 100).toFixed(1)),
-          momentum252Percent: Number(((closes[lastIndex] / closes[lastIndex - 252] - 1) * 100).toFixed(2)),
+          momentum252Percent: Number(((closes[lastIndex] / (closes[Math.max(0, lastIndex - 252)] || 1) - 1) * 100).toFixed(2)),
           distanceToBreakoutPercent: Number((Math.max(0, distanceToBreakout) / closes[lastIndex] * 100).toFixed(2)),
-          maxRiskPercent: 4
+          maxRiskPercent
         };
         currentSnapshot = snapshot;
         if (freshBreakout || freshArm) events.push(snapshot);

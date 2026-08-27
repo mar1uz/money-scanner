@@ -357,7 +357,7 @@ export interface DailyRegimeScanStatus {
   lastError?: string;
 }
 
-export type ManualAlertScanScope = 'quick' | 'full';
+export type ManualAlertScanScope = 'quick' | 'full' | 'flips' | 'strategies';
 
 export interface ManualAlertScanStatus {
   scope: ManualAlertScanScope;
