@@ -153,4 +153,35 @@ describe('Daily strategy alert evaluation', () => {
     assert.equal(result.current, undefined);
     assert.equal(result.events.length, 0);
   });
+
+  it('evaluates MoneyLine Macro Long and 4H Sniper Long setups with valid risk and targets', () => {
+    const daily = breakoutDaily();
+    const candles4h = Array.from({ length: 120 }, (_, index): Candle => {
+      const close = 200 + index * 0.5;
+      return {
+        timestamp: Date.UTC(2023, 6, 1) + index * 4 * 3600_000,
+        open: close - 0.2,
+        high: close + 0.5,
+        low: close - 0.5,
+        close,
+        volume: 200_000,
+        isClosed: true
+      };
+    });
+
+    const result = evaluateDailyStrategyAlerts('TEST', 'crypto', daily, toCandles(daily.map(candle => candle.close)), bullishWeekly(), candles4h);
+    assert.ok(result.snapshots.length >= 1);
+    const macroSetup = result.snapshots.find(s => s.strategy === 'MONEYLINE_MACRO_LONG');
+    assert.ok(macroSetup);
+    assert.equal(macroSetup.side, 'LONG');
+    assert.ok(macroSetup.stopLoss < macroSetup.signalPrice);
+    assert.ok(macroSetup.target1 > macroSetup.signalPrice);
+    assert.ok(macroSetup.riskPercent > 0);
+
+    const sniperSetup = result.snapshots.find(s => s.strategy === 'MONEYLINE_4H_SNIPER_LONG');
+    assert.ok(sniperSetup);
+    assert.equal(sniperSetup.timeframe, '4h');
+    assert.equal(sniperSetup.side, 'LONG');
+    assert.ok(sniperSetup.stopLoss < sniperSetup.signalPrice);
+  });
 });

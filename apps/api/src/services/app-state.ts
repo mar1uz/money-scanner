@@ -403,7 +403,11 @@ export class AppState {
 
         settled.forEach(result => {
           if (result.status === 'fulfilled') {
-            if (result.value.current) currentSnapshots.push(result.value.current);
+            if (result.value.snapshots?.length) {
+              currentSnapshots.push(...result.value.snapshots);
+            } else if (result.value.current) {
+              currentSnapshots.push(result.value.current);
+            }
             if (result.value.events.length) events.push(...result.value.events);
           } else {
             errors += 1;
@@ -420,10 +424,16 @@ export class AppState {
         }
       }
 
-      this.strategySetups = currentSnapshots
+      const uniqueSetups = new Map<string, StrategyAlertSnapshot>();
+      currentSnapshots.forEach(setup => {
+        const key = `${setup.strategy}:${setup.symbol}:${setup.timeframe}`;
+        if (!uniqueSetups.has(key)) uniqueSetups.set(key, setup);
+      });
+
+      this.strategySetups = Array.from(uniqueSetups.values())
         .sort((left, right) => {
           if (left.stage !== right.stage) return left.stage === 'CONFIRMED' ? -1 : 1;
-          return (left.distanceToBreakoutPercent ?? 0) - (right.distanceToBreakoutPercent ?? 0);
+          return (left.riskPercent ?? 0) - (right.riskPercent ?? 0);
         })
         .slice(0, 50);
 
@@ -465,7 +475,7 @@ export class AppState {
     symbol: string,
     marketClass: AssetMarketClass,
     benchmarks: Record<'crypto' | 'stocks', Candle[]>
-  ): Promise<{ current?: StrategyAlertSnapshot; events: StrategyAlertSnapshot[] }> {
+  ): Promise<StrategyAlertEvaluation> {
     const [dailyRaw, weekly, candles4h] = await Promise.all([
       this.marketData.getCandles(symbol, '1d', 340, marketClass),
       this.marketData.getCandles(symbol, '1w', 260, marketClass),
@@ -993,7 +1003,7 @@ export class AppState {
   private async persistDailyRegimeState() {
     try {
       const alerts = this.alertHistory
-        .filter(alert => alert.ruleId === 'global:flip-scan')
+        .filter(alert => alert.ruleId === 'global:flip-scan' || alert.ruleId === 'global:daily-strategy-scan')
         .slice(0, 200);
       // JSON normalization strips optional undefined values rejected by
       // Firestore while preserving the exact dashboard payload shape.

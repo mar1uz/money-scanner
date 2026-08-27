@@ -3,6 +3,7 @@ import { calculateATR, calculateRSI, calculateSMA, calculateMoneyLineCloud } fro
 
 export interface StrategyAlertEvaluation {
   current?: StrategyAlertSnapshot;
+  snapshots: StrategyAlertSnapshot[];
   events: StrategyAlertSnapshot[];
 }
 
@@ -35,7 +36,7 @@ export const evaluateDailyStrategyAlerts = (
   const weekly = closedCandles(weeklyInput);
   const candles4h = closedCandles(candles4hInput);
 
-  if (daily.length < 200) return { events: [] };
+  if (daily.length < 50) return { snapshots: [], events: [] };
 
   const closes = daily.map(candle => candle.close);
   const highs = daily.map(candle => candle.high);
@@ -46,7 +47,7 @@ export const evaluateDailyStrategyAlerts = (
   const sma200 = calculateSMA(closes, 200);
   const atr14 = calculateATR(highs, lows, closes, 14);
   const lastIndex = daily.length - 1;
-  const previousIndex = lastIndex - 1;
+  const previousIndex = Math.max(0, lastIndex - 1);
 
   const benchmarkCloses = benchmark.map(candle => candle.close);
   const benchmarkSma50 = calculateSMA(benchmarkCloses, 50);
@@ -69,15 +70,14 @@ export const evaluateDailyStrategyAlerts = (
     return result;
   };
 
-  const latestBenchmarkIndex = benchmark.length >= 200 ? benchmarkIndexFor(daily[lastIndex].timestamp) : -1;
-  const benchmarkBearishAt = (index: number) => index >= 199
-    && benchmarkCloses[index] < benchmarkSma200[index]
-    && benchmarkSma50[index] < benchmarkSma200[index];
-  const assetBearishAt = (index: number) => index >= 219
-    && closes[index] < sma200[index]
-    && sma50[index] < sma200[index]
-    && sma200[index] < sma200[index - 20];
-  const latestBenchmarkBearish = latestBenchmarkIndex >= 199 && benchmarkBearishAt(latestBenchmarkIndex);
+  const latestBenchmarkIndex = benchmark.length >= 50 ? benchmarkIndexFor(daily[lastIndex].timestamp) : -1;
+  const benchmarkBearishAt = (index: number) => index >= 49
+    && (benchmarkSma200[index] ? benchmarkCloses[index] < benchmarkSma200[index] : benchmarkCloses[index] < benchmarkSma50[index])
+    && (benchmarkSma200[index] && benchmarkSma50[index] ? benchmarkSma50[index] < benchmarkSma200[index] : true);
+  const assetBearishAt = (index: number) => index >= 49
+    && (sma200[index] ? closes[index] < sma200[index] : closes[index] < sma50[index])
+    && (sma50[index] && sma200[index] ? sma50[index] <= sma200[index] : true);
+  const latestBenchmarkBearish = latestBenchmarkIndex >= 49 && benchmarkBearishAt(latestBenchmarkIndex);
 
   const createSnapshot = (
     strategy: StrategyAlertSnapshot['strategy'],
@@ -91,8 +91,8 @@ export const evaluateDailyStrategyAlerts = (
     customTimestamp?: number
   ): StrategyAlertSnapshot => {
     const signalPrice = customPrice !== undefined ? customPrice : closes[lastIndex];
-    const atr = atr14[lastIndex];
-    const risk = customRisk !== undefined ? customRisk : Math.max(Number.isFinite(atr) ? atr * 2.5 : signalPrice * 0.03, signalPrice * 0.005);
+    const atr = atr14[lastIndex] || (signalPrice * 0.03);
+    const risk = customRisk !== undefined ? customRisk : Math.max(Number.isFinite(atr) ? atr * 2.0 : signalPrice * 0.03, signalPrice * 0.005);
     const stopLoss = customStop !== undefined ? customStop : (side === 'LONG' ? Math.max(signalPrice * 0.01, signalPrice - risk) : signalPrice + risk);
     const candleTimestamp = customTimestamp !== undefined ? customTimestamp : daily[lastIndex].timestamp;
 
@@ -142,112 +142,151 @@ export const evaluateDailyStrategyAlerts = (
     };
   };
 
+  const snapshots: StrategyAlertSnapshot[] = [];
   const events: StrategyAlertSnapshot[] = [];
-  let currentSnapshot: StrategyAlertSnapshot | undefined;
 
-  // --- 1. STRATEGY: MONEYLINE MACRO TREND LONG (Weekly Bull + Daily Bull Flip + Price > SMA 200) ---
-  if (weekly.length >= 40) {
-    const dailyCloud = calculateMoneyLineCloud(daily, '1d');
-    const weeklyCloud = calculateMoneyLineCloud(weekly, '1w');
-    const lastWeeklyIdx = weekly.length - 1;
+  const dailyCloud = calculateMoneyLineCloud(daily, '1d');
 
-    const isWeeklyBull = weeklyCloud.dirSlow[lastWeeklyIdx] === -1; // -1 = Bullish in MoneyLine Cloud
-    const isDailyBullFlip = dailyCloud.buySignals[lastIndex] || (dailyCloud.dirSlow[lastIndex] === -1 && dailyCloud.dirSlow[previousIndex] === 1);
-    const isAboveSma200 = closes[lastIndex] > (sma200[lastIndex] || 0);
-    const isRisingSma50 = (sma50[lastIndex] || 0) >= (sma50[Math.max(0, lastIndex - 10)] || 0);
+  // --- 1. STRATEGY: MONEYLINE MACRO TREND LONG (Weekly Bull / Confluence + Daily Bull + Price > MAs) ---
+  if (daily.length >= 50) {
+    const weeklyCloses = weekly.map(candle => candle.close);
+    const weeklySma40 = calculateSMA(weeklyCloses, 40);
+    const weeklyCloud = weekly.length >= 20 ? calculateMoneyLineCloud(weekly, '1w') : undefined;
+    const lastWeeklyIdx = weeklyCloud ? weeklyCloud.dirSlow.length - 1 : -1;
 
-    if (isWeeklyBull && isAboveSma200 && isRisingSma50) {
-      const stop = Math.max(dailyCloud.lineSlow[lastIndex] || 0, closes[lastIndex] - 2.2 * atr14[lastIndex]);
+    const isWeeklyBull = lastWeeklyIdx >= 0 && weeklyCloud
+      ? (weeklyCloud.dirFast[lastWeeklyIdx] < 0 || weeklyCloud.dirSlow[lastWeeklyIdx] < 0 || (weeklyCloses[lastWeeklyIdx] > (weeklySma40[lastWeeklyIdx] || 0)))
+      : true;
+
+    const isDailyBullFast = dailyCloud.dirFast[lastIndex] < 0;
+    const isDailyBullSlow = dailyCloud.dirSlow[lastIndex] < 0;
+    const isDailyBull = isDailyBullFast || isDailyBullSlow;
+    const isDailyBullFlip = dailyCloud.buySignals[lastIndex]
+      || (dailyCloud.dirFast[lastIndex] < 0 && dailyCloud.dirFast[previousIndex] > 0)
+      || (dailyCloud.dirSlow[lastIndex] < 0 && dailyCloud.dirSlow[previousIndex] > 0);
+
+    const isAboveSma = closes[lastIndex] > (sma50[lastIndex] || 0)
+      || (sma200[lastIndex] ? closes[lastIndex] > sma200[lastIndex] : true)
+      || (sma50[lastIndex] && sma200[lastIndex] ? sma50[lastIndex] >= sma200[lastIndex] : true);
+
+    if (isWeeklyBull && isDailyBull && isAboveSma) {
+      const cloudSupport = isDailyBullSlow
+        ? dailyCloud.lineSlow[lastIndex]
+        : (isDailyBullFast ? dailyCloud.lineFast[lastIndex] : closes[lastIndex] - 2.0 * atr14[lastIndex]);
+      let stop = Math.max(cloudSupport, closes[lastIndex] - 2.5 * (atr14[lastIndex] || closes[lastIndex] * 0.03));
+      if (stop >= closes[lastIndex]) stop = closes[lastIndex] - 2.0 * (atr14[lastIndex] || closes[lastIndex] * 0.03);
       const risk = closes[lastIndex] - stop;
+      const maxRiskPercent = marketClass === 'crypto' ? 20 : marketClass === 'metals' ? 12 : 10;
 
-      if (risk > 0 && risk / closes[lastIndex] <= 0.12) {
+      if (risk > 0 && (risk / closes[lastIndex] * 100) <= maxRiskPercent) {
+        const stage: StrategyAlertSnapshot['stage'] = isDailyBullFlip ? 'CONFIRMED' : 'ARMED';
         const snapshot = createSnapshot(
           'MONEYLINE_MACRO_LONG',
-          'CONFIRMED',
+          stage,
           'LONG',
           '1d',
           risk,
           stop
         );
-        currentSnapshot = snapshot;
+        snapshots.push(snapshot);
         if (isDailyBullFlip) events.push(snapshot);
       }
     }
   }
 
-  // --- 2. STRATEGY: MONEYLINE 4H SNIPER CONFLUENCE (Weekly/Daily Bull + 4H Bull Flip) ---
-  if (candles4h.length >= 50) {
+  // --- 2. STRATEGY: MONEYLINE 4H SNIPER CONFLUENCE (Daily Bull + 4H Bull / Flip) ---
+  if (candles4h.length >= 30 && daily.length >= 50) {
     const cloud4h = calculateMoneyLineCloud(candles4h, '4h');
-    const dailyCloud = calculateMoneyLineCloud(daily, '1d');
     const last4hIdx = candles4h.length - 1;
-    const prev4hIdx = last4hIdx - 1;
+    const prev4hIdx = Math.max(0, last4hIdx - 1);
 
-    const isDailyBull = dailyCloud.dirSlow[lastIndex] === -1;
-    const is4hBullFlip = cloud4h.buySignals[last4hIdx] || (cloud4h.dirSlow[last4hIdx] === -1 && cloud4h.dirSlow[prev4hIdx] === 1);
+    const isDailyBull = dailyCloud.dirFast[lastIndex] < 0
+      || dailyCloud.dirSlow[lastIndex] < 0
+      || closes[lastIndex] > (sma50[lastIndex] || 0);
+
+    const is4hBullFast = cloud4h.dirFast[last4hIdx] < 0;
+    const is4hBullSlow = cloud4h.dirSlow[last4hIdx] < 0;
+    const is4hBull = is4hBullFast || is4hBullSlow;
+    const is4hBullFlip = cloud4h.buySignals[last4hIdx]
+      || (cloud4h.dirFast[last4hIdx] < 0 && cloud4h.dirFast[prev4hIdx] > 0)
+      || (cloud4h.dirSlow[last4hIdx] < 0 && cloud4h.dirSlow[prev4hIdx] > 0);
+
     const c4hClose = candles4h[last4hIdx].close;
-    const stop4h = cloud4h.lineSlow[last4hIdx] || (c4hClose * 0.95);
-    const risk4h = c4hClose - stop4h;
+    const atr4h = atr14[lastIndex] ? atr14[lastIndex] * 0.5 : c4hClose * 0.03;
 
-    if (isDailyBull && risk4h > 0 && risk4h / c4hClose <= 0.07) {
-      const snapshot = createSnapshot(
-        'MONEYLINE_4H_SNIPER_LONG',
-        'CONFIRMED',
-        'LONG',
-        '4h',
-        risk4h,
-        stop4h,
-        undefined,
-        c4hClose,
-        candles4h[last4hIdx].timestamp
-      );
-      if (!currentSnapshot) currentSnapshot = snapshot;
-      if (is4hBullFlip) events.push(snapshot);
+    if (isDailyBull && is4hBull) {
+      const cloud4hSupport = is4hBullSlow
+        ? cloud4h.lineSlow[last4hIdx]
+        : (is4hBullFast ? cloud4h.lineFast[last4hIdx] : c4hClose * 0.96);
+      let stop4h = Math.max(cloud4hSupport, c4hClose - 2.5 * atr4h);
+      if (stop4h >= c4hClose) stop4h = c4hClose - 2.0 * atr4h;
+      const risk4h = c4hClose - stop4h;
+      const maxRiskPercent4h = marketClass === 'crypto' ? 15 : marketClass === 'metals' ? 8 : 6;
+
+      if (risk4h > 0 && (risk4h / c4hClose * 100) <= maxRiskPercent4h) {
+        const stage: StrategyAlertSnapshot['stage'] = is4hBullFlip ? 'CONFIRMED' : 'ARMED';
+        const snapshot = createSnapshot(
+          'MONEYLINE_4H_SNIPER_LONG',
+          stage,
+          'LONG',
+          '4h',
+          risk4h,
+          stop4h,
+          undefined,
+          c4hClose,
+          candles4h[last4hIdx].timestamp
+        );
+        snapshots.push(snapshot);
+        if (is4hBullFlip) events.push(snapshot);
+      }
     }
   }
 
   // --- 3. STRATEGY: WEEKLY TREND + DONCHIAN 55/20 LONG ---
   // Evaluates Weekly Trend + Donchian 55/20 across stocks, crypto and metals.
   // A near-breakout state is ARMED; execution is CONFIRMED only by a fresh Daily close above Donchian High 55.
-  if (daily.length >= 252 && weekly.length >= 40) {
+  if (daily.length >= 60 && weekly.length >= 25) {
     const weeklyCloses = weekly.map(candle => candle.close);
     const weeklySma40 = calculateSMA(weeklyCloses, 40);
     const weeklyCloud = calculateMoneyLineCloud(weekly, '1w');
-    const dailyCloud = calculateMoneyLineCloud(daily, '1d');
     const weeklyIndex = weekly.length - 1;
-    const weeklyBullish = weeklyCloud.dirFast[weeklyIndex] < 0
-      && weeklyCloud.dirSlow[weeklyIndex] < 0
-      && weeklyCloses[weeklyIndex] > (weeklySma40[weeklyIndex] || 0)
-      && (weeklyIndex < 8 || weeklySma40[weeklyIndex] >= (weeklySma40[weeklyIndex - 8] || 0));
-    const broadDailyTrend = closes[lastIndex] > (sma200[lastIndex] || 0)
-      && (sma50[lastIndex] || 0) > (sma200[lastIndex] || 0)
-      && (sma50[lastIndex] || 0) >= (sma50[Math.max(0, lastIndex - 20)] || 0)
-      && (sma200[lastIndex] || 0) >= (sma200[Math.max(0, lastIndex - 20)] || 0);
-    const positiveMomentum = closes[lastIndex] > (closes[Math.max(0, lastIndex - 252)] || 0);
-    const currentAtrPercent = atr14[lastIndex] / closes[lastIndex] * 100;
-    const atrHistory = daily.slice(Math.max(0, lastIndex - 252), lastIndex).map((candle, offset) => {
-      const sourceIndex = Math.max(0, lastIndex - 252) + offset;
-      return atr14[sourceIndex] / candle.close * 100;
-    });
-    const atrRank = percentileRank(atrHistory, currentAtrPercent);
-    const controlledVolatility = atrRank <= (marketClass === 'crypto' ? 0.75 : 0.70);
-    const previousHigh55 = Math.max(...daily.slice(Math.max(0, lastIndex - 55), lastIndex).map(candle => candle.high));
-    const previousHigh55AtPriorClose = Math.max(...daily.slice(Math.max(0, previousIndex - 55), previousIndex).map(candle => candle.high));
+    const weeklyBullish = (weeklyCloud.dirFast[weeklyIndex] < 0 || weeklyCloud.dirSlow[weeklyIndex] < 0 || (weeklyCloses[weeklyIndex] > (weeklySma40[weeklyIndex] || 0)))
+      && (weeklyIndex < 8 || (weeklySma40[weeklyIndex] || 0) >= (weeklySma40[Math.max(0, weeklyIndex - 8)] || 0) * 0.98);
+
+    const broadDailyTrend = closes[lastIndex] > (sma50[lastIndex] || 0)
+      && (sma200[lastIndex] ? closes[lastIndex] > sma200[lastIndex] || (sma50[lastIndex] || 0) >= (sma200[lastIndex] || 0) : true);
+
+    const lookback55 = Math.min(55, Math.max(20, lastIndex - 1));
+    const previousHigh55 = Math.max(...daily.slice(Math.max(0, lastIndex - lookback55), lastIndex).map(candle => candle.high));
+    const previousHigh55AtPriorClose = Math.max(...daily.slice(Math.max(0, previousIndex - lookback55), previousIndex).map(candle => candle.high));
     const freshBreakout = closes[lastIndex] > previousHigh55
       && closes[previousIndex] <= previousHigh55AtPriorClose;
     const distanceToBreakout = previousHigh55 - closes[lastIndex];
-    const nearBreakout = distanceToBreakout >= 0 && distanceToBreakout <= atr14[lastIndex];
+    const nearBreakout = distanceToBreakout >= 0 && distanceToBreakout <= 1.5 * (atr14[lastIndex] || closes[lastIndex] * 0.03);
     const previousDistance = previousHigh55AtPriorClose - closes[previousIndex];
-    const freshArm = nearBreakout && (previousDistance < 0 || previousDistance > atr14[previousIndex]);
-    const dailyFastBullish = dailyCloud.dirFast[lastIndex] < 0;
+    const freshArm = nearBreakout && (previousDistance < 0 || previousDistance > (atr14[previousIndex] || closes[previousIndex] * 0.03));
+    const dailyFastBullish = dailyCloud.dirFast[lastIndex] < 0 || dailyCloud.dirSlow[lastIndex] < 0 || closes[lastIndex] > (sma50[lastIndex] || 0);
+
+    const momentumWindow = Math.min(252, Math.max(50, lastIndex));
+    const positiveMomentum = closes[lastIndex] >= (closes[Math.max(0, lastIndex - momentumWindow)] || 0) * 0.95;
+
+    const currentAtrPercent = ((atr14[lastIndex] || closes[lastIndex] * 0.03) / closes[lastIndex]) * 100;
+    const atrHistory = daily.slice(Math.max(0, lastIndex - momentumWindow), lastIndex).map((candle, offset) => {
+      const sourceIndex = Math.max(0, lastIndex - momentumWindow) + offset;
+      return ((atr14[sourceIndex] || candle.close * 0.03) / candle.close) * 100;
+    });
+    const atrRank = percentileRank(atrHistory, currentAtrPercent);
+    const controlledVolatility = atrRank <= (marketClass === 'crypto' ? 0.85 : 0.80);
 
     if (weeklyBullish && broadDailyTrend && positiveMomentum && controlledVolatility && dailyFastBullish
       && (freshBreakout || nearBreakout)) {
-      const structuralStop = Math.min(daily[previousIndex].low, daily[lastIndex].low) - 0.1 * atr14[lastIndex];
-      const volatilityStop = closes[lastIndex] - 2 * atr14[lastIndex];
-      const stop = Math.min(structuralStop, volatilityStop);
+      const structuralStop = Math.min(daily[previousIndex].low, daily[lastIndex].low) - 0.1 * (atr14[lastIndex] || closes[lastIndex] * 0.02);
+      const volatilityStop = closes[lastIndex] - 2.5 * (atr14[lastIndex] || closes[lastIndex] * 0.03);
+      let stop = Math.max(structuralStop, volatilityStop);
+      if (stop >= closes[lastIndex]) stop = closes[lastIndex] - 2.0 * (atr14[lastIndex] || closes[lastIndex] * 0.03);
       const risk = closes[lastIndex] - stop;
       const riskPercent = (risk / closes[lastIndex]) * 100;
-      const maxRiskPercent = marketClass === 'crypto' ? 8 : marketClass === 'metals' ? 6 : 4;
+      const maxRiskPercent = marketClass === 'crypto' ? 15 : marketClass === 'metals' ? 10 : 8;
 
       if (risk > 0 && riskPercent <= maxRiskPercent) {
         const stage: StrategyAlertSnapshot['stage'] = freshBreakout ? 'CONFIRMED' : 'ARMED';
@@ -271,44 +310,48 @@ export const evaluateDailyStrategyAlerts = (
           weeklyFastBullish: true,
           weeklySlowBullish: true,
           atrPercentile: Number((atrRank * 100).toFixed(1)),
-          momentum252Percent: Number(((closes[lastIndex] / (closes[Math.max(0, lastIndex - 252)] || 1) - 1) * 100).toFixed(2)),
+          momentum252Percent: Number(((closes[lastIndex] / (closes[Math.max(0, lastIndex - momentumWindow)] || 1) - 1) * 100).toFixed(2)),
           distanceToBreakoutPercent: Number((Math.max(0, distanceToBreakout) / closes[lastIndex] * 100).toFixed(2)),
           maxRiskPercent
         };
-        currentSnapshot = snapshot;
+        snapshots.push(snapshot);
         if (freshBreakout || freshArm) events.push(snapshot);
       }
     }
   }
 
-  // --- 4. STRATEGY: BEAR RALLY FADE SHORT (Arm > 95 -> Confirm < 50 in 3 bars) ---
-  if ((marketClass === 'crypto' || marketClass === 'stocks') && latestBenchmarkIndex >= 199) {
+  // --- 4. STRATEGY: BEAR RALLY FADE SHORT (Arm > 90 -> Confirm < 50 in 3 bars) ---
+  if ((marketClass === 'crypto' || marketClass === 'stocks') && (latestBenchmarkIndex >= 49 || !latestBenchmarkBearish)) {
     let armedIndex = -1;
-    for (let index = lastIndex; index >= Math.max(220, lastIndex - 3); index--) {
-      const benchmarkIndex = benchmarkIndexFor(daily[index].timestamp);
-      const crossedAbove95 = rsi2[index] > 95 && rsi2[index - 1] <= 95;
-      if (crossedAbove95 && assetBearishAt(index) && benchmarkBearishAt(benchmarkIndex)) {
+    for (let index = lastIndex; index >= Math.max(49, lastIndex - 3); index--) {
+      const crossedAbove90 = (rsi2[index] || 0) > 90 && (rsi2[index - 1] || 0) <= 90;
+      if (crossedAbove90 && assetBearishAt(index)) {
         armedIndex = index;
         break;
       }
     }
 
-    if (armedIndex >= 0 && assetBearishAt(lastIndex) && latestBenchmarkBearish) {
+    if (armedIndex >= 0 && assetBearishAt(lastIndex)) {
       const barsSinceArm = lastIndex - armedIndex;
       const confirmed = barsSinceArm >= 1 && barsSinceArm <= 3
-        && rsi2[previousIndex] >= 50 && rsi2[lastIndex] < 50;
+        && (rsi2[previousIndex] || 0) >= 50 && (rsi2[lastIndex] || 0) < 50;
+
+      const shortStop = Math.max(highs[lastIndex], highs[previousIndex]) + (atr14[lastIndex] || closes[lastIndex] * 0.03);
+      const shortRisk = shortStop - closes[lastIndex];
 
       if (confirmed) {
-        const snapshot = createSnapshot('BEAR_RALLY_FADE_SHORT', 'CONFIRMED', 'SHORT', '1d', undefined, undefined, armedIndex);
+        const snapshot = createSnapshot('BEAR_RALLY_FADE_SHORT', 'CONFIRMED', 'SHORT', '1d', shortRisk, shortStop, armedIndex);
         events.push(snapshot);
-        if (!currentSnapshot) currentSnapshot = snapshot;
-      } else if (barsSinceArm <= 3 && rsi2[lastIndex] >= 50) {
-        const snapshot = createSnapshot('BEAR_RALLY_FADE_SHORT', 'ARMED', 'SHORT', '1d', undefined, undefined, armedIndex);
+        snapshots.push(snapshot);
+      } else if (barsSinceArm <= 3 && (rsi2[lastIndex] || 0) >= 50) {
+        const snapshot = createSnapshot('BEAR_RALLY_FADE_SHORT', 'ARMED', 'SHORT', '1d', shortRisk, shortStop, armedIndex);
         if (barsSinceArm === 0) events.push(snapshot);
-        if (!currentSnapshot) currentSnapshot = snapshot;
+        snapshots.push(snapshot);
       }
     }
   }
 
-  return { current: currentSnapshot, events };
+  const currentSnapshot = snapshots.find(s => s.stage === 'CONFIRMED') || snapshots[0];
+  return { current: currentSnapshot, snapshots, events };
 };
+
