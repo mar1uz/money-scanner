@@ -343,8 +343,8 @@ export interface AlertHistoryDashboardItem {
 
 export interface DailyRegimeScanStatus {
   enabled: true;
-  schedule: '0 12 * * *';
-  timezone: 'Europe/Oslo';
+  schedule: '5 */4 * * *';
+  timezone: 'UTC';
   lastStartedAt?: number;
   lastCompletedAt?: number;
   scannedAssets: number;
@@ -411,6 +411,7 @@ export interface AlertsDashboardResponse {
   dailyRegimeScan: DailyRegimeScanStatus;
   manualScan: ManualAlertScanStatus;
   flipCandidates: FlipCandidateDashboardItem[];
+  confirmedFlips: FlipCandidateDashboardItem[];
   strategySetups: StrategyAlertSnapshot[];
   updatedAt: number;
 }
@@ -441,6 +442,32 @@ export async function runManualAlertScan(
   };
   if (!res.ok) throw new Error(payload.error || `HTTP ${res.status}: Scanarea manuală a eșuat.`);
   return payload;
+}
+
+export async function clearAlerts(target: 'active' | 'history' | 'all'): Promise<{
+  removedActive: number;
+  removedHistory: number;
+}> {
+  const csrfToken = await requestCsrfToken();
+  const res = await fetchWithDeadline(`${API_BASE}/alerts`, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken
+    },
+    body: JSON.stringify({ target })
+  }, 30_000);
+  const payload = await res.json().catch(() => ({})) as {
+    removedActive?: number;
+    removedHistory?: number;
+    error?: string;
+  };
+  if (!res.ok) throw new Error(payload.error || `HTTP ${res.status}: Alertele nu au putut fi șterse.`);
+  return {
+    removedActive: payload.removedActive || 0,
+    removedHistory: payload.removedHistory || 0
+  };
 }
 
 export async function askAIAnalyst(question: string): Promise<{

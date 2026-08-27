@@ -141,6 +141,20 @@ telegramRouter.post('/alerts/manual-scan', async (req: AuthenticatedRequest, res
   }
 });
 
+telegramRouter.delete('/alerts', async (req: AuthenticatedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
+  if (!validateCsrfToken(req)) {
+    return res.status(403).json({ error: 'Invalid CSRF token.', code: 'CSRF_INVALID' });
+  }
+  const target = req.body?.target === 'active' || req.body?.target === 'history' || req.body?.target === 'all'
+    ? req.body.target
+    : undefined;
+  if (!target) return res.status(400).json({ error: 'Target invalid: active, history sau all.' });
+  const result = await AppState.getInstance().clearAlerts(req.user.id, target);
+  res.set('Cache-Control', 'no-store');
+  return res.json(result);
+});
+
 // Invoked only by Cloud Scheduler. It deliberately sits outside browser auth
 // because there is no user session in a scheduled HTTP request; the dedicated
 // high-entropy header is verified here in constant time.

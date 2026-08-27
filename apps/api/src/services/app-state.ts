@@ -47,8 +47,8 @@ export interface BullishCloudAlertRule {
 
 export interface DailyRegimeScanStatus {
   enabled: true;
-  schedule: '0 12 * * *';
-  timezone: 'Europe/Oslo';
+  schedule: '5 */4 * * *';
+  timezone: 'UTC';
   lastStartedAt?: number;
   lastCompletedAt?: number;
   scannedAssets: number;
@@ -166,11 +166,12 @@ export class AppState {
   private manualAlertScanStatuses = new Map<string, ManualAlertScanStatus>();
   private manualAlertScanNextAllowed = new Map<string, number>();
   private flipCandidates: FlipCandidate[] = [];
+  private confirmedFlips: FlipCandidate[] = [];
   private strategySetups: StrategyAlertSnapshot[] = [];
   private dailyRegimeScanStatus: DailyRegimeScanStatus = {
     enabled: true,
-    schedule: '0 12 * * *',
-    timezone: 'Europe/Oslo',
+    schedule: '5 */4 * * *',
+    timezone: 'UTC',
     scannedAssets: 0,
     matches: 0,
     errors: 0,
@@ -221,6 +222,7 @@ export class AppState {
       dailyRegimeScan: { ...this.dailyRegimeScanStatus },
       manualScan: this.getManualAlertScanStatus(userId),
       flipCandidates: this.flipCandidates.map(candidate => ({ ...candidate })),
+      confirmedFlips: this.confirmedFlips.map(candidate => ({ ...candidate })),
       strategySetups: this.strategySetups.map(setup => ({ ...setup })),
       updatedAt: Date.now(),
       ...this.telegramBot.getDeliveryConfiguration()
@@ -229,6 +231,29 @@ export class AppState {
 
   public getDailyRegimeScanStatus() {
     return { ...this.dailyRegimeScanStatus };
+  }
+
+  public async clearAlerts(userId: string, target: 'active' | 'history' | 'all') {
+    await this.restoreDailyRegimeState(true);
+    let removedActive = 0;
+    let removedHistory = 0;
+    if (target === 'active' || target === 'all') {
+      for (const [id, rule] of this.bullishCloudAlerts.entries()) {
+        if (rule.userId !== userId) continue;
+        this.bullishCloudAlerts.delete(id);
+        removedActive += 1;
+      }
+    }
+    if (target === 'history' || target === 'all') {
+      removedHistory = this.confirmedFlips.length;
+      this.confirmedFlips = [];
+      this.alertHistory = this.alertHistory.filter(alert =>
+        alert.ruleId !== 'global:flip-scan'
+        && !alert.ruleId?.startsWith(`${userId}:`)
+      );
+      await this.persistDailyRegimeState();
+    }
+    return { removedActive, removedHistory };
   }
 
   public getManualAlertScanStatus(userId: string): ManualAlertScanStatus {
@@ -332,8 +357,6 @@ export class AppState {
     watchlist: ManualAlertScanAssetInput[]
   ): Promise<ManualAlertScanStatus> {
     try {
-      // A manual scan may be the first request handled by a fresh Cloud Run
-      // instance. Restore persisted history before checking idempotency keys.
       await this.restoreDailyRegimeState(true);
       const activeRules = this.listBullishCloudAlerts(userId);
       const universe = new Map<string, { symbol: string; marketClass: AssetMarketClass }>();
@@ -374,10 +397,7 @@ export class AppState {
       let errors = normalizedWatchlist.filter(item =>
         !assets.some(asset => asset.symbol === item.symbol && (!item.marketClass || asset.marketClass === item.marketClass))
       ).length;
-      const matches: DailyRegimeMatch[] = [];
-      const strategyEvaluations: StrategyAlertEvaluation[] = [];
-      const strategyEvents: StrategyAlertSnapshot[] = [];
-      const strategyBenchmarks = await this.getDailyStrategyBenchmarks();
+      const candidates: FlipCandidate[] = [];
       this.updateManualAlertScanStatus(userId, {
         scope: 'quick',
         running: true,
@@ -394,47 +414,13 @@ export class AppState {
           const matchingRules = activeRules.filter(rule =>
             rule.symbol === asset.symbol && rule.marketClass === asset.marketClass
           );
-          const [dailyRaw, weeklyRaw] = await Promise.all([
-            this.marketData.getCandles(asset.symbol, '1d', 320, asset.marketClass),
-            this.marketData.getCandles(asset.symbol, '1w', 260, asset.marketClass)
-          ]);
           await Promise.allSettled(matchingRules.map(rule => this.evaluateBullishCloudAlert(rule)));
-
-          const currentUtcDay = new Date();
-          currentUtcDay.setUTCHours(0, 0, 0, 0);
-          const dailyCandles = dailyRaw.map(candle =>
-            candle.isClosed === false && candle.timestamp < currentUtcDay.getTime()
-              ? { ...candle, isClosed: true }
-              : candle
-          );
-          const candles4hRaw = asset.marketClass === 'crypto'
-            ? await this.marketData.getCandles(asset.symbol, '4h', 100, asset.marketClass).catch(() => [])
-            : [];
-          const benchmarkCandles = strategyBenchmarks[asset.marketClass === 'crypto' ? 'crypto' : 'stocks'] || [];
-          const strategy = evaluateDailyStrategyAlerts(
-            asset.symbol,
-            asset.marketClass,
-            dailyCandles,
-            benchmarkCandles,
-            weeklyRaw,
-            candles4hRaw
-          );
-          return {
-            regime: this.evaluateDailyRegimeAsset(
-              asset.symbol,
-              asset.marketClass,
-              dailyCandles,
-              weeklyRaw
-            ),
-            strategy
-          };
+          return this.scanFlipAsset(asset.symbol, asset.marketClass);
         }));
 
         settled.forEach(result => {
           if (result.status === 'fulfilled') {
-            if (result.value.regime) matches.push(result.value.regime);
-            strategyEvaluations.push(result.value.strategy);
-            strategyEvents.push(...result.value.strategy.events);
+            candidates.push(...result.value);
           } else {
             errors += 1;
             console.warn('Quick manual alert scan failed:', result.reason instanceof Error ? result.reason.message : result.reason);
@@ -442,24 +428,23 @@ export class AppState {
         });
         this.updateManualAlertScanStatus(userId, {
           scannedAssets: Math.min(assets.length, index + batch.length),
-          matches: matches.length + strategyEvaluations.filter(result => result.current).length,
+          matches: candidates.filter(candidate => candidate.status === 'CONFIRMED').length,
           errors
         });
       }
 
-      await this.publishDailyRegimeMatches(matches, 'manual quick scan');
-      await this.publishStrategyEvents(strategyEvents, 'manual quick scan');
-      this.mergeStrategySetups(
-        assets.map(asset => `${asset.marketClass}:${asset.symbol}`),
-        strategyEvaluations.flatMap(result => result.current ? [result.current] : [])
-      );
+      const confirmed = candidates.filter(candidate => candidate.status === 'CONFIRMED');
+      await this.publishConfirmedFlipEvents(confirmed, 'manual quick scan');
+      this.mergeConfirmedFlips(confirmed);
+      this.flipCandidates = this.rankUpcomingCandidates([...candidates, ...this.flipCandidates]);
+      this.strategySetups = [];
       await this.persistDailyRegimeState();
       return this.updateManualAlertScanStatus(userId, {
         scope: 'quick',
         running: false,
         scannedAssets: assets.length,
         totalAssets: assets.length,
-        matches: matches.length + strategyEvaluations.filter(result => result.current).length,
+        matches: confirmed.length,
         errors,
         lastCompletedAt: Date.now(),
         lastError: undefined
@@ -515,100 +500,40 @@ export class AppState {
       const universe = [...liveCrypto, ...stocks, ...metals].filter(
         asset => asset.marketClass === 'crypto' || asset.marketClass === 'stocks' || asset.marketClass === 'metals'
       );
-      const strategyBenchmarks = await this.getDailyStrategyBenchmarks();
       this.dailyRegimeScanStatus.totalAssets = universe.length;
-      const matches: DailyRegimeMatch[] = [];
-      const strategyEvaluations: StrategyAlertEvaluation[] = [];
-      const strategyEvents: StrategyAlertSnapshot[] = [];
-      const preliminaryFlipAssets: PreliminaryFlipAsset[] = [];
+      const candidates: FlipCandidate[] = [];
       let errors = 0;
-      const concurrency = 6;
+      const concurrency = 4;
 
       for (let index = 0; index < universe.length; index += concurrency) {
         const batch = universe.slice(index, index + concurrency);
-        const settled = await Promise.allSettled(batch.map(async asset => {
-          const marketClass = asset.marketClass as AssetMarketClass;
-          const [dailyRaw, weeklyRaw] = await Promise.all([
-            this.marketData.getCandles(asset.symbol, '1d', 320, marketClass),
-            this.marketData.getCandles(asset.symbol, '1w', 260, marketClass)
-          ]);
-          const currentUtcDay = new Date();
-          currentUtcDay.setUTCHours(0, 0, 0, 0);
-          // Yahoo marks its newest row as open even when it is yesterday's
-          // completed session. A row from before the current UTC day is safe.
-          const dailyCandles = dailyRaw.map(candle =>
-            candle.isClosed === false && candle.timestamp < currentUtcDay.getTime()
-              ? { ...candle, isClosed: true }
-              : candle
-          );
-          const weeklySignal = this.moneyLine.calculateLatest(asset.symbol, '1w', weeklyRaw);
-          const dailyClosed = dailyCandles
-            .filter(candle => candle.isClosed !== false)
-            .sort((left, right) => left.timestamp - right.timestamp);
-          const preliminaryCandidate = weeklySignal
-            ? this.calculateFlipCandidate(
-              asset.symbol,
-              marketClass,
-              '1d',
-              dailyClosed,
-              dailyClosed[dailyClosed.length - 1]?.close || 0,
-              weeklySignal.tier,
-              weeklySignal.score
-            )
-            : undefined;
-          const candles4hRaw = marketClass === 'crypto'
-            ? await this.marketData.getCandles(asset.symbol, '4h', 100, marketClass).catch(() => [])
-            : [];
-          const benchmarkCandles = strategyBenchmarks[marketClass === 'crypto' ? 'crypto' : 'stocks'] || [];
-          return {
-            match: this.evaluateDailyRegimeAsset(asset.symbol, marketClass, dailyCandles, weeklyRaw),
-            strategy: evaluateDailyStrategyAlerts(
-              asset.symbol,
-              marketClass,
-              dailyCandles,
-              benchmarkCandles,
-              weeklyRaw,
-              candles4hRaw
-            ),
-            preliminary: preliminaryCandidate && weeklySignal
-              ? {
-                symbol: asset.symbol,
-                marketClass,
-                dailyCandles: dailyClosed,
-                weeklyTier: weeklySignal.tier,
-                weeklyScore: weeklySignal.score,
-                candidate: preliminaryCandidate
-              }
-              : undefined
-          };
-        }));
+        const settled = await Promise.allSettled(batch.map(asset =>
+          this.scanFlipAsset(asset.symbol, asset.marketClass as AssetMarketClass)
+        ));
 
         settled.forEach(result => {
           if (result.status === 'fulfilled') {
-            if (result.value.match) matches.push(result.value.match);
-            strategyEvaluations.push(result.value.strategy);
-            strategyEvents.push(...result.value.strategy.events);
-            if (result.value.preliminary) preliminaryFlipAssets.push(result.value.preliminary);
+            candidates.push(...result.value);
           } else {
             errors += 1;
-            console.warn('Daily regime asset scan failed:', result.reason instanceof Error ? result.reason.message : result.reason);
+            console.warn('Flip-only asset scan failed:', result.reason instanceof Error ? result.reason.message : result.reason);
           }
         });
         this.dailyRegimeScanStatus.scannedAssets += settled.filter(result => result.status === 'fulfilled').length;
       }
 
-      this.flipCandidates = await this.enrichAndRankFlipCandidates(preliminaryFlipAssets);
-      this.strategySetups = strategyEvaluations.flatMap(result => result.current ? [result.current] : []);
-
-      await this.publishDailyRegimeMatches(matches, 'scheduled/full scan');
-      await this.publishStrategyEvents(strategyEvents, 'scheduled/full scan');
+      const confirmed = candidates.filter(candidate => candidate.status === 'CONFIRMED');
+      this.flipCandidates = this.rankUpcomingCandidates(candidates);
+      await this.publishConfirmedFlipEvents(confirmed, 'scheduled/full scan');
+      this.mergeConfirmedFlips(confirmed);
+      this.strategySetups = [];
 
       this.dailyRegimeScanStatus = {
         ...this.dailyRegimeScanStatus,
         lastCompletedAt: Date.now(),
-        matches: matches.length + this.strategySetups.length,
-        strategyMatches: this.strategySetups.filter(setup => setup.stage === 'CONFIRMED').length,
-        strategyArmed: this.strategySetups.filter(setup => setup.stage === 'ARMED').length,
+        matches: confirmed.length,
+        strategyMatches: 0,
+        strategyArmed: 0,
         errors,
         running: false
       };
@@ -905,24 +830,26 @@ export class AppState {
         status?: DailyRegimeScanStatus;
         alerts?: DispatchedAlert[];
         flipCandidates?: FlipCandidate[];
+        confirmedFlips?: FlipCandidate[];
         strategySetups?: StrategyAlertSnapshot[];
       } | undefined;
-      if (stored?.status) this.dailyRegimeScanStatus = { ...stored.status, running: false };
+      if (stored?.status) this.dailyRegimeScanStatus = {
+        ...stored.status,
+        enabled: true,
+        schedule: '5 */4 * * *',
+        timezone: 'UTC',
+        running: false
+      };
       if (Array.isArray(stored?.flipCandidates)) this.flipCandidates = stored.flipCandidates.slice(0, 10);
-      if (Array.isArray(stored?.strategySetups)) {
-        this.strategySetups = stored.strategySetups
-          // Connors was retired in favor of the validated stocks/ETF-only
-          // Weekly Trend + Donchian 55/20 LONG strategy.
-          .filter(setup => String(setup.strategy) !== 'CONNORS_RSI2_LONG')
-          .slice(0, 100);
-      }
+      if (Array.isArray(stored?.confirmedFlips)) this.confirmedFlips = stored.confirmedFlips.slice(0, 100);
+      // Automated strategy scanning was retired from Alerts Center. Strategies
+      // remain available in Backtest Lab but persisted setup cards are ignored.
+      this.strategySetups = [];
       if (Array.isArray(stored?.alerts)) {
         const individual = this.alertHistory.filter(alert =>
           alert.type !== 'MultiTimeframeReversal' && alert.type !== 'StrategySetup'
         );
-        const migratedAlerts = stored.alerts.filter(alert =>
-          String(alert.strategySetup?.strategy || '') !== 'CONNORS_RSI2_LONG'
-        );
+        const migratedAlerts = stored.alerts.filter(alert => alert.ruleId === 'global:flip-scan');
         this.alertHistory = [...migratedAlerts, ...individual]
           .sort((left, right) => right.timestamp - left.timestamp)
           .slice(0, 250);
@@ -938,7 +865,7 @@ export class AppState {
   private async persistDailyRegimeState() {
     try {
       const alerts = this.alertHistory
-        .filter(alert => alert.type === 'MultiTimeframeReversal' || alert.type === 'StrategySetup')
+        .filter(alert => alert.ruleId === 'global:flip-scan')
         .slice(0, 200);
       // JSON normalization strips optional undefined values rejected by
       // Firestore while preserving the exact dashboard payload shape.
@@ -946,6 +873,7 @@ export class AppState {
         status: this.dailyRegimeScanStatus,
         alerts,
         flipCandidates: this.flipCandidates,
+        confirmedFlips: this.confirmedFlips,
         strategySetups: this.strategySetups,
         updatedAt: Date.now()
       }));
@@ -1013,7 +941,9 @@ export class AppState {
     const statusBoost = confirmed ? 22 : crossedLive ? 16 : distanceAtr <= 0.25 ? 8 : 0;
     const alignmentBoost = (weeklyAligned ? 6 : 0) + (sma50Aligned ? 3 : 0) + (sma200Aligned ? 2 : 0);
     const volumeBoost = Math.min(4, Math.max(0, signal.rawIndicators.rvol - 0.8) * 3);
-    const timeframeBoost = timeframe === '1d' ? 3 : timeframe === '8h' ? 2 : 1;
+    // The focused trading-alert ranking favors the actionable lower timeframe.
+    // Higher timeframes remain context filters, not an automatic probability claim.
+    const timeframeBoost = timeframe === '4h' ? 5 : timeframe === '8h' ? 3 : 1;
     const priorityScore = Math.max(0, Math.min(100,
       92 - Math.min(distanceAtr, 4) * 18 + statusBoost + alignmentBoost + volumeBoost + timeframeBoost
     ));
@@ -1046,49 +976,107 @@ export class AppState {
     };
   }
 
-  private async enrichAndRankFlipCandidates(preliminaryAssets: PreliminaryFlipAsset[]): Promise<FlipCandidate[]> {
-    // Stage 1 already used the Daily/Weekly data fetched for every asset. Only
-    // the strongest 30 preliminary candidates receive additional 4H/8H calls.
-    const shortlist = preliminaryAssets
-      .slice()
-      .sort((left, right) => right.candidate.priorityScore - left.candidate.priorityScore
-        || left.candidate.distanceAtr - right.candidate.distanceAtr)
-      .slice(0, 30);
-    const enriched: FlipCandidate[] = [];
-    const concurrency = 6;
+  private async scanFlipAsset(symbol: string, marketClass: AssetMarketClass): Promise<FlipCandidate[]> {
+    const [quote, dailyRaw, weekly, candles4h, candles8h] = await Promise.all([
+      this.marketData.getPriceQuote(symbol, marketClass).catch(() => undefined),
+      this.marketData.getCandles(symbol, '1d', 320, marketClass),
+      this.marketData.getCandles(symbol, '1w', 260, marketClass),
+      this.marketData.getCandles(symbol, '4h', 320, marketClass).catch(() => []),
+      this.marketData.getCandles(symbol, '8h', 320, marketClass).catch(() => [])
+    ]);
+    const currentUtcDay = new Date();
+    currentUtcDay.setUTCHours(0, 0, 0, 0);
+    const daily = dailyRaw.map(candle =>
+      candle.isClosed === false && candle.timestamp < currentUtcDay.getTime()
+        ? { ...candle, isClosed: true }
+        : candle
+    );
+    const dailyClosed = daily.filter(candle => candle.isClosed !== false).sort((left, right) => left.timestamp - right.timestamp);
+    const weeklySignal = this.moneyLine.calculateLatest(symbol, '1w', weekly);
+    const price = quote?.price || dailyClosed[dailyClosed.length - 1]?.close || 0;
+    if (!weeklySignal || !price) return [];
+    return [
+      this.calculateFlipCandidate(symbol, marketClass, '4h', candles4h, price, weeklySignal.tier, weeklySignal.score),
+      this.calculateFlipCandidate(symbol, marketClass, '8h', candles8h, price, weeklySignal.tier, weeklySignal.score),
+      this.calculateFlipCandidate(symbol, marketClass, '1d', dailyClosed, price, weeklySignal.tier, weeklySignal.score)
+    ].filter((candidate): candidate is FlipCandidate => Boolean(candidate));
+  }
 
-    for (let index = 0; index < shortlist.length; index += concurrency) {
-      const batch = shortlist.slice(index, index + concurrency);
-      const settled = await Promise.allSettled(batch.map(async asset => {
-        const [quote, candles4h, candles8h] = await Promise.all([
-          this.marketData.getPriceQuote(asset.symbol, asset.marketClass),
-          this.marketData.getCandles(asset.symbol, '4h', 320, asset.marketClass),
-          this.marketData.getCandles(asset.symbol, '8h', 320, asset.marketClass)
-        ]);
-        const price = quote.price || asset.candidate.currentPrice;
-        return [
-          this.calculateFlipCandidate(asset.symbol, asset.marketClass, '1d', asset.dailyCandles, price, asset.weeklyTier, asset.weeklyScore),
-          this.calculateFlipCandidate(asset.symbol, asset.marketClass, '8h', candles8h, price, asset.weeklyTier, asset.weeklyScore),
-          this.calculateFlipCandidate(asset.symbol, asset.marketClass, '4h', candles4h, price, asset.weeklyTier, asset.weeklyScore)
-        ].filter((candidate): candidate is FlipCandidate => Boolean(candidate));
-      }));
-
-      settled.forEach(result => {
-        if (result.status === 'fulfilled') enriched.push(...result.value);
-        else console.warn('Flip candidate enrichment failed:', result.reason instanceof Error ? result.reason.message : result.reason);
-      });
-    }
-
-    // One row per asset keeps the list genuinely diverse. The best timeframe
-    // for each symbol wins; confirmed/awaiting-close candidates naturally rank first.
+  private rankUpcomingCandidates(candidates: FlipCandidate[]): FlipCandidate[] {
     const bestByAsset = new Map<string, FlipCandidate>();
-    enriched
+    candidates
+      .filter(candidate => candidate.status !== 'CONFIRMED')
       .sort((left, right) => right.priorityScore - left.priorityScore || left.distanceAtr - right.distanceAtr)
       .forEach(candidate => {
         const key = `${candidate.marketClass}:${candidate.symbol}`;
         if (!bestByAsset.has(key)) bestByAsset.set(key, candidate);
       });
     return Array.from(bestByAsset.values()).slice(0, 10);
+  }
+
+  private mergeConfirmedFlips(candidates: FlipCandidate[]) {
+    const unique = new Map<string, FlipCandidate>();
+    [...candidates, ...this.confirmedFlips]
+      .sort((left, right) => right.candleTimestamp - left.candleTimestamp || right.priorityScore - left.priorityScore)
+      .forEach(candidate => {
+        const key = `${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}:${candidate.direction}:${candidate.candleTimestamp}`;
+        if (!unique.has(key)) unique.set(key, candidate);
+      });
+    this.confirmedFlips = Array.from(unique.values()).slice(0, 100);
+  }
+
+  private async publishConfirmedFlipEvents(
+    candidates: FlipCandidate[],
+    source: 'scheduled/full scan' | 'manual quick scan'
+  ) {
+    const fresh = candidates.filter(candidate => {
+      const key = `flip:${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}:${candidate.direction}:${candidate.candleTimestamp}`;
+      return !this.alertHistory.some(alert => alert.idempotencyKey === key);
+    });
+    if (!fresh.length) return 0;
+    const ranked = fresh.slice().sort((left, right) => right.priorityScore - left.priorityScore);
+    const dashboardBaseUrl = process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app';
+    const lines = [
+      `🔔 *${ranked.length} FLIP${ranked.length === 1 ? '' : 'URI'} MONEYLINE CONFIRMAT${ranked.length === 1 ? '' : 'E'}*`,
+      `_Numai lumânări închise · ordonate după scorul setupului_`,
+      ''
+    ];
+    ranked.slice(0, 10).forEach(candidate => lines.push(
+      `${candidate.direction === 'BULLISH' ? '🟢 ▲' : '🔴 ▼'} *$${candidate.symbol} ${candidate.timeframe.toUpperCase()}* · ${candidate.priorityScore.toFixed(0)}/100 · ${candidate.marketClass.toUpperCase()} · ${formatAlertPrice(candidate.currentPrice)}`,
+      `ML1W ${candidate.weeklyTier} (${candidate.weeklyScore > 0 ? '+' : ''}${candidate.weeklyScore}) · RVOL ${candidate.rvol.toFixed(2)}x · SMA50 ${candidate.sma50Aligned ? 'aliniat' : 'neconfirmat'} · SMA200 ${candidate.sma200Aligned ? 'aliniat' : 'neconfirmat'}`
+    ));
+    if (ranked.length > 10) lines.push(`…și încă ${ranked.length - 10} flipuri în pagina Alerte.`);
+    lines.push(
+      '',
+      `_Scorul este un clasament tehnic, nu o probabilitate de profit._`,
+      source === 'manual quick scan' ? `_Sursă: scanare rapidă flip-only._` : `_Sursă: scanare completă flip-only._`,
+      `🔗 [Deschide Top Alerte](${dashboardBaseUrl})`
+    );
+    const message = lines.join('\n');
+    const delivered = await this.telegramBot.sendMarkdown(message);
+
+    ranked.forEach(candidate => {
+      const idempotencyKey = `flip:${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}:${candidate.direction}:${candidate.candleTimestamp}`;
+      this.alertHistory.unshift({
+        id: `flip_${candidate.candleTimestamp}_${candidate.symbol}_${candidate.timeframe}_${candidate.direction}`,
+        idempotencyKey,
+        ruleId: 'global:flip-scan',
+        symbol: candidate.symbol,
+        type: 'MoneyLineTransition',
+        title: `${candidate.direction === 'BULLISH' ? 'Bull' : 'Bear'} flip ${candidate.timeframe.toUpperCase()} confirmat — ${candidate.symbol}`,
+        message,
+        timeframe: candidate.timeframe,
+        price: candidate.currentPrice,
+        tier: candidate.moneyLineTier,
+        reason: `Flip ${candidate.direction.toLowerCase()} confirmat pe lumânare închisă; scor tehnic ${candidate.priorityScore.toFixed(0)}/100.`,
+        confidence: candidate.priorityScore / 100,
+        timestamp: candidate.scannedAt,
+        dashboardLink: dashboardBaseUrl,
+        isDelivered: delivered
+      });
+    });
+    if (this.alertHistory.length > 250) this.alertHistory.splice(250);
+    return fresh.length;
   }
 
   private evaluateDailyRegimeAsset(

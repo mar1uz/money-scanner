@@ -110,4 +110,38 @@ describe('Daily MoneyLine regime scan', () => {
     assert.ok(result.priorityScore >= 0 && result.priorityScore <= 100);
     assert.equal(result.weeklyAligned, false);
   });
+
+  it('keeps confirmed flips out of the upcoming Top 10 and only one timeframe per asset', () => {
+    const state = new AppState();
+    const base = {
+      marketClass: 'crypto',
+      direction: 'BULLISH',
+      currentPrice: 100,
+      triggerPrice: 102,
+      distancePercent: 2,
+      distanceAtr: 0.5,
+      priorityScore: 80,
+      atr: 4,
+      rvol: 1.2,
+      moneyLineTier: 'Bearish',
+      moneyLineScore: -20,
+      weeklyTier: 'Bullish',
+      weeklyScore: 30,
+      sma50: 95,
+      sma200: 90,
+      weeklyAligned: true,
+      sma50Aligned: true,
+      sma200Aligned: true,
+      candleTimestamp: Date.now(),
+      scannedAt: Date.now()
+    };
+    const ranked = (state as any).rankUpcomingCandidates([
+      { ...base, id: 'btc-4h', symbol: 'BTC', timeframe: '4h', status: 'VERY_CLOSE', priorityScore: 90 },
+      { ...base, id: 'btc-1d', symbol: 'BTC', timeframe: '1d', status: 'APPROACHING', priorityScore: 70 },
+      { ...base, id: 'eth-4h', symbol: 'ETH', timeframe: '4h', status: 'CONFIRMED', priorityScore: 100 },
+      { ...base, id: 'sol-4h', symbol: 'SOL', timeframe: '4h', status: 'AWAITING_CLOSE', priorityScore: 85 }
+    ]);
+
+    assert.deepEqual(ranked.map((candidate: any) => candidate.id), ['btc-4h', 'sol-4h']);
+  });
 });

@@ -1325,3 +1325,28 @@ Health: HTTP 200
 Production bundle: index-DO5HH98-.js
 Bundle verification: TOP FLIPURI and the focused flip-view label are present
 ```
+
+## 34. Flip-only full scanner and focused Top Trading Alerts
+
+Implemented on 27 August 2026. Alerts Center no longer runs automated LONG/SHORT strategy evaluation. Full and quick alert scans now evaluate MoneyLine flips only; the strategy implementations and their backtests remain available in Backtest Lab.
+
+The full scan evaluates every supported Top 50 crypto, stock/ETF and metal on closed 4H, 8H and 1D candles with ML 1W, SMA 50/200 and RVOL context. `Top 10 aproape de flip` excludes already-confirmed events and keeps one best timeframe per asset. `Top 10 alerte de trading confirmate` keeps only recent events (4H up to 12 hours, 8H up to 24 hours, 1D up to 72 hours), prioritizes the lower 4H timeframe and shows a technical setup score rather than an unvalidated win probability.
+
+Confirmed flips are persisted separately with candle-level idempotency and delivered to Telegram in one ranked message. The page exposes CSRF-protected controls to delete all individually tracked alerts or clear the confirmed-flip history; clearing tracked alerts also removes their browser recovery keys.
+
+Automatic scheduling changes from daily noon to five minutes after every UTC 4H boundary:
+
+```text
+Cron: 5 */4 * * *
+Timezone: UTC
+Expected runs: 00:05, 04:05, 08:05, 12:05, 16:05, 20:05 UTC
+```
+
+Pre-deployment verification:
+
+```text
+npm run build: passed
+npm test: 51 passed, 0 failed
+API integration: 13 passed, 0 failed
+Production bundle: index-Bh2LUpcH.js
+```

@@ -195,11 +195,13 @@ describe('API Server Integration Tests', () => {
     const dashboard = await res.json() as any;
     assert.ok(Array.isArray(dashboard.activeAlerts));
     assert.ok(Array.isArray(dashboard.history));
+    assert.ok(Array.isArray(dashboard.flipCandidates));
+    assert.ok(Array.isArray(dashboard.confirmedFlips));
     assert.ok(Array.isArray(dashboard.strategySetups));
     assert.equal(typeof dashboard.telegramConfigured, 'boolean');
     assert.equal(dashboard.dailyRegimeScan.enabled, true);
-    assert.equal(dashboard.dailyRegimeScan.timezone, 'Europe/Oslo');
-    assert.equal(dashboard.dailyRegimeScan.schedule, '0 12 * * *');
+    assert.equal(dashboard.dailyRegimeScan.timezone, 'UTC');
+    assert.equal(dashboard.dailyRegimeScan.schedule, '5 */4 * * *');
     assert.equal(dashboard.manualScan.running, false);
     assert.equal(dashboard.manualScan.scope, 'quick');
     assert.equal(typeof dashboard.updatedAt, 'number');
@@ -263,5 +265,43 @@ describe('API Server Integration Tests', () => {
     const status = await accepted.json() as any;
     assert.equal(status.scope, 'quick');
     assert.equal(status.scannedAssets, 5);
+  });
+
+  it('requires CSRF and clears an authenticated alert group', async (t) => {
+    const state = AppState.getInstance();
+    const original = state.clearAlerts.bind(state);
+    state.clearAlerts = (async (_userId, target) => ({
+      removedActive: target === 'active' || target === 'all' ? 3 : 0,
+      removedHistory: target === 'history' || target === 'all' ? 7 : 0
+    })) as typeof state.clearAlerts;
+    t.after(() => { state.clearAlerts = original; });
+
+    const app = createServer();
+    const server = http.createServer(app);
+    await new Promise<void>(resolve => server.listen(0, resolve));
+    t.after(() => new Promise<void>(resolve => server.close(() => resolve())));
+    const port = (server.address() as any).port;
+
+    const rejected = await fetch(`http://127.0.0.1:${port}/api/alerts`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target: 'all' })
+    });
+    assert.equal(rejected.status, 403);
+
+    const csrfResponse = await fetch(`http://127.0.0.1:${port}/api/auth/csrf`);
+    const csrf = await csrfResponse.json() as { csrfToken: string };
+    const cookie = String(csrfResponse.headers.get('set-cookie')).split(';')[0];
+    const accepted = await fetch(`http://127.0.0.1:${port}/api/alerts`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrf.csrfToken,
+        Cookie: cookie
+      },
+      body: JSON.stringify({ target: 'all' })
+    });
+    assert.equal(accepted.status, 200);
+    assert.deepEqual(await accepted.json(), { removedActive: 3, removedHistory: 7 });
   });
 });
