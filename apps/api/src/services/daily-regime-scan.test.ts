@@ -111,6 +111,31 @@ describe('Daily MoneyLine regime scan', () => {
     assert.equal(result.weeklyAligned, false);
   });
 
+  it('supports Weekly flip candidates so ETH-like 1W thresholds reach Top Flips', () => {
+    const state = new AppState();
+    const series = candles(100);
+    state.moneyLine.calculateLatest = (() => ({
+      tier: 'Bearish',
+      score: -35,
+      rawIndicators: { atr14: 4, rvol: 1.1 }
+    })) as any;
+
+    const result = (state as any).calculateFlipCandidate(
+      'ETH',
+      'crypto',
+      '1w',
+      series,
+      100,
+      'Bearish',
+      -35
+    );
+
+    assert.equal(result.symbol, 'ETH');
+    assert.equal(result.timeframe, '1w');
+    assert.equal(result.direction, 'BULLISH');
+    assert.equal(result.status, 'APPROACHING');
+  });
+
   it('keeps confirmed flips out of the upcoming Top 10 and only one timeframe per asset', () => {
     const state = new AppState();
     const base = {

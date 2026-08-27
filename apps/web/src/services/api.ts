@@ -379,7 +379,7 @@ export interface FlipCandidateDashboardItem {
   id: string;
   symbol: string;
   marketClass: 'crypto' | 'stocks' | 'metals';
-  timeframe: '4h' | '8h' | '1d';
+  timeframe: '4h' | '8h' | '1d' | '1w';
   direction: FlipCandidateDirection;
   status: FlipCandidateStatus;
   currentPrice: number;

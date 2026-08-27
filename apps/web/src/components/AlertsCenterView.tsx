@@ -235,10 +235,10 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
       const result = await runManualAlertScan(scope, watchlistPayload);
       if (result.lastError) throw new Error(result.lastError);
       const scanTypeLabel = scope === 'strategies'
-        ? 'Scanarea de strategii (Donchian 55 & Macro)'
+        ? 'Scanarea strategiei validate (Donchian 55)'
         : scope === 'quick'
           ? 'Scanarea rapidă (Watchlist)'
-          : 'Scanarea de flips (4H/8H/1D)';
+          : 'Scanarea de flips (4H/8H/1D/1W)';
       setScanMessage(
         `${scanTypeLabel} s-a încheiat cu succes: `
         + `${result.scannedAssets}/${result.totalAssets} active verificate, ${result.matches} setupuri/semnale găsite, ${result.errors} erori.`
@@ -265,7 +265,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
   );
   const topConfirmedFlips = useMemo(() => {
     const now = Date.now();
-    const maxAgeByTimeframe = { '4h': 12 * 60 * 60_000, '8h': 24 * 60 * 60_000, '1d': 72 * 60 * 60_000 } as const;
+    const maxAgeByTimeframe = { '4h': 12 * 60 * 60_000, '8h': 24 * 60 * 60_000, '1d': 72 * 60 * 60_000, '1w': 14 * 24 * 60 * 60_000 } as const;
     const seenAssets = new Set<string>();
     return (data?.confirmedFlips || [])
       .filter(candidate => now - candidate.candleTimestamp <= maxAgeByTimeframe[candidate.timeframe])
@@ -337,7 +337,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
             </div>
             <h1 className="text-xl font-bold text-white sm:text-2xl">Alertele mele MoneyLine & Strategii</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-              Centrul oferă scanări separate pe toate cele 177 de active: <strong className="text-amber-300">Strategii de Trading</strong> (Weekly Trend + Donchian 55/20 LONG & Macro) și <strong className="text-violet-300">Top 10 Flips</strong> (4H/8H/1D).
+              Centrul separă <strong className="text-amber-300">strategia LONG validată</strong> (Weekly Trend + Donchian 55/20, numai stocks/ETF, risc maxim 4%) de <strong className="text-violet-300">Top 10 Flips</strong> (4H/8H/1D/1W, toate clasele).
             </p>
           </div>
           <button
@@ -364,9 +364,9 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                 <CalendarClock className="h-4 w-4 text-violet-300" />
               </div>
               <div>
-                <div className="text-xs font-bold text-violet-200">Comenzi de Scanare Separată pe Întregul Univers (177 Active)</div>
+                <div className="text-xs font-bold text-violet-200">Comenzi de scanare separate</div>
                 <p className="mt-1 max-w-2xl text-[11px] leading-5 text-slate-400">
-                  Alege dacă vrei să scanezi <strong className="text-amber-300">Strategiile de Trading</strong> (Donchian 55, Macro, Sniper) sau <strong className="text-violet-300">Top 10 Flips</strong> (4H, 8H, 1D).
+                  Alege între <strong className="text-amber-300">Donchian 55 validat</strong> (numai stocks/ETF) și <strong className="text-violet-300">Top 10 Flips</strong> (4H, 8H, 1D, 1W). Modelele Macro/Sniper/Short rămân doar pentru cercetare, fără alerte automate.
                 </p>
               </div>
             </div>
@@ -485,7 +485,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                 <h2 className="text-sm font-bold text-slate-100">Strategii de Trading (Weekly Trend + Donchian 55/20 LONG)</h2>
               </div>
               <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
-                Setupuri zilnice bazate pe trend săptămânal MoneyLine, SMA 40 crescător, SMA 50/200 aliniat, breakout peste maximul pe 55 de zile și volatilitate controlată.
+                Numai stocks/ETF: Fast + Slow Weekly bullish, SMA 40 Weekly crescător, SMA 50/200 Daily aliniate și crescătoare, momentum pozitiv, breakout Donchian 55, volatilitate controlată și stop maxim 4%.
               </p>
             </div>
             {data?.strategySetups?.length ? (
@@ -510,7 +510,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
               <Sparkles className="mx-auto h-7 w-7 text-amber-400" />
               <h3 className="mt-3 text-sm font-semibold text-slate-200">Niciun setup de strategie activ în memorie</h3>
               <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-400">
-                Apasă pe butonul <strong className="text-amber-300">„Scanare Strategii (Donchian 55)”</strong> de mai sus pentru a analiza cele 177 de active pe Daily/Weekly.
+                Apasă pe <strong className="text-amber-300">„Scanare Strategii (Donchian 55)”</strong> pentru a analiza universul stocks/ETF. Lipsa rezultatelor este normală: filtrele sunt intenționat rare și conservatoare.
               </p>
               <button
                 type="button"
@@ -536,7 +536,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                   <h2 className="text-sm font-bold text-slate-100">Top 10 aproape de flip</h2>
                 </div>
                 <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
-                  Un singur candidat per asset, ordonat după distanța ATR, alinierea ML 1W, SMA 50/200, volum și prioritate pentru timeframe-ul 4H.
+                  Un singur candidat per asset, din 4H/8H/1D/1W, ordonat după distanța ATR, alinierea ML 1W, SMA 50/200 și volum. „Așteaptă închiderea” nu este încă flip confirmat.
                 </p>
               </div>
               {candidateFilterControls}

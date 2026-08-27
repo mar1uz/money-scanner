@@ -88,7 +88,7 @@ export interface FlipCandidate {
   id: string;
   symbol: string;
   marketClass: AssetMarketClass;
-  timeframe: Extract<Timeframe, '4h' | '8h' | '1d'>;
+  timeframe: Extract<Timeframe, '4h' | '8h' | '1d' | '1w'>;
   direction: FlipCandidateDirection;
   status: FlipCandidateStatus;
   currentPrice: number;
@@ -375,14 +375,10 @@ export class AppState {
     }
 
     try {
-      const [liveCrypto, stocks, metals] = await Promise.all([
-        this.marketData.getTopCryptoAssets(50),
-        Promise.resolve(getScannerAssets('stocks')),
-        Promise.resolve(getScannerAssets('metals'))
-      ]);
-      const universe = [...liveCrypto, ...stocks, ...metals].filter(
-        asset => asset.marketClass === 'crypto' || asset.marketClass === 'stocks' || asset.marketClass === 'metals'
-      );
+      // Only the backtested stocks/ETF Donchian model is production-approved.
+      // Experimental crypto, metals, Macro, Sniper and SHORT models remain in
+      // Backtest Lab and cannot generate automatic trade alerts.
+      const universe = getScannerAssets('stocks').filter(asset => asset.marketClass === 'stocks');
       if (userId) {
         this.updateManualAlertScanStatus(userId, {
           totalAssets: universe.length
@@ -1025,7 +1021,7 @@ export class AppState {
   private calculateFlipCandidate(
     symbol: string,
     marketClass: AssetMarketClass,
-    timeframe: Extract<Timeframe, '4h' | '8h' | '1d'>,
+    timeframe: Extract<Timeframe, '4h' | '8h' | '1d' | '1w'>,
     candles: Awaited<ReturnType<MarketDataService['getCandles']>>,
     currentPrice: number,
     weeklyTier: MoneyLineTier,
@@ -1081,7 +1077,7 @@ export class AppState {
     const volumeBoost = Math.min(4, Math.max(0, signal.rawIndicators.rvol - 0.8) * 3);
     // The focused trading-alert ranking favors the actionable lower timeframe.
     // Higher timeframes remain context filters, not an automatic probability claim.
-    const timeframeBoost = timeframe === '4h' ? 5 : timeframe === '8h' ? 3 : 1;
+    const timeframeBoost = timeframe === '4h' ? 5 : timeframe === '8h' ? 3 : timeframe === '1d' ? 1 : 0;
     const priorityScore = Math.max(0, Math.min(100,
       92 - Math.min(distanceAtr, 4) * 18 + statusBoost + alignmentBoost + volumeBoost + timeframeBoost
     ));
@@ -1136,7 +1132,8 @@ export class AppState {
     return [
       this.calculateFlipCandidate(symbol, marketClass, '4h', candles4h, price, weeklySignal.tier, weeklySignal.score),
       this.calculateFlipCandidate(symbol, marketClass, '8h', candles8h, price, weeklySignal.tier, weeklySignal.score),
-      this.calculateFlipCandidate(symbol, marketClass, '1d', dailyClosed, price, weeklySignal.tier, weeklySignal.score)
+      this.calculateFlipCandidate(symbol, marketClass, '1d', dailyClosed, price, weeklySignal.tier, weeklySignal.score),
+      this.calculateFlipCandidate(symbol, marketClass, '1w', weekly, price, weeklySignal.tier, weeklySignal.score)
     ].filter((candidate): candidate is FlipCandidate => Boolean(candidate));
   }
 
