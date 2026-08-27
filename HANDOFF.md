@@ -1533,3 +1533,15 @@ API tests: 20 passed, 0 failed
 Research report: docs/backtests/2026-08-27-donchian-frequency-audit.md
 Deployment: not performed (not requested)
 ```
+
+## 40. Eight-Percent Stop LONG Strategy Search — No Deployment
+
+Completed on 27 August 2026. The user authorized an initial stop up to 8% and requested deployment only if a more profitable strategy was found.
+
+- Tested 19 fixed candidates based on 52-week-high momentum, 12-month trend/momentum, volatility control, Donchian entries D55–D120, exits D20–D60 and 2–2.5 ATR stops.
+- Selection used 63 development stocks/ETFs with chronological calibration/validation. Two separate cross-sectional sets supplied 48 and 40 valid new symbols.
+- Round-one winner D80/20 max 8% improved the internal final PF from 1.31 to 1.40, but lost to the D55 baseline over the full 48-symbol holdout (PF 1.07 vs 1.12).
+- Round-two winner D100/50, 2.5 ATR, max 8% improved the internal final PF from 1.27 to 1.67. It reached only PF 1.05 over the second full holdout and failed the decisive recent 30%: PF 0.79, expectancy −0.14R; doubled costs PF 0.72, expectancy −0.20R.
+- Conclusion: no candidate was robustly more profitable. Production strategy code and its 4% gate were not changed; no Cloud Run deployment was performed.
+- Full report: `docs/backtests/2026-08-27-long-strategy-8pct-search.md`.
+- Reproducible scripts: `scripts/research-long-strategy-8pct.mjs`, `scripts/research-long-strategy-8pct-round2.mjs`.

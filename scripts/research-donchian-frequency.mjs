@@ -1,3 +1,4 @@
+import { pathToFileURL } from 'node:url';
 import {
   DAY_MS,
   aggregateWeeks,
@@ -24,7 +25,7 @@ const percentileRank = (values, current) => {
   return finite.length ? finite.filter(value => value <= current).length / finite.length : 1;
 };
 
-const prepare = (asset, candles) => {
+export const prepareLongDonchianData = (asset, candles) => {
   const closes = candles.map(candle => candle.close);
   const sma50 = sma(closes, 50);
   const sma200 = sma(closes, 200);
@@ -71,7 +72,18 @@ const baseFiltersAt = (data, index, weeklyIndex) => {
     && percentileRank(atrHistory, currentAtrPercent) <= ATR_PERCENTILE_LIMIT;
 };
 
-const run = (data, entryWindow, startTimestamp, endTimestamp, frictionMultiplier = 1) => {
+export const runLongDonchianVariant = (data, entryInput, startTimestamp, endTimestamp, frictionMultiplier = 1) => {
+  const config = typeof entryInput === 'number'
+    ? { entryWindow: entryInput, exitWindow: EXIT_WINDOW, maxStopPercent: MAX_STOP_PERCENT, atrStopMultiple: 2, minimum52WeekHighRatio: 0, minimumMomentum252Percent: 0 }
+    : entryInput;
+  const {
+    entryWindow,
+    exitWindow = EXIT_WINDOW,
+    maxStopPercent,
+    atrStopMultiple,
+    minimum52WeekHighRatio = 0,
+    minimumMomentum252Percent = 0
+  } = config;
   const { candles, atr14, weeks } = data;
   const fee = FEE_PER_SIDE_PERCENT * frictionMultiplier;
   const slippage = SLIPPAGE_PER_SIDE_PERCENT * frictionMultiplier;
@@ -123,11 +135,11 @@ const run = (data, entryWindow, startTimestamp, endTimestamp, frictionMultiplier
       const gapOk = entryPrice <= pendingEntry.signalClose + pendingEntry.atr;
       const structuralStop = Math.min(...candles.slice(pendingEntry.signalIndex - 1, pendingEntry.signalIndex + 1)
         .map(value => value.low)) - 0.1 * pendingEntry.atr;
-      const volatilityStop = entryPrice - 2 * pendingEntry.atr;
+      const volatilityStop = entryPrice - atrStopMultiple * pendingEntry.atr;
       const initialStop = Math.min(structuralStop, volatilityStop);
       const riskPerUnit = entryPrice - initialStop;
       const riskPercent = riskPerUnit / entryPrice * 100;
-      if (gapOk && riskPerUnit > 0 && riskPercent <= MAX_STOP_PERCENT) {
+      if (gapOk && riskPerUnit > 0 && riskPercent <= maxStopPercent) {
         const quantity = Math.min(capital * RISK_FRACTION / riskPerUnit, capital / entryPrice);
         position = {
           entryTimestamp: candle.timestamp,
@@ -146,7 +158,7 @@ const run = (data, entryWindow, startTimestamp, endTimestamp, frictionMultiplier
       if (candle.low <= position.activeStop) {
         closePosition(Math.min(candle.open, position.activeStop), candle, 'StopLoss');
       } else {
-        const donchianLow = Math.min(...candles.slice(Math.max(0, index - EXIT_WINDOW + 1), index + 1)
+        const donchianLow = Math.min(...candles.slice(Math.max(0, index - exitWindow + 1), index + 1)
           .map(value => value.low));
         position.activeStop = Math.max(position.activeStop, donchianLow);
         if (!weeklyBullishAt(data, weeklyIndex, false)) pendingExit = 'WeeklyTrendInvalidation';
@@ -155,7 +167,12 @@ const run = (data, entryWindow, startTimestamp, endTimestamp, frictionMultiplier
 
     if (!position && !pendingEntry && baseFiltersAt(data, index, weeklyIndex)) {
       const previousHigh = Math.max(...candles.slice(index - entryWindow, index).map(value => value.high));
-      if (candle.close > previousHigh) {
+      const previousHigh252 = Math.max(...candles.slice(index - 252, index).map(value => value.high));
+      const high52WeekRatio = candle.close / previousHigh252;
+      const momentum252Percent = (candle.close / candles[index - 252].close - 1) * 100;
+      if (candle.close > previousHigh
+        && high52WeekRatio >= minimum52WeekHighRatio
+        && momentum252Percent >= minimumMomentum252Percent) {
         signals += 1;
         pendingEntry = {
           signalIndex: index,
@@ -177,7 +194,7 @@ const run = (data, entryWindow, startTimestamp, endTimestamp, frictionMultiplier
   return { symbol: data.asset.symbol, signals, rejected, trades, capital, maxDrawdown };
 };
 
-const summarize = rows => {
+export const summarizeLongDonchianRows = rows => {
   const trades = rows.flatMap(row => row.trades);
   const winners = trades.filter(trade => trade.rMultiple > 0);
   const losers = trades.filter(trade => trade.rMultiple <= 0);
@@ -241,7 +258,7 @@ const fetchAll = async () => {
     const results = await Promise.allSettled(batch.map(async asset => {
       const candles = await fetchYahoo(asset.providerSymbol);
       if (candles.length < 800) throw new Error(`istoric insuficient: ${candles.length}`);
-      return prepare(asset, candles);
+      return prepareLongDonchianData(asset, candles);
     }));
     results.forEach((result, index) => {
       if (result.status === 'fulfilled') datasets.push(result.value);
@@ -251,7 +268,7 @@ const fetchAll = async () => {
   return { datasets, failures };
 };
 
-const periodsFor = data => {
+export const longDonchianPeriodsFor = data => {
   const eligible = data.candles.slice(300);
   const validationStart = eligible[Math.floor(eligible.length * 0.60)].timestamp;
   const finalStart = eligible[Math.floor(eligible.length * 0.80)].timestamp;
@@ -262,9 +279,9 @@ const periodsFor = data => {
   };
 };
 
-const evaluate = (datasets, entryWindow, period, frictionMultiplier = 1) => summarize(datasets.map(data => {
-  const [start, end] = periodsFor(data)[period];
-  return run(data, entryWindow, start, end, frictionMultiplier);
+const evaluate = (datasets, entryWindow, period, frictionMultiplier = 1) => summarizeLongDonchianRows(datasets.map(data => {
+  const [start, end] = longDonchianPeriodsFor(data)[period];
+  return runLongDonchianVariant(data, entryWindow, start, end, frictionMultiplier);
 }));
 
 const main = async () => {
@@ -298,7 +315,9 @@ const main = async () => {
   }, null, 2)}\n`);
 };
 
-main().catch(error => {
-  process.stderr.write(`${error instanceof Error ? error.stack : String(error)}\n`);
-  process.exitCode = 1;
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch(error => {
+    process.stderr.write(`${error instanceof Error ? error.stack : String(error)}\n`);
+    process.exitCode = 1;
+  });
+}
