@@ -957,6 +957,7 @@ export class AppState {
   private async restoreDailyRegimeState(force = false) {
     if (!force && Date.now() - this.dailyRegimeStateLoadedAt < 30_000) return;
     try {
+      const scanIsRunning = this.dailyRegimeScanStatus.running;
       const snapshot = await this.dailyRegimeDocument().get();
       this.dailyRegimeStateLoadedAt = Date.now();
       if (!snapshot.exists) return;
@@ -967,7 +968,9 @@ export class AppState {
         confirmedFlips?: FlipCandidate[];
         strategySetups?: StrategyAlertSnapshot[];
       } | undefined;
-      if (stored?.status) this.dailyRegimeScanStatus = {
+      // Dashboard polling must not replace live progress with a persisted
+      // partial status from an earlier write while a scan is still running.
+      if (stored?.status && !scanIsRunning) this.dailyRegimeScanStatus = {
         ...stored.status,
         enabled: true,
         schedule: '5 */4 * * *',
