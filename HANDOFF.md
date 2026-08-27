@@ -1482,3 +1482,28 @@ Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 Production bundle: index-I217crRg.js
 ```
+
+## 38. Confirmed Flip Alert Filters
+
+Implemented and deployed on 27 August 2026.
+
+- Added an independent filter set to **Top 10 alerte de trading confirmate**, matching the controls used by **Top 10 aproape de flip**:
+  - direction: All / Bullish / Bearish;
+  - timeframe: All / 4H / 8H / 1D / 1W;
+  - symbol search.
+- Confirmed results remain limited to the ten best recent closed-candle flips inside the selected filters.
+- Candidate and confirmed filters use separate state, so changing one list cannot silently change the other.
+- Empty results now explicitly state that no recent confirmed flip matches the selected filters; history is never deleted by filtering.
+
+```text
+npm run build: passed
+npm test: 48 passed, 0 failed
+Live UI: both filter groups present; confirmed 1W selection left candidate 1W unselected; confirmed symbol search accepted XRP
+Git commit: 1271248
+Cloud Build: 59934de6-c13c-4b6d-b384-85121ba7216d (SUCCESS)
+Cloud Run revision: market-scanner-360-00108-b6h
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+Production bundle: index-DH9I-3_j.js
+```
