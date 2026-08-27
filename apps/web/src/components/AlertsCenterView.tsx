@@ -74,6 +74,9 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
   const [candidateFilter, setCandidateFilter] = useState<'ALL' | 'BULLISH' | 'BEARISH'>('ALL');
   const [candidateTimeframe, setCandidateTimeframe] = useState<'ALL' | '4h' | '8h' | '1d' | '1w'>('ALL');
   const [candidateSearch, setCandidateSearch] = useState('');
+  const [confirmedFilter, setConfirmedFilter] = useState<'ALL' | 'BULLISH' | 'BEARISH'>('ALL');
+  const [confirmedTimeframe, setConfirmedTimeframe] = useState<'ALL' | '4h' | '8h' | '1d' | '1w'>('ALL');
+  const [confirmedSearch, setConfirmedSearch] = useState('');
   const restoredBrowserRules = useRef(false);
 
   const loadDashboard = useCallback(async () => {
@@ -281,10 +284,16 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
   }, [candidateFilter, candidateSearch, candidateTimeframe, data?.flipCandidates]);
   const topConfirmedFlips = useMemo(() => {
     const now = Date.now();
+    const query = confirmedSearch.replace(/^[$#]/, '').trim().toUpperCase();
     const maxAgeByTimeframe = { '4h': 12 * 60 * 60_000, '8h': 24 * 60 * 60_000, '1d': 72 * 60 * 60_000, '1w': 14 * 24 * 60 * 60_000 } as const;
     const seenAssets = new Set<string>();
     return (data?.confirmedFlips || [])
       .filter(candidate => now - candidate.candleTimestamp <= maxAgeByTimeframe[candidate.timeframe])
+      .filter(candidate =>
+        (confirmedFilter === 'ALL' || candidate.direction === confirmedFilter)
+        && (confirmedTimeframe === 'ALL' || candidate.timeframe === confirmedTimeframe)
+        && (!query || candidate.symbol.includes(query))
+      )
       .sort((left, right) => right.priorityScore - left.priorityScore || right.candleTimestamp - left.candleTimestamp)
       .filter(candidate => {
         const key = `${candidate.marketClass}:${candidate.symbol}`;
@@ -293,7 +302,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
         return true;
       })
       .slice(0, 10);
-  }, [data?.confirmedFlips]);
+  }, [confirmedFilter, confirmedSearch, confirmedTimeframe, data?.confirmedFlips]);
 
   const candidateFilterControls = (
     <div className="space-y-2">
@@ -329,6 +338,45 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
         value={candidateSearch}
         onChange={event => setCandidateSearch(event.target.value)}
         placeholder="Caută asset în candidați, ex. ETH"
+        className="w-full rounded-lg border border-white/[0.07] bg-white/[0.025] px-3 py-2 font-mono text-[11px] text-slate-200 outline-none transition placeholder:text-slate-600 focus:border-cyan-500/30"
+      />
+    </div>
+  );
+
+  const confirmedFilterControls = (
+    <div className="space-y-2">
+      <div className="grid grid-cols-3 gap-1 rounded-lg border border-white/[0.06] bg-white/[0.025] p-1">
+        {(['ALL', 'BULLISH', 'BEARISH'] as const).map(filter => (
+          <button
+            key={filter}
+            type="button"
+            onClick={() => setConfirmedFilter(filter)}
+            className={`rounded-md px-2.5 py-1.5 text-[10px] font-bold transition ${confirmedFilter === filter
+              ? filter === 'BULLISH'
+                ? 'bg-emerald-500/15 text-emerald-300'
+                : filter === 'BEARISH'
+                  ? 'bg-rose-500/15 text-rose-300'
+                  : 'bg-violet-500/15 text-violet-200'
+              : 'text-slate-500 hover:text-slate-300'}`}
+          >{filter === 'ALL' ? 'TOATE' : filter}</button>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-1 rounded-lg border border-white/[0.06] bg-white/[0.025] p-1">
+        {(['ALL', '4h', '8h', '1d', '1w'] as const).map(timeframe => (
+          <button
+            key={timeframe}
+            type="button"
+            onClick={() => setConfirmedTimeframe(timeframe)}
+            className={`min-w-10 flex-1 rounded-md px-2 py-1.5 font-mono text-[10px] font-bold uppercase transition ${confirmedTimeframe === timeframe
+              ? 'bg-cyan-500/15 text-cyan-200'
+              : 'text-slate-500 hover:text-slate-300'}`}
+          >{timeframe === 'ALL' ? 'TF toate' : timeframe}</button>
+        ))}
+      </div>
+      <input
+        value={confirmedSearch}
+        onChange={event => setConfirmedSearch(event.target.value)}
+        placeholder="Caută asset confirmat, ex. ETH"
         className="w-full rounded-lg border border-white/[0.07] bg-white/[0.025] px-3 py-2 font-mono text-[11px] text-slate-200 outline-none transition placeholder:text-slate-600 focus:border-cyan-500/30"
       />
     </div>
@@ -592,14 +640,17 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                   Cele mai recente flipuri pe lumânări închise, cu prioritate pentru 4H și confirmări 1W/SMA. Scorul este tehnic, nu procent de reușită.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => void clearAlertGroup('history')}
-                disabled={clearingTarget !== null || !data?.confirmedFlips?.length}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-rose-500/25 bg-rose-500/[0.06] px-3 py-2 text-[10px] font-bold text-rose-300 transition hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Trash2 className={`h-3.5 w-3.5 ${clearingTarget === 'history' ? 'animate-pulse' : ''}`} /> Șterge istoricul
-              </button>
+              <div className="space-y-2">
+                {confirmedFilterControls}
+                <button
+                  type="button"
+                  onClick={() => void clearAlertGroup('history')}
+                  disabled={clearingTarget !== null || !data?.confirmedFlips?.length}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-rose-500/25 bg-rose-500/[0.06] px-3 py-2 text-[10px] font-bold text-rose-300 transition hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Trash2 className={`h-3.5 w-3.5 ${clearingTarget === 'history' ? 'animate-pulse' : ''}`} /> Șterge istoricul
+                </button>
+              </div>
             </div>
 
             {topConfirmedFlips.length ? (
@@ -615,7 +666,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
               </div>
             ) : (
               <div className="rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.02] px-5 py-8 text-center text-xs text-slate-500">
-                Niciun flip recent în fereastra activă. Lista se populează după următoarea scanare flip-only.
+                Niciun flip confirmat nu corespunde filtrelor selectate în fereastra activă.
               </div>
             )}
           </section>
