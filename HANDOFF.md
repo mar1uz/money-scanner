@@ -1444,3 +1444,41 @@ Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 ```
 
+## 37. Strategy Alert Safety Audit & Weekly MoneyLine Flip Discovery
+
+Audited, corrected and deployed on 27 August 2026 after reviewing sections 26–36 and the live Alerts Center.
+
+### Safety decision
+
+- Reverted the production trade-alert scanner to the only retained holdout candidate: **Weekly Trend + Donchian 55/20 LONG for stocks/ETFs only**.
+- Automatic strategy alerts now require Fast **and** Slow Weekly MoneyLine bullish, price above a rising Weekly SMA40, mature Daily SMA50/SMA200 alignment and slopes, positive 252-session momentum, ATR percentile at or below 70, and a fresh/near Donchian 55 breakout.
+- The initial stop again matches the validated backtest: the wider of the two-candle structural stop and 2 ATR. A setup is rejected if this implies more than **4%** price risk; the stop is never tightened merely to pass the gate.
+- Execution remains conditional on the next Daily open, a gap no larger than 1 ATR and risk still at or below 4%.
+- Crypto/metals Donchian, MoneyLine Macro, 4H Sniper and Bear Rally Fade SHORT remain research/backtest models only. They cannot populate production setup cards or send Telegram trade alerts.
+- A production rescan cleared 50 stale experimental cards and returned one conservative ARMED candidate (VEA, 2.11% estimated stop); no entry was claimed.
+
+### ETH / Weekly flip correction
+
+- Root cause: the global flip scanner evaluated only 4H, 8H and 1D, even though the MoneyLine chart displayed the 1W flip threshold.
+- Added 1W to candidate calculation, confirmation history and closed-candle age handling.
+- Retained candidates per timeframe and added 4H/8H/1D/1W filters plus symbol search, so lower-timeframe Top 10 entries cannot hide a specific Weekly setup.
+- Live verification after a 177-asset scan: searching `ETH` shows **ETH 1W · BULL FLIP · Se apropie**, price **$2,523.49**, Slow BUY threshold **$2,664.3348**, distance **0.53 ATR / 5.58%**. It correctly does not appear under confirmed flips because price has not crossed the threshold and the Weekly candle has not closed.
+- Fixed dashboard polling so restoring persisted state cannot make live progress exceed the universe total.
+
+### Verification and deployment
+
+```text
+npm run build: passed
+npm test: 48 passed, 0 failed
+API regression tests: 19 passed, 0 failed
+Live strategy scan: 83/83 stocks/ETFs, 1 ARMED, 0 errors
+Live flip scan: all 177 assets completed, 1W candidates included
+Live ETH search: ETH 1W candidate visible at the same $2,664.3348 threshold as the chart
+Git commits: 6065767, 8243ab5, 6998a76
+Final Cloud Build: 1d092307-d1ae-43b9-acdc-0dbf2aa229b3 (SUCCESS)
+Cloud Run revision: market-scanner-360-00107-cvq
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+Production bundle: index-I217crRg.js
+```
