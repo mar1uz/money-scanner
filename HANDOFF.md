@@ -1260,3 +1260,33 @@ Secret bindings preserved: DAILY_SCAN_TOKEN, GEMINI_API_KEY, TELEGRAM_BOT_TOKEN 
 ```
 
 This revision packages the saved research reports and reproducible backtest scripts but does not activate either research candidate in the live UI, scanner, or Telegram alerts. `WEEKLY_TREND_DONCHIAN_55_20_LONG` remains a stocks/ETF paper candidate, and no SHORT strategy has passed the locked final validation required for live activation.
+
+## 32. Weekly Trend + Donchian 55/20 LONG production replacement
+
+Implemented on 27 August 2026. The validated stocks/ETF-only LONG candidate replaces Connors RSI(2) across the active strategy scanner, Telegram notifications, Alerts dashboard and Backtest Lab. The former `connors_rsi2` API path now returns HTTP 410 and persisted Connors cards/history are removed during state restoration.
+
+Production identifier: `WEEKLY_DONCHIAN_55_LONG` / `weekly_donchian_long`.
+
+```text
+Universe: stocks and ETFs only
+Weekly regime: MoneyLine Fast + Slow bullish; close > rising SMA40
+Daily trend: close > SMA200; SMA50 > SMA200; both rising over 20 sessions
+Momentum: close > close 252 sessions ago
+Volatility: current ATR14% percentile <= 70 over the prior 252 sessions
+Armed: all filters valid and price no more than 1 ATR below Donchian 55
+Confirmed: fresh closed Daily breakout above the prior 55-session high
+Execution gate: following Daily open, gap <= 1 ATR
+Initial stop: wider of two-candle structure minus 0.1 ATR and 2 ATR
+Risk gate: reject initial stop distance > 4%; backtest risks 0.5% of equity
+Exit: trailing Donchian low 20 or Weekly regime invalidation
+```
+
+The Alerts page shows Donchian 55, Weekly SMA40, volatility percentile, 12-month momentum, entry reference, stop and risk-reference targets. Telegram sends distinct near-breakout and confirmed-breakout messages and warns that the open/gap/risk levels must be recalculated at execution. Backtest Lab defaults to SPY and exposes ten liquid US stocks/ETFs for comparison, with Donchian 55/20 plotted on the price chart.
+
+Verification before deployment:
+
+```text
+npm test: 50 passed, 0 failed
+API integration: 12 passed, 0 failed
+npm run build: passed
+```

@@ -131,24 +131,34 @@ describe('API Server Integration Tests', () => {
     await new Promise<void>(resolve => server.close(() => resolve()));
   });
 
-  it('runs the deep-history Connors RSI2 strategy with plotted indicators', async () => {
+  it('runs the stocks-only Weekly Trend + Donchian 55/20 LONG strategy', async () => {
     const app = createServer();
     const server = http.createServer(app);
 
     await new Promise<void>(resolve => server.listen(0, resolve));
     const port = (server.address() as any).port;
     const res = await fetch(
-      `http://127.0.0.1:${port}/api/backtest/BTC?strategy=connors_rsi2&marketClass=crypto&directionMode=LONG_ONLY`
+      `http://127.0.0.1:${port}/api/backtest/SPY?strategy=weekly_donchian_long&marketClass=stocks&directionMode=LONG_ONLY`
     );
     assert.equal(res.status, 200);
     const backtest = await res.json() as any;
 
-    assert.equal(backtest.params.strategy, 'connors_rsi2');
-    assert.ok(backtest.priceSeries.length >= 1_000);
-    assert.equal(typeof backtest.priceSeries[0].rsi2, 'number');
-    assert.equal(typeof backtest.priceSeries[0].sma5, 'number');
-    assert.ok(backtest.totalTrades > 0);
+    assert.equal(backtest.params.strategy, 'weekly_donchian_long');
+    assert.equal(backtest.params.marketClass, 'stocks');
+    assert.ok(backtest.priceSeries.length > 0);
+    assert.equal(typeof backtest.priceSeries[0].donchianHigh55, 'number');
+    assert.ok(backtest.trades.every((trade: any) => trade.side === 'LONG' && trade.initialRiskPercent <= 4));
 
+    await new Promise<void>(resolve => server.close(() => resolve()));
+  });
+
+  it('retires the legacy Connors API route', async () => {
+    const app = createServer();
+    const server = http.createServer(app);
+    await new Promise<void>(resolve => server.listen(0, resolve));
+    const port = (server.address() as any).port;
+    const res = await fetch(`http://127.0.0.1:${port}/api/backtest/SPY?strategy=connors_rsi2&marketClass=stocks`);
+    assert.equal(res.status, 410);
     await new Promise<void>(resolve => server.close(() => resolve()));
   });
 

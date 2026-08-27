@@ -13,48 +13,103 @@ const toCandles = (closes: number[]): Candle[] => closes.map((close, index) => (
   isClosed: true
 }));
 
+const breakoutDaily = () => {
+  const closes = Array.from({ length: 321 }, (_, index) => 100 + index);
+  closes[319] = closes[318] - 1;
+  closes[320] = closes[318] + 3;
+  return closes.map((close, index): Candle => {
+    const spread = 0.4 + (index % 20) * 0.1;
+    return {
+      timestamp: Date.UTC(2023, 0, 2) + index * 86_400_000,
+      open: close - 0.1,
+      high: close + spread,
+      low: close - spread,
+      close,
+      volume: 1_000_000,
+      isClosed: true
+    };
+  });
+};
+
+const bullishWeekly = () => Array.from({ length: 80 }, (_, index): Candle => {
+  const close = 100 + index * 2;
+  return {
+    timestamp: Date.UTC(2021, 0, 4) + index * 7 * 86_400_000,
+    open: close - 1,
+    high: close + 1,
+    low: close - 1,
+    close,
+    volume: 5_000_000,
+    isClosed: true
+  };
+});
+
 describe('Daily strategy alert evaluation', () => {
-  it('arms a fresh Connors RSI(2) pullback below 5 without recommending entry', () => {
-    const closes = Array.from({ length: 221 }, (_, index) => 100 + index * 0.5);
-    closes[220] = closes[219] - 10;
-    const benchmark = Array.from({ length: 221 }, (_, index) => 100 + index * 0.2);
+  it('confirms Weekly Trend + Donchian 55/20 only on a fresh stocks breakout', () => {
+    const daily = breakoutDaily();
+    const benchmark = toCandles(daily.map(candle => candle.close));
+    const result = evaluateDailyStrategyAlerts('TEST', 'stocks', daily, benchmark, bullishWeekly());
+    const signal = result.events.find(event => event.strategy === 'WEEKLY_DONCHIAN_55_LONG');
 
-    const result = evaluateDailyStrategyAlerts('TEST', 'stocks', toCandles(closes), toCandles(benchmark));
-
-    assert.equal(result.events.length, 1);
-    assert.equal(result.current?.strategy, 'CONNORS_RSI2_LONG');
-    assert.equal(result.current?.stage, 'ARMED');
-    assert.equal(result.current?.side, 'LONG');
-    assert.ok((result.current?.rsi2 || 100) < 5);
-    assert.ok((result.current?.signalPrice || 0) > (result.current?.sma200 || Number.MAX_VALUE));
-    assert.ok((result.current?.stopLoss || 0) < (result.current?.entryReference || 0));
+    assert.equal(signal?.stage, 'CONFIRMED');
+    assert.equal(signal?.side, 'LONG');
+    assert.equal(signal?.marketClass, 'stocks');
+    assert.ok((signal?.signalPrice || 0) > (signal?.donchianHigh55 || Number.MAX_VALUE));
+    assert.ok((signal?.riskPercent || 100) <= 4);
+    assert.ok((signal?.weeklySma40 || 0) > (signal?.weeklySma40EightWeeksAgo || Number.MAX_VALUE));
   });
 
-  it('confirms Connors LONG only after RSI(2) crosses back above 50 while price remains above SMA200', () => {
-    const closes = Array.from({ length: 220 }, (_, index) => 100 + index * 0.5);
-    closes.push(closes[219] - 10, closes[219] + 2);
-    const benchmark = Array.from({ length: closes.length }, (_, index) => 100 + index * 0.2);
+  it('shows a near Donchian breakout as ARMED without presenting an entry', () => {
+    const daily = breakoutDaily();
+    daily[daily.length - 1] = {
+      ...daily[daily.length - 1],
+      open: daily[daily.length - 2].close,
+      close: daily[daily.length - 2].close + 0.5,
+      high: daily[daily.length - 2].close + 0.8,
+      low: daily[daily.length - 2].close - 0.5
+    };
+    const result = evaluateDailyStrategyAlerts('TEST', 'stocks', daily, toCandles(daily.map(candle => candle.close)), bullishWeekly());
+    const signal = result.current?.strategy === 'WEEKLY_DONCHIAN_55_LONG' ? result.current : undefined;
 
-    const result = evaluateDailyStrategyAlerts('TEST', 'stocks', toCandles(closes), toCandles(benchmark));
-
-    assert.equal(result.events.length, 1);
-    assert.equal(result.current?.strategy, 'CONNORS_RSI2_LONG');
-    assert.equal(result.current?.stage, 'CONFIRMED');
-    assert.equal(result.current?.side, 'LONG');
-    assert.ok((result.current?.previousRsi2 || 100) <= 50);
-    assert.ok((result.current?.rsi2 || 0) > 50);
-    assert.ok((result.current?.signalPrice || 0) > (result.current?.sma200 || Number.MAX_VALUE));
+    assert.equal(signal?.stage, 'ARMED');
+    assert.ok((signal?.signalPrice || Number.MAX_VALUE) <= (signal?.donchianHigh55 || 0));
+    assert.ok((signal?.distanceToBreakoutPercent || 100) >= 0);
   });
 
-  it('invalidates an armed Connors pullback if Daily loses SMA200 before confirmation', () => {
-    const closes = Array.from({ length: 220 }, (_, index) => 100 + index * 0.5);
-    closes.push(140, 150);
-    const benchmark = Array.from({ length: closes.length }, (_, index) => 100 + index * 0.2);
+  it('never enables the validated Donchian LONG strategy for crypto', () => {
+    const daily = breakoutDaily();
+    const result = evaluateDailyStrategyAlerts('TEST', 'crypto', daily, toCandles(daily.map(candle => candle.close)), bullishWeekly());
 
-    const result = evaluateDailyStrategyAlerts('TEST', 'stocks', toCandles(closes), toCandles(benchmark));
+    assert.equal(result.events.some(event => event.strategy === 'WEEKLY_DONCHIAN_55_LONG'), false);
+    assert.notEqual(result.current?.strategy, 'WEEKLY_DONCHIAN_55_LONG');
+  });
 
-    assert.equal(result.current, undefined);
-    assert.equal(result.events.length, 0);
+  it('rejects Donchian LONG when the Weekly regime is not bullish', () => {
+    const daily = breakoutDaily();
+    const bearishWeekly = bullishWeekly().map((candle, index, values) => ({
+      ...candle,
+      close: values.length * 2 + 100 - index * 2,
+      open: values.length * 2 + 101 - index * 2,
+      high: values.length * 2 + 102 - index * 2,
+      low: values.length * 2 + 99 - index * 2
+    }));
+    const result = evaluateDailyStrategyAlerts('TEST', 'stocks', daily, toCandles(daily.map(candle => candle.close)), bearishWeekly);
+
+    assert.equal(result.events.some(event => event.strategy === 'WEEKLY_DONCHIAN_55_LONG'), false);
+    assert.notEqual(result.current?.strategy, 'WEEKLY_DONCHIAN_55_LONG');
+  });
+
+  /*
+   * Bear Rally Fade remains active as the separate production SHORT model.
+   */
+  it('keeps Donchian snapshots risk-managed below the production gate', () => {
+    const daily = breakoutDaily();
+    const result = evaluateDailyStrategyAlerts('TEST', 'stocks', daily, toCandles(daily.map(candle => candle.close)), bullishWeekly());
+    const signal = result.events.find(event => event.strategy === 'WEEKLY_DONCHIAN_55_LONG');
+
+    assert.equal(signal?.side, 'LONG');
+    assert.ok((signal?.stopLoss || 0) < (signal?.entryReference || 0));
+    assert.ok((signal?.riskPercent || 100) <= 4);
   });
 
   it('arms a Bear Rally Fade only after RSI(2) crosses above 95 in a confirmed bear regime', () => {

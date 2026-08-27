@@ -49,7 +49,7 @@ export interface DispatchedAlert {
 }
 
 export type StrategyAlertStrategy =
-  | 'CONNORS_RSI2_LONG'
+  | 'WEEKLY_DONCHIAN_55_LONG'
   | 'BEAR_RALLY_FADE_SHORT'
   | 'MONEYLINE_MACRO_LONG'
   | 'MONEYLINE_4H_SNIPER_LONG';
@@ -88,6 +88,16 @@ export interface StrategyAlertSnapshot {
   benchmarkSma50?: number;
   benchmarkSma200?: number;
   benchmarkBearish?: boolean;
+  donchianHigh55?: number;
+  donchianLow20?: number;
+  weeklySma40?: number;
+  weeklySma40EightWeeksAgo?: number;
+  weeklyFastBullish?: boolean;
+  weeklySlowBullish?: boolean;
+  atrPercentile?: number;
+  momentum252Percent?: number;
+  distanceToBreakoutPercent?: number;
+  maxRiskPercent?: number;
 }
 
 export interface DailyRegimeScanSnapshot {

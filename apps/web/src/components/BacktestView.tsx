@@ -51,12 +51,12 @@ const BACKTEST_ASSETS: BacktestAssetOption[] = [
   { symbol: 'COPPER', name: 'Copper', marketClass: 'metals' }
 ];
 
-type ResearchStrategy = Extract<BacktestStrategy, 'connors_rsi2' | 'bear_rally_fade' | 'weekly_reclaim'>;
+type ResearchStrategy = Extract<BacktestStrategy, 'weekly_donchian_long' | 'bear_rally_fade' | 'weekly_reclaim'>;
 const STRATEGY_META: Record<ResearchStrategy, { title: string; description: string; scope: string }> = {
-  connors_rsi2: {
-    title: 'Strategia 1 · Connors RSI(2) Pullback LONG',
-    description: 'RSI(2) sub 5 doar armează corecția peste SMA200. Intrarea are loc numai după revenirea RSI(2) peste 50, iar ieșirea urmează regula SMA5. Varianta testată include un stop-catastrofă de 3 ATR.',
-    scope: 'Recomandat pentru cercetare: LONG pe crypto lichid și acțiuni/ETF-uri lichide. Nu este recomandat implicit pentru metale.'
+  weekly_donchian_long: {
+    title: 'Strategia 1 · Weekly Trend + Donchian 55/20 LONG',
+    description: 'Cumpără numai breakout-uri Daily peste maximul ultimelor 55 de sesiuni, într-un regim MoneyLine Weekly bullish și cu trend Daily matur. Riscul este plafonat la 4%, iar ieșirea urmărește minimul Donchian pe 20 de sesiuni.',
+    scope: 'Strategia recomandată și alertată live exclusiv pentru acțiuni și ETF-uri lichide; nu se aplică crypto sau metalelor.'
   },
   bear_rally_fade: {
     title: 'Strategia 2 · Bear Rally Fade SHORT',
@@ -79,8 +79,8 @@ const formatDate = (value: number) => new Date(value).toLocaleDateString('ro-RO'
 });
 
 export const BacktestView: React.FC = () => {
-  const [strategy, setStrategy] = useState<ResearchStrategy>('connors_rsi2');
-  const [assetKey, setAssetKey] = useState('crypto:BTC');
+  const [strategy, setStrategy] = useState<ResearchStrategy>('weekly_donchian_long');
+  const [assetKey, setAssetKey] = useState('stocks:SPY');
   const [directionMode, setDirectionMode] = useState<BacktestDirectionMode>('LONG_ONLY');
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [comparison, setComparison] = useState<BacktestComparisonResult | null>(null);
@@ -88,12 +88,16 @@ export const BacktestView: React.FC = () => {
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [error, setError] = useState('');
   const availableAssets = useMemo(
-    () => strategy === 'weekly_reclaim' ? BACKTEST_ASSETS : BACKTEST_ASSETS.filter(asset => asset.marketClass !== 'metals'),
+    () => strategy === 'weekly_reclaim'
+      ? BACKTEST_ASSETS
+      : strategy === 'weekly_donchian_long'
+        ? BACKTEST_ASSETS.filter(asset => asset.marketClass === 'stocks')
+        : BACKTEST_ASSETS.filter(asset => asset.marketClass !== 'metals'),
     [strategy]
   );
   const effectiveDirectionMode: BacktestDirectionMode = strategy === 'bear_rally_fade'
     ? 'SHORT_ONLY'
-    : strategy === 'connors_rsi2' ? 'LONG_ONLY' : directionMode;
+    : strategy === 'weekly_donchian_long' ? 'LONG_ONLY' : directionMode;
   const selectedAsset = useMemo(() => {
     const [marketClass, symbol] = assetKey.split(':') as [AssetMarketClass, string];
     return availableAssets.find(asset => asset.symbol === symbol && asset.marketClass === marketClass) || availableAssets[0];
@@ -153,7 +157,7 @@ export const BacktestView: React.FC = () => {
               onChange={event => setStrategy(event.target.value as ResearchStrategy)}
               className="rounded-xl border border-emerald-500/25 bg-background-surface px-3 py-2.5 text-xs font-mono text-emerald-200 outline-none focus:border-emerald-500/50"
             >
-              <option value="connors_rsi2">Strategia 1 · LONG RSI(2)</option>
+              <option value="weekly_donchian_long">Strategia 1 · LONG Donchian 55/20</option>
               <option value="bear_rally_fade">Strategia 2 · SHORT Bear Rally</option>
               <option value="weekly_reclaim">Experimentală · MoneyLine Reclaim</option>
             </select>
@@ -243,8 +247,8 @@ export const BacktestView: React.FC = () => {
                 ))}
               </div>
               <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/[0.06] p-3 text-[10px] leading-5 text-amber-100/70">
-                {result.params.strategy === 'connors_rsi2'
-                  ? 'RSI(2) sub 5 este doar armare. LONG se execută la următorul open numai după un cross Daily închis peste 50, dacă prețul rămâne peste SMA200. Stopul de 3 ATR limitează riscul de coadă.'
+                {result.params.strategy === 'weekly_donchian_long'
+                  ? 'Breakout-ul se confirmă numai la închiderea Daily peste maximul precedentelor 55 de sesiuni. Intrarea este la următorul open doar dacă gap-ul este maximum 1 ATR și stopul rezultat rămâne sub 4%.'
                   : result.params.strategy === 'bear_rally_fade'
                     ? 'RSI(2) peste 95 doar armează setup-ul. Intrarea SHORT are loc numai după confirmarea sub 50, la următorul open. Riscul unei poziții short poate depăși capitalul inițial.'
                   : 'Un semnal produs la închiderea Daily se execută la următoarea deschidere. Dacă stopul și ținta sunt atinse în aceeași lumânare, backtestul presupune conservator că stopul a fost primul.'}
@@ -267,7 +271,7 @@ export const BacktestView: React.FC = () => {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="flex items-center gap-2"><GitCompareArrows className="h-4 w-4 text-violet-300" /><h2 className="text-sm font-bold text-slate-100">Verificare multi-asset</h2></div>
-                <p className="mt-1 text-xs text-slate-500">{strategy === 'weekly_reclaim' ? '10 active din crypto, acțiuni și metale' : '7 active lichide din crypto și acțiuni'} — aceleași reguli, fără optimizare individuală.</p>
+                <p className="mt-1 text-xs text-slate-500">{strategy === 'weekly_reclaim' ? '10 active din crypto, acțiuni și metale' : strategy === 'weekly_donchian_long' ? '10 acțiuni și ETF-uri lichide' : '7 active lichide din crypto și acțiuni'} — aceleași reguli, fără optimizare individuală.</p>
               </div>
               <button
                 type="button"
@@ -275,7 +279,7 @@ export const BacktestView: React.FC = () => {
                 disabled={comparisonLoading}
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-2.5 text-xs font-bold text-violet-200 transition hover:bg-violet-500/20 disabled:opacity-60"
               >
-                <GitCompareArrows className={`h-4 w-4 ${comparisonLoading ? 'animate-pulse' : ''}`} /> {comparisonLoading ? 'Compar…' : `Compară ${strategy === 'weekly_reclaim' ? 10 : 7} active`}
+                <GitCompareArrows className={`h-4 w-4 ${comparisonLoading ? 'animate-pulse' : ''}`} /> {comparisonLoading ? 'Compar…' : `Compară ${strategy === 'weekly_reclaim' || strategy === 'weekly_donchian_long' ? 10 : 7} active`}
               </button>
             </div>
             {comparison && <ComparisonTable comparison={comparison} />}
@@ -318,15 +322,20 @@ const MetricCard: React.FC<{
 const PriceChart: React.FC<{ result: BacktestResult }> = ({ result }) => {
   const points = result.priceSeries || [];
   if (!points.length) return null;
-  const isConnors = result.params.strategy === 'connors_rsi2';
+  const isDonchian = result.params.strategy === 'weekly_donchian_long';
   const isBearRally = result.params.strategy === 'bear_rally_fade';
-  const isRsiStrategy = isConnors || isBearRally;
+  const isRsiStrategy = isBearRally;
   const rsiThreshold = result.params.rsi2EntryThreshold ?? 5;
   const rsiConfirmation = result.params.rsi2ConfirmationThreshold ?? 50;
   const width = 900;
   const height = 300;
   const fastValue = (point: typeof points[number]) => isRsiStrategy ? (point.sma5 ?? point.sma50) : point.sma50;
-  const values = points.flatMap(point => [point.close, fastValue(point), point.sma200]).filter(Number.isFinite);
+  const values = points.flatMap(point => [
+    point.close,
+    fastValue(point),
+    point.sma200,
+    ...(isDonchian ? [point.donchianHigh55, point.donchianLow20] : [])
+  ]).filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
   const range = maxValue - minValue || 1;
@@ -351,11 +360,11 @@ const PriceChart: React.FC<{ result: BacktestResult }> = ({ result }) => {
     <div className="rounded-2xl border border-white/[0.07] bg-background-card p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-sm font-bold text-slate-100">Preț, {isRsiStrategy ? 'SMA5' : 'SMA50'} și execuții</h2>
+          <h2 className="text-sm font-bold text-slate-100">Preț, {isRsiStrategy ? 'SMA5' : 'SMA50'}{isDonchian ? ', Donchian 55/20' : ''} și execuții</h2>
           <p className="mt-1 font-mono text-[10px] text-slate-600">{formatDate(points[0].timestamp)} — {formatDate(points[points.length - 1].timestamp)}</p>
         </div>
         <div className="flex flex-wrap gap-3 text-[9px] font-bold uppercase">
-          <span className="text-slate-200">● Preț</span><span className="text-cyan-300">— {isRsiStrategy ? 'SMA5' : 'SMA50'}</span><span className="text-amber-300">— SMA200</span><span className="text-emerald-300">▲ Entry</span><span className="text-rose-300">× Exit</span>
+          <span className="text-slate-200">● Preț</span><span className="text-cyan-300">— {isRsiStrategy ? 'SMA5' : 'SMA50'}</span><span className="text-amber-300">— SMA200</span>{isDonchian && <><span className="text-violet-300">— D55</span><span className="text-emerald-300">— D20</span></>}<span className="text-emerald-300">▲ Entry</span><span className="text-rose-300">× Exit</span>
         </div>
       </div>
       <div className="mt-4 overflow-hidden rounded-xl border border-white/[0.05] bg-[#070b14] p-2">
@@ -364,6 +373,8 @@ const PriceChart: React.FC<{ result: BacktestResult }> = ({ result }) => {
           <path d={path(point => point.close)} fill="none" stroke="#e2e8f0" strokeWidth="1.5" opacity="0.9" />
           <path d={path(fastValue)} fill="none" stroke="#22d3ee" strokeWidth="1.7" />
           <path d={path(point => point.sma200)} fill="none" stroke="#fbbf24" strokeWidth="1.7" />
+          {isDonchian && <path d={path(point => point.donchianHigh55 ?? point.close)} fill="none" stroke="#a78bfa" strokeWidth="1.4" strokeDasharray="5 4" />}
+          {isDonchian && <path d={path(point => point.donchianLow20 ?? point.close)} fill="none" stroke="#34d399" strokeWidth="1.4" strokeDasharray="5 4" />}
           {result.trades.map(trade => {
             const entryPoint = pointAt(trade.entryTimestamp);
             const exitPoint = pointAt(trade.exitTimestamp);

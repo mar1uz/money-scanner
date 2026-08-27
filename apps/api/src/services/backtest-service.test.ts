@@ -84,6 +84,36 @@ describe('Connors RSI(2) trend pullback backtest', () => {
   });
 });
 
+describe('Weekly Trend + Donchian 55/20 LONG backtest', () => {
+  const daily = candles(1_200, 86_400_000, index => {
+    const cycle = index % 90;
+    const consolidation = cycle < 65 ? Math.sin(index / 5) * 1.2 : (cycle - 65) * 0.65;
+    return 100 + index * 0.14 + consolidation;
+  });
+  const weekly = candles(260, 7 * 86_400_000, index => 100 + index * 1.15 + Math.sin(index / 8) * 2);
+
+  it('uses next-open entries, a maximum 4% initial stop and Donchian trailing exits', () => {
+    const result = new BacktestSimulatorService().runWeeklyDonchianLongBacktest('TEST', daily, weekly);
+
+    assert.equal(result.params.strategy, 'weekly_donchian_long');
+    assert.equal(result.params.marketClass, 'stocks');
+    assert.ok(result.trades.every(trade => trade.side === 'LONG'));
+    assert.ok(result.trades.every(trade => (trade.initialRiskPercent || 0) <= 4));
+    assert.ok(result.priceSeries?.every(point => Number.isFinite(point.donchianHigh55)));
+    assert.ok(result.strategyRules?.some(rule => rule.includes('Donchian low 20')));
+    assert.equal(result.validation?.method, 'chronological_holdout_30');
+  });
+
+  it('keeps warm-up data outside a chronological evaluation window', () => {
+    const evaluationStartTimestamp = daily[900].timestamp;
+    const result = new BacktestSimulatorService().runWeeklyDonchianLongBacktest(
+      'TEST', daily, weekly, { evaluationStartTimestamp }
+    );
+    assert.equal(result.params.startTimestamp, evaluationStartTimestamp);
+    assert.equal(result.priceSeries?.[0].timestamp, evaluationStartTimestamp);
+  });
+});
+
 describe('Bear Rally Fade RSI(2) short backtest', () => {
   const bearishDaily = candles(900, 86_400_000, index => {
     const trend = 800 - index * 0.4;

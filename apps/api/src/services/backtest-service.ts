@@ -533,6 +533,289 @@ export class BacktestSimulatorService {
   }
 
   /**
+   * Stocks/ETF-only Weekly trend + Daily Donchian 55/20 strategy retained by
+   * the frozen research protocol. Signals use completed Weekly candles and a
+   * completed Daily breakout, then execute at the following Daily open.
+   */
+  public runWeeklyDonchianLongBacktest(
+    symbol: string,
+    dailyInput: Candle[],
+    weeklyInput: Candle[],
+    params: Partial<BacktestParams> = {}
+  ): BacktestResult {
+    const daily = dailyInput.filter(candle => candle.isClosed !== false)
+      .sort((left, right) => left.timestamp - right.timestamp);
+    const weekly = weeklyInput.filter(candle => candle.isClosed !== false)
+      .sort((left, right) => left.timestamp - right.timestamp);
+    if (daily.length < 261 || weekly.length < 49) {
+      throw new Error('Sunt necesare minimum 261 lumânări Daily și 49 lumânări Weekly pentru Donchian 55/20 și filtrele de trend.');
+    }
+
+    const fullParams: BacktestParams = {
+      symbol,
+      timeframe: '1d',
+      startTimestamp: daily[0].timestamp,
+      endTimestamp: daily[daily.length - 1].timestamp,
+      initialCapital: params.initialCapital || 10_000,
+      feePercentPerTrade: params.feePercentPerTrade ?? 0.075,
+      slippagePercent: params.slippagePercent ?? 0.05,
+      entryTierThreshold: 'Bullish',
+      exitTierThreshold: 'Neutral',
+      strategy: 'weekly_donchian_long',
+      directionMode: 'LONG_ONLY',
+      marketClass: 'stocks',
+      stopLossPercent: 4,
+      atrStopMultiple: 2,
+      evaluationStartTimestamp: params.evaluationStartTimestamp
+    };
+
+    const closes = daily.map(candle => candle.close);
+    const highs = daily.map(candle => candle.high);
+    const lows = daily.map(candle => candle.low);
+    const sma50 = calculateSMA(closes, 50);
+    const sma200 = calculateSMA(closes, 200);
+    const atr14 = calculateATR(highs, lows, closes, 14);
+    const dailyCloud = calculateMoneyLineCloud(daily, '1d');
+    const weeklyCloses = weekly.map(candle => candle.close);
+    const weeklySma40 = calculateSMA(weeklyCloses, 40);
+    const weeklyCloud = calculateMoneyLineCloud(weekly, '1w');
+    const weekStart = (timestamp: number) => {
+      const date = new Date(timestamp);
+      const day = date.getUTCDay();
+      date.setUTCDate(date.getUTCDate() - (day === 0 ? 6 : day - 1));
+      date.setUTCHours(0, 0, 0, 0);
+      return date.getTime();
+    };
+    const percentileRank = (values: number[], current: number) => {
+      const finite = values.filter(Number.isFinite);
+      return finite.length ? finite.filter(value => value <= current).length / finite.length : 1;
+    };
+    const firstEligibleIndex = daily.findIndex((candle, index) => index >= 260
+      && (!fullParams.evaluationStartTimestamp || candle.timestamp >= fullParams.evaluationStartTimestamp));
+    if (firstEligibleIndex < 0) throw new Error('Perioada selectată nu conține suficient istoric matur.');
+    fullParams.startTimestamp = daily[firstEligibleIndex].timestamp;
+
+    const trades: BacktestTrade[] = [];
+    const equityCurve: BacktestResult['equityCurve'] = [];
+    const priceSeries: BacktestPricePoint[] = [];
+    let capital = fullParams.initialCapital;
+    let peakEquity = capital;
+    let maxDrawdown = 0;
+    let weeklyIndex = -1;
+    let pendingEntry: { signalIndex: number; signalClose: number; atr: number } | undefined;
+    let pendingExit: string | undefined;
+    let position: {
+      entryPrice: number;
+      entryTimestamp: number;
+      initialStop: number;
+      activeStop: number;
+      initialRiskPercent: number;
+      initialRiskCash: number;
+      quantity: number;
+    } | undefined;
+
+    const closePosition = (
+      rawPrice: number,
+      timestamp: number,
+      reason: BacktestTrade['exitReason'],
+      detail: string
+    ) => {
+      if (!position) return;
+      const exitPrice = rawPrice * (1 - fullParams.slippagePercent / 100);
+      const grossPnl = (exitPrice - position.entryPrice) * position.quantity;
+      const fees = (position.entryPrice + exitPrice) * position.quantity * fullParams.feePercentPerTrade / 100;
+      const pnlNetUsd = grossPnl - fees;
+      const pnlPercent = capital > 0 ? pnlNetUsd / capital * 100 : 0;
+      const rMultiple = position.initialRiskCash > 0 ? pnlNetUsd / position.initialRiskCash : 0;
+      capital += pnlNetUsd;
+      trades.push({
+        id: `trade_${trades.length + 1}`,
+        symbol,
+        side: 'LONG',
+        entryTimestamp: position.entryTimestamp,
+        entryPrice: position.entryPrice,
+        exitTimestamp: timestamp,
+        exitPrice,
+        entrySignalTier: 'Bullish',
+        exitSignalTier: reason === 'StopLoss' ? 'Bearish' : 'Neutral',
+        pnlPercent: Number(pnlPercent.toFixed(3)),
+        pnlNetUsd: Number(pnlNetUsd.toFixed(2)),
+        holdingHours: Number(((timestamp - position.entryTimestamp) / 3_600_000).toFixed(1)),
+        exitReason: reason,
+        initialStop: position.initialStop,
+        initialRiskPercent: position.initialRiskPercent,
+        rMultiple: Number(rMultiple.toFixed(2)),
+        entryReason: 'Regim Weekly bullish + trend Daily matur + breakout peste maximul precedentelor 55 sesiuni.',
+        exitReasonDetail: detail
+      });
+      position = undefined;
+      pendingExit = undefined;
+    };
+
+    const weeklyBullishAt = (index: number, requireSlope: boolean) => index >= 48
+      && weeklyCloud.dirFast[index] < 0
+      && weeklyCloud.dirSlow[index] < 0
+      && weeklyCloses[index] > weeklySma40[index]
+      && (!requireSlope || weeklySma40[index] > weeklySma40[index - 8]);
+
+    for (let index = firstEligibleIndex; index < daily.length; index += 1) {
+      const candle = daily[index];
+      const currentWeek = weekStart(candle.timestamp);
+      while (weeklyIndex + 1 < weekly.length && weekly[weeklyIndex + 1].timestamp < currentWeek) weeklyIndex += 1;
+
+      if (pendingExit && position) {
+        closePosition(candle.open, candle.timestamp, 'SignalReversal', pendingExit);
+      }
+      if (pendingEntry && !position) {
+        const entryPrice = candle.open * (1 + fullParams.slippagePercent / 100);
+        const gapOk = entryPrice <= pendingEntry.signalClose + pendingEntry.atr;
+        const signalIndex = pendingEntry.signalIndex;
+        const structuralStop = Math.min(daily[signalIndex - 1].low, daily[signalIndex].low) - 0.1 * pendingEntry.atr;
+        const volatilityStop = entryPrice - 2 * pendingEntry.atr;
+        const initialStop = Math.min(structuralStop, volatilityStop);
+        const riskPerUnit = entryPrice - initialStop;
+        const initialRiskPercent = riskPerUnit / entryPrice * 100;
+        if (gapOk && initialStop > 0 && riskPerUnit > 0 && initialRiskPercent <= 4) {
+          const riskCashTarget = capital * 0.005;
+          const quantity = Math.min(riskCashTarget / riskPerUnit, capital / entryPrice);
+          position = {
+            entryPrice,
+            entryTimestamp: candle.timestamp,
+            initialStop,
+            activeStop: initialStop,
+            initialRiskPercent,
+            initialRiskCash: riskPerUnit * quantity,
+            quantity
+          };
+        }
+        pendingEntry = undefined;
+      }
+
+      if (position) {
+        if (candle.low <= position.activeStop) {
+          closePosition(Math.min(candle.open, position.activeStop), candle.timestamp, 'StopLoss', 'Stopul structural/2 ATR sau trailing Donchian 20 a fost atins.');
+        } else {
+          const donchianLow20 = Math.min(...daily.slice(Math.max(0, index - 19), index + 1).map(value => value.low));
+          position.activeStop = Math.max(position.activeStop, donchianLow20);
+          if (!weeklyBullishAt(weeklyIndex, false)) pendingExit = 'Regimul Weekly MoneyLine/SMA40 s-a invalidat; ieșire la următorul open.';
+        }
+      }
+
+      const previousHigh55 = Math.max(...daily.slice(index - 55, index).map(value => value.high));
+      const currentAtrPercent = atr14[index] / candle.close * 100;
+      const atrHistory = daily.slice(index - 252, index).map((value, offset) => {
+        const sourceIndex = index - 252 + offset;
+        return atr14[sourceIndex] / value.close * 100;
+      });
+      const controlledVolatility = percentileRank(atrHistory, currentAtrPercent) <= 0.7;
+      const broadDailyTrend = candle.close > sma200[index]
+        && sma50[index] > sma200[index]
+        && sma50[index] > sma50[index - 20]
+        && sma200[index] > sma200[index - 20];
+      const longTrigger = !position && !pendingEntry && weeklyBullishAt(weeklyIndex, true)
+        && broadDailyTrend
+        && controlledVolatility
+        && candle.close > daily[index - 252].close
+        && candle.close > previousHigh55
+        && dailyCloud.dirFast[index] < 0;
+      if (longTrigger) pendingEntry = { signalIndex: index, signalClose: candle.close, atr: atr14[index] };
+
+      if (index === daily.length - 1 && position) {
+        closePosition(candle.close, candle.timestamp, 'EndPeriod', 'Sfârșitul perioadei testate.');
+      }
+
+      const markedEquity = position
+        ? capital + (candle.close - position.entryPrice) * position.quantity
+        : capital;
+      peakEquity = Math.max(peakEquity, markedEquity);
+      maxDrawdown = Math.max(maxDrawdown, peakEquity > 0 ? (peakEquity - markedEquity) / peakEquity * 100 : 0);
+      equityCurve.push({
+        timestamp: candle.timestamp,
+        strategyEquity: Number(markedEquity.toFixed(2)),
+        benchmarkEquity: Number((fullParams.initialCapital * candle.close / daily[firstEligibleIndex].close).toFixed(2))
+      });
+      priceSeries.push({
+        timestamp: candle.timestamp,
+        close: candle.close,
+        sma50: sma50[index],
+        sma200: sma200[index],
+        weeklyRegime: weeklyBullishAt(weeklyIndex, false) ? 'BULLISH' : 'TRANSITION',
+        armedLong: !longTrigger && previousHigh55 >= candle.close && previousHigh55 - candle.close <= atr14[index],
+        armedShort: false,
+        longTrigger,
+        shortTrigger: false,
+        donchianHigh55: previousHigh55,
+        donchianLow20: Math.min(...daily.slice(Math.max(0, index - 19), index + 1).map(value => value.low))
+      });
+    }
+
+    const winners = trades.filter(trade => trade.pnlNetUsd > 0);
+    const losers = trades.filter(trade => trade.pnlNetUsd <= 0);
+    const grossProfit = winners.reduce((sum, trade) => sum + trade.pnlNetUsd, 0);
+    const grossLoss = Math.abs(losers.reduce((sum, trade) => sum + trade.pnlNetUsd, 0));
+    const dailyReturns = equityCurve.slice(1).map((point, index) => {
+      const previous = equityCurve[index].strategyEquity;
+      return previous > 0 ? (point.strategyEquity - previous) / previous : 0;
+    });
+    const meanReturn = dailyReturns.length ? dailyReturns.reduce((sum, value) => sum + value, 0) / dailyReturns.length : 0;
+    const variance = dailyReturns.length > 1
+      ? dailyReturns.reduce((sum, value) => sum + (value - meanReturn) ** 2, 0) / (dailyReturns.length - 1)
+      : 0;
+    const finalBenchmark = equityCurve[equityCurve.length - 1]?.benchmarkEquity || fullParams.initialCapital;
+    const validation = !params.evaluationStartTimestamp
+      ? (() => {
+          const startTimestamp = daily[Math.max(260, Math.floor(daily.length * 0.7))].timestamp;
+          const holdout = this.runWeeklyDonchianLongBacktest(symbol, daily, weekly, { ...params, evaluationStartTimestamp: startTimestamp });
+          return {
+            method: 'chronological_holdout_30' as const,
+            startTimestamp,
+            totalTrades: holdout.totalTrades,
+            winRate: holdout.winRate,
+            profitFactor: holdout.profitFactor,
+            totalReturnPercent: holdout.totalReturnPercent,
+            maxDrawdownPercent: holdout.maxDrawdownPercent,
+            profitable: holdout.totalReturnPercent > 0
+          };
+        })()
+      : undefined;
+
+    return {
+      params: fullParams,
+      totalTrades: trades.length,
+      winningTrades: winners.length,
+      losingTrades: losers.length,
+      winRate: trades.length ? Number((winners.length / trades.length * 100).toFixed(1)) : 0,
+      profitFactor: Number((grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 99 : 0).toFixed(2)),
+      totalReturnPercent: Number(((capital / fullParams.initialCapital - 1) * 100).toFixed(2)),
+      buyAndHoldReturnPercent: Number(((finalBenchmark / fullParams.initialCapital - 1) * 100).toFixed(2)),
+      maxDrawdownPercent: Number(maxDrawdown.toFixed(2)),
+      sharpeRatio: Number((variance > 0 ? meanReturn / Math.sqrt(variance) * Math.sqrt(252) : 0).toFixed(2)),
+      averageTradeDurationHours: trades.length ? Number((trades.reduce((sum, trade) => sum + trade.holdingHours, 0) / trades.length).toFixed(1)) : 0,
+      averageTradeReturnPercent: trades.length ? Number((trades.reduce((sum, trade) => sum + trade.pnlPercent, 0) / trades.length).toFixed(2)) : 0,
+      expectancyR: trades.length ? Number((trades.reduce((sum, trade) => sum + (trade.rMultiple || 0), 0) / trades.length).toFixed(2)) : 0,
+      strategyName: 'Weekly Trend + Donchian 55/20 LONG · Stocks/ETF',
+      strategyRules: [
+        'Univers: exclusiv acțiuni și ETF-uri lichide; strategia nu este activată pentru crypto sau metale.',
+        'Regim Weekly: MoneyLine Fast + Slow bullish, close peste SMA40 Weekly și SMA40 în creștere față de acum 8 săptămâni.',
+        'Trend Daily: close peste SMA200, SMA50 peste SMA200, iar ambele medii sunt în creștere.',
+        'Filtre: momentum pozitiv pe 252 sesiuni și ATR14% în afara celor mai volatile 30% observații din ultimul an.',
+        'Trigger: închidere Daily peste maximul precedentelor 55 sesiuni; execuție la următorul open, dacă gap-ul nu depășește 1 ATR.',
+        'Risc: stopul mai larg dintre structura ultimelor două lumânări și 2 ATR; setup respins peste 4%; risc de portofoliu 0,5%.',
+        'Ieșire: trailing Donchian low 20 sau invalidarea regimului Weekly.'
+      ],
+      strategySources: [
+        { label: 'AQR · A Century of Evidence on Trend-Following Investing', url: 'https://www.aqr.com/Insights/Research/Journal-Article/A-Century-of-Evidence-on-Trend-Following-Investing' },
+        { label: 'StockCharts ChartSchool · Price Channels', url: 'https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/price-channels' }
+      ],
+      validation,
+      equityCurve,
+      priceSeries,
+      trades,
+      disclaimer: 'Backtest determinist pentru cercetare, nu recomandare financiară. Rezultatele istorice și nivelurile de risc nu garantează performanțe viitoare.'
+    };
+  }
+
+  /**
    * Risk-managed implementation of Larry Connors' RSI(2) trend-pullback
    * model. RSI(2) below 5 only arms the setup; this conservative version
    * waits for RSI(2) to cross back above 50 before entering at the following

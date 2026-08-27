@@ -67,15 +67,26 @@ const loadDeepDailyHistory = async (
   return candles.slice(-targetCount);
 };
 
-const runConnorsRsi2 = async (
+const runWeeklyDonchianLong = async (
   symbol: string,
   marketClass: AssetMarketClass,
   params: Partial<BacktestParams>
-) => simulator.runConnorsRsi2Backtest(
-  symbol,
-  await loadDeepDailyHistory(symbol, marketClass),
-  { ...params, timeframe: '1d', strategy: 'connors_rsi2', marketClass }
-);
+) => {
+  if (marketClass !== 'stocks') {
+    throw new Error('Weekly Trend + Donchian 55/20 LONG este validată și activată exclusiv pentru acțiuni și ETF-uri.');
+  }
+  const [daily, weekly] = await Promise.all([
+    loadDeepDailyHistory(symbol, marketClass),
+    AppState.getInstance().marketData.getCandles(symbol, '1w', 600, marketClass)
+  ]);
+  return simulator.runWeeklyDonchianLongBacktest(symbol, daily, weekly, {
+    ...params,
+    timeframe: '1d',
+    strategy: 'weekly_donchian_long',
+    directionMode: 'LONG_ONLY',
+    marketClass
+  });
+};
 
 const runBearRallyFade = async (
   symbol: string,
@@ -103,26 +114,28 @@ const runBearRallyFade = async (
 };
 
 const runResearchStrategy = (
-  strategy: Extract<BacktestStrategy, 'weekly_reclaim' | 'connors_rsi2' | 'bear_rally_fade'>,
+  strategy: Extract<BacktestStrategy, 'weekly_reclaim' | 'weekly_donchian_long' | 'bear_rally_fade'>,
   symbol: string,
   marketClass: AssetMarketClass,
   params: Partial<BacktestParams>
 ) => {
-  if (strategy === 'connors_rsi2') return runConnorsRsi2(symbol, marketClass, params);
+  if (strategy === 'weekly_donchian_long') return runWeeklyDonchianLong(symbol, marketClass, params);
   if (strategy === 'bear_rally_fade') return runBearRallyFade(symbol, marketClass, params);
   return runWeeklyReclaim(symbol, marketClass, params);
 };
 
 backtestRouter.get('/backtest-compare', async (req, res) => {
   const requestedDirection = String(req.query.directionMode || 'LONG_ONLY');
-  const strategy: Extract<BacktestStrategy, 'weekly_reclaim' | 'connors_rsi2' | 'bear_rally_fade'> = req.query.strategy === 'weekly_reclaim'
+  const strategy: Extract<BacktestStrategy, 'weekly_reclaim' | 'weekly_donchian_long' | 'bear_rally_fade'> = req.query.strategy === 'weekly_reclaim'
     ? 'weekly_reclaim'
     : req.query.strategy === 'bear_rally_fade'
       ? 'bear_rally_fade'
-      : 'connors_rsi2';
+      : 'weekly_donchian_long';
   const directionMode: BacktestDirectionMode = strategy === 'bear_rally_fade'
     ? 'SHORT_ONLY'
-    : requestedDirection === 'LONG_SHORT' ? 'LONG_SHORT' : 'LONG_ONLY';
+    : strategy === 'weekly_donchian_long'
+      ? 'LONG_ONLY'
+      : requestedDirection === 'LONG_SHORT' ? 'LONG_SHORT' : 'LONG_ONLY';
   const liquidAssets: Array<{ symbol: string; marketClass: AssetMarketClass }> = [
     { symbol: 'BTC', marketClass: 'crypto' },
     { symbol: 'ETH', marketClass: 'crypto' },
@@ -137,7 +150,21 @@ backtestRouter.get('/backtest-compare', async (req, res) => {
     { symbol: 'XAG', marketClass: 'metals' },
     { symbol: 'COPPER', marketClass: 'metals' }
   ];
-  const assets = strategy === 'weekly_reclaim' ? [...liquidAssets, ...metals] : liquidAssets;
+  const donchianAssets: Array<{ symbol: string; marketClass: AssetMarketClass }> = [
+    { symbol: 'SPY', marketClass: 'stocks' },
+    { symbol: 'QQQ', marketClass: 'stocks' },
+    { symbol: 'IWM', marketClass: 'stocks' },
+    { symbol: 'NVDA', marketClass: 'stocks' },
+    { symbol: 'AAPL', marketClass: 'stocks' },
+    { symbol: 'MSFT', marketClass: 'stocks' },
+    { symbol: 'AMZN', marketClass: 'stocks' },
+    { symbol: 'META', marketClass: 'stocks' },
+    { symbol: 'GOOGL', marketClass: 'stocks' },
+    { symbol: 'TSLA', marketClass: 'stocks' }
+  ];
+  const assets = strategy === 'weekly_reclaim'
+    ? [...liquidAssets, ...metals]
+    : strategy === 'weekly_donchian_long' ? donchianAssets : liquidAssets;
   const rows: BacktestComparisonResult['rows'] = [];
   const concurrency = 3;
 
@@ -229,13 +256,12 @@ backtestRouter.get('/backtest/:symbol', async (req, res) => {
       });
       return res.json(result);
     }
-    if (req.query.strategy === 'connors_rsi2') {
-      const marketClass = parseMarketClass(req.query.marketClass) || 'crypto';
-      const result = await runConnorsRsi2(symbol, marketClass, {
-        directionMode: req.query.directionMode === 'LONG_SHORT' ? 'LONG_SHORT' : 'LONG_ONLY'
-      });
+    if (req.query.strategy === 'weekly_donchian_long') {
+      const marketClass = parseMarketClass(req.query.marketClass) || 'stocks';
+      const result = await runWeeklyDonchianLong(symbol, marketClass, { directionMode: 'LONG_ONLY' });
       return res.json(result);
     }
+    if (req.query.strategy === 'connors_rsi2') return res.status(410).json({ error: 'Connors RSI(2) a fost înlocuit de Weekly Trend + Donchian 55/20 LONG.' });
     if (req.query.strategy === 'bear_rally_fade') {
       const marketClass = parseMarketClass(req.query.marketClass) || 'crypto';
       const result = await runBearRallyFade(symbol, marketClass, { directionMode: 'SHORT_ONLY' });
@@ -267,11 +293,12 @@ backtestRouter.post('/backtest/:symbol', async (req, res) => {
       const result = await runWeeklyReclaim(symbol, marketClass, params);
       return res.json(result);
     }
-    if (params.strategy === 'connors_rsi2') {
-      const marketClass = parseMarketClass(params.marketClass) || 'crypto';
-      const result = await runConnorsRsi2(symbol, marketClass, params);
+    if (params.strategy === 'weekly_donchian_long') {
+      const marketClass = parseMarketClass(params.marketClass) || 'stocks';
+      const result = await runWeeklyDonchianLong(symbol, marketClass, { ...params, directionMode: 'LONG_ONLY' });
       return res.json(result);
     }
+    if (params.strategy === 'connors_rsi2') return res.status(410).json({ error: 'Connors RSI(2) a fost înlocuit de Weekly Trend + Donchian 55/20 LONG.' });
     if (params.strategy === 'bear_rally_fade') {
       const marketClass = parseMarketClass(params.marketClass) || 'crypto';
       const result = await runBearRallyFade(symbol, marketClass, { ...params, directionMode: 'SHORT_ONLY' });

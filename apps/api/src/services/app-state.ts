@@ -665,30 +665,40 @@ export class AppState {
       const isArmed = event.stage === 'ARMED';
       const isLongArmed = isLong && isArmed;
       const isShortArmed = !isLong && isArmed;
-      const strategyName = event.strategy === 'CONNORS_RSI2_LONG'
-        ? 'Connors RSI(2) Dip-Pullback'
+      const isDonchian = event.strategy === 'WEEKLY_DONCHIAN_55_LONG';
+      const strategyName = isDonchian
+        ? 'Weekly Trend + Donchian 55/20 LONG'
         : event.strategy === 'BEAR_RALLY_FADE_SHORT'
         ? 'Bear Rally Fade'
         : event.strategy === 'MONEYLINE_MACRO_LONG'
         ? 'MoneyLine Macro Trend Breakout'
         : 'MoneyLine 4H Sniper Confluence';
 
-      const headline = event.strategy === 'MONEYLINE_MACRO_LONG'
+      const headline = isDonchian && isArmed
+        ? `🟡 *DONCHIAN 55 LONG APROAPE — NU INTRA ÎNCĂ*`
+        : isDonchian
+        ? `🟢 *DONCHIAN 55 LONG CONFIRMAT*`
+        : event.strategy === 'MONEYLINE_MACRO_LONG'
         ? `🚀 *MONEYLINE MACRO BULL FLIP CONFIRMAT*`
         : event.strategy === 'MONEYLINE_4H_SNIPER_LONG'
         ? `⚡ *MONEYLINE 4H SNIPER FLIP CONFIRMAT*`
         : isLongArmed
-        ? `🟡 *DIP LONG ARMAT (RSI < 5) — NU INTRA ÎNCĂ*`
+        ? `🟡 *SETUP LONG ARMAT — NU INTRA ÎNCĂ*`
         : isShortArmed
         ? `⚠️ *SHORT REBOUND ARMAT — NU INTRA ÎNCĂ*`
         : isLong
-        ? `🟢 *CONNORS LONG CONFIRMAT (RSI > 50)*`
+        ? `🟢 *SETUP LONG CONFIRMAT*`
         : `🔴 *BEAR RALLY SHORT CONFIRMAT*`;
 
-      const actionLines = isLongArmed
+      const actionLines = isDonchian && isArmed
         ? [
-            `*Acțiune:* așteaptă RSI(2) să treacă peste 50 pe o lumânare Daily închisă.`,
-            `*Invalidare:* setup-ul se anulează dacă Daily închide sub SMA200 înaintea confirmării.`
+            `*Acțiune:* așteaptă o închidere Daily peste Donchian 55 la ${formatAlertPrice(event.donchianHigh55 || 0)}.`,
+            `*Filtru de execuție:* la următorul open, acceptă numai gap ≤ 1 ATR și risc final ≤ ${event.maxRiskPercent || 4}%.`
+          ]
+        : isLongArmed
+        ? [
+            `*Acțiune:* așteaptă confirmarea regulilor strategiei pe o lumânare închisă.`,
+            `*Invalidare:* setup-ul se anulează dacă regimul de trend este pierdut.`
           ]
         : isShortArmed
         ? [
@@ -704,7 +714,15 @@ export class AppState {
           ];
 
       let contextLines: string[] = [];
-      if (event.strategy === 'MONEYLINE_MACRO_LONG') {
+      if (isDonchian) {
+        contextLines = [
+          `*Regim Weekly:* MoneyLine Fast + Slow bullish`,
+          `*SMA40 Weekly:* ${formatAlertPrice(event.weeklySma40 || 0)} > ${formatAlertPrice(event.weeklySma40EightWeeksAgo || 0)} (acum 8 săpt.)`,
+          `*Trend Daily:* close > SMA200 și SMA50 > SMA200; ambele medii cresc`,
+          `*Donchian 55:* ${formatAlertPrice(event.donchianHigh55 || 0)}${isArmed ? ` · distanță ${event.distanceToBreakoutPercent?.toFixed(2) || '0.00'}%` : ' · breakout închis'}`,
+          `*Momentum 12 luni:* +${event.momentum252Percent?.toFixed(2) || '0.00'}% | *Percentilă ATR:* ${event.atrPercentile?.toFixed(1) || '0.0'}%`
+        ];
+      } else if (event.strategy === 'MONEYLINE_MACRO_LONG') {
         contextLines = [
           `*Regim:* Weekly MoneyLine Bullish + Daily Bull Flip`,
           `*Trend:* close ${formatAlertPrice(event.signalPrice)} > SMA200 ${formatAlertPrice(event.sma200 || 0)}`,
@@ -746,7 +764,11 @@ export class AppState {
       const delivered = await this.telegramBot.sendMarkdown(message);
 
       let reason = '';
-      if (event.strategy === 'MONEYLINE_MACRO_LONG') {
+      if (isDonchian) {
+        reason = isArmed
+          ? 'Candidat LONG Donchian: toate filtrele Weekly/Daily sunt valide, iar prețul este la maximum 1 ATR sub breakout; încă nu există intrare.'
+          : 'LONG Donchian confirmat: close Daily peste maximul precedentelor 55 sesiuni, în regim Weekly bullish și cu risc estimat maximum 4%.';
+      } else if (event.strategy === 'MONEYLINE_MACRO_LONG') {
         reason = 'MoneyLine Macro Breakout: Bull Flip pe Daily confirmat de Weekly Bullish și preț peste SMA 200.';
       } else if (event.strategy === 'MONEYLINE_4H_SNIPER_LONG') {
         reason = 'MoneyLine 4H Sniper: Bull Flip pe 4H apărut într-un regim Daily/Weekly Bullish.';
@@ -756,7 +778,7 @@ export class AppState {
           : 'Rebound bearish armat: RSI(2) a trecut peste 95 în regim bearish confirmat; intrarea așteaptă revenirea sub 50.';
       } else {
         reason = isLong
-          ? 'Connors LONG confirmat conservator: după armarea sub 5, RSI(2) a revenit peste 50 cu Daily încă peste SMA200.'
+          ? 'Setup LONG confirmat pe lumânare închisă și filtrele strategiei active.'
           : 'Bear Rally Fade SHORT confirmat: după RSI(2) peste 95, RSI(2) a revenit sub 50 în fereastra de trei lumânări.';
       }
 
@@ -771,7 +793,7 @@ export class AppState {
         timeframe: event.timeframe,
         price: event.signalPrice,
         reason,
-        confidence: isArmed ? 0.5 : isLong ? 0.68 : 0.67,
+        confidence: isDonchian ? (isArmed ? 0.58 : 0.74) : isArmed ? 0.5 : isLong ? 0.68 : 0.67,
         timestamp: Date.now(),
         dashboardLink: dashboardBaseUrl,
         isDelivered: delivered,
@@ -889,19 +911,19 @@ export class AppState {
       if (Array.isArray(stored?.flipCandidates)) this.flipCandidates = stored.flipCandidates.slice(0, 10);
       if (Array.isArray(stored?.strategySetups)) {
         this.strategySetups = stored.strategySetups
-          // Remove active Connors confirmations produced by the previous
-          // aggressive rule (RSI below 5). Under the conservative rule a
-          // confirmed snapshot must contain the cross back above 50.
-          .filter(setup => setup.strategy !== 'CONNORS_RSI2_LONG'
-            || setup.stage !== 'CONFIRMED'
-            || (setup.rsi2 ?? 0) > 50)
+          // Connors was retired in favor of the validated stocks/ETF-only
+          // Weekly Trend + Donchian 55/20 LONG strategy.
+          .filter(setup => String(setup.strategy) !== 'CONNORS_RSI2_LONG')
           .slice(0, 100);
       }
       if (Array.isArray(stored?.alerts)) {
         const individual = this.alertHistory.filter(alert =>
           alert.type !== 'MultiTimeframeReversal' && alert.type !== 'StrategySetup'
         );
-        this.alertHistory = [...stored.alerts, ...individual]
+        const migratedAlerts = stored.alerts.filter(alert =>
+          String(alert.strategySetup?.strategy || '') !== 'CONNORS_RSI2_LONG'
+        );
+        this.alertHistory = [...migratedAlerts, ...individual]
           .sort((left, right) => right.timestamp - left.timestamp)
           .slice(0, 250);
       }

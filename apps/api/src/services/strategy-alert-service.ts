@@ -12,6 +12,11 @@ const closedCandles = (candles: Candle[]) => candles
   .filter(candle => candle.isClosed !== false)
   .sort((left, right) => left.timestamp - right.timestamp);
 
+const percentileRank = (values: number[], current: number) => {
+  const finite = values.filter(Number.isFinite);
+  return finite.length ? finite.filter(value => value <= current).length / finite.length : 1;
+};
+
 /**
  * Evaluates the production research & MoneyLine strategies on the latest closed candles.
  * Emits events only on fresh threshold transitions; repeated scans of the same candle
@@ -92,8 +97,8 @@ export const evaluateDailyStrategyAlerts = (
     const candleTimestamp = customTimestamp !== undefined ? customTimestamp : daily[lastIndex].timestamp;
 
     let exitRule = '';
-    if (strategy === 'CONNORS_RSI2_LONG') {
-      exitRule = 'Ieșire la următorul open după o închidere Daily peste SMA 5 (sau stop 3 ATR).';
+    if (strategy === 'WEEKLY_DONCHIAN_55_LONG') {
+      exitRule = 'Trailing stop la minimul ultimelor 20 de sesiuni; ieșire și dacă regimul Weekly devine invalid.';
     } else if (strategy === 'BEAR_RALLY_FADE_SHORT') {
       exitRule = 'Acoperire la următorul open după o închidere Daily sub SMA 5 (sau stop 3 ATR).';
     } else if (strategy === 'MONEYLINE_MACRO_LONG') {
@@ -112,7 +117,7 @@ export const evaluateDailyStrategyAlerts = (
       timeframe,
       candleTimestamp,
       armedCandleTimestamp: armedIndex === undefined ? undefined : daily[armedIndex]?.timestamp,
-      confirmationWindowRemaining: armedIndex === undefined || strategy === 'CONNORS_RSI2_LONG'
+      confirmationWindowRemaining: armedIndex === undefined || strategy !== 'BEAR_RALLY_FADE_SHORT'
         ? undefined
         : Math.max(0, 3 - (lastIndex - armedIndex)),
       signalPrice: roundPrice(signalPrice),
@@ -200,32 +205,78 @@ export const evaluateDailyStrategyAlerts = (
     }
   }
 
-  // --- 3. STRATEGY: CONNORS RSI(2) PULLBACK LONG (Conservative: Arm < 5 -> Confirm > 50) ---
-  if (marketClass === 'crypto' || marketClass === 'stocks') {
-    let longArmedIndex = -1;
-    for (let index = lastIndex; index >= Math.max(0, lastIndex - 15); index--) {
-      if (closes[index] <= sma200[index]) break;
-      if (rsi2[index] < 5) {
-        longArmedIndex = index;
-        break;
-      }
-      if (index < lastIndex && rsi2[index] > 50) break;
-    }
+  // --- 3. STRATEGY: WEEKLY TREND + DONCHIAN 55/20 LONG ---
+  // This replaces Connors in production. It is intentionally stocks/ETF-only,
+  // matching the validated holdout scope. A near-breakout state is informational;
+  // execution is confirmed only by a fresh Daily close above the prior 55-session high.
+  if (marketClass === 'stocks' && daily.length >= 261 && weekly.length >= 49) {
+    const weeklyCloses = weekly.map(candle => candle.close);
+    const weeklySma40 = calculateSMA(weeklyCloses, 40);
+    const weeklyCloud = calculateMoneyLineCloud(weekly, '1w');
+    const dailyCloud = calculateMoneyLineCloud(daily, '1d');
+    const weeklyIndex = weekly.length - 1;
+    const weeklyBullish = weeklyCloud.dirFast[weeklyIndex] < 0
+      && weeklyCloud.dirSlow[weeklyIndex] < 0
+      && weeklyCloses[weeklyIndex] > weeklySma40[weeklyIndex]
+      && weeklySma40[weeklyIndex] > weeklySma40[weeklyIndex - 8];
+    const broadDailyTrend = closes[lastIndex] > sma200[lastIndex]
+      && sma50[lastIndex] > sma200[lastIndex]
+      && sma50[lastIndex] > sma50[lastIndex - 20]
+      && sma200[lastIndex] > sma200[lastIndex - 20];
+    const positiveMomentum = closes[lastIndex] > closes[lastIndex - 252];
+    const currentAtrPercent = atr14[lastIndex] / closes[lastIndex] * 100;
+    const atrHistory = daily.slice(lastIndex - 252, lastIndex).map((candle, offset) => {
+      const sourceIndex = lastIndex - 252 + offset;
+      return atr14[sourceIndex] / candle.close * 100;
+    });
+    const atrRank = percentileRank(atrHistory, currentAtrPercent);
+    const controlledVolatility = atrRank <= 0.7;
+    const previousHigh55 = Math.max(...daily.slice(lastIndex - 55, lastIndex).map(candle => candle.high));
+    const previousHigh55AtPriorClose = Math.max(...daily.slice(previousIndex - 55, previousIndex).map(candle => candle.high));
+    const freshBreakout = closes[lastIndex] > previousHigh55
+      && closes[previousIndex] <= previousHigh55AtPriorClose;
+    const distanceToBreakout = previousHigh55 - closes[lastIndex];
+    const nearBreakout = distanceToBreakout >= 0 && distanceToBreakout <= atr14[lastIndex];
+    const previousDistance = previousHigh55AtPriorClose - closes[previousIndex];
+    const freshArm = nearBreakout && (previousDistance < 0 || previousDistance > atr14[previousIndex]);
+    const dailyFastBullish = dailyCloud.dirFast[lastIndex] < 0;
 
-    if (longArmedIndex >= 0 && closes[lastIndex] > sma200[lastIndex]) {
-      const longConfirmed = lastIndex > longArmedIndex
-        && rsi2[previousIndex] <= 50
-        && rsi2[lastIndex] > 50;
+    if (weeklyBullish && broadDailyTrend && positiveMomentum && controlledVolatility && dailyFastBullish
+      && (freshBreakout || nearBreakout)) {
+      const structuralStop = Math.min(daily[previousIndex].low, daily[lastIndex].low) - 0.1 * atr14[lastIndex];
+      const volatilityStop = closes[lastIndex] - 2 * atr14[lastIndex];
+      const stop = Math.min(structuralStop, volatilityStop);
+      const risk = closes[lastIndex] - stop;
+      const riskPercent = risk / closes[lastIndex] * 100;
 
-      if (longConfirmed) {
-        const snapshot = createSnapshot('CONNORS_RSI2_LONG', 'CONFIRMED', 'LONG', '1d', undefined, undefined, longArmedIndex);
-        events.push(snapshot);
-        if (!currentSnapshot) currentSnapshot = snapshot;
-      } else if (rsi2[lastIndex] < 50) {
-        const snapshot = createSnapshot('CONNORS_RSI2_LONG', 'ARMED', 'LONG', '1d', undefined, undefined, longArmedIndex);
-        const freshArm = longArmedIndex === lastIndex && rsi2[previousIndex] >= 5;
-        if (freshArm) events.push(snapshot);
-        if (!currentSnapshot) currentSnapshot = snapshot;
+      if (risk > 0 && riskPercent <= 4) {
+        const stage: StrategyAlertSnapshot['stage'] = freshBreakout ? 'CONFIRMED' : 'ARMED';
+        const snapshot: StrategyAlertSnapshot = {
+          ...createSnapshot(
+            'WEEKLY_DONCHIAN_55_LONG',
+            stage,
+            'LONG',
+            '1d',
+            risk,
+            stop,
+            stage === 'ARMED' ? lastIndex : undefined
+          ),
+          rsi2: undefined,
+          previousRsi2: undefined,
+          sma5: undefined,
+          donchianHigh55: roundPrice(previousHigh55),
+          donchianLow20: roundPrice(Math.min(...daily.slice(lastIndex - 19, lastIndex + 1).map(candle => candle.low))),
+          weeklySma40: roundPrice(weeklySma40[weeklyIndex]),
+          weeklySma40EightWeeksAgo: roundPrice(weeklySma40[weeklyIndex - 8]),
+          weeklyFastBullish: true,
+          weeklySlowBullish: true,
+          atrPercentile: Number((atrRank * 100).toFixed(1)),
+          momentum252Percent: Number(((closes[lastIndex] / closes[lastIndex - 252] - 1) * 100).toFixed(2)),
+          distanceToBreakoutPercent: Number((Math.max(0, distanceToBreakout) / closes[lastIndex] * 100).toFixed(2)),
+          maxRiskPercent: 4
+        };
+        currentSnapshot = snapshot;
+        if (freshBreakout || freshArm) events.push(snapshot);
       }
     }
   }
@@ -261,4 +312,3 @@ export const evaluateDailyStrategyAlerts = (
 
   return { current: currentSnapshot, events };
 };
-

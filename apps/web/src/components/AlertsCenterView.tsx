@@ -75,7 +75,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
   const [removingId, setRemovingId] = useState('');
   const [preparingId, setPreparingId] = useState('');
   const [candidateFilter, setCandidateFilter] = useState<'ALL' | 'BULLISH' | 'BEARISH'>('ALL');
-  const [strategyFilter, setStrategyFilter] = useState<'ALL' | 'MACRO' | 'CONNORS' | 'SNIPER' | 'BEAR_FADE'>('ALL');
+  const [strategyFilter, setStrategyFilter] = useState<'ALL' | 'MACRO' | 'DONCHIAN' | 'SNIPER' | 'BEAR_FADE'>('ALL');
   const restoredBrowserRules = useRef(false);
 
   const loadDashboard = useCallback(async () => {
@@ -245,7 +245,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
     if (!data?.strategySetups) return [];
     if (strategyFilter === 'ALL') return data.strategySetups;
     if (strategyFilter === 'MACRO') return data.strategySetups.filter(s => s.strategy === 'MONEYLINE_MACRO_LONG');
-    if (strategyFilter === 'CONNORS') return data.strategySetups.filter(s => s.strategy === 'CONNORS_RSI2_LONG');
+    if (strategyFilter === 'DONCHIAN') return data.strategySetups.filter(s => s.strategy === 'WEEKLY_DONCHIAN_55_LONG');
     if (strategyFilter === 'SNIPER') return data.strategySetups.filter(s => s.strategy === 'MONEYLINE_4H_SNIPER_LONG');
     if (strategyFilter === 'BEAR_FADE') return data.strategySetups.filter(s => s.strategy === 'BEAR_RALLY_FADE_SHORT');
     return data.strategySetups;
@@ -262,7 +262,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
             </div>
             <h1 className="text-xl font-bold text-white sm:text-2xl">Alertele mele MoneyLine</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-              MoneyLine, Connors RSI(2) LONG și Bear Rally Fade SHORT sunt evaluate numai pe lumânări închise. Armările nu recomandă intrarea; doar confirmările sunt trimise ca setup executabil.
+              MoneyLine, Weekly Trend + Donchian 55/20 LONG și Bear Rally Fade SHORT sunt evaluate numai pe lumânări închise. Armările nu recomandă intrarea; doar confirmările permit pregătirea execuției.
             </p>
           </div>
           <button
@@ -370,14 +370,14 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
               <h2 className="text-sm font-bold text-slate-100">Strategii Validate Live & Alerte Automate</h2>
             </div>
             <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
-              Semnale pe lumânări închise cu filtre macro: MoneyLine Macro Trend (Daily), Connors RSI(2) Dip-Pullback, 4H Sniper Confluence și Bear Rally Fade.
+              Semnale pe lumânări închise cu filtre macro: MoneyLine Macro Trend, Weekly Trend + Donchian 55/20 LONG, 4H Sniper Confluence și Bear Rally Fade.
             </p>
           </div>
           <div className="flex flex-wrap gap-1 rounded-lg border border-white/[0.06] bg-white/[0.025] p-1">
             {([
               { id: 'ALL', label: 'TOATE' },
               { id: 'MACRO', label: 'ML MACRO' },
-              { id: 'CONNORS', label: 'CONNORS RSI(2)' },
+              { id: 'DONCHIAN', label: 'DONCHIAN 55 LONG' },
               { id: 'SNIPER', label: '4H SNIPER' },
               { id: 'BEAR_FADE', label: 'BEAR FADE' }
             ] as const).map(filter => (
@@ -525,6 +525,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
               const isStrategyLong = strategy?.side === 'LONG';
               const isStrategyShort = strategy?.side === 'SHORT';
               const strategyArmed = strategy?.stage === 'ARMED';
+              const isDonchian = strategy?.strategy === 'WEEKLY_DONCHIAN_55_LONG';
               return (
                 <div key={item.id} className="rounded-2xl border border-white/[0.07] bg-background-card p-4">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -557,10 +558,10 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                     {strategy ? strategyArmed ? (
                       <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-4 lg:max-w-3xl">
                         <LevelBox label="Close semnal" value={formatPrice(strategy.signalPrice)} tone="slate" />
-                        <LevelBox label="RSI(2)" value={strategy.rsi2 !== undefined ? strategy.rsi2.toFixed(2) : '—'} tone="amber" />
-                        <LevelBox label="Confirmare" value={isStrategyLong ? 'RSI(2) peste 50' : `Sub 50 · max ${strategy.confirmationWindowRemaining ?? 3} close`} tone="amber" />
+                        <LevelBox label={isDonchian ? 'Donchian 55' : 'RSI(2)'} value={isDonchian ? formatPrice(strategy.donchianHigh55) : strategy.rsi2 !== undefined ? strategy.rsi2.toFixed(2) : '—'} tone="amber" />
+                        <LevelBox label="Confirmare" value={isDonchian ? 'Close peste D55' : isStrategyLong ? 'Reguli LONG' : `Sub 50 · max ${strategy.confirmationWindowRemaining ?? 3} close`} tone="amber" />
                         {isStrategyLong
-                          ? <LevelBox label="Invalidare" value={`Close sub ${formatPrice(strategy.sma200)}`} tone="slate" />
+                          ? <LevelBox label="Invalidare" value={isDonchian ? 'Weekly / risc > 4%' : `Close sub ${formatPrice(strategy.sma200)}`} tone="slate" />
                           : <LevelBox label={`Benchmark ${strategy.benchmarkSymbol}`} value={strategy.benchmarkBearish ? 'Bearish' : 'Neconfirmat'} tone={strategy.benchmarkBearish ? 'rose' : 'slate'} />}
                       </div>
                     ) : (
@@ -636,8 +637,9 @@ const StrategySetupCard: React.FC<{ setup: StrategyAlertSnapshot; onOpen: () => 
     ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
     : 'border-rose-500/25 bg-rose-500/10 text-rose-300';
 
-  const title = setup.strategy === 'CONNORS_RSI2_LONG'
-    ? 'Connors RSI(2) Dip-Pullback'
+  const isDonchian = setup.strategy === 'WEEKLY_DONCHIAN_55_LONG';
+  const title = isDonchian
+    ? 'Weekly Trend + Donchian 55/20 LONG'
     : setup.strategy === 'BEAR_RALLY_FADE_SHORT'
     ? 'Bear Rally Fade'
     : setup.strategy === 'MONEYLINE_MACRO_LONG'
@@ -667,7 +669,9 @@ const StrategySetupCard: React.FC<{ setup: StrategyAlertSnapshot; onOpen: () => 
 
       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <LevelBox label="Close semnal" value={formatPrice(setup.signalPrice)} tone="slate" />
-        {setup.rsi2 !== undefined ? (
+        {isDonchian ? (
+          <LevelBox label="Donchian 55" value={formatPrice(setup.donchianHigh55)} tone={armed ? 'amber' : 'emerald'} />
+        ) : setup.rsi2 !== undefined ? (
           <LevelBox label="RSI(2)" value={setup.rsi2.toFixed(2)} tone={armed ? 'amber' : isLong ? 'emerald' : 'rose'} />
         ) : (
           <LevelBox label="SMA 50" value={formatPrice(setup.sma50)} tone="amber" />
@@ -678,8 +682,10 @@ const StrategySetupCard: React.FC<{ setup: StrategyAlertSnapshot; onOpen: () => 
 
       {armed ? (
         <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2.5 text-xs leading-5 text-amber-100/80">
-          {isLong
-            ? <>Nu intra încă. Așteaptă RSI(2) peste 50 pe o lumânare Daily închisă. Setup-ul se invalidează sub SMA200.</>
+          {isDonchian
+            ? <>Nu intra încă. Așteaptă close Daily peste <strong>{formatPrice(setup.donchianHigh55)}</strong>. La următorul open acceptă doar gap ≤ 1 ATR și stop ≤ {setup.maxRiskPercent || 4}%.</>
+            : isLong
+            ? <>Nu intra încă. Așteaptă confirmarea completă a strategiei pe o lumânare închisă.</>
             : <>Nu intra încă. Așteaptă RSI(2) sub 50; fereastră rămasă: <strong>{setup.confirmationWindowRemaining ?? 3} închideri Daily</strong>.</>}
         </div>
       ) : (
@@ -693,7 +699,7 @@ const StrategySetupCard: React.FC<{ setup: StrategyAlertSnapshot; onOpen: () => 
 
       <button type="button" onClick={onOpen} className="mt-3 flex w-full items-center justify-between border-t border-white/[0.05] pt-3 text-[11px] text-slate-500 transition hover:text-cyan-300">
         <span>{armed
-          ? isLong ? 'Confirmare conservatoare: RSI(2) trebuie să revină peste 50' : `Benchmark ${setup.benchmarkSymbol} bearish confirmat`
+          ? isDonchian ? `Distanță până la breakout: ${setup.distanceToBreakoutPercent?.toFixed(2) || '0.00'}%` : isLong ? 'Așteaptă confirmarea completă' : `Benchmark ${setup.benchmarkSymbol} bearish confirmat`
           : setup.exitRule || `Execuție la următorul open ${setup.timeframe.toUpperCase()}; nivelurile se recalculează la fill`}</span>
         <span className="flex items-center gap-1 font-semibold text-cyan-300">Deschide {setup.timeframe.toUpperCase()} <ChevronRight className="h-3.5 w-3.5" /></span>
       </button>
