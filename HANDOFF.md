@@ -1290,3 +1290,18 @@ npm test: 50 passed, 0 failed
 API integration: 12 passed, 0 failed
 npm run build: passed
 ```
+
+Deployment evidence:
+
+```text
+Git commit: 4c5f3c6
+Cloud Build: c1a00248-ff2b-4d54-afdd-488c7e15aa51 (SUCCESS)
+Cloud Run revision: market-scanner-360-00100-f69
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Root: HTTP 200
+Health: HTTP 200, status ok
+Production bundle: index-BRmvk08t.js
+Bundle verification: Donchian labels present; Connors RSI(2) label absent
+Cloud Scheduler: money-scanner-daily-regime-scan ENABLED at 12:00 Europe/Oslo
+```
