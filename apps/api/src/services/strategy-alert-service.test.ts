@@ -66,6 +66,27 @@ describe('Production strategy alert evaluation', () => {
     assert.match(result.current?.exitRule || '', /următorul open/);
   });
 
+  it('shows a 1-2 ATR candidate as WATCH without sending a strategy event', () => {
+    const result = Array.from({ length: 20 }, (_, step) => 0.5 + step * 0.25).map(pullback => {
+      const daily = breakoutDaily();
+      daily[daily.length - 1] = {
+        ...daily[daily.length - 1],
+        open: daily[daily.length - 2].close - pullback + 0.1,
+        close: daily[daily.length - 2].close - pullback,
+        high: daily[daily.length - 2].close - pullback + 0.5,
+        low: daily[daily.length - 2].close - pullback - 0.5
+      };
+      return evaluateDailyStrategyAlerts('TEST', 'stocks', daily, [], bullishWeekly());
+    }).find(candidate => candidate.current?.stage === 'WATCH');
+
+    assert.ok(result);
+    assert.equal(result.current?.stage, 'WATCH');
+    assert.ok((result.current?.distanceToBreakoutAtr || 0) > 1);
+    assert.ok((result.current?.distanceToBreakoutAtr || Number.MAX_VALUE) <= 2);
+    assert.deepEqual(result.events, []);
+    assert.match(result.current?.exitRule || '', /Doar monitorizare/);
+  });
+
   it('does not issue production strategy alerts for crypto or metals', () => {
     const daily = breakoutDaily();
     assert.deepEqual(evaluateDailyStrategyAlerts('ETH', 'crypto', daily, [], bullishWeekly()).snapshots, []);

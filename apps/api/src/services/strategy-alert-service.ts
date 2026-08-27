@@ -82,10 +82,11 @@ export const evaluateDailyStrategyAlerts = (
     && closes[previousIndex] <= previousHigh55AtPriorClose;
   const distanceToBreakout = previousHigh55 - closes[lastIndex];
   const nearBreakout = distanceToBreakout >= 0 && distanceToBreakout <= currentAtr;
+  const watchBreakout = distanceToBreakout >= 0 && distanceToBreakout <= 2 * currentAtr;
   const previousDistance = previousHigh55AtPriorClose - closes[previousIndex];
   const freshArm = nearBreakout && (previousDistance < 0 || previousDistance > (atr14[previousIndex] || currentAtr));
 
-  if (!weeklyBullish || !dailyTrend || !positiveMomentum || !controlledVolatility || (!freshBreakout && !nearBreakout)) {
+  if (!weeklyBullish || !dailyTrend || !positiveMomentum || !controlledVolatility || (!freshBreakout && !watchBreakout)) {
     return { snapshots: [], events: [] };
   }
 
@@ -98,7 +99,7 @@ export const evaluateDailyStrategyAlerts = (
   const riskPercent = risk / closes[lastIndex] * 100;
   if (!(stopLoss > 0 && risk > 0 && riskPercent <= 4)) return { snapshots: [], events: [] };
 
-  const stage: StrategyAlertSnapshot['stage'] = freshBreakout ? 'CONFIRMED' : 'ARMED';
+  const stage: StrategyAlertSnapshot['stage'] = freshBreakout ? 'CONFIRMED' : nearBreakout ? 'ARMED' : 'WATCH';
   const signalPrice = closes[lastIndex];
   const snapshot: StrategyAlertSnapshot = {
     id: `${marketClass}:${symbol}:WEEKLY_DONCHIAN_55_LONG:1d`,
@@ -129,8 +130,11 @@ export const evaluateDailyStrategyAlerts = (
     atrPercentile: Number((atrRank * 100).toFixed(1)),
     momentum252Percent: Number(((closes[lastIndex] / closes[lastIndex - 252] - 1) * 100).toFixed(2)),
     distanceToBreakoutPercent: Number((Math.max(0, distanceToBreakout) / signalPrice * 100).toFixed(2)),
+    distanceToBreakoutAtr: Number((Math.max(0, distanceToBreakout) / currentAtr).toFixed(2)),
     maxRiskPercent: 4,
-    exitRule: 'Intrare numai la următorul open dacă gap-ul este ≤ 1 ATR și riscul rămâne ≤ 4%; apoi trailing Donchian low 20 sau invalidarea regimului Weekly.'
+    exitRule: stage === 'WATCH'
+      ? 'Doar monitorizare: așteaptă apropierea la ≤ 1 ATR și apoi închiderea Daily peste Donchian 55; nu există încă intrare.'
+      : 'Intrare numai la următorul open dacă gap-ul este ≤ 1 ATR și riscul rămâne ≤ 4%; apoi trailing Donchian low 20 sau invalidarea regimului Weekly.'
   };
 
   return {

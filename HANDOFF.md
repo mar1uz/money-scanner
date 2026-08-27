@@ -1507,3 +1507,29 @@ Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 Production bundle: index-DH9I-3_j.js
 ```
+
+## 39. Donchian Strategy Frequency Audit & Two-ATR Preparation Radar
+
+Implemented locally on 27 August 2026; **not deployed in this task**.
+
+- Root cause of the small live result count: production displays only assets that pass every Weekly/Daily/volatility/risk filter and are already above, or at most one ATR below, Donchian 55. A current snapshot is not the historical trade count.
+- Added reproducible research script `scripts/research-donchian-frequency.mjs` and tested D20/D30/D40/D55/D80 entry windows over 63 stocks/ETFs with a 60/20/20 chronological split.
+- Final D55: 101 trades, 32.7% win rate, PF 1.27, expectancy +0.17R and 3.15% median stop. With doubled costs: PF 1.15 and +0.10R.
+- D20 added only 12 final trades and weakened the result to PF 1.24 / +0.15R; doubled costs reduced it to PF 1.10 / +0.07R. The production entry remains D55.
+- Expanded only the informational radar to two ATR:
+  - `WATCH` between one and two ATR, no Telegram event and no entry claim;
+  - `ARMED` at or below one ATR;
+  - `CONFIRMED` only after a fresh closed Daily breakout.
+- Strategy cards now show the ATR distance and explicitly label WATCH as `DE URMĂRIT`.
+
+Verification:
+
+```text
+Research universe: 63/63 assets fetched successfully
+npm run build:packages: passed
+API build: passed
+Web build: passed
+API tests: 20 passed, 0 failed
+Research report: docs/backtests/2026-08-27-donchian-frequency-audit.md
+Deployment: not performed (not requested)
+```

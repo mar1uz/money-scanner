@@ -53,7 +53,7 @@ export type StrategyAlertStrategy =
   | 'BEAR_RALLY_FADE_SHORT'
   | 'MONEYLINE_MACRO_LONG'
   | 'MONEYLINE_4H_SNIPER_LONG';
-export type StrategyAlertStage = 'ARMED' | 'CONFIRMED';
+export type StrategyAlertStage = 'WATCH' | 'ARMED' | 'CONFIRMED';
 
 export interface StrategyAlertSnapshot {
   id: string;
@@ -97,6 +97,7 @@ export interface StrategyAlertSnapshot {
   atrPercentile?: number;
   momentum252Percent?: number;
   distanceToBreakoutPercent?: number;
+  distanceToBreakoutAtr?: number;
   maxRiskPercent?: number;
 }
 

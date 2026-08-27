@@ -428,7 +428,11 @@ export class AppState {
 
       this.strategySetups = Array.from(uniqueSetups.values())
         .sort((left, right) => {
-          if (left.stage !== right.stage) return left.stage === 'CONFIRMED' ? -1 : 1;
+          const stageRank = { CONFIRMED: 0, ARMED: 1, WATCH: 2 } as const;
+          if (left.stage !== right.stage) return stageRank[left.stage] - stageRank[right.stage];
+          if ((left.distanceToBreakoutAtr ?? 0) !== (right.distanceToBreakoutAtr ?? 0)) {
+            return (left.distanceToBreakoutAtr ?? 0) - (right.distanceToBreakoutAtr ?? 0);
+          }
           return (left.riskPercent ?? 0) - (right.riskPercent ?? 0);
         })
         .slice(0, 50);

@@ -748,6 +748,7 @@ const StrategySetupCard: React.FC<{
   onOpen: () => void;
 }> = ({ setup, onOpen }) => {
   const isConfirmed = setup.stage === 'CONFIRMED';
+  const isWatch = setup.stage === 'WATCH';
   const isLong = setup.side === 'LONG';
   const isDonchian = setup.strategy === 'WEEKLY_DONCHIAN_55_LONG';
   const isMacro = setup.strategy === 'MONEYLINE_MACRO_LONG';
@@ -763,11 +764,15 @@ const StrategySetupCard: React.FC<{
 
   const tone = isConfirmed
     ? isLong ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300' : 'border-rose-500/25 bg-rose-500/10 text-rose-300'
-    : 'border-amber-500/25 bg-amber-500/10 text-amber-300';
+    : isWatch
+      ? 'border-violet-500/25 bg-violet-500/10 text-violet-300'
+      : 'border-amber-500/25 bg-amber-500/10 text-amber-300';
 
   const stageLabel = isConfirmed
     ? isDonchian ? 'Breakout Donchian 55 Confirmat' : 'Confirmat pe lumânare închisă'
-    : isDonchian ? 'Aproape de Donchian 55 (Armat)' : 'Setup Armat';
+    : isWatch
+      ? 'Radar de pregătire · încă nu este alertă'
+      : isDonchian ? 'Aproape de Donchian 55 (Armat)' : 'Setup Armat';
 
   return (
     <article className="overflow-hidden rounded-2xl border border-white/[0.07] bg-background-card p-4 shadow-sm transition hover:border-amber-500/20">
@@ -788,7 +793,7 @@ const StrategySetupCard: React.FC<{
           </div>
         </button>
         <span className={`shrink-0 rounded-lg border px-2 py-1 font-mono text-[10px] font-black ${tone}`}>
-          {isConfirmed ? (isLong ? '🟢 CONFIRMAT LONG' : '🔴 CONFIRMAT SHORT') : '🟡 ARMAT'}
+          {isConfirmed ? (isLong ? '🟢 CONFIRMAT LONG' : '🔴 CONFIRMAT SHORT') : isWatch ? '🟣 DE URMĂRIT' : '🟡 ARMAT'}
         </span>
       </div>
 
@@ -797,8 +802,8 @@ const StrategySetupCard: React.FC<{
           {stageLabel}
         </span>
         {setup.distanceToBreakoutPercent !== undefined && !isConfirmed && (
-          <span className="ml-2 font-mono text-[11px] text-amber-200">
-            ({setup.distanceToBreakoutPercent.toFixed(2)}% sub Donchian 55)
+          <span className={`ml-2 font-mono text-[11px] ${isWatch ? 'text-violet-200' : 'text-amber-200'}`}>
+            ({setup.distanceToBreakoutAtr?.toFixed(2) || '—'} ATR · {setup.distanceToBreakoutPercent.toFixed(2)}% sub Donchian 55)
           </span>
         )}
       </div>
