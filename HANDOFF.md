@@ -1412,3 +1412,35 @@ Traffic: 100%
 Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 ```
+
+## 36. Production Fix: Strategy Setup Risk Calculation, Non-Blocking Stops & Multi-Setup Capture
+
+Implemented and deployed on 27 August 2026. Fixed zero-setup scan results across all asset classes:
+
+1. **Root Cause Analysis & Strategy Fixes (`apps/api/src/services/strategy-alert-service.ts`)**:
+   - **Donchian 55/20 Long Risk Gating**: Replaced `Math.min(structural, volatility)` with `Math.max(structural, closes - 2.5 * ATR)` and aligned realistic risk ceilings ($\le 15\%$ for crypto, $\le 10\%$ for metals, $\le 8\%$ for stocks). Previously, taking the minimum forced stop distance to $\ge 2 \times \text{ATR}$, which strictly exceeded the old $4\% / 8\%$ gate on real market data and rejected 100% of assets.
+   - **MoneyLine Macro & 4H Sniper Stop Support**: Replaced blind `lineSlow` referencing with direction-aware cloud support (`lineSlow` when slow bullish, `lineFast` when fast bullish, or ATR structural buffer). Previously, when slow line was resistance (above price), `closes - lineSlow` produced negative risk and caused immediate rejection.
+   - **History Length Flexibility**: Allowed evaluation for assets with $\ge 50$ daily bars using SMA50 and MoneyLine Cloud series instead of hard-rejecting assets with $< 200$ bars.
+   - **Multi-Setup Collection**: Updated `evaluateDailyStrategyAlerts` to return `snapshots: StrategyAlertSnapshot[]`, ensuring assets qualifying for multiple valid strategies retain all setups instead of overwriting.
+
+2. **Scanner State & Persistence Updates (`apps/api/src/services/app-state.ts`)**:
+   - `executeStrategiesScan`: Collects all matching snapshots across the universe, deduplicates by `${strategy}:${symbol}:${timeframe}`, and prioritizes `CONFIRMED` setups followed by risk-adjusted scoring.
+   - `persistDailyRegimeState`: Included `global:daily-strategy-scan` in the persistent alert history saved to Firestore.
+
+Pre-deployment verification:
+```text
+npm run build: passed
+npm test: 52 passed, 0 failed
+Production bundle: index-mcJSfdrr.js
+```
+
+Deployment evidence:
+```text
+Git commit: d7c5f14
+Cloud Build: 23c4f53e-4756-4a01-a51d-eb0b22feaa5c (SUCCESS)
+Cloud Run revision: market-scanner-360-00104-8m6
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
+
