@@ -974,7 +974,7 @@ export class AppState {
         timezone: 'UTC',
         running: false
       };
-      if (Array.isArray(stored?.flipCandidates)) this.flipCandidates = stored.flipCandidates.slice(0, 10);
+      if (Array.isArray(stored?.flipCandidates)) this.flipCandidates = stored.flipCandidates.slice(0, 400);
       if (Array.isArray(stored?.confirmedFlips)) this.confirmedFlips = stored.confirmedFlips.slice(0, 100);
       if (Array.isArray(stored?.strategySetups)) this.strategySetups = stored.strategySetups.slice(0, 100);
       if (Array.isArray(stored?.alerts)) {
@@ -1138,15 +1138,24 @@ export class AppState {
   }
 
   private rankUpcomingCandidates(candidates: FlipCandidate[]): FlipCandidate[] {
-    const bestByAsset = new Map<string, FlipCandidate>();
-    candidates
+    const bestByAssetTimeframe = new Map<string, FlipCandidate>();
+    const ranked = candidates
       .filter(candidate => candidate.status !== 'CONFIRMED')
-      .sort((left, right) => right.priorityScore - left.priorityScore || left.distanceAtr - right.distanceAtr)
-      .forEach(candidate => {
-        const key = `${candidate.marketClass}:${candidate.symbol}`;
-        if (!bestByAsset.has(key)) bestByAsset.set(key, candidate);
-      });
-    return Array.from(bestByAsset.values()).slice(0, 10);
+      .sort((left, right) => right.priorityScore - left.priorityScore || left.distanceAtr - right.distanceAtr);
+    ranked.forEach(candidate => {
+      const key = `${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}`;
+      if (!bestByAssetTimeframe.has(key)) bestByAssetTimeframe.set(key, candidate);
+    });
+
+    // Retain up to 100 candidates per timeframe. The UI still shows a focused
+    // Top 10 by default, while timeframe filters and symbol search can reveal
+    // a specific setup such as ETH 1W without letting 4H candidates hide it.
+    const timeframes: FlipCandidate['timeframe'][] = ['4h', '8h', '1d', '1w'];
+    return timeframes
+      .flatMap(timeframe => Array.from(bestByAssetTimeframe.values())
+        .filter(candidate => candidate.timeframe === timeframe)
+        .slice(0, 100))
+      .sort((left, right) => right.priorityScore - left.priorityScore || left.distanceAtr - right.distanceAtr);
   }
 
   private mergeConfirmedFlips(candidates: FlipCandidate[]) {

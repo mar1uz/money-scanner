@@ -72,6 +72,8 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
   const [preparingId, setPreparingId] = useState('');
   const [activeTab, setActiveTab] = useState<'ALL' | 'STRATEGIES' | 'FLIPS' | 'WATCHED'>('ALL');
   const [candidateFilter, setCandidateFilter] = useState<'ALL' | 'BULLISH' | 'BEARISH'>('ALL');
+  const [candidateTimeframe, setCandidateTimeframe] = useState<'ALL' | '4h' | '8h' | '1d' | '1w'>('ALL');
+  const [candidateSearch, setCandidateSearch] = useState('');
   const restoredBrowserRules = useRef(false);
 
   const loadDashboard = useCallback(async () => {
@@ -153,7 +155,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
     const active = data?.activeAlerts || [];
     return {
       active: active.length,
-      close: data?.flipCandidates.length || 0,
+      close: Math.min(10, new Set((data?.flipCandidates || []).map(candidate => `${candidate.marketClass}:${candidate.symbol}`)).size),
       confirmed: data?.confirmedFlips?.length || 0,
       strategies: data?.strategySetups?.length || 0
     };
@@ -260,9 +262,23 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
   const scanProgress = activeManualScanStatus?.totalAssets
     ? Math.min(100, Math.round((activeManualScanStatus.scannedAssets / activeManualScanStatus.totalAssets) * 100))
     : 0;
-  const visibleCandidates = (data?.flipCandidates || []).filter(candidate =>
-    candidateFilter === 'ALL' || candidate.direction === candidateFilter
-  );
+  const visibleCandidates = useMemo(() => {
+    const query = candidateSearch.replace(/^[$#]/, '').trim().toUpperCase();
+    const filtered = (data?.flipCandidates || []).filter(candidate =>
+      (candidateFilter === 'ALL' || candidate.direction === candidateFilter)
+      && (candidateTimeframe === 'ALL' || candidate.timeframe === candidateTimeframe)
+      && (!query || candidate.symbol.includes(query))
+    );
+    if (query || candidateTimeframe !== 'ALL') return filtered.slice(0, 10);
+
+    const seenAssets = new Set<string>();
+    return filtered.filter(candidate => {
+      const key = `${candidate.marketClass}:${candidate.symbol}`;
+      if (seenAssets.has(key)) return false;
+      seenAssets.add(key);
+      return true;
+    }).slice(0, 10);
+  }, [candidateFilter, candidateSearch, candidateTimeframe, data?.flipCandidates]);
   const topConfirmedFlips = useMemo(() => {
     const now = Date.now();
     const maxAgeByTimeframe = { '4h': 12 * 60 * 60_000, '8h': 24 * 60 * 60_000, '1d': 72 * 60 * 60_000, '1w': 14 * 24 * 60 * 60_000 } as const;
@@ -280,21 +296,41 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
   }, [data?.confirmedFlips]);
 
   const candidateFilterControls = (
-    <div className="grid grid-cols-3 gap-1 rounded-lg border border-white/[0.06] bg-white/[0.025] p-1">
-      {(['ALL', 'BULLISH', 'BEARISH'] as const).map(filter => (
-        <button
-          key={filter}
-          type="button"
-          onClick={() => setCandidateFilter(filter)}
-          className={`rounded-md px-2.5 py-1.5 text-[10px] font-bold transition ${candidateFilter === filter
-            ? filter === 'BULLISH'
-              ? 'bg-emerald-500/15 text-emerald-300'
-              : filter === 'BEARISH'
-                ? 'bg-rose-500/15 text-rose-300'
-                : 'bg-violet-500/15 text-violet-200'
-            : 'text-slate-500 hover:text-slate-300'}`}
-        >{filter === 'ALL' ? 'TOATE' : filter}</button>
-      ))}
+    <div className="space-y-2">
+      <div className="grid grid-cols-3 gap-1 rounded-lg border border-white/[0.06] bg-white/[0.025] p-1">
+        {(['ALL', 'BULLISH', 'BEARISH'] as const).map(filter => (
+          <button
+            key={filter}
+            type="button"
+            onClick={() => setCandidateFilter(filter)}
+            className={`rounded-md px-2.5 py-1.5 text-[10px] font-bold transition ${candidateFilter === filter
+              ? filter === 'BULLISH'
+                ? 'bg-emerald-500/15 text-emerald-300'
+                : filter === 'BEARISH'
+                  ? 'bg-rose-500/15 text-rose-300'
+                  : 'bg-violet-500/15 text-violet-200'
+              : 'text-slate-500 hover:text-slate-300'}`}
+          >{filter === 'ALL' ? 'TOATE' : filter}</button>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-1 rounded-lg border border-white/[0.06] bg-white/[0.025] p-1">
+        {(['ALL', '4h', '8h', '1d', '1w'] as const).map(timeframe => (
+          <button
+            key={timeframe}
+            type="button"
+            onClick={() => setCandidateTimeframe(timeframe)}
+            className={`min-w-10 flex-1 rounded-md px-2 py-1.5 font-mono text-[10px] font-bold uppercase transition ${candidateTimeframe === timeframe
+              ? 'bg-cyan-500/15 text-cyan-200'
+              : 'text-slate-500 hover:text-slate-300'}`}
+          >{timeframe === 'ALL' ? 'TF toate' : timeframe}</button>
+        ))}
+      </div>
+      <input
+        value={candidateSearch}
+        onChange={event => setCandidateSearch(event.target.value)}
+        placeholder="Caută asset în candidați, ex. ETH"
+        className="w-full rounded-lg border border-white/[0.07] bg-white/[0.025] px-3 py-2 font-mono text-[11px] text-slate-200 outline-none transition placeholder:text-slate-600 focus:border-cyan-500/30"
+      />
     </div>
   );
 
@@ -304,7 +340,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
         <FlipCandidateCard
           key={candidate.id}
           candidate={candidate}
-          rank={(data?.flipCandidates || []).findIndex(item => item.id === candidate.id) + 1 || index + 1}
+          rank={index + 1}
           preparing={preparingId === candidate.id}
           alertActive={Boolean(data?.activeAlerts.some(alert =>
             alert.symbol === candidate.symbol && alert.timeframe === candidate.timeframe

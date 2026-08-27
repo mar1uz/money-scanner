@@ -136,7 +136,7 @@ describe('Daily MoneyLine regime scan', () => {
     assert.equal(result.status, 'APPROACHING');
   });
 
-  it('keeps confirmed flips out of the upcoming Top 10 and only one timeframe per asset', () => {
+  it('keeps confirmed flips out while retaining searchable candidates per timeframe', () => {
     const state = new AppState();
     const base = {
       marketClass: 'crypto',
@@ -167,6 +167,6 @@ describe('Daily MoneyLine regime scan', () => {
       { ...base, id: 'sol-4h', symbol: 'SOL', timeframe: '4h', status: 'AWAITING_CLOSE', priorityScore: 85 }
     ]);
 
-    assert.deepEqual(ranked.map((candidate: any) => candidate.id), ['btc-4h', 'sol-4h']);
+    assert.deepEqual(ranked.map((candidate: any) => candidate.id), ['btc-4h', 'sol-4h', 'btc-1d']);
   });
 });
