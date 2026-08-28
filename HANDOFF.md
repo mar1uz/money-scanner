@@ -1582,3 +1582,26 @@ Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 Production bundle: index-DFZwLsho.js
 ```
+
+## 43. Compact MoneyLine Flip Price Deployment
+
+Deployed on 28 August 2026.
+
+- Removed the opaque `BUY FLIP` / `SELL FLIP` badge that covered candles on narrow mobile charts.
+- The flip threshold now shows only its compact price, without a rectangle, in reserved empty space after the latest candle.
+- Removed the duplicate flip badge from the lateral price scale; the dashed threshold line remains visible.
+- Increased the future-space offset responsively so the compact value stays clear of current price action on mobile and desktop.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 5830442
+Local build: passed
+Local tests: 49 passed, 0 failed
+Cloud Build: 4a6fc60a-8c71-4dd1-8c49-7e2bafd824ee (SUCCESS)
+Cloud Run revision: market-scanner-360-00110-j78
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+Production bundle: index-DYeAqNiq.js
+```
