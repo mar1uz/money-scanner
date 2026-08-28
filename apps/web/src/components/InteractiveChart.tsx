@@ -740,7 +740,6 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     if (lastIdx >= 0) {
       const currentFlipThreshold = moneyLine.lineSlow[lastIdx];
       const isBullSlow = moneyLine.dirSlow[lastIdx] < 0;
-      const flipAction = isBullSlow ? 'SELL FLIP' : 'BUY FLIP';
       const flipColor = isBullSlow ? '#f43f5e' : '#10b981';
 
       if (currentFlipThreshold && Number.isFinite(currentFlipThreshold) && currentFlipThreshold > 0) {
@@ -749,8 +748,10 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
           color: flipColor,
           lineWidth: 1,
           lineStyle: 2, // LineStyle.Dashed
-          axisLabelVisible: true,
-          title: `PRAG ML: $${currentFlipThreshold < 1 ? currentFlipThreshold.toFixed(4) : currentFlipThreshold.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${flipAction})`
+          // The compact SVG price below is placed in the empty future area.
+          // Avoid a second, duplicate badge on the lateral price scale.
+          axisLabelVisible: false,
+          title: ''
         });
       }
     }
@@ -763,7 +764,9 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     }
     chart.timeScale().applyOptions({
       rightOffset: 8,
-      rightOffsetPixels: Math.min(120, Math.max(88, container.clientWidth * 0.18))
+      // Keep enough empty space after the latest candle for the compact flip
+      // value, so it never needs to sit on top of price action on mobile.
+      rightOffsetPixels: Math.min(144, Math.max(116, container.clientWidth * 0.24))
     });
 
     // Subscribe to pan/zoom changes to keep SVG drawings locked to chart coordinates
@@ -1809,8 +1812,9 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="âš ï¸
               }`}
             >
               {/* Live flip threshold: horizontal line segment anchored to the
-                  exact slow Money Line value. No point/circle marker and no
-                  lateral price-scale label. */}
+                  exact slow Money Line value. Only the compact price is shown
+                  in the reserved future areaâ€”no opaque badge over candles and
+                  no duplicate lateral price-scale label. */}
               {(() => {
                 if (!latestState || !candles.length || !Number.isFinite(latestState.slowLine) || latestState.slowLine <= 0) return null;
                 const anchor = getCoordinatesForPoint(candles.length - 1, latestState.slowLine);
@@ -1819,13 +1823,16 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="âš ï¸
 
                 const isBuy = latestState.nextFlip === 'BUY';
                 const color = isBuy ? '#34d399' : '#fb7185';
-                const operator = isBuy ? '>' : '<';
-                const label = `${operator} ${formatFlipPrice(latestState.slowLine)} Â· ${latestState.nextFlip} FLIP`;
-                const labelWidth = Math.min(184, Math.max(132, label.length * 6.25 + 18));
+                const priceLabel = `$${formatFlipPrice(latestState.slowLine)}`;
+                const estimatedTextWidth = Math.max(38, priceLabel.length * 7.2);
+                const priceScaleWidth = 64;
+                const labelX = Math.max(
+                  anchor.x + 10,
+                  Math.min(anchor.x + 18, chartWidth - priceScaleWidth - estimatedTextWidth - 4)
+                );
+                const labelY = Math.max(14, Math.min(anchor.y - 7, 520));
                 const x1 = Math.max(54, anchor.x - 110);
-                const x2 = Math.min(Math.max(anchor.x + 175, x1 + labelWidth + 24), Math.max(x1 + 80, chartWidth - 64));
-                const labelX = Math.max(x1 + 8, Math.min(x2 - labelWidth, chartWidth - labelWidth - 66));
-                const labelY = Math.max(8, Math.min(anchor.y - 13, 508));
+                const x2 = Math.max(anchor.x + 4, labelX - 5);
 
                 return (
                   <g aria-label={`Prag flip ${latestState.nextFlip} ${formatFlipPrice(latestState.slowLine)}`}>
@@ -1839,26 +1846,19 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="âš ï¸
                       strokeLinecap="square"
                       filter={`drop-shadow(0 0 5px ${color})`}
                     />
-                    <rect
+                    <text
                       x={labelX}
                       y={labelY}
-                      width={labelWidth}
-                      height="26"
-                      rx="5"
-                      fill="#07111e"
-                      stroke={color}
-                      strokeWidth="1.25"
-                    />
-                    <text
-                      x={labelX + labelWidth / 2}
-                      y={labelY + 17}
                       fill={color}
-                      textAnchor="middle"
+                      stroke="rgba(7, 17, 30, 0.72)"
+                      strokeWidth="3"
+                      paintOrder="stroke"
+                      textAnchor="start"
                       fontFamily="monospace"
-                      fontSize="10"
+                      fontSize="11"
                       fontWeight="800"
                     >
-                      {label}
+                      {priceLabel}
                     </text>
                   </g>
                 );
