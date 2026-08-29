@@ -1687,3 +1687,36 @@ Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 Production bundle: index-Cd9lUI2B.js
 ```
+
+## 46. Unified Asset-to-MoneyLine Navigation and CoinGecko Links
+
+Implemented and deployed on 29 August 2026.
+
+- Added one reusable asset navigation layer for the authenticated application. Explicit asset names and ticker labels now open the matching Money Line deep-dive instead of behaving differently from page to page.
+- Connected the remaining asset surfaces, including:
+  - AI Analyst narrative tickers, discovery results, prose ticker mentions and Top-200 four-criteria result cards;
+  - News Feed ticker badges and explicit asset mentions inside headlines/summaries;
+  - Backtest Lab selected asset and comparison results;
+  - USA Macro index/crypto references;
+  - Crypto Bubble and Crypto Heat Map cards.
+- Existing scanner rows, alert cards, narrative category assets, global search and watchlist flows continue to open Money Line and now share the same destination behavior.
+- Crypto selections carry the CoinGecko asset ID whenever the source provides it.
+- Added a `CoinGecko` external-link button to the Money Line header on desktop and its compact mobile status row:
+  - exact `/en/coins/<id>` page when the CoinGecko ID is known;
+  - CoinGecko asset search as a safe fallback for obscure/fallback-provider symbols.
+- The generic system test-alert label no longer embeds a misleading BTC ticker that would conflict with the global asset-link behavior.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: aca1982
+Local build: passed
+Local tests: 53 passed, 0 failed
+Local browser QA: Top-200 PUMP card opened Money Line; CoinGecko button resolved exactly to /en/coins/pump-fun
+Cloud Build: d4f70285-ac0a-4168-a8ff-51e3f39f27d3 (SUCCESS)
+Cloud Run revision: market-scanner-360-00113-m9l
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+Production bundle: index-cq6KN4zT.js
+```
