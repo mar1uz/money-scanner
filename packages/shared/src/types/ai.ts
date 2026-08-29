@@ -139,6 +139,7 @@ export interface CryptoCriterionResult {
 
 export interface CryptoFourCriteriaAsset {
   id: string;
+  coinGeckoId?: string;
   symbol: string;
   name: string;
   image?: string;

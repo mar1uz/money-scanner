@@ -8,7 +8,7 @@ import {
 import { useLanguage } from '../i18n.js';
 
 interface CryptoHeatMapViewProps {
-  onSelectAsset: (symbol: string) => void;
+  onSelectAsset: (symbol: string, coinGeckoId?: string) => void;
 }
 
 interface HeatRect {
@@ -199,7 +199,7 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
             <button
               key={rect.coin.id}
               type="button"
-              onClick={() => onSelectAsset(rect.coin.symbol)}
+              onClick={() => onSelectAsset(rect.coin.symbol, rect.coin.id)}
               title={`${rect.coin.name} · #${rect.coin.rank} · ${formatMarketCap(rect.coin.marketCap)} · ${rect.coin.change === null ? '—' : `${rect.coin.change >= 0 ? '+' : ''}${rect.coin.change.toFixed(2)}%`}`}
               className="absolute overflow-hidden border border-black/50 p-0.5 text-center text-white transition-[filter,transform] duration-150 hover:z-20 hover:brightness-125 focus:z-20 focus:outline-none focus:ring-2 focus:ring-cyan-300"
               style={{

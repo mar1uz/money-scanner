@@ -3,6 +3,7 @@ import { NewsItem, NewsCategory, NewsSynthesisPayload } from '../types.js';
 import { fetchNews, fetchNewsSynthesis } from '../services/api.js';
 import { useLanguage } from '../i18n.js';
 import { Newspaper, ExternalLink, ShieldCheck, Filter, Sparkles, Link2, RefreshCw } from 'lucide-react';
+import { AssetLink, AssetMentionText } from './AssetNavigation.js';
 
 export const NewsFeedView: React.FC = () => {
   const { language } = useLanguage();
@@ -131,7 +132,10 @@ export const NewsFeedView: React.FC = () => {
                   >
                     <Link2 className="w-3.5 h-3.5 mt-0.5 shrink-0 text-purple-400" />
                     <p className="min-w-0 flex-1">
-                      {segment.text}{' '}
+                      <AssetMentionText
+                        text={segment.text}
+                        symbols={Array.from(segment.text.matchAll(/\$([A-Z][A-Z0-9.]{1,14})\b/g), match => match[1])}
+                      />{' '}
                       {citedSources.map((source, sourceIndex) => (
                         <React.Fragment key={source!.id}>
                           {sourceIndex > 0 ? ' ' : ''}
@@ -186,12 +190,15 @@ export const NewsFeedView: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {news.map((item) => (
-            <a
+            <article
               key={item.id}
-              href={item.url}
-              target="_blank"
-              rel="noreferrer"
-              className="cyber-glass rounded-xl p-5 border border-background-border hover:border-cyan-500/40 transition-all flex flex-col justify-between space-y-3 group"
+              role="link"
+              tabIndex={0}
+              onClick={() => window.open(item.url, '_blank', 'noopener,noreferrer')}
+              onKeyDown={event => {
+                if (event.key === 'Enter') window.open(item.url, '_blank', 'noopener,noreferrer');
+              }}
+              className="cursor-pointer cyber-glass rounded-xl p-5 border border-background-border hover:border-cyan-500/40 transition-all flex flex-col justify-between space-y-3 group"
             >
               <div>
                 <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 mb-2">
@@ -214,21 +221,23 @@ export const NewsFeedView: React.FC = () => {
                 </div>
 
                 <h3 className="font-bold text-sm text-slate-100 group-hover:text-cyan-300 transition-colors flex items-start justify-between gap-2 mb-2">
-                  <span>{item.title}</span>
-                  <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-cyan-400 flex-shrink-0 mt-0.5" />
+                  <AssetMentionText text={item.title} symbols={item.mentionedSymbols} />
+                  <a onClick={event => event.stopPropagation()} href={item.url} target="_blank" rel="noreferrer" title={language === 'en' ? 'Open source' : 'Deschide sursa'} className="p-1 -m-1 text-slate-500 hover:text-cyan-300">
+                    <ExternalLink className="w-4 h-4 flex-shrink-0" />
+                  </a>
                 </h3>
 
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  {item.summary}
+                  <AssetMentionText text={item.summary} symbols={item.mentionedSymbols} />
                 </p>
               </div>
 
               <div className="flex items-center justify-between pt-3 border-t border-background-border text-[11px] font-mono">
                 <div className="flex items-center gap-1.5">
                   {item.mentionedSymbols.map(s => (
-                    <span key={s} className="px-1.5 py-0.5 rounded bg-slate-800 text-cyan-300">
+                    <AssetLink key={s} symbol={s} className="px-1.5 py-0.5 rounded bg-slate-800 text-cyan-300">
                       ${s}
-                    </span>
+                    </AssetLink>
                   ))}
                 </div>
                 {typeof item.credibilityScore === 'number' && (
@@ -238,7 +247,7 @@ export const NewsFeedView: React.FC = () => {
                   </div>
                 )}
               </div>
-            </a>
+            </article>
           ))}
         </div>
       )}

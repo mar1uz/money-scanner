@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { USAEconomicStatus, YieldPoint } from '@money-scanner/shared';
 import { fetchUSAStatus } from '../services/api.js';
+import { AssetLink } from './AssetNavigation.js';
 import {
   Landmark,
   TrendingUp,
@@ -320,7 +321,7 @@ export const USAStatusView: React.FC = () => {
                 className="p-2.5 rounded-xl bg-background-surface/80 border border-background-border flex items-center justify-between text-xs font-mono"
               >
                 <div>
-                  <div className="font-bold text-slate-200">{idx.symbol}</div>
+                  <AssetLink symbol={idx.symbol} className="font-bold text-slate-200">{idx.symbol}</AssetLink>
                   <div className="text-[10px] text-slate-400">{idx.name}</div>
                 </div>
 
@@ -409,7 +410,12 @@ export const USAStatusView: React.FC = () => {
             <div className="flex items-center justify-between font-mono text-xs">
               <div className="flex items-center gap-1.5 font-bold text-slate-200">
                 <Coins className="w-4 h-4 text-amber-400" />
-                <span>Crypto ($BTC, $ETH, $SOL)</span>
+                <span className="inline-flex items-center gap-1">
+                  Crypto (
+                  <AssetLink symbol="BTC" marketClass="crypto" className="text-amber-200">$BTC</AssetLink>,
+                  <AssetLink symbol="ETH" marketClass="crypto" className="text-amber-200">$ETH</AssetLink>,
+                  <AssetLink symbol="SOL" marketClass="crypto" className="text-amber-200">$SOL</AssetLink>)
+                </span>
               </div>
               <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold shadow-glow-emerald">
                 {simGuidance.cryptoVerdict}

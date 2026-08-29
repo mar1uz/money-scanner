@@ -235,6 +235,7 @@ export class MarketDataService {
         assets.push(withPrimaryNarrative({
           symbol,
           name: String(row.name || existing?.name || symbol),
+          coinGeckoId: row.id,
           category: existing?.category || 'Infrastructure',
           marketClass: 'crypto',
           narratives: existing?.narratives,

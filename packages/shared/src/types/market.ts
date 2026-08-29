@@ -97,6 +97,8 @@ export interface AssetInfo {
   narratives?: MarketNarrativeId[];
   quoteCurrency: string;  // e.g. "USDT", "USD"
   aliases?: string[];     // e.g. ["spacex", "elon musk", "gold", "aur", "nvidia", "ai chips"]
+  /** Stable CoinGecko slug used for an exact external crypto profile link. */
+  coinGeckoId?: string;
   marketCap?: number;
   rank: number;
   decimals: number;

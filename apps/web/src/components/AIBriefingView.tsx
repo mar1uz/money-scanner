@@ -9,6 +9,7 @@ import {
 } from '../types.js';
 import { askAIAnalyst, fetchCryptoFourCriteriaScan, fetchMarketIntelligence, fetchXPosts } from '../services/api.js';
 import { useLanguage } from '../i18n.js';
+import { AssetLink, useAssetNavigation, useDelegatedAssetNavigation } from './AssetNavigation.js';
 import {
   BrainCircuit,
   Sparkles,
@@ -94,6 +95,8 @@ function renderMarkdown(text: string): string {
   let html = text
     // Escape HTML
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    // Cash tags use delegated in-app navigation to the Money Line chart.
+    .replace(/\$([A-Z][A-Z0-9.]{1,14})\b/g, '<button type="button" data-asset-symbol="$1" class="text-cyan-300 hover:text-cyan-200 underline decoration-cyan-500/30 underline-offset-2">$$$1</button>')
     // Headers
     .replace(/^### (.+)$/gm, '<h3>$1</h3>')
     .replace(/^## (.+)$/gm, '<h2>$1</h2>')
@@ -123,6 +126,8 @@ function renderMarkdown(text: string): string {
 /* ─── Main Component ─── */
 export const AIBriefingView: React.FC = () => {
   const { language } = useLanguage();
+  const navigateAsset = useAssetNavigation();
+  const handleDelegatedAssetClick = useDelegatedAssetNavigation();
   // Chat state
   const [chats, setChats] = useState<SavedChat[]>(() => loadChats());
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -405,9 +410,9 @@ export const AIBriefingView: React.FC = () => {
         {post.mentionedSymbols && post.mentionedSymbols.length > 0 && (
           <div className="flex gap-1">
             {post.mentionedSymbols.slice(0, 3).map(s => (
-              <span key={s} className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 text-[10px] font-mono font-semibold">
+              <AssetLink key={s} symbol={s} className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 text-[10px] font-mono font-semibold">
                 ${s}
-              </span>
+              </AssetLink>
             ))}
           </div>
         )}
@@ -417,7 +422,7 @@ export const AIBriefingView: React.FC = () => {
 
   /* ─── Render: AI Message ─── */
   const renderAIMessage = (msg: ChatMessage) => (
-    <div className="space-y-4 animate-fade-slide-up">
+    <div className="space-y-4 animate-fade-slide-up" onClick={handleDelegatedAssetClick}>
       {/* Rich formatted response */}
       <div
         className="ai-chat-prose text-[13.5px] font-sans leading-relaxed"
@@ -613,7 +618,19 @@ export const AIBriefingView: React.FC = () => {
           {visibleAssets.map(asset => {
             const criteria = Object.values(asset.criteria);
             return (
-              <article key={asset.id} className="rounded-xl border border-white/[0.07] bg-black/10 p-3 sm:p-4">
+              <article
+                key={asset.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => navigateAsset({ symbol: asset.symbol, marketClass: 'crypto', coinGeckoId: asset.coinGeckoId })}
+                onKeyDown={event => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    navigateAsset({ symbol: asset.symbol, marketClass: 'crypto', coinGeckoId: asset.coinGeckoId });
+                  }
+                }}
+                className="cursor-pointer rounded-xl border border-white/[0.07] bg-black/10 p-3 sm:p-4 transition-colors hover:border-cyan-500/30"
+              >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5 min-w-0">
                     {asset.image ? <img src={asset.image} alt="" className="w-8 h-8 rounded-full bg-white/[0.04]" loading="lazy" /> : <Coins className="w-8 h-8 text-slate-600" />}
@@ -776,7 +793,14 @@ export const AIBriefingView: React.FC = () => {
                 <p className="mt-3 text-[11px] text-slate-400"><strong className="text-slate-300">{language === 'ro' ? 'De ce acum:' : 'Why now:'}</strong> {narrative.whyNow}</p>
                 {narrative.assets.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-3">
-                    {narrative.assets.map(asset => <span key={asset} className="px-2 py-0.5 rounded-md bg-black/20 text-[10px] font-mono text-slate-200">{asset.startsWith('$') ? asset : `$${asset}`}</span>)}
+                    {narrative.assets.map(asset => {
+                      const assetSymbol = asset.replace(/^\$/, '');
+                      return (
+                        <AssetLink key={asset} symbol={assetSymbol} marketClass={scope} className="px-2 py-0.5 rounded-md bg-black/20 text-[10px] font-mono text-slate-200">
+                          {asset.startsWith('$') ? asset : `$${asset}`}
+                        </AssetLink>
+                      );
+                    })}
                   </div>
                 )}
                 {(narrative.catalysts.length > 0 || narrative.risks.length > 0) && (
@@ -810,7 +834,11 @@ export const AIBriefingView: React.FC = () => {
                 <article key={`${item.name}_${index}`} className="rounded-xl border border-purple-500/20 bg-purple-500/[0.045] p-4">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <h4 className="text-sm font-bold text-slate-100">{item.symbol ? `$${item.symbol} · ` : ''}{item.name}</h4>
+                      {item.symbol ? (
+                        <AssetLink symbol={item.symbol} marketClass={scope} className="text-left text-sm font-bold text-slate-100">
+                          ${item.symbol} · {item.name}
+                        </AssetLink>
+                      ) : <h4 className="text-sm font-bold text-slate-100">{item.name}</h4>}
                       <span className="text-[10px] text-purple-300 font-mono">{item.category}</span>
                     </div>
                     <span className={`text-[9px] font-mono px-2 py-0.5 rounded-full border ${item.status === 'Verified' ? 'border-emerald-500/25 text-emerald-300 bg-emerald-500/10' : item.status === 'Unverified' ? 'border-rose-500/25 text-rose-300 bg-rose-500/10' : 'border-amber-500/25 text-amber-300 bg-amber-500/10'}`}>{item.status}</span>

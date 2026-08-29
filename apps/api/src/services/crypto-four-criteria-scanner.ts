@@ -14,6 +14,7 @@ const DEFILLAMA_HOLDERS_REVENUE_URL = 'https://api.llama.fi/overview/fees?exclud
 
 interface CoinGeckoMarketRow {
   id: string;
+  coin_gecko_id?: string;
   symbol: string;
   name: string;
   image?: string;
@@ -256,6 +257,7 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
 
     return {
       id: coin.id,
+      coinGeckoId: coin.coin_gecko_id,
       symbol: coin.symbol.toUpperCase(),
       name: coin.name,
       image: coin.image,
@@ -320,7 +322,8 @@ const fetchJson = async <T>(fetcher: typeof fetch, url: string): Promise<T> => {
 
 const fetchCoinMarkets = async (fetcher: typeof fetch): Promise<CoinGeckoMarketRow[]> => {
   try {
-    return await fetchJson<CoinGeckoMarketRow[]>(fetcher, COINGECKO_MARKETS_URL);
+    const rows = await fetchJson<CoinGeckoMarketRow[]>(fetcher, COINGECKO_MARKETS_URL);
+    return rows.map(row => ({ ...row, coin_gecko_id: row.id }));
   } catch {
     // CoinGecko's no-key endpoint can briefly return 429. A separate public
     // market-cap source keeps the scan available instead of fabricating ranks.

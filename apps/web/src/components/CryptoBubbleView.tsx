@@ -7,7 +7,7 @@ import {
 } from '../services/api.js';
 
 interface CryptoBubbleViewProps {
-  onSelectAsset: (symbol: string) => void;
+  onSelectAsset: (symbol: string, coinGeckoId?: string) => void;
 }
 
 const TIMEFRAMES: { id: CryptoBubbleTimeframe; label: string; description: string }[] = [
@@ -191,7 +191,7 @@ export const CryptoBubbleView: React.FC<CryptoBubbleViewProps> = ({ onSelectAsse
                 <button
                   key={coin.id}
                   type="button"
-                  onClick={() => onSelectAsset(coin.symbol)}
+                  onClick={() => onSelectAsset(coin.symbol, coin.id)}
                   style={{
                     width: size,
                     height: size,

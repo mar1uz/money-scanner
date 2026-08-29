@@ -59,7 +59,7 @@ export const SystemStatusView: React.FC = () => {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/30 text-xs font-mono transition-all"
           >
             <BellRing className="w-3.5 h-3.5" />
-            <span>{testSent ? 'Alert Dispatched!' : 'Send Test BTC Alert'}</span>
+            <span>{testSent ? 'Alert Dispatched!' : 'Send Test Market Alert'}</span>
           </button>
           <button
             onClick={loadStatus}

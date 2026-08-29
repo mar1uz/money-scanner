@@ -30,6 +30,7 @@ import { USAStatusView } from './components/USAStatusView.js';
 import { CryptoBubbleView } from './components/CryptoBubbleView.js';
 import { CryptoHeatMapView } from './components/CryptoHeatMapView.js';
 import { AuthGate } from './components/AuthGate.js';
+import { AssetNavigationProvider } from './components/AssetNavigation.js';
 import { UserProfile } from '@money-scanner/shared';
 import { Zap, CheckCircle2, RefreshCw } from 'lucide-react';
 
@@ -68,6 +69,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
 
   const [selectedAssetSymbol, setSelectedAssetSymbol] = useState<string | null>(null);
   const [selectedAssetMarketClass, setSelectedAssetMarketClass] = useState<AssetScannerRow['marketClass']>(undefined);
+  const [selectedAssetCoinGeckoId, setSelectedAssetCoinGeckoId] = useState<string | undefined>(undefined);
   const [selectedMarketCategory, setSelectedMarketCategory] = useState<'ALL' | 'crypto' | 'stocks' | 'metals'>('ALL');
   const [overview, setOverview] = useState<MarketOverviewSummary | null>(null);
   const [narratives, setNarratives] = useState<NarrativeSummary[]>([]);
@@ -154,15 +156,18 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
   const openAsset = (
     symbol: string,
     marketClass?: AssetScannerRow['marketClass'],
-    selectedTimeframe?: Timeframe
+    selectedTimeframe?: Timeframe,
+    coinGeckoId?: string
   ) => {
     const verifiedClass = marketClass || scannerRows.find(row => row.symbol.toUpperCase() === symbol.toUpperCase())?.marketClass;
     if (selectedTimeframe) setTimeframe(selectedTimeframe);
     setSelectedAssetMarketClass(verifiedClass);
+    setSelectedAssetCoinGeckoId(coinGeckoId);
     setSelectedAssetSymbol(symbol);
   };
 
   return (
+    <AssetNavigationProvider onOpenAsset={({ symbol, marketClass, timeframe: targetTimeframe, coinGeckoId }) => openAsset(symbol, marketClass, targetTimeframe, coinGeckoId)}>
     <div className="min-h-screen flex bg-background text-slate-100 selection:bg-cyan-500/30 selection:text-cyan-200">
       {/* Persistent Left Sidebar (Desktop) + Bottom Nav (Mobile) */}
       <Sidebar
@@ -170,12 +175,14 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
         onTabChange={(tab) => {
           setSelectedAssetSymbol(null);
           setSelectedAssetMarketClass(undefined);
+          setSelectedAssetCoinGeckoId(undefined);
           setActiveTab(tab);
         }}
         watchlistCount={watchlist.length}
         onLogoClick={() => {
           setSelectedAssetSymbol(null);
           setSelectedAssetMarketClass(undefined);
+          setSelectedAssetCoinGeckoId(undefined);
           setActiveTab('market');
         }}
         onOpenSearchModal={() => setIsSearchModalOpen(true)}
@@ -195,6 +202,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
           onOpenAlerts={() => {
             setSelectedAssetSymbol(null);
             setSelectedAssetMarketClass(undefined);
+            setSelectedAssetCoinGeckoId(undefined);
             setActiveTab('alerts');
           }}
           isStale={overview?.providerStatus.staleAssetsCount ? overview.providerStatus.staleAssetsCount > 0 : false}
@@ -235,11 +243,13 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
             <AssetDeepDiveView
               symbol={selectedAssetSymbol}
               marketClass={selectedAssetMarketClass}
+              coinGeckoId={selectedAssetCoinGeckoId}
               timeframe={timeframe}
               onTimeframeChange={setTimeframe}
               onBack={() => {
                 setSelectedAssetSymbol(null);
                 setSelectedAssetMarketClass(undefined);
+                setSelectedAssetCoinGeckoId(undefined);
               }}
               watchlist={watchlist}
               onToggleWatchlist={toggleWatchlist}
@@ -332,11 +342,11 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
 
               {/* Top 100 cryptocurrencies, sized by market capitalization */}
               {activeTab === 'crypto_bubbles' && (
-                <CryptoBubbleView onSelectAsset={(symbol) => openAsset(symbol, 'crypto')} />
+                <CryptoBubbleView onSelectAsset={(symbol, coinGeckoId) => openAsset(symbol, 'crypto', undefined, coinGeckoId)} />
               )}
 
               {activeTab === 'crypto_heatmap' && (
-                <CryptoHeatMapView onSelectAsset={(symbol) => openAsset(symbol, 'crypto')} />
+                <CryptoHeatMapView onSelectAsset={(symbol, coinGeckoId) => openAsset(symbol, 'crypto', undefined, coinGeckoId)} />
               )}
 
               {/* Tab 2: USA Economic Status & Macro Intelligence */}
@@ -383,6 +393,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
         onToggleWatchlist={toggleWatchlist}
       />
     </div>
+    </AssetNavigationProvider>
   );
 };
 

@@ -20,6 +20,7 @@ import {
   TrendingDown,
   TrendingUp
 } from 'lucide-react';
+import { AssetLink } from './AssetNavigation.js';
 
 interface BacktestAssetOption {
   symbol: string;
@@ -151,7 +152,7 @@ export const BacktestView: React.FC = () => {
             <div className="mt-3 inline-flex rounded-lg border border-emerald-500/20 bg-emerald-500/[0.07] px-2.5 py-1.5 text-[10px] leading-4 text-emerald-200/80">{STRATEGY_META[strategy].scope}</div>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(190px,1fr)_minmax(180px,1fr)_auto_auto]">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(190px,1fr)_minmax(180px,1fr)_auto_auto_auto]">
             <select
               value={strategy}
               onChange={event => setStrategy(event.target.value as ResearchStrategy)}
@@ -172,6 +173,14 @@ export const BacktestView: React.FC = () => {
                 </option>
               ))}
             </select>
+            <AssetLink
+              symbol={selectedAsset.symbol}
+              marketClass={selectedAsset.marketClass}
+              timeframe="1d"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-cyan-500/25 bg-cyan-500/[0.08] px-3 py-2.5 text-xs font-bold text-cyan-200"
+            >
+              ${selectedAsset.symbol} Money Line <ExternalLink className="h-3.5 w-3.5" />
+            </AssetLink>
             {strategy === 'weekly_reclaim' ? (
               <select
                 value={directionMode}
@@ -460,7 +469,7 @@ const ComparisonTable: React.FC<{ comparison: BacktestComparisonResult }> = ({ c
         <tbody className="divide-y divide-white/[0.05]">
           {comparison.rows.map(row => (
             <tr key={`${row.marketClass}:${row.symbol}`} className="text-slate-300">
-              <td className="px-3 py-2.5"><strong className="text-white">${row.symbol}</strong> <span className="ml-1 text-[8px] uppercase text-slate-600">{row.marketClass}</span>{row.error && <div className="text-rose-400">{row.error}</div>}</td>
+              <td className="px-3 py-2.5"><AssetLink symbol={row.symbol} marketClass={row.marketClass} timeframe="1d" className="font-bold text-white">${row.symbol}</AssetLink> <span className="ml-1 text-[8px] uppercase text-slate-600">{row.marketClass}</span>{row.error && <div className="text-rose-400">{row.error}</div>}</td>
               <td>{row.totalTrades}</td><td>{row.winRate.toFixed(1)}%</td><td className={row.profitFactor >= 1.2 ? 'text-emerald-300' : 'text-amber-300'}>{row.profitFactor.toFixed(2)}</td><td className={row.expectancyR > 0 ? 'text-emerald-300' : 'text-rose-300'}>{row.expectancyR >= 0 ? '+' : ''}{row.expectancyR.toFixed(2)}R</td><td className={row.totalReturnPercent >= 0 ? 'text-emerald-300' : 'text-rose-300'}>{formatPercent(row.totalReturnPercent)}</td><td>{formatPercent(row.buyAndHoldReturnPercent)}</td><td className="text-rose-300">-{row.maxDrawdownPercent.toFixed(2)}%</td><td className="text-slate-600">{row.periodStart ? `${formatDate(row.periodStart)} – ${formatDate(row.periodEnd)}` : '—'}</td>
             </tr>
           ))}

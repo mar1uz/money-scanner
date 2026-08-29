@@ -30,6 +30,7 @@ import {
 interface AssetDeepDiveViewProps {
   symbol: string;
   marketClass?: string;
+  coinGeckoId?: string;
   timeframe: Timeframe;
   onTimeframeChange: (tf: Timeframe) => void;
   onBack: () => void;
@@ -42,6 +43,7 @@ type InfoTab = 'mtf' | 'ai' | 'social';
 export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   symbol,
   marketClass,
+  coinGeckoId,
   timeframe,
   onTimeframeChange,
   onBack,
@@ -172,6 +174,11 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   const biasDotColor = isBull ? 'bg-emerald-400' : (isBear ? 'bg-rose-400' : 'bg-slate-500');
   const biasLabel = isBull ? 'Bullish' : (isBear ? 'Bearish' : 'Neutral');
   const biasBorderColor = isBull ? 'border-emerald-500/30' : (isBear ? 'border-rose-500/30' : 'border-slate-700');
+  const resolvedMarketClass = marketClass || data?.info?.marketClass;
+  const resolvedCoinGeckoId = coinGeckoId || data?.info?.coinGeckoId;
+  const coinGeckoUrl = resolvedCoinGeckoId
+    ? `https://www.coingecko.com/en/coins/${encodeURIComponent(resolvedCoinGeckoId)}`
+    : `https://www.coingecko.com/en/search?query=${encodeURIComponent(data?.info?.name || symbol)}`;
 
   if (loading && !data) {
     return (
@@ -293,6 +300,17 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
             </div>
 
             {/* Action icons */}
+            {resolvedMarketClass === 'crypto' && (
+              <a
+                href={coinGeckoUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-emerald-500/25 bg-emerald-500/[0.08] text-[10px] font-bold text-emerald-200 hover:bg-emerald-500/[0.14] transition-all"
+                title={resolvedCoinGeckoId ? 'Deschide pagina exactă CoinGecko' : 'Caută activul pe CoinGecko'}
+              >
+                CoinGecko <ExternalLink className="w-3 h-3" />
+              </a>
+            )}
             <button
               onClick={() => onToggleWatchlist(symbol)}
               className={`p-2 rounded-lg transition-all ${
@@ -336,6 +354,16 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
           <span className="text-[11px] text-slate-500 font-mono">
             {formatFlipAge(currentTfSignal?.transitionTime)}
           </span>
+          {resolvedMarketClass === 'crypto' && (
+            <a
+              href={coinGeckoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-auto inline-flex items-center gap-1 rounded-lg border border-emerald-500/25 bg-emerald-500/[0.08] px-2.5 py-1 text-[10px] font-bold text-emerald-200"
+            >
+              CoinGecko <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
         </div>
       </div>
 
