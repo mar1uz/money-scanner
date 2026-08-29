@@ -1,18 +1,10 @@
 import { Router } from 'express';
-import { createHash, timingSafeEqual } from 'node:crypto';
 import { AppState } from '../services/app-state.js';
 import { AssetMarketClass, MoneyLineSignal, Timeframe } from '@money-scanner/shared';
 import { AuthenticatedRequest, validateCsrfToken } from '../middleware/auth.js';
+import { validateScheduledRequestToken } from '../services/scheduler-auth.js';
 
 export const telegramRouter = Router();
-
-const validateDailyScanToken = (received?: string) => {
-  const expected = process.env.DAILY_SCAN_TOKEN;
-  if (!expected || !received) return false;
-  const expectedHash = Buffer.from(createHash('sha256').update(expected).digest('hex'));
-  const receivedHash = Buffer.from(createHash('sha256').update(received).digest('hex'));
-  return expectedHash.length === receivedHash.length && timingSafeEqual(expectedHash, receivedHash);
-};
 
 telegramRouter.post('/telegram/webhook', async (req, res) => {
   const appState = AppState.getInstance();
@@ -162,7 +154,7 @@ telegramRouter.delete('/alerts', async (req: AuthenticatedRequest, res) => {
 // because there is no user session in a scheduled HTTP request; the dedicated
 // high-entropy header is verified here in constant time.
 telegramRouter.post('/alerts/daily-regime-scan', async (req, res) => {
-  if (!validateDailyScanToken(req.get('x-daily-scan-token'))) {
+  if (!validateScheduledRequestToken(req.get('x-daily-scan-token'))) {
     return res.status(401).json({ error: 'Invalid daily scan token.' });
   }
   const status = await AppState.getInstance().runDailyRegimeScan();
