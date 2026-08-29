@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AssetDetailResponse, Timeframe } from '../types.js';
 import { fetchAssetDetail, fetchHistoricalCandles, triggerTestAlert } from '../services/api.js';
 import { InteractiveChart } from './InteractiveChart.js';
+import { CryptoBusinessQualityCard } from './CryptoBusinessQualityCard.js';
+import { StockBusinessQualityCard } from './StockBusinessQualityCard.js';
 import {
   ArrowLeft,
   Zap,
@@ -758,6 +760,19 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
                         </div>
                       </div>
                     </div>
+
+                    {/* 5. 🛡️ CRYPTO BUSINESS QUALITY · 4 CRITERIA */}
+                    <CryptoBusinessQualityCard
+                      coinGeckoId={resolvedCoinGeckoId}
+                      symbol={symbol}
+                      marketClass={resolvedMarketClass}
+                    />
+
+                    {/* 6. 🏆 STOCK BUSINESS QUALITY & PROFITABILITY */}
+                    <StockBusinessQualityCard
+                      symbol={symbol}
+                      marketClass={resolvedMarketClass}
+                    />
                   </>
                 ) : (
                   <p className="text-sm text-slate-500 font-mono">Analiza AI nu este disponibilă pentru acest asset.</p>

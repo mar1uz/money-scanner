@@ -12,6 +12,7 @@ import {
   NewsSynthesisPayload
 } from '@money-scanner/shared';
 import { scanCryptoFourCriteria } from '../services/crypto-four-criteria-scanner.js';
+import { scanStockBusinessQuality } from '../services/stock-business-quality-scanner.js';
 import { readPersistentAICache, writePersistentAICache } from '../services/ai-cache-store.js';
 import { validateScheduledRequestToken } from '../services/scheduler-auth.js';
 
@@ -31,10 +32,15 @@ const cryptoCriteriaCache = new Map<string, { payload: Awaited<ReturnType<typeof
 let cryptoCriteriaInFlight: Promise<Awaited<ReturnType<typeof scanCryptoFourCriteria>>> | null = null;
 const CRYPTO_CRITERIA_CACHE_MS = MORNING_CACHE_MAX_AGE_MS;
 const CRYPTO_CRITERIA_FORCE_REFRESH_FLOOR_MS = 2 * 60_000;
+const stockCriteriaCache = new Map<string, { payload: Awaited<ReturnType<typeof scanStockBusinessQuality>>; updatedAt: number }>();
+let stockCriteriaInFlight: Promise<Awaited<ReturnType<typeof scanStockBusinessQuality>>> | null = null;
+const STOCK_CRITERIA_CACHE_MS = MORNING_CACHE_MAX_AGE_MS;
+const STOCK_CRITERIA_FORCE_REFRESH_FLOOR_MS = 2 * 60_000;
 const SOURCE_REFRESH_TIMEOUT_MS = 15_000;
 
 const intelligencePersistentKey = (cacheKey: string) => `market-intelligence-${cacheKey.replace(':', '-')}`;
 const cryptoCriteriaPersistentKey = 'crypto-four-criteria-top-200';
+const stockCriteriaPersistentKey = 'stock-business-quality-top';
 
 const waitForSourceRefresh = (refresh: Promise<void>): Promise<void> => {
   // The model can produce a grounded fallback from currently cached sources.
@@ -275,6 +281,46 @@ aiRouter.get('/ai/crypto-four-criteria', async (req, res) => {
   }
 });
 
+type StockCriteriaPayload = Awaited<ReturnType<typeof scanStockBusinessQuality>>;
+
+const generateStockCriteriaReport = async (): Promise<StockCriteriaPayload> => {
+  const payload = await scanStockBusinessQuality();
+  const entry = { payload, updatedAt: Date.now() };
+  stockCriteriaCache.set('top-stocks', entry);
+  await writePersistentAICache(stockCriteriaPersistentKey, entry);
+  return payload;
+};
+
+const getStockCriteriaReport = async (requestedRefresh = false): Promise<StockCriteriaPayload> => {
+  const cacheKey = 'top-stocks';
+  let cached = stockCriteriaCache.get(cacheKey);
+  if (!cached) {
+    cached = await readPersistentAICache<StockCriteriaPayload>(stockCriteriaPersistentKey);
+    if (cached) stockCriteriaCache.set(cacheKey, cached);
+  }
+  const cacheAge = cached ? Date.now() - cached.updatedAt : Number.POSITIVE_INFINITY;
+  if (cached && cacheAge < STOCK_CRITERIA_CACHE_MS && (!requestedRefresh || cacheAge < STOCK_CRITERIA_FORCE_REFRESH_FLOOR_MS)) {
+    return cached.payload;
+  }
+
+  if (!stockCriteriaInFlight) {
+    stockCriteriaInFlight = generateStockCriteriaReport().finally(() => {
+      stockCriteriaInFlight = null;
+    });
+  }
+  return stockCriteriaInFlight;
+};
+
+aiRouter.get('/ai/stock-business-quality', async (req, res) => {
+  try {
+    const payload = await getStockCriteriaReport(req.query.refresh === '1');
+    res.set('Cache-Control', 'private, max-age=60');
+    res.json(payload);
+  } catch (err: any) {
+    res.status(502).json({ error: 'Failed to scan stock business quality', details: err.message });
+  }
+});
+
 // Cloud Scheduler calls this once daily at 07:00 Europe/Oslo. Both UI
 // languages and all three market scopes are generated ahead of the user's
 // visit, then persisted so another Cloud Run instance can serve them instantly.
@@ -334,7 +380,24 @@ aiRouter.post('/ai/daily-warmup', async (req, res) => {
     };
   }
 
-  const failed = reports.filter(report => report.status === 'failed').length + Number(cryptoCriteria.status === 'failed');
+  let stockCriteria: { status: 'ready' | 'failed'; generatedAt?: number; scannedAssets?: number; error?: string };
+  try {
+    const payload = await getStockCriteriaReport(true);
+    stockCriteria = {
+      status: 'ready',
+      generatedAt: payload.generatedAt,
+      scannedAssets: payload.scannedCount
+    };
+  } catch (error) {
+    stockCriteria = {
+      status: 'failed',
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+
+  const failed = reports.filter(report => report.status === 'failed').length
+    + Number(cryptoCriteria.status === 'failed')
+    + Number(stockCriteria.status === 'failed');
   const payload = {
     status: failed ? 'partial' : 'ready',
     schedule: '0 7 * * *',
@@ -344,7 +407,8 @@ aiRouter.post('/ai/daily-warmup', async (req, res) => {
     durationMs: Date.now() - startedAt,
     cacheMaxAgeHours: MORNING_CACHE_MAX_AGE_MS / 3_600_000,
     reports,
-    cryptoCriteria
+    cryptoCriteria,
+    stockCriteria
   };
   res.set('Cache-Control', 'no-store');
   return failed ? res.status(500).json(payload) : res.json(payload);

@@ -346,7 +346,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
               )}
 
               {activeTab === 'crypto_heatmap' && (
-                <CryptoHeatMapView onSelectAsset={(symbol, coinGeckoId) => openAsset(symbol, 'crypto', undefined, coinGeckoId)} />
+                <CryptoHeatMapView onSelectAsset={(symbol, coinGeckoId, marketClass) => openAsset(symbol, (marketClass as any) || 'crypto', undefined, coinGeckoId)} />
               )}
 
               {/* Tab 2: USA Economic Status & Macro Intelligence */}

@@ -179,6 +179,84 @@ export interface CryptoFourCriteriaScan {
   disclaimer: string;
 }
 
+export type StockCriteriaStatus = 'pass' | 'watch' | 'fail' | 'unknown';
+export type StockCriteriaFilter = 'top-pick' | 'all-passed' | 'high-profitability' | 'growth-fcf' | 'dividend-value';
+
+export interface StockCriterionResult {
+  status: StockCriteriaStatus;
+  label: string;
+  value: string;
+  explanation: string;
+}
+
+export interface StockFinancialMetrics {
+  grossMargin?: number;
+  operatingMargin?: number;
+  netMargin?: number;
+  fcfMargin?: number;
+  roe?: number;
+  roa?: number;
+  roic?: number;
+  revenueGrowthYoY?: number;
+  epsGrowthYoY?: number;
+  debtToEquity?: number;
+  currentRatio?: number;
+  totalCash?: number;
+  totalDebt?: number;
+  netCashPosition?: boolean;
+  freeCashFlow?: number;
+  fcfYield?: number;
+  dividendYield?: number;
+  buybackYield?: number;
+  trailingPE?: number;
+  forwardPE?: number;
+  pegRatio?: number;
+  priceToSales?: number;
+  evToEbitda?: number;
+  priceToFcf?: number;
+}
+
+export interface StockBusinessQualityAsset {
+  id: string;
+  symbol: string;
+  name: string;
+  sector?: string;
+  marketCap: number;
+  marketCapRank?: number;
+  price: number;
+  score: number; // 0 to 100
+  passedCriteria: number; // 0 to 6
+  classification: 'top-pick' | 'all-passed' | 'high-profitability' | 'growth-fcf' | 'dividend-value' | 'partial' | 'insufficient-data';
+  aiVerdict: 'Top AI Pick' | 'Solid Quality' | 'Watchlist' | 'High Risk';
+  aiVerdictLabelRo: string;
+  aiThesis: string;
+  criteria: {
+    profitability: StockCriterionResult;
+    capitalEfficiency: StockCriterionResult;
+    growth: StockCriterionResult;
+    solvency: StockCriterionResult;
+    freeCashFlow: StockCriterionResult;
+    valuation: StockCriterionResult;
+  };
+  metrics: StockFinancialMetrics;
+}
+
+export interface StockBusinessQualityScan {
+  scannedCount: number;
+  coveredCount: number;
+  topPicksCount: number;
+  allPassedCount: number;
+  highProfitabilityCount: number;
+  growthFcfCount: number;
+  dividendValueCount: number;
+  assets: StockBusinessQualityAsset[];
+  generatedAt: number;
+  dataFreshness: string;
+  methodology: string[];
+  sources: MarketIntelligenceSource[];
+  disclaimer: string;
+}
+
 export interface AssetEconomicReport {
   title: string;
   period: string;

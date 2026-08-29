@@ -3,12 +3,15 @@ import { AlertCircle, LayoutGrid, RefreshCw } from 'lucide-react';
 import {
   CryptoBubbleAsset,
   CryptoBubbleTimeframe,
-  fetchCryptoBubbles
+  fetchCryptoBubbles,
+  fetchScanner
 } from '../services/api.js';
 import { useLanguage } from '../i18n.js';
 
+type HeatMapScope = 'crypto' | 'stocks';
+
 interface CryptoHeatMapViewProps {
-  onSelectAsset: (symbol: string, coinGeckoId?: string) => void;
+  onSelectAsset: (symbol: string, coinGeckoId?: string, marketClass?: string) => void;
 }
 
 interface HeatRect {
@@ -99,20 +102,46 @@ const getTileTypography = (rect: HeatRect) => {
 
 export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAsset }) => {
   const { language } = useLanguage();
+  const [scope, setScope] = useState<HeatMapScope>('crypto');
   const [timeframe, setTimeframe] = useState<CryptoBubbleTimeframe>('1d');
   const [coins, setCoins] = useState<CryptoBubbleAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const isRo = language === 'ro';
+
   const loadCoins = async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchCryptoBubbles(timeframe);
-      setCoins(data.slice(0, 50));
+      if (scope === 'crypto') {
+        const data = await fetchCryptoBubbles(timeframe);
+        setCoins(data.slice(0, 50));
+      } else {
+        // Stocks: use scanner endpoint, map to CryptoBubbleAsset shape
+        const tfMap: Record<CryptoBubbleTimeframe, string> = { '1d': '1d', '1w': '1w', '1m': '1w' };
+        const rows = await fetchScanner(tfMap[timeframe] as any, undefined, undefined, false, undefined, 'stocks');
+        const sorted = rows
+          .filter(r => (r.marketCap ?? 0) > 0)
+          .sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0))
+          .slice(0, 50);
+        const mapped: CryptoBubbleAsset[] = sorted.map((r, i) => ({
+          id: r.symbol,
+          symbol: r.symbol,
+          name: r.name,
+          image: '',
+          rank: i + 1,
+          price: r.price,
+          marketCap: r.marketCap || 0,
+          change: timeframe === '1d' ? r.change24h
+            : timeframe === '1m' ? (r.changeYtd ?? r.timeframeChangePercent ?? r.change24h)
+            : (r.timeframeChangePercent ?? r.change24h)
+        }));
+        setCoins(mapped);
+      }
     } catch (loadError) {
       console.error(loadError);
-      setError(language === 'ro' ? 'Heat map-ul live nu este disponibil momentan.' : 'The live heat map is currently unavailable.');
+      setError(isRo ? 'Heat map-ul live nu este disponibil momentan.' : 'The live heat map is currently unavailable.');
     } finally {
       setLoading(false);
     }
@@ -120,12 +149,24 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
 
   useEffect(() => {
     loadCoins();
-  }, [timeframe]);
+  }, [timeframe, scope]);
 
   const rectangles = useMemo(
     () => splitTreemap([...coins].sort((a, b) => b.marketCap - a.marketCap), 0, 0, 100, 100),
     [coins]
   );
+
+  const scopeTitle = scope === 'crypto'
+    ? (isRo ? 'Top 50 Crypto după Market Cap' : 'Top 50 Crypto by Market Cap')
+    : (isRo ? 'Top 50 Stocks după Market Cap' : 'Top 50 Stocks by Market Cap');
+
+  const scopeSubtitle = isRo
+    ? 'Mărimea fiecărei zone reflectă capitalizarea, iar culoarea arată variația timeframe-ului selectat.'
+    : 'Tile size reflects market capitalization and color shows the selected timeframe return.';
+
+  const sourceLabel = scope === 'crypto'
+    ? 'CoinGecko live · Market Cap weighted'
+    : 'Market Scanner 360 · Market Cap weighted';
 
   return (
     <section className="space-y-5 tab-content-enter">
@@ -133,50 +174,71 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
         <div>
           <div className="flex items-center gap-2 text-cyan-300">
             <LayoutGrid className="h-5 w-5" />
-            <span className="font-mono text-xs font-bold uppercase tracking-[0.18em]">Crypto Heat Map</span>
+            <span className="font-mono text-xs font-bold uppercase tracking-[0.18em]">Heat Map</span>
           </div>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">
-            {language === 'ro' ? 'Top 50 Crypto după Market Cap' : 'Top 50 Crypto by Market Cap'}
+            {scopeTitle}
           </h1>
           <p className="mt-1 text-sm text-slate-400">
-            {language === 'ro'
-              ? 'Mărimea fiecărei zone reflectă capitalizarea, iar culoarea arată variația timeframe-ului selectat.'
-              : 'Tile size reflects market capitalization and color shows the selected timeframe return.'}
+            {scopeSubtitle}
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start rounded-xl border border-white/[0.07] bg-white/[0.03] p-1">
-          {TIMEFRAMES.map(item => (
+        <div className="flex flex-wrap items-center gap-2 self-start">
+          {/* Scope toggle: Crypto / Stocks */}
+          <div className="flex items-center rounded-xl border border-white/[0.07] bg-white/[0.03] p-1">
+            {(['crypto', 'stocks'] as HeatMapScope[]).map(s => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setScope(s)}
+                className={`rounded-lg px-3.5 py-2 text-xs font-mono font-bold transition-all ${
+                  scope === s
+                    ? s === 'crypto'
+                      ? 'bg-cyan-500/20 text-cyan-200 ring-1 ring-cyan-400/25'
+                      : 'bg-blue-500/20 text-blue-200 ring-1 ring-blue-400/25'
+                    : 'text-slate-400 hover:bg-white/[0.05] hover:text-slate-200'
+                }`}
+              >
+                {s === 'crypto' ? 'Crypto' : 'Stocks'}
+              </button>
+            ))}
+          </div>
+
+          {/* Timeframe pills */}
+          <div className="flex items-center rounded-xl border border-white/[0.07] bg-white/[0.03] p-1">
+            {TIMEFRAMES.map(item => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setTimeframe(item.id)}
+                className={`rounded-lg px-3.5 py-2 text-xs font-mono font-bold transition-all ${
+                  timeframe === item.id
+                    ? 'bg-cyan-500/20 text-cyan-200 ring-1 ring-cyan-400/25'
+                    : 'text-slate-400 hover:bg-white/[0.05] hover:text-slate-200'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
             <button
-              key={item.id}
               type="button"
-              onClick={() => setTimeframe(item.id)}
-              className={`rounded-lg px-3.5 py-2 text-xs font-mono font-bold transition-all ${
-                timeframe === item.id
-                  ? 'bg-cyan-500/20 text-cyan-200 ring-1 ring-cyan-400/25'
-                  : 'text-slate-400 hover:bg-white/[0.05] hover:text-slate-200'
-              }`}
+              onClick={loadCoins}
+              disabled={loading}
+              className="ml-1 rounded-lg p-2 text-slate-400 hover:bg-white/[0.06] hover:text-cyan-200 disabled:opacity-50"
+              title={isRo ? 'Actualizează datele' : 'Refresh data'}
             >
-              {item.label}
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
-          ))}
-          <button
-            type="button"
-            onClick={loadCoins}
-            disabled={loading}
-            className="ml-1 rounded-lg p-2 text-slate-400 hover:bg-white/[0.06] hover:text-cyan-200 disabled:opacity-50"
-            title={language === 'ro' ? 'Actualizează datele' : 'Refresh data'}
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
+          </div>
         </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-4 rounded-xl border border-white/[0.05] bg-white/[0.02] px-4 py-3 text-[11px] font-mono text-slate-400">
-        <span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm bg-emerald-500" />{language === 'ro' ? 'Creștere' : 'Gain'}</span>
-        <span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm bg-rose-600" />{language === 'ro' ? 'Scădere' : 'Loss'}</span>
-        <span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm bg-slate-600" />{language === 'ro' ? 'Fără date' : 'No data'}</span>
-        <span className="ml-auto">CoinGecko live · Market Cap weighted</span>
+        <span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm bg-emerald-500" />{isRo ? 'Creștere' : 'Gain'}</span>
+        <span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm bg-rose-600" />{isRo ? 'Scădere' : 'Loss'}</span>
+        <span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm bg-slate-600" />{isRo ? 'Fără date' : 'No data'}</span>
+        <span className="ml-auto">{sourceLabel}</span>
       </div>
 
       {error && (
@@ -189,7 +251,7 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
         {loading && !coins.length ? (
           <div className="flex min-h-[720px] items-center justify-center gap-3 font-mono text-sm text-slate-400">
             <RefreshCw className="h-5 w-5 animate-spin text-cyan-400" />
-            {language === 'ro' ? 'Se construiește heat map-ul live...' : 'Building the live heat map...'}
+            {isRo ? 'Se construiește heat map-ul live...' : 'Building the live heat map...'}
           </div>
         ) : rectangles.map(rect => {
           const positive = (rect.coin.change ?? 0) >= 0;
@@ -199,7 +261,11 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
             <button
               key={rect.coin.id}
               type="button"
-              onClick={() => onSelectAsset(rect.coin.symbol, rect.coin.id)}
+              onClick={() => onSelectAsset(
+                rect.coin.symbol,
+                scope === 'crypto' ? rect.coin.id : undefined,
+                scope
+              )}
               title={`${rect.coin.name} · #${rect.coin.rank} · ${formatMarketCap(rect.coin.marketCap)} · ${rect.coin.change === null ? '—' : `${rect.coin.change >= 0 ? '+' : ''}${rect.coin.change.toFixed(2)}%`}`}
               className="absolute overflow-hidden border border-black/50 p-0.5 text-center text-white transition-[filter,transform] duration-150 hover:z-20 hover:brightness-125 focus:z-20 focus:outline-none focus:ring-2 focus:ring-cyan-300"
               style={{

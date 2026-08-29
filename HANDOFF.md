@@ -12,6 +12,12 @@
 > - **Crypto Fear & Greed Index**: MUST be fetched directly from Alternative.me official public API (`https://api.alternative.me/fng/?limit=1`).
 > - **USA Macro & Economic Status**: Real official U.S. Treasury National Debt ($36.2T+), BLS Consumer Price Index (CPI/PCE), Federal Reserve Funds Rate, and Treasury Yield Curve.
 > - **News & Social Intelligence**: 100% verified news from Bloomberg, Reuters, CoinDesk, Decrypt, and authentic posts from verified analysts.
+> 
+> ### 🚀 MANDATORY OPERATIONAL DIRECTIVE #2: ALWAYS PROVIDE APPLICATION LINK ON EVERY DEPLOY
+> **AFTER EVERY DEPLOYMENT (Cloud Run / Production), THE ASSISTANT MUST ALWAYS INCLUDE THE DIRECT ACCESSIBLE APPLICATION LINKS IN THE FINAL USER RESPONSE:**
+> - Primary Cloud Run URL: `https://market-scanner-360-384051756749.europe-west3.run.app`
+> - Production Domain: `https://scanner.relayhub.no`
+> - Plus the exact Cloud Run revision name and health status verification.
 
 ## 1. Project purpose
 
@@ -1759,3 +1765,145 @@ Firestore verification: all 7 persistent AI cache documents exist
 Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 ```
+
+## 48. Crypto Business Quality · 4 Criteria — Per-Asset Card in AI Tab
+
+Implemented and deployed on 29 August 2026.
+
+### What was added
+
+A new `CryptoBusinessQualityCard` component renders inside the **Analiză AI** tab of every crypto asset's Money Line deep-dive view (`AssetDeepDiveView`). It shows the asset's evaluation against the four fundamental crypto criteria from the existing Top-200 scan:
+
+1. **Creștere** (Growth) — TVL / fee run-rate change.
+2. **Efect de rețea** (Network Effect) — fees, TVL, multi-chain presence.
+3. **Venit sustenabil** (Sustainable Revenue) — protocol revenue consistency.
+4. **Valoare către holderi** (Holder Value) — burns, distributions, fee sharing.
+
+### Architecture decisions
+
+- **Reuses the existing cached scan**: The component calls `fetchCryptoFourCriteriaScan(false)` which hits `/api/ai/crypto-four-criteria` with the 26-hour in-memory + Firestore persistent cache (pre-warmed daily at 07:00). No new scan is triggered.
+- **Safe asset lookup** (`findAssetInScan`):
+  1. CoinGecko ID match (highest priority, zero ambiguity).
+  2. Symbol match only if exactly one asset in the scan shares that symbol (no duplicate ticker association).
+  3. Returns `null` otherwise — never guesses.
+- **Non-blocking**: The component manages its own loading/error state. A network failure shows a small inline error message without blocking the rest of the AI tab.
+- **Non-crypto assets**: The component returns `null` (hidden) when `marketClass` is not `'crypto'`.
+- **Expand/collapse**: Compact header with score, pass count, and 4 colored criteria pills always visible. Click to expand for detailed explanations, measured values, methodology, sources with external links, and last-verified timestamp.
+- **Mobile-first**: 2-column grid on mobile, 4-column on desktop; touch-friendly tap targets.
+
+### Files changed
+
+- `[NEW] apps/web/src/components/CryptoBusinessQualityCard.tsx` — standalone React component with `findAssetInScan` exported for testing.
+- `[NEW] apps/web/src/components/crypto-business-quality-lookup.test.ts` — 9 unit tests for the lookup logic.
+- `[MODIFY] apps/web/src/components/AssetDeepDiveView.tsx` — import and render the card as section 5 in the AI tab.
+- `[MODIFY] apps/web/src/i18n.tsx` — 18 new RO→EN translation pairs.
+- `[MODIFY] apps/web/package.json` — added `"test"` script for web workspace tests.
+
+### Tests (9 new, 64+ total)
+
+| Test | Description |
+|------|------------|
+| CoinGecko ID exact match | Finds asset by `coinGeckoId` priority |
+| Unambiguous symbol | Falls back to symbol when unique |
+| Duplicate/ambiguous symbol | Returns `null` for shared tickers |
+| 4/4 confirmed asset | Validates score, passedCriteria, classification |
+| Asset not in scan | Returns `null` for unknown assets |
+| Null/undefined scan | Returns `null` (simulates network error) |
+| Empty assets array | Returns `null` gracefully |
+| ID priority over ambiguous symbol | CoinGecko ID wins even with duplicate symbols |
+| $ prefix and mixed case | Handles `$sol` → `SOL` normalization |
+
+### Design: status colors
+
+| Status | Color | Label RO | Label EN |
+|--------|-------|----------|----------|
+| `pass` | 🟢 Emerald | Confirmat | Confirmed |
+| `watch` | 🟡 Amber | De urmărit | Watch |
+| `fail` | 🔴 Rose | Respins | Failed |
+| `unknown` | ⬜ Slate | Date insuficiente | Insufficient Data |
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: d924f75
+Local build: passed
+Local tests: 64 passed, 0 failed (including 9 new web lookup tests)
+Cloud Build: 06fa98ea-eb76-463d-8e12-75c080a4798f (SUCCESS)
+Cloud Run revision: market-scanner-360-00115-pxc
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
+
+## 49. Stocks Heat Map View & Scope Toggle
+
+Implemented and deployed on 29 August 2026.
+
+### What was added
+
+1. **Crypto & Stocks Scope Toggle in Heat Map**:
+   - Added interactive pills in the Heat Map header (`Crypto` / `Stocks`) to switch universes dynamically.
+   - Preserves timeframe controls (`1D`, `1W`, `1M`) and live reload capabilities across both scopes.
+
+2. **Stocks Universe Data Mapping**:
+   - In `stocks` mode, fetches verified stock assets via `fetchScanner(timeframe, undefined, undefined, false, undefined, 'stocks')`.
+   - Filters by positive market cap, sorts descending by market cap, and takes the Top 50 equities.
+   - Computes weighted treemap geometry (`splitTreemap`) weighted by market capitalization ($T, $B, $M).
+   - Maps timeframe performance (1D 24h change, 1W closed-candle change, 1M / YTD performance).
+
+3. **Unified Navigation**:
+   - Clicking any stock tile in the treemap opens Money Line Deep Dive with `marketClass: 'stocks'`, ensuring proper data source routing and indicator views.
+
+4. **Bilingual Support (RO / EN)**:
+   - Added translations for `Top 50 Stocks după Market Cap` / `Top 50 Stocks by Market Cap`, live builder states, and refresh actions.
+
+## 50. Stock Business Quality · 6 Criteria & Profitability Scanner with AI Recommendations Filter
+
+Implemented and deployed on 29 August 2026.
+
+### What was added
+
+1. **Stock Business Quality & Profitability Engine (`packages/shared`, `apps/api`)**:
+   - Adapted the fundamental business quality paradigm for equities with 6 core pillars / criteria:
+     1. **Profitabilitate & Marje (Profitability & Margins)**: Operating Margin $\ge 15\%$ and Net Margin $\ge 10\%$.
+     2. **Eficiența Capitalului & Randament (Capital Efficiency - ROE & ROIC/ROA)**: $\text{ROE} \ge 15\%$ or $\text{ROA} \ge 8\%$.
+     3. **Creștere Sustenabilă & Scalabilitate (Revenue & Earnings Growth)**: Revenue Growth $\ge +8\%$ YoY with expanding EPS.
+     4. **Sănătate Financiară & Solvabilitate (Financial Health & Solvency)**: $\text{Debt/Equity} \le 1.2$ or Net Cash with $\text{Current Ratio} \ge 1.1$.
+     5. **Free Cash Flow & Valoare pentru Acționari (FCF & Shareholder Value)**: Positive FCF ($> \$500\text{M}$ or $> 10\%$ margin) with buybacks / dividends.
+     6. **Evaluare & Moat (Valuation & PEG / Moat)**: $\text{PEG Ratio} \le 2.0$ or Forward $\text{P/E} \le 25$.
+   - **Deterministic AI Score (0–100)**: Evaluates composite criteria weights plus quality bonuses ($\text{Net Margin} > 25\%$, $\text{ROE} > 25\%$, $\text{FCF} > \$10\text{B}$, Net Cash).
+   - **AI Verdict & Recommendations**:
+     - `top-pick` (🟢 **Top AI Recomandat** / Score $\ge 80$, $\ge 5/6$ criteria pass, high margins & positive FCF).
+     - `all-passed` (🌟 **Toate Criteriile Confirmate / 6/6**).
+     - `high-profitability` (💰 **Marje Mari & ROE**).
+     - `growth-fcf` (🚀 **Creștere & Cash Flow**).
+     - `dividend-value` (🛡️ **Valoare & Dividende**).
+   - Rich qualitative AI thesis generated for every stock explaining business quality, cash generation, and balance sheet safety.
+
+2. **26-Hour Cache & Daily Scheduler Warm-up (`apps/api`)**:
+   - Endpoint `/api/ai/stock-business-quality` with 26-hour in-memory cache and persistent Firestore storage (`stock-business-quality-top`).
+   - Integrated into the daily 07:00 Oslo warm-up job (`/api/ai/daily-warmup`) alongside Crypto criteria and Market Intelligence reports.
+
+3. **Stock Quality & Profitability Dashboard in AI Briefing (`AIBriefingView.tsx`)**:
+   - Under `scope === 'stocks'`, added header action toggle **Calitate & Profitabilitate · Top Stocks**.
+   - Summary stat cards: Scanate, Top Recomandate AI, Marje & ROE Ridicat, Creștere & FCF.
+   - Interactive Filter buttons:
+     - 🟢 **Top Recomandate AI**
+     - 🌟 **Toate (6/6)**
+     - 💰 **Marje Mari & ROE**
+     - 🚀 **Creștere & FCF**
+     - 🛡️ **Valoare & Dividende**
+   - Real-time search by symbol or company name.
+   - Rich stock cards displaying AI score badge, pass count, AI thesis callout, 6 criteria pills, and 8 key financial indicators (Net Margin %, Op Margin %, ROE %, Rev Growth YoY %, Free Cash Flow, Debt/Equity, Forward P/E, PEG).
+   - Clicking any stock card navigates directly to the Asset Deep Dive view.
+
+4. **Per-Stock Deep Dive Card (`StockBusinessQualityCard.tsx`, `AssetDeepDiveView.tsx`)**:
+   - Renders inside the **Analiză AI** tab of `AssetDeepDiveView` when `marketClass === 'stocks'`.
+   - Displays AI Score, AI Recommendation verdict badge, 6 colored status pills, collapsible detailed breakdown with explanations, key financial indicator tiles, AI thesis, and verified SEC EDGAR / Yahoo Finance source links.
+   - Exported `findStockInScan` helper with 8 unit tests.
+
+5. **Tests & Translations (`i18n.tsx`)**:
+   - Added 25+ RO $\leftrightarrow$ EN translation pairs for all indicators, criteria, statuses, and filters.
+   - 30 backend unit tests + 17 web unit tests passed (72 total across the monorepo).
+
+

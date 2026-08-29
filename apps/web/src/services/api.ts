@@ -10,6 +10,7 @@ import {
   MarketIntelligenceReport,
   MarketIntelligenceScope,
   CryptoFourCriteriaScan,
+  StockBusinessQualityScan,
   BacktestResult,
   BacktestComparisonResult,
   BacktestDirectionMode,
@@ -182,6 +183,18 @@ export async function fetchCryptoFourCriteriaScan(refresh = false): Promise<Cryp
   }, 45_000);
   const payload = await res.json().catch(() => ({})) as CryptoFourCriteriaScan & { error?: string; details?: string };
   if (!res.ok) throw new Error(payload.details || payload.error || `HTTP ${res.status}: Crypto scan failed`);
+  return payload;
+}
+
+export async function fetchStockBusinessQualityScan(refresh = false): Promise<StockBusinessQualityScan> {
+  const params = new URLSearchParams();
+  if (refresh) params.set('refresh', '1');
+  const query = params.toString();
+  const res = await fetchWithDeadline(`${API_BASE}/ai/stock-business-quality${query ? `?${query}` : ''}`, {
+    cache: 'no-store'
+  }, 45_000);
+  const payload = await res.json().catch(() => ({})) as StockBusinessQualityScan & { error?: string; details?: string };
+  if (!res.ok) throw new Error(payload.details || payload.error || `HTTP ${res.status}: Stock scan failed`);
   return payload;
 }
 
