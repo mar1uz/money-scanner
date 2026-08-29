@@ -1605,3 +1605,45 @@ Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 Production bundle: index-DYeAqNiq.js
 ```
+
+## 44. Grounded Multi-Market AI Intelligence Deployment
+
+Implemented and deployed on 29 August 2026.
+
+- Replaced the static crypto-only AI Analyst opening brief with a scope-aware Market Intelligence dashboard:
+  - Crypto;
+  - Stocks;
+  - Metals (energy/oil is explicitly excluded from this scope).
+- Each report contains:
+  - macro regime and directional macro drivers;
+  - HOT / BULLISH / EMERGING / NEUTRAL / COOLING / BEARISH narratives;
+  - narrative score, relevant assets, catalysts and risks;
+  - Alpha Discovery Radar for launches, founders/platform relationships and early catalysts;
+  - Risk Radar and clickable source cards.
+- Gemini 3.5 Flash-Lite receives a live application snapshot plus recent source material. Google Search grounding is attempted first.
+- The configured Google Search grounding quota currently returns HTTP 429. The production-safe second path therefore runs Gemini over free verified RSS/news/social feeds and labels the UI `Gemini + surse verificate`; it never pretends Google Search was used.
+- Added targeted free discovery RSS queries for crypto launches (including PONS/Robinhood Chain), stock catalysts and metals supply/demand narratives.
+- Server-side integrity guards:
+  - model-proposed tickers must be supported by the source bundle;
+  - a founder/company connection is `Verified` only when the same evidence connects both entities;
+  - feed-grounded verification requires at least two independent publishers;
+  - unsupported claims are downgraded to `Emerging` or `Unverified`.
+- Live Gemini test identified PONS correctly as `PONS` and conservatively labeled it `Emerging`.
+- Scope/language reports are cached for 20 minutes; manual refresh has a two-minute floor to limit Gemini cost and duplicate requests share one in-flight promise.
+- The AI chat below the dashboard now inherits the selected scope and report sources, preventing Stocks/Metals questions from receiving the old crypto-only macro answer.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 25ae6f7
+Local build: passed
+Local tests: 51 passed, 0 failed
+Live Gemini tests: Crypto, Stocks and Metals returned structured ai-sources reports
+Mobile visual QA: passed, no browser console errors
+Cloud Build: 22a6298e-ce7b-4a60-939b-4e3db5448a91 (SUCCESS)
+Cloud Run revision: market-scanner-360-00111-k5g
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+Production bundle: index-DTfx3SXv.js
+```
