@@ -1647,3 +1647,43 @@ Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 Production bundle: index-DTfx3SXv.js
 ```
+
+## 45. Crypto Top-200 Four-Criteria Fundamental Scanner
+
+Implemented and deployed on 29 August 2026 from the YouTube interview segment at 30:03–30:35.
+
+- Added a `4 criterii · Top 200` button visible only in the Crypto scope of AI Analyst.
+- The scanner evaluates the four protocol-business criteria discussed in the clip:
+  1. growth in usage/activity;
+  2. network effect;
+  3. real, recurring and sustainable revenue;
+  4. value returned to token holders through buyback/burn, distributions or revenue-funded staking.
+- Market-cap universe:
+  - CoinGecko top 200 is the primary source;
+  - CoinPaprika is an independent automatic fallback when the no-key CoinGecko endpoint returns 429.
+- Fundamental evidence comes from DefiLlama protocols, TVL, fees, revenue and holders revenue.
+- The free datasets do not provide standardized active-user counts across all 200 coins. The UI therefore labels the network-effect assessment as a conservative fees/TVL/multi-chain proxy and keeps missing observations as `Date insuficiente`; Gemini is not allowed to invent the missing values.
+- Results include:
+  - total scanned and covered assets;
+  - 4/4 matches;
+  - assets passing the first three criteria while value accrual is not yet confirmed;
+  - Top score / 4-of-4 / first-three filters and search across the full top 200;
+  - per-criterion evidence, methodology, source links and disclaimer.
+- Scan results are cached for 30 minutes, manual refresh has a two-minute floor and concurrent requests share one in-flight scan.
+- Romanian and English display text is supported.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: b6f8ac7
+Local build: passed
+Local tests: 53 passed, 0 failed (API suite: 22 passed)
+Live data check: 200 scanned; ~120 with observable fundamentals at test time
+Local browser interaction: passed, including provider-rate-limit fallback
+Cloud Build: 4d21c524-8f72-4e42-a001-758e9fa71310 (SUCCESS)
+Cloud Run revision: market-scanner-360-00112-bpf
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+Production bundle: index-Cd9lUI2B.js
+```
