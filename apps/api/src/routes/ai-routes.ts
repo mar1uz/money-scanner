@@ -11,6 +11,7 @@ import {
   NewsCategory,
   NewsSynthesisPayload
 } from '@money-scanner/shared';
+import { scanCryptoFourCriteria } from '../services/crypto-four-criteria-scanner.js';
 
 export const aiRouter = Router();
 
@@ -20,6 +21,10 @@ const intelligenceCache = new Map<string, { payload: MarketIntelligenceReport; u
 const intelligenceInFlight = new Map<string, Promise<MarketIntelligenceReport>>();
 const INTELLIGENCE_CACHE_MS = 20 * 60_000;
 const INTELLIGENCE_FORCE_REFRESH_FLOOR_MS = 2 * 60_000;
+const cryptoCriteriaCache = new Map<string, { payload: Awaited<ReturnType<typeof scanCryptoFourCriteria>>; updatedAt: number }>();
+let cryptoCriteriaInFlight: Promise<Awaited<ReturnType<typeof scanCryptoFourCriteria>>> | null = null;
+const CRYPTO_CRITERIA_CACHE_MS = 30 * 60_000;
+const CRYPTO_CRITERIA_FORCE_REFRESH_FLOOR_MS = 2 * 60_000;
 const SOURCE_REFRESH_TIMEOUT_MS = 15_000;
 
 const waitForSourceRefresh = (refresh: Promise<void>): Promise<void> => {
@@ -205,6 +210,36 @@ aiRouter.get('/ai/market-intelligence', async (req, res) => {
     }
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to generate grounded market intelligence', details: err.message });
+  }
+});
+
+aiRouter.get('/ai/crypto-four-criteria', async (req, res) => {
+  try {
+    const cacheKey = 'top-200';
+    const cached = cryptoCriteriaCache.get(cacheKey);
+    const requestedRefresh = req.query.refresh === '1';
+    const cacheAge = cached ? Date.now() - cached.updatedAt : Number.POSITIVE_INFINITY;
+    if (cached && cacheAge < CRYPTO_CRITERIA_CACHE_MS && (!requestedRefresh || cacheAge < CRYPTO_CRITERIA_FORCE_REFRESH_FLOOR_MS)) {
+      res.set('Cache-Control', 'private, max-age=60');
+      return res.json(cached.payload);
+    }
+
+    if (!cryptoCriteriaInFlight) {
+      cryptoCriteriaInFlight = scanCryptoFourCriteria()
+        .then(payload => {
+          cryptoCriteriaCache.set(cacheKey, { payload, updatedAt: Date.now() });
+          return payload;
+        })
+        .finally(() => {
+          cryptoCriteriaInFlight = null;
+        });
+    }
+
+    const payload = await cryptoCriteriaInFlight;
+    res.set('Cache-Control', 'private, max-age=60');
+    res.json(payload);
+  } catch (err: any) {
+    res.status(502).json({ error: 'Failed to scan the crypto top 200', details: err.message });
   }
 });
 

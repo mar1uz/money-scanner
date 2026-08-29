@@ -9,6 +9,7 @@ import {
   AIAnalysisPayload,
   MarketIntelligenceReport,
   MarketIntelligenceScope,
+  CryptoFourCriteriaScan,
   BacktestResult,
   BacktestComparisonResult,
   BacktestDirectionMode,
@@ -170,6 +171,18 @@ export async function fetchMarketIntelligence(
   }, 60_000);
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch market intelligence`);
   return res.json();
+}
+
+export async function fetchCryptoFourCriteriaScan(refresh = false): Promise<CryptoFourCriteriaScan> {
+  const params = new URLSearchParams();
+  if (refresh) params.set('refresh', '1');
+  const query = params.toString();
+  const res = await fetchWithDeadline(`${API_BASE}/ai/crypto-four-criteria${query ? `?${query}` : ''}`, {
+    cache: 'no-store'
+  }, 45_000);
+  const payload = await res.json().catch(() => ({})) as CryptoFourCriteriaScan & { error?: string; details?: string };
+  if (!res.ok) throw new Error(payload.details || payload.error || `HTTP ${res.status}: Crypto scan failed`);
+  return payload;
 }
 
 export async function fetchBacktest(

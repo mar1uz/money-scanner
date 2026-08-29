@@ -127,6 +127,57 @@ export interface MarketIntelligenceNarrativeSnapshot {
   leaders: string[];
 }
 
+export type CryptoCriteriaStatus = 'pass' | 'watch' | 'fail' | 'unknown';
+export type CryptoCriteriaFilter = 'leaders' | 'all-four' | 'first-three';
+
+export interface CryptoCriterionResult {
+  status: CryptoCriteriaStatus;
+  label: string;
+  value: string;
+  explanation: string;
+}
+
+export interface CryptoFourCriteriaAsset {
+  id: string;
+  symbol: string;
+  name: string;
+  image?: string;
+  marketCapRank: number;
+  marketCap: number;
+  score: number;
+  passedCriteria: number;
+  classification: 'all-four' | 'first-three' | 'partial' | 'insufficient-data';
+  criteria: {
+    growth: CryptoCriterionResult;
+    networkEffect: CryptoCriterionResult;
+    sustainableRevenue: CryptoCriterionResult;
+    holderValue: CryptoCriterionResult;
+  };
+  metrics: {
+    tvl?: number;
+    tvlChange7d?: number;
+    fees30d?: number;
+    feeRunRateChange?: number;
+    revenue30d?: number;
+    revenueRunRateChange?: number;
+    holdersRevenue30d?: number;
+    chainCount: number;
+  };
+}
+
+export interface CryptoFourCriteriaScan {
+  scannedCount: number;
+  coveredCount: number;
+  allFourCount: number;
+  firstThreeCount: number;
+  assets: CryptoFourCriteriaAsset[];
+  generatedAt: number;
+  dataFreshness: string;
+  methodology: string[];
+  sources: MarketIntelligenceSource[];
+  disclaimer: string;
+}
+
 export interface AssetEconomicReport {
   title: string;
   period: string;

@@ -1,6 +1,13 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { MarketIntelligenceReport, MarketIntelligenceScope, XPostItem } from '../types.js';
-import { askAIAnalyst, fetchMarketIntelligence, fetchXPosts } from '../services/api.js';
+import {
+  CryptoCriteriaFilter,
+  CryptoCriteriaStatus,
+  CryptoFourCriteriaScan,
+  MarketIntelligenceReport,
+  MarketIntelligenceScope,
+  XPostItem
+} from '../types.js';
+import { askAIAnalyst, fetchCryptoFourCriteriaScan, fetchMarketIntelligence, fetchXPosts } from '../services/api.js';
 import { useLanguage } from '../i18n.js';
 import {
   BrainCircuit,
@@ -29,7 +36,13 @@ import {
   Gem,
   Globe2,
   ShieldAlert,
-  FileText
+  FileText,
+  CheckCircle2,
+  CircleHelp,
+  Activity,
+  Network,
+  Banknote,
+  HandCoins
 } from 'lucide-react';
 
 /* ─── Types ─── */
@@ -122,6 +135,11 @@ export const AIBriefingView: React.FC = () => {
   const [intelligence, setIntelligence] = useState<MarketIntelligenceReport | null>(null);
   const [loadingIntelligence, setLoadingIntelligence] = useState(true);
   const [intelligenceError, setIntelligenceError] = useState<string | null>(null);
+  const [criteriaScan, setCriteriaScan] = useState<CryptoFourCriteriaScan | null>(null);
+  const [loadingCriteriaScan, setLoadingCriteriaScan] = useState(false);
+  const [criteriaScanError, setCriteriaScanError] = useState<string | null>(null);
+  const [criteriaFilter, setCriteriaFilter] = useState<CryptoCriteriaFilter>('leaders');
+  const [criteriaSearch, setCriteriaSearch] = useState('');
   const inspirationQuestions = language === 'en'
     ? scope === 'crypto'
       ? ['What are the hottest crypto narratives?', 'Analyze $BTC on Money Line', 'Which new crypto launches matter?', 'What are the main crypto macro risks?']
@@ -158,6 +176,19 @@ export const AIBriefingView: React.FC = () => {
   useEffect(() => {
     void loadIntelligence(false);
   }, [loadIntelligence]);
+
+  const loadCriteriaScan = useCallback(async (forceRefresh = false) => {
+    if (loadingCriteriaScan) return;
+    setLoadingCriteriaScan(true);
+    setCriteriaScanError(null);
+    try {
+      setCriteriaScan(await fetchCryptoFourCriteriaScan(forceRefresh));
+    } catch (error: any) {
+      setCriteriaScanError(error?.message || (language === 'ro' ? 'Scanarea nu a putut fi finalizată.' : 'The scan could not be completed.'));
+    } finally {
+      setLoadingCriteriaScan(false);
+    }
+  }, [language, loadingCriteriaScan]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -436,6 +467,201 @@ export const AIBriefingView: React.FC = () => {
     if (status === 'BEARISH') return 'border-rose-500/30 bg-rose-500/[0.07] text-rose-300';
     if (status === 'COOLING') return 'border-amber-500/30 bg-amber-500/[0.07] text-amber-300';
     return 'border-slate-500/25 bg-slate-500/[0.06] text-slate-300';
+  };
+
+  const criteriaTone = (status: CryptoCriteriaStatus) => {
+    if (status === 'pass') return 'border-emerald-500/25 bg-emerald-500/[0.08] text-emerald-300';
+    if (status === 'watch') return 'border-amber-500/25 bg-amber-500/[0.08] text-amber-300';
+    if (status === 'fail') return 'border-rose-500/25 bg-rose-500/[0.07] text-rose-300';
+    return 'border-slate-500/20 bg-slate-500/[0.05] text-slate-500';
+  };
+
+  const renderCryptoCriteriaScanner = () => {
+    if (scope !== 'crypto' || (!criteriaScan && !loadingCriteriaScan && !criteriaScanError)) return null;
+    if (loadingCriteriaScan && !criteriaScan) {
+      return (
+        <section className="rounded-2xl border border-cyan-500/20 bg-cyan-500/[0.04] p-5 animate-pulse">
+          <div className="flex items-center gap-2 text-cyan-300 text-sm font-semibold">
+            <Activity className="w-4 h-4 animate-spin" />
+            {language === 'ro' ? 'Verific top 200 și corelez datele fundamentale…' : 'Scanning the top 200 and matching fundamental data…'}
+          </div>
+          <p className="mt-2 text-xs text-slate-500">CoinGecko/CoinPaprika market cap · DefiLlama TVL, fees, revenue, holders revenue</p>
+        </section>
+      );
+    }
+    if (!criteriaScan) {
+      return (
+        <section className="rounded-2xl border border-rose-500/20 bg-rose-500/[0.05] p-4">
+          <p className="text-sm text-rose-300">{criteriaScanError}</p>
+          <button onClick={() => void loadCriteriaScan(true)} className="mt-3 inline-flex items-center gap-2 text-xs text-slate-200">
+            <RefreshCw className="w-3.5 h-3.5" /> {language === 'ro' ? 'Reîncearcă scanarea' : 'Retry scan'}
+          </button>
+        </section>
+      );
+    }
+
+    const normalizedSearch = criteriaSearch.trim().toLowerCase();
+    const matchingAssets = criteriaScan.assets.filter(asset => {
+      if (criteriaFilter === 'all-four' && asset.classification !== 'all-four') return false;
+      if (criteriaFilter === 'first-three' && !['all-four', 'first-three'].includes(asset.classification)) return false;
+      return !normalizedSearch || asset.symbol.toLowerCase().includes(normalizedSearch) || asset.name.toLowerCase().includes(normalizedSearch);
+    });
+    const visibleAssets = matchingAssets.slice(0, normalizedSearch ? 50 : 30);
+    const statusIcon = (status: CryptoCriteriaStatus) => status === 'pass'
+      ? <CheckCircle2 className="w-3 h-3" />
+      : status === 'unknown'
+        ? <CircleHelp className="w-3 h-3" />
+        : <Activity className="w-3 h-3" />;
+    const criterionIcons = [Activity, Network, Banknote, HandCoins];
+    const criterionLabels = language === 'ro'
+      ? ['Creștere', 'Efect de rețea', 'Venit sustenabil', 'Valoare către holderi']
+      : ['Growth', 'Network effect', 'Sustainable revenue', 'Holder value'];
+    const englishExplanations: Record<CryptoCriteriaStatus, string[]> = {
+      pass: [
+        'TVL or annualized fee run-rate is accelerating by at least 5%.',
+        'Relevant economic activity plus TVL or multi-chain reach; this is a proxy, not an exact user count.',
+        'Revenue is material and present across the 24h, 7d and 30d windows.',
+        'DefiLlama reports buyback/burn, direct distribution or revenue-funded staking.'
+      ],
+      watch: [
+        'Activity is stable or growing slowly and needs monitoring.',
+        'Usage is measurable, but the network-effect proxy threshold is not yet met.',
+        'Revenue exists but is too small, irregular or recent for confirmation.',
+        'The mechanism exists, but observed value is still small or irregular.'
+      ],
+      fail: [
+        'The activity proxy is contracting versus the comparable period.',
+        'The network-effect proxy is not met.',
+        'Tracked activity produces no retained protocol revenue in this window.',
+        'Revenue exists, but no value transfer to token holders is reported.'
+      ],
+      unknown: [
+        'No comparable free user/activity series is available.',
+        'The free source has no comparable usage evidence for this token.',
+        'No comparable DefiLlama observation exists for this token.',
+        'Without observed revenue, fee sharing or distribution cannot be confirmed.'
+      ]
+    };
+    const localizedValue = (value: string) => language === 'ro' ? value : value
+      .replace('Date insuficiente', 'Insufficient data')
+      .replace('$0 observat', '$0 observed')
+      .replace(/\/ 30z/g, '/ 30d');
+    const methodology = language === 'ro' ? criteriaScan.methodology : [
+      'Growth: 7-day TVL change or fee acceleration (7d run-rate versus 30d).',
+      'Network effect: conservative proxy based on fees, TVL and multi-chain reach; it does not claim exact active users.',
+      'Sustainable revenue: material revenue observed concurrently across 24h, 7d and 30d windows.',
+      'Holder value: holder revenue reported as buyback/burn, direct distribution or revenue-funded staking.'
+    ];
+
+    return (
+      <section className="rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-cyan-500/[0.06] via-[#111827] to-purple-500/[0.04] p-4 sm:p-5 space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <Radar className="w-4 h-4 text-cyan-300" />
+              <h3 className="text-sm sm:text-base font-bold text-slate-100">Crypto Business Quality · 4 Criteria</h3>
+            </div>
+            <p className="mt-1.5 text-[11px] text-slate-500 max-w-3xl">
+              {language === 'ro'
+                ? 'Scannerul transpune criteriile din segmentul 30:03–30:35 în praguri verificabile. „Efect de rețea” folosește un proxy conservator; datele lipsă rămân necunoscute.'
+                : 'The scanner translates the 30:03–30:35 criteria into auditable thresholds. Network effect uses a conservative proxy; missing data stays unknown.'}
+            </p>
+          </div>
+          <button
+            onClick={() => void loadCriteriaScan(true)}
+            disabled={loadingCriteriaScan}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-cyan-500/25 bg-cyan-500/10 text-xs font-semibold text-cyan-200 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loadingCriteriaScan ? 'animate-spin' : ''}`} />
+            {language === 'ro' ? 'Scanează din nou' : 'Scan again'}
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+          {[
+            [language === 'ro' ? 'Scanate' : 'Scanned', criteriaScan.scannedCount, 'text-cyan-300'],
+            [language === 'ro' ? 'Cu date' : 'With data', criteriaScan.coveredCount, 'text-slate-200'],
+            ['4 / 4', criteriaScan.allFourCount, 'text-emerald-300'],
+            [language === 'ro' ? 'Primele 3' : 'First 3', criteriaScan.firstThreeCount, 'text-amber-300']
+          ].map(([label, value, tone]) => (
+            <div key={String(label)} className="rounded-xl border border-white/[0.07] bg-black/10 p-3">
+              <span className="block text-[9px] font-mono uppercase text-slate-600">{label}</span>
+              <span className={`block mt-1 text-xl font-mono font-black ${tone}`}>{value}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex items-center rounded-xl border border-white/[0.07] bg-black/10 p-1 overflow-x-auto">
+            {([
+              ['leaders', language === 'ro' ? 'Top scor' : 'Top score'],
+              ['all-four', '4 / 4'],
+              ['first-three', language === 'ro' ? 'Primele 3' : 'First 3']
+            ] as [CryptoCriteriaFilter, string][]).map(([id, label]) => (
+              <button key={id} onClick={() => setCriteriaFilter(id)} className={`shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-semibold ${criteriaFilter === id ? 'bg-purple-500/20 text-purple-200' : 'text-slate-500'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="flex-1 flex items-center gap-2 rounded-xl border border-white/[0.07] bg-black/10 px-3">
+            <Search className="w-3.5 h-3.5 text-slate-600" />
+            <input value={criteriaSearch} onChange={event => setCriteriaSearch(event.target.value)} placeholder={language === 'ro' ? 'Caută în top 200…' : 'Search the top 200…'} className="w-full bg-transparent py-2 text-xs text-slate-200 placeholder-slate-600 outline-none" />
+          </div>
+        </div>
+
+        <div className="space-y-2.5">
+          {visibleAssets.map(asset => {
+            const criteria = Object.values(asset.criteria);
+            return (
+              <article key={asset.id} className="rounded-xl border border-white/[0.07] bg-black/10 p-3 sm:p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {asset.image ? <img src={asset.image} alt="" className="w-8 h-8 rounded-full bg-white/[0.04]" loading="lazy" /> : <Coins className="w-8 h-8 text-slate-600" />}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-slate-100">${asset.symbol}</span>
+                        <span className="text-[10px] font-mono text-slate-600">#{asset.marketCapRank}</span>
+                      </div>
+                      <span className="block text-[10px] text-slate-500 truncate">{asset.name}</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className={`text-lg font-mono font-black ${asset.passedCriteria >= 3 ? 'text-emerald-300' : asset.score >= 50 ? 'text-amber-300' : 'text-slate-400'}`}>{asset.score}</span>
+                    <span className="text-[9px] text-slate-600"> / 100 · {asset.passedCriteria}/4 pass</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2 mt-3">
+                  {criteria.map((item, index) => {
+                    const Icon = criterionIcons[index];
+                    return (
+                      <div key={item.label} title={language === 'ro' ? item.explanation : englishExplanations[item.status][index]} className={`rounded-lg border p-2.5 ${criteriaTone(item.status)}`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wide"><Icon className="w-3 h-3" />{criterionLabels[index]}</span>
+                          {statusIcon(item.status)}
+                        </div>
+                        <span className="block mt-1.5 text-[11px] font-mono text-slate-200">{localizedValue(item.value)}</span>
+                        <p className="mt-1 text-[9px] leading-relaxed text-slate-500">{language === 'ro' ? item.explanation : englishExplanations[item.status][index]}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </article>
+            );
+          })}
+          {visibleAssets.length === 0 && <p className="py-5 text-center text-xs text-slate-500">{language === 'ro' ? 'Nicio monedă nu îndeplinește filtrul în datele curente.' : 'No coin matches this filter in current data.'}</p>}
+        </div>
+
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3 pt-2 border-t border-white/[0.06]">
+          <div className="space-y-1">
+            {methodology.map(item => <p key={item} className="text-[9px] text-slate-600 leading-relaxed">• {item}</p>)}
+          </div>
+          <div className="flex flex-wrap gap-1.5 lg:justify-end">
+            {criteriaScan.sources.map(source => <a key={source.id} href={source.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-md border border-white/[0.06] px-2 py-1 text-[9px] text-slate-500 hover:text-cyan-300"><ExternalLink className="w-2.5 h-2.5" />{source.domain}</a>)}
+          </div>
+        </div>
+        <p className="text-[9px] text-slate-600">{language === 'ro' ? criteriaScan.disclaimer : 'Fundamental research scanner, not a buy signal. A pass means the current proxy threshold is met; it does not mean the investment will be profitable.'}</p>
+      </section>
+    );
   };
 
   const renderIntelligenceDashboard = () => {
@@ -737,6 +963,18 @@ export const AIBriefingView: React.FC = () => {
               <p className="hidden sm:block mt-0.5 text-[10px] text-slate-600">Macro · Narratives · Alpha discoveries · Grounded sources</p>
             </div>
             <div className="flex items-center gap-1.5">
+              {scope === 'crypto' && (
+                <button
+                  onClick={() => void loadCriteriaScan(Boolean(criteriaScan))}
+                  disabled={loadingCriteriaScan}
+                  title={language === 'ro' ? 'Verifică top 200 după cele 4 criterii din clip' : 'Check the top 200 against the four video criteria'}
+                  className="inline-flex items-center gap-1.5 h-9 px-2.5 sm:px-3 rounded-xl border border-cyan-500/25 bg-cyan-500/[0.08] text-[10px] sm:text-[11px] font-semibold text-cyan-200 disabled:opacity-45"
+                >
+                  <Radar className={`w-3.5 h-3.5 ${loadingCriteriaScan ? 'animate-spin' : ''}`} />
+                  <span className="hidden sm:inline">{language === 'ro' ? '4 criterii · Top 200' : '4 criteria · Top 200'}</span>
+                  <span className="sm:hidden">4×200</span>
+                </button>
+              )}
               <div className="flex items-center rounded-xl border border-white/[0.07] bg-white/[0.025] p-1">
                 {scopeOptions.map(option => {
                   const Icon = option.icon;
@@ -767,6 +1005,7 @@ export const AIBriefingView: React.FC = () => {
         {/* Chat Messages */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 space-y-6">
           {renderIntelligenceDashboard()}
+          {renderCryptoCriteriaScanner()}
 
           <div className="flex items-center gap-3 pt-2">
             <span className="h-px flex-1 bg-white/[0.06]" />
