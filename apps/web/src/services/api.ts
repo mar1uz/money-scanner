@@ -7,6 +7,8 @@ import {
   NewsItem,
   NewsSynthesisPayload,
   AIAnalysisPayload,
+  MarketIntelligenceReport,
+  MarketIntelligenceScope,
   BacktestResult,
   BacktestComparisonResult,
   BacktestDirectionMode,
@@ -153,6 +155,20 @@ export async function fetchNewsSynthesis(
 export async function fetchAIBriefing(): Promise<AIAnalysisPayload> {
   const res = await fetch(`${API_BASE}/ai/briefing`);
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch AI briefing`);
+  return res.json();
+}
+
+export async function fetchMarketIntelligence(
+  scope: MarketIntelligenceScope,
+  language: 'ro' | 'en' = 'ro',
+  refresh = false
+): Promise<MarketIntelligenceReport> {
+  const params = new URLSearchParams({ scope, language });
+  if (refresh) params.set('refresh', '1');
+  const res = await fetchWithDeadline(`${API_BASE}/ai/market-intelligence?${params.toString()}`, {
+    cache: 'no-store'
+  }, 60_000);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch market intelligence`);
   return res.json();
 }
 
@@ -470,7 +486,11 @@ export async function clearAlerts(target: 'active' | 'history' | 'all'): Promise
   };
 }
 
-export async function askAIAnalyst(question: string): Promise<{
+export async function askAIAnalyst(
+  question: string,
+  scope: MarketIntelligenceScope = 'crypto',
+  language: 'ro' | 'en' = 'ro'
+): Promise<{
   answer: string;
   relatedSymbols: string[];
   evidenceCitations: any[];
@@ -478,7 +498,7 @@ export async function askAIAnalyst(question: string): Promise<{
   const res = await fetch(`${API_BASE}/ai/ask`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question })
+    body: JSON.stringify({ question, scope, language })
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to get answer from AI analyst`);
   return res.json();

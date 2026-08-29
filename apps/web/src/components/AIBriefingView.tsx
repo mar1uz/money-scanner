@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { AIAnalysisPayload, XPostItem } from '../types.js';
-import { fetchAIBriefing, askAIAnalyst, fetchXPosts } from '../services/api.js';
+import { MarketIntelligenceReport, MarketIntelligenceScope, XPostItem } from '../types.js';
+import { askAIAnalyst, fetchMarketIntelligence, fetchXPosts } from '../services/api.js';
 import { useLanguage } from '../i18n.js';
 import {
   BrainCircuit,
@@ -19,6 +19,16 @@ import {
   Trash2,
   Clock,
   Lightbulb,
+  TrendingUp,
+  TrendingDown,
+  Flame,
+  Radar,
+  RefreshCw,
+  Coins,
+  CandlestickChart,
+  Gem,
+  Globe2,
+  ShieldAlert,
   FileText
 } from 'lucide-react';
 
@@ -97,16 +107,6 @@ function renderMarkdown(text: string): string {
   return `<p>${html}</p>`;
 }
 
-/* ─── Quick Inspiration Questions ─── */
-const inspirationQuestions = [
-  'Cum arată $BTC pe Money Line?',
-  'Ce fac balenele pe $ETH?',
-  'Top 5 cele mai bullish active acum',
-  'Analizează $SOL: sentiment și momentum',
-  'Ce spun @lookonchain și @whale_alert?',
-  'Care sunt riscurile macro pentru crypto?',
-];
-
 /* ─── Main Component ─── */
 export const AIBriefingView: React.FC = () => {
   const { language } = useLanguage();
@@ -118,72 +118,66 @@ export const AIBriefingView: React.FC = () => {
   const [askingAI, setAskingAI] = useState(false);
   const [thinkingStep, setThinkingStep] = useState(0); // 0=none, 1=Thought, 2=Searched, 3=Composed
   const [xPostsCache, setXPostsCache] = useState<XPostItem[]>([]);
-  const [briefingLoaded, setBriefingLoaded] = useState(false);
+  const [scope, setScope] = useState<MarketIntelligenceScope>('crypto');
+  const [intelligence, setIntelligence] = useState<MarketIntelligenceReport | null>(null);
+  const [loadingIntelligence, setLoadingIntelligence] = useState(true);
+  const [intelligenceError, setIntelligenceError] = useState<string | null>(null);
+  const inspirationQuestions = language === 'en'
+    ? scope === 'crypto'
+      ? ['What are the hottest crypto narratives?', 'Analyze $BTC on Money Line', 'Which new crypto launches matter?', 'What are the main crypto macro risks?']
+      : scope === 'stocks'
+        ? ['What are the hottest stock sectors?', 'Analyze $NVDA and the AI narrative', 'Which earnings catalysts matter?', 'What are the main equity macro risks?']
+        : ['What drives gold right now?', 'Compare gold, silver and copper', 'Which metals narrative is emerging?', 'What are the main metals macro risks?']
+    : scope === 'crypto'
+      ? ['Care sunt cele mai hot narațiuni crypto?', 'Cum arată $BTC pe Money Line?', 'Ce lansări crypto noi contează?', 'Care sunt riscurile macro pentru crypto?']
+      : scope === 'stocks'
+        ? ['Care sunt cele mai hot sectoare stocks?', 'Analizează $NVDA și narațiunea AI', 'Ce catalizatori de earnings contează?', 'Care sunt riscurile macro pentru acțiuni?']
+        : ['Ce influențează aurul acum?', 'Compară aurul, argintul și cuprul', 'Ce narațiune pe metale este emergentă?', 'Care sunt riscurile macro pentru metale?'];
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const localizedHeading = `## 📊 ${language === 'en' ? 'Market Summary' : 'Sinteză de Piață'} — ${new Date().toLocaleDateString(language === 'en' ? 'en-US' : 'ro-RO', { weekday: 'long', day: 'numeric', month: 'long' })}`;
-    setMessages(current => current.map(message => (
-      message.id === 'briefing_auto'
-        ? { ...message, text: message.text.replace(/^## 📊 .*$/m, localizedHeading) }
-        : message
-    )));
-  }, [language]);
 
   // Load X posts once
   useEffect(() => {
     fetchXPosts().then(setXPostsCache).catch(() => {});
   }, []);
 
+  const loadIntelligence = useCallback(async (forceRefresh = false) => {
+    setLoadingIntelligence(true);
+    setIntelligenceError(null);
+    try {
+      const report = await fetchMarketIntelligence(scope, language, forceRefresh);
+      setIntelligence(report);
+    } catch (error: any) {
+      setIntelligenceError(error?.message || (language === 'ro' ? 'Analiza nu a putut fi încărcată.' : 'Analysis could not be loaded.'));
+    } finally {
+      setLoadingIntelligence(false);
+    }
+  }, [scope, language]);
+
+  useEffect(() => {
+    void loadIntelligence(false);
+  }, [loadIntelligence]);
+
   // Auto-scroll to bottom
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messages.length > 1 || askingAI || thinkingStep > 0) {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages, askingAI, thinkingStep]);
 
-  // Auto-load initial briefing
+  // Keep the conversational analyst available below the grounded dashboard.
   useEffect(() => {
-    if (briefingLoaded) return;
-    setBriefingLoaded(true);
-
-    fetchAIBriefing().then((briefing: AIAnalysisPayload) => {
-      const summaryParts = [
-        `## 📊 ${language === 'en' ? 'Market Summary' : 'Sinteză de Piață'} — ${new Date().toLocaleDateString(language === 'en' ? 'en-US' : 'ro-RO', { weekday: 'long', day: 'numeric', month: 'long' })}`,
-        '',
-        briefing.executiveSummary,
-        '',
-        '### Factori Structurali Cheie',
-        ...briefing.keyDrivers.map((d, i) => `- **0${i + 1}.** ${d}`),
-        '',
-        '### ✅ Factori Bullish',
-        ...briefing.bullishFactors.map(f => `- ${f}`),
-        '',
-        '### ⚠️ Factori Bearish & Riscuri',
-        ...briefing.bearishFactors.map(f => `- ${f}`),
-        '',
-        '### 🎯 Active de Urmărit',
-        ...briefing.assetsToWatch.map(a => `- **$${a.symbol}** (${a.bias}): ${a.thesis}`),
-      ];
-
-      const welcomeMsg: ChatMessage = {
-        id: 'briefing_auto',
-        sender: 'ai',
-        text: summaryParts.join('\n'),
-        xPosts: xPostsCache.slice(0, 6),
-        timestamp: Date.now()
-      };
-
-      setMessages([welcomeMsg]);
-    }).catch(err => {
-      setMessages([{
-        id: 'welcome_fallback',
-        sender: 'ai',
-        text: '## 🧠 Market Scanner AI Analyst\n\nSalut! Sunt analistul tău AI. Întreabă-mă orice despre piața crypto, acțiuni sau commodities — sintetizez semnalele Money Line, postările de pe X și știrile verificate.\n\nÎncearcă una din întrebările de inspirație din stânga sau scrie-mi direct.',
-        timestamp: Date.now()
-      }]);
-    });
-  }, [briefingLoaded, xPostsCache, language]);
+    if (messages.length > 0 || activeChatId) return;
+    setMessages([{
+      id: 'welcome',
+      sender: 'ai',
+      text: language === 'ro'
+        ? '## 🧠 Întreabă AI Analyst\n\nRaportul macro și narațiunile fundamentate în surse sunt afișate mai sus. Aici poți cere o analiză suplimentară pentru un activ, sector sau risc.'
+        : '## 🧠 Ask AI Analyst\n\nThe grounded macro and narrative report is shown above. Ask for additional analysis on an asset, sector or risk here.',
+      timestamp: Date.now()
+    }]);
+  }, [messages.length, activeChatId, language]);
 
   // Persist chats to localStorage
   const persistChat = useCallback((chatId: string, msgs: ChatMessage[]) => {
@@ -206,34 +200,14 @@ export const AIBriefingView: React.FC = () => {
   const handleNewChat = () => {
     const newId = `chat_${Date.now()}`;
     setActiveChatId(newId);
-    setMessages([]);
-    setBriefingLoaded(false);
-    setTimeout(() => setBriefingLoaded(false), 50); // Force reload briefing
-    // Re-trigger briefing load
-    fetchAIBriefing().then((briefing) => {
-      const summaryParts = [
-        `## 📊 ${language === 'en' ? 'Market Summary' : 'Sinteză de Piață'} — ${new Date().toLocaleDateString(language === 'en' ? 'en-US' : 'ro-RO', { weekday: 'long', day: 'numeric', month: 'long' })}`,
-        '',
-        briefing.executiveSummary,
-        '',
-        '### Factori Structurali Cheie',
-        ...briefing.keyDrivers.map((d: string, i: number) => `- **0${i + 1}.** ${d}`),
-      ];
-      setMessages([{
-        id: 'briefing_auto',
-        sender: 'ai',
-        text: summaryParts.join('\n'),
-        xPosts: xPostsCache.slice(0, 6),
-        timestamp: Date.now()
-      }]);
-    }).catch(() => {
-      setMessages([{
-        id: 'welcome',
-        sender: 'ai',
-        text: '## 🧠 Market Scanner AI Analyst\n\nSalut! Întreabă-mă orice despre piața crypto, acțiuni sau commodities.',
-        timestamp: Date.now()
-      }]);
-    });
+    setMessages([{
+      id: `welcome_${Date.now()}`,
+      sender: 'ai',
+      text: language === 'ro'
+        ? '## 🧠 Conversație nouă\n\nÎntreabă despre un activ, o narațiune sau un risc macro.'
+        : '## 🧠 New conversation\n\nAsk about an asset, a narrative or a macro risk.',
+      timestamp: Date.now()
+    }]);
   };
 
   // Load saved chat
@@ -286,7 +260,7 @@ export const AIBriefingView: React.FC = () => {
     const thinkTimer2 = setTimeout(() => setThinkingStep(3), 1800);
 
     try {
-      const res = await askAIAnalyst(question);
+      const res = await askAIAnalyst(question, scope, language);
 
       clearTimeout(thinkTimer1);
       clearTimeout(thinkTimer2);
@@ -455,6 +429,223 @@ export const AIBriefingView: React.FC = () => {
     </div>
   );
 
+  const narrativeTone = (status: MarketIntelligenceReport['narratives'][number]['status']) => {
+    if (status === 'HOT') return 'border-orange-500/35 bg-orange-500/[0.08] text-orange-300';
+    if (status === 'BULLISH') return 'border-emerald-500/30 bg-emerald-500/[0.07] text-emerald-300';
+    if (status === 'EMERGING') return 'border-purple-500/30 bg-purple-500/[0.07] text-purple-300';
+    if (status === 'BEARISH') return 'border-rose-500/30 bg-rose-500/[0.07] text-rose-300';
+    if (status === 'COOLING') return 'border-amber-500/30 bg-amber-500/[0.07] text-amber-300';
+    return 'border-slate-500/25 bg-slate-500/[0.06] text-slate-300';
+  };
+
+  const renderIntelligenceDashboard = () => {
+    if (loadingIntelligence && !intelligence) {
+      return (
+        <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.04] p-5 space-y-4 animate-pulse">
+          <div className="h-5 w-56 rounded bg-white/[0.08]" />
+          <div className="h-3 w-full rounded bg-white/[0.05]" />
+          <div className="h-3 w-4/5 rounded bg-white/[0.05]" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+            {[0, 1, 2].map(item => <div key={item} className="h-24 rounded-xl bg-white/[0.04]" />)}
+          </div>
+          <div className="text-xs font-mono text-purple-300/70 flex items-center gap-2">
+            <Globe2 className="w-3.5 h-3.5" />
+            {language === 'ro' ? 'Gemini caută și verifică sursele curente…' : 'Gemini is searching and verifying current sources…'}
+          </div>
+        </div>
+      );
+    }
+
+    if (!intelligence) {
+      return (
+        <div className="rounded-2xl border border-rose-500/25 bg-rose-500/[0.06] p-5">
+          <p className="text-sm text-rose-300">{intelligenceError || (language === 'ro' ? 'Raportul nu este disponibil.' : 'Report unavailable.')}</p>
+          <button onClick={() => void loadIntelligence(true)} className="mt-3 inline-flex items-center gap-2 text-xs text-slate-200">
+            <RefreshCw className="w-3.5 h-3.5" /> {language === 'ro' ? 'Încearcă din nou' : 'Try again'}
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className={`space-y-6 transition-opacity ${loadingIntelligence ? 'opacity-60' : 'opacity-100'}`}>
+        <section className="relative overflow-hidden rounded-2xl border border-purple-500/20 bg-gradient-to-br from-purple-500/[0.10] via-[#111827] to-cyan-500/[0.05] p-4 sm:p-6">
+          <div className="absolute -right-12 -top-12 w-40 h-40 rounded-full bg-purple-500/10 blur-3xl" />
+          <div className="relative space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-[10px] sm:text-xs font-mono uppercase tracking-wider">
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${intelligence.mode === 'ai-grounded' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : intelligence.mode === 'ai-sources' ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-300' : 'border-amber-500/30 bg-amber-500/10 text-amber-300'}`}>
+                  <BadgeCheck className="w-3 h-3" />
+                  {intelligence.mode === 'ai-grounded'
+                    ? 'Gemini + Google Search'
+                    : intelligence.mode === 'ai-sources'
+                      ? (language === 'ro' ? 'Gemini + surse verificate' : 'Gemini + verified sources')
+                      : (language === 'ro' ? 'Fallback local' : 'Local fallback')}
+                </span>
+                <span className="text-slate-500">{intelligence.confidenceScore}% confidence</span>
+              </div>
+              <span className="text-[10px] font-mono text-slate-500">
+                {new Date(intelligence.generatedAt).toLocaleString(language === 'ro' ? 'ro-RO' : 'en-US', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Globe2 className="w-4 h-4 text-cyan-300" />
+                <span className="text-xs font-mono text-cyan-300 uppercase tracking-wider">{intelligence.macroRegime}</span>
+              </div>
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-50 leading-tight">{intelligence.headline}</h2>
+              <p className="mt-3 text-sm text-slate-300 leading-relaxed max-w-5xl">{intelligence.executiveSummary}</p>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <Radar className="w-4 h-4 text-cyan-300" />
+            <h3 className="text-sm font-bold text-slate-100">{language === 'ro' ? 'Motoare macro' : 'Macro drivers'}</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {intelligence.macroDrivers.map((driver, index) => {
+              const bullish = driver.impact === 'Bullish';
+              const bearish = driver.impact === 'Bearish';
+              return (
+                <article key={`${driver.title}_${index}`} className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-4">
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <h4 className="text-sm font-semibold text-slate-100">{driver.title}</h4>
+                    <span className={`shrink-0 inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full ${bullish ? 'bg-emerald-500/10 text-emerald-300' : bearish ? 'bg-rose-500/10 text-rose-300' : 'bg-amber-500/10 text-amber-300'}`}>
+                      {bullish ? <TrendingUp className="w-3 h-3" /> : bearish ? <TrendingDown className="w-3 h-3" /> : <Radar className="w-3 h-3" />}
+                      {driver.impact}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">{driver.analysis}</p>
+                  <p className="mt-3 text-[10px] font-mono text-slate-600 uppercase">{driver.horizon}</p>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <Flame className="w-4 h-4 text-orange-300" />
+            <h3 className="text-sm font-bold text-slate-100">{language === 'ro' ? 'Narațiuni: hot, emergente și bearish' : 'Narratives: hot, emerging and bearish'}</h3>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {intelligence.narratives.map((narrative, index) => (
+              <article key={`${narrative.name}_${index}`} className={`rounded-xl border p-4 ${narrativeTone(narrative.status)}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="text-sm font-bold text-slate-100">{narrative.name}</h4>
+                      <span className="text-[9px] font-black tracking-wider">{narrative.status}</span>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-300 leading-relaxed">{narrative.summary}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <span className="text-xl font-mono font-black">{Math.round(narrative.score)}</span>
+                    <span className="block text-[9px] opacity-60">/100</span>
+                  </div>
+                </div>
+                <p className="mt-3 text-[11px] text-slate-400"><strong className="text-slate-300">{language === 'ro' ? 'De ce acum:' : 'Why now:'}</strong> {narrative.whyNow}</p>
+                {narrative.assets.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {narrative.assets.map(asset => <span key={asset} className="px-2 py-0.5 rounded-md bg-black/20 text-[10px] font-mono text-slate-200">{asset.startsWith('$') ? asset : `$${asset}`}</span>)}
+                  </div>
+                )}
+                {(narrative.catalysts.length > 0 || narrative.risks.length > 0) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 pt-3 border-t border-white/[0.07]">
+                    <div>
+                      <span className="text-[9px] font-mono uppercase text-emerald-300/80">Catalysts</span>
+                      {narrative.catalysts.slice(0, 2).map(item => <p key={item} className="mt-1 text-[10px] text-slate-400 leading-relaxed">+ {item}</p>)}
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-mono uppercase text-rose-300/80">Risks</span>
+                      {narrative.risks.slice(0, 2).map(item => <p key={item} className="mt-1 text-[10px] text-slate-400 leading-relaxed">− {item}</p>)}
+                    </div>
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section>
+          <div className="flex items-center gap-2 mb-1">
+            <Sparkles className="w-4 h-4 text-purple-300" />
+            <h3 className="text-sm font-bold text-slate-100">Alpha Discovery Radar</h3>
+          </div>
+          <p className="text-[11px] text-slate-500 mb-3">
+            {language === 'ro' ? 'Lansări, conexiuni cu fondatori/platforme și catalizatori descoperiți prin căutare; nu sunt semnale de cumpărare.' : 'Launches, founder/platform links and catalysts found through search; these are not buy signals.'}
+          </p>
+          {intelligence.discoveries.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {intelligence.discoveries.map((item, index) => (
+                <article key={`${item.name}_${index}`} className="rounded-xl border border-purple-500/20 bg-purple-500/[0.045] p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-100">{item.symbol ? `$${item.symbol} · ` : ''}{item.name}</h4>
+                      <span className="text-[10px] text-purple-300 font-mono">{item.category}</span>
+                    </div>
+                    <span className={`text-[9px] font-mono px-2 py-0.5 rounded-full border ${item.status === 'Verified' ? 'border-emerald-500/25 text-emerald-300 bg-emerald-500/10' : item.status === 'Unverified' ? 'border-rose-500/25 text-rose-300 bg-rose-500/10' : 'border-amber-500/25 text-amber-300 bg-amber-500/10'}`}>{item.status}</span>
+                  </div>
+                  <p className="mt-3 text-xs text-slate-300 leading-relaxed">{item.whyItMatters}</p>
+                  {item.notableConnection && <p className="mt-2 text-[11px] text-cyan-300/90"><strong>Connection:</strong> {item.notableConnection}</p>}
+                  <p className="mt-2 text-[11px] text-slate-400"><strong className="text-slate-300">Catalyst:</strong> {item.catalyst}</p>
+                  {item.risks[0] && <p className="mt-2 text-[10px] text-rose-300/75">Risk: {item.risks[0]}</p>}
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-white/[0.08] p-4 text-xs text-slate-500">
+              {language === 'ro' ? 'Nu au fost găsite descoperiri suficient de bine susținute de surse în această rulare.' : 'No sufficiently sourced discoveries were found in this run.'}
+            </div>
+          )}
+        </section>
+
+        <section className="grid grid-cols-1 lg:grid-cols-[0.8fr_1.2fr] gap-4">
+          <div className="rounded-xl border border-rose-500/15 bg-rose-500/[0.035] p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <ShieldAlert className="w-4 h-4 text-rose-300" />
+              <h3 className="text-sm font-bold text-slate-100">Risk Radar</h3>
+            </div>
+            <div className="space-y-2">
+              {intelligence.riskRadar.map((risk, index) => <p key={`${risk}_${index}`} className="text-[11px] text-slate-400 leading-relaxed">• {risk}</p>)}
+            </div>
+          </div>
+          <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-cyan-300" />
+                <h3 className="text-sm font-bold text-slate-100">{language === 'ro' ? 'Surse folosite' : 'Sources used'}</h3>
+              </div>
+              <span className="text-[10px] font-mono text-slate-600">{intelligence.sources.length}</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {intelligence.sources.map(source => (
+                <a key={source.id} href={source.url} target="_blank" rel="noopener noreferrer" className="group flex items-start gap-2 rounded-lg border border-white/[0.06] bg-black/10 p-2.5 hover:border-cyan-500/25 transition-all">
+                  <ExternalLink className="w-3 h-3 text-cyan-400 mt-0.5 shrink-0" />
+                  <span className="min-w-0">
+                    <span className="block text-[11px] text-slate-300 group-hover:text-cyan-200 line-clamp-2">{source.title}</span>
+                    <span className="block text-[9px] font-mono text-slate-600 mt-0.5 truncate">{source.domain}</span>
+                  </span>
+                </a>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <p className="text-[10px] text-slate-600 leading-relaxed">{intelligence.disclaimer}</p>
+      </div>
+    );
+  };
+
+  const scopeOptions: { id: MarketIntelligenceScope; label: string; icon: typeof Coins }[] = [
+    { id: 'crypto', label: 'Crypto', icon: Coins },
+    { id: 'stocks', label: language === 'ro' ? 'Acțiuni' : 'Stocks', icon: CandlestickChart },
+    { id: 'metals', label: language === 'ro' ? 'Metale' : 'Metals', icon: Gem }
+  ];
+
   return (
     <div className="flex h-[calc(100vh-var(--header-height)-2rem)] rounded-2xl overflow-hidden border border-white/[0.06] bg-[#0d1117]">
       {/* ═══ Left Sidebar ═══ */}
@@ -536,8 +727,53 @@ export const AIBriefingView: React.FC = () => {
 
       {/* ═══ Main Chat Area ═══ */}
       <div className="flex-1 flex flex-col min-w-0">
+        <div className="shrink-0 border-b border-white/[0.06] bg-[#0d1117]/95 px-3 sm:px-6 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-300" />
+                <h1 className="text-sm font-bold text-slate-100">Market Intelligence Briefing</h1>
+              </div>
+              <p className="hidden sm:block mt-0.5 text-[10px] text-slate-600">Macro · Narratives · Alpha discoveries · Grounded sources</p>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="flex items-center rounded-xl border border-white/[0.07] bg-white/[0.025] p-1">
+                {scopeOptions.map(option => {
+                  const Icon = option.icon;
+                  return (
+                    <button
+                      key={option.id}
+                      onClick={() => setScope(option.id)}
+                      className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${scope === option.id ? 'bg-purple-500/20 text-purple-200 border border-purple-500/25' : 'text-slate-500 hover:text-slate-300 border border-transparent'}`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                onClick={() => void loadIntelligence(true)}
+                disabled={loadingIntelligence}
+                title={language === 'ro' ? 'Reîmprospătează analiza' : 'Refresh analysis'}
+                className="w-9 h-9 rounded-xl border border-white/[0.07] bg-white/[0.025] text-slate-400 hover:text-cyan-300 disabled:opacity-40 flex items-center justify-center transition-all"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loadingIntelligence ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Chat Messages */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 space-y-6">
+          {renderIntelligenceDashboard()}
+
+          <div className="flex items-center gap-3 pt-2">
+            <span className="h-px flex-1 bg-white/[0.06]" />
+            <span className="text-[10px] font-mono text-slate-600 uppercase tracking-wider">{language === 'ro' ? 'Întreabă analistul' : 'Ask the analyst'}</span>
+            <span className="h-px flex-1 bg-white/[0.06]" />
+          </div>
+
           {messages.map(msg => (
             <div key={msg.id}>
               {msg.sender === 'user' ? (

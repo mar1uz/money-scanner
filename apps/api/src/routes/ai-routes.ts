@@ -1,11 +1,25 @@
 import { Router } from 'express';
 import { AppState } from '../services/app-state.js';
-import { MoneyLineSignal, NewsCategory, NewsSynthesisPayload } from '@money-scanner/shared';
+import {
+  getScannerAssets,
+  NARRATIVE_DEFINITIONS,
+  MarketIntelligenceAssetSnapshot,
+  MarketIntelligenceNarrativeSnapshot,
+  MarketIntelligenceReport,
+  MarketIntelligenceScope,
+  MoneyLineSignal,
+  NewsCategory,
+  NewsSynthesisPayload
+} from '@money-scanner/shared';
 
 export const aiRouter = Router();
 
 const synthesisCache = new Map<string, { payload: NewsSynthesisPayload; updatedAt: number }>();
 const SYNTHESIS_CACHE_MS = 5 * 60_000;
+const intelligenceCache = new Map<string, { payload: MarketIntelligenceReport; updatedAt: number }>();
+const intelligenceInFlight = new Map<string, Promise<MarketIntelligenceReport>>();
+const INTELLIGENCE_CACHE_MS = 20 * 60_000;
+const INTELLIGENCE_FORCE_REFRESH_FLOOR_MS = 2 * 60_000;
 const SOURCE_REFRESH_TIMEOUT_MS = 15_000;
 
 const waitForSourceRefresh = (refresh: Promise<void>): Promise<void> => {
@@ -71,6 +85,129 @@ aiRouter.get('/ai/briefing', async (req, res) => {
   }
 });
 
+aiRouter.get('/ai/market-intelligence', async (req, res) => {
+  try {
+    const scope: MarketIntelligenceScope = req.query.scope === 'stocks' || req.query.scope === 'metals'
+      ? req.query.scope
+      : 'crypto';
+    const language: 'ro' | 'en' = req.query.language === 'en' ? 'en' : 'ro';
+    const cacheKey = `${language}:${scope}`;
+    const cached = intelligenceCache.get(cacheKey);
+    const requestedRefresh = req.query.refresh === '1';
+    const cacheAge = cached ? Date.now() - cached.updatedAt : Number.POSITIVE_INFINITY;
+    if (cached && (cacheAge < INTELLIGENCE_CACHE_MS) && (!requestedRefresh || cacheAge < INTELLIGENCE_FORCE_REFRESH_FLOOR_MS)) {
+      res.set('Cache-Control', 'private, max-age=30');
+      return res.json(cached.payload);
+    }
+
+    const existingRequest = intelligenceInFlight.get(cacheKey);
+    if (existingRequest) {
+      const payload = await existingRequest;
+      res.set('Cache-Control', 'private, max-age=30');
+      return res.json(payload);
+    }
+
+    const reportRequest = (async () => {
+      const appState = AppState.getInstance();
+      await Promise.all([
+        waitForSourceRefresh(appState.news.fetchLiveNews()),
+        waitForSourceRefresh(appState.social.refreshFreeSources())
+      ]);
+      const catalog = getScannerAssets(scope)
+        .filter(asset => asset.marketClass === scope && (scope !== 'metals' || asset.narratives?.[0] !== 'energy_commodities'))
+        .sort((left, right) => (right.marketCap || 0) - (left.marketCap || 0))
+        .slice(0, 80);
+      const [quotes, overview] = await Promise.all([
+        appState.marketData.getQuotesForAssets(catalog),
+        scope === 'crypto' ? appState.marketData.getMarketOverview() : Promise.resolve(undefined)
+      ]);
+      const quoteBySymbol = new Map(quotes.map(quote => [quote.symbol, quote]));
+      const definitionById = new Map(NARRATIVE_DEFINITIONS.map(definition => [definition.id, definition]));
+      const assets: MarketIntelligenceAssetSnapshot[] = catalog.flatMap(asset => {
+        const quote = quoteBySymbol.get(asset.symbol);
+        if (!quote) return [];
+        return [{
+          symbol: asset.symbol,
+          name: asset.name,
+          change24h: quote.change24h,
+          narrative: asset.narratives?.[0] ? definitionById.get(asset.narratives[0])?.shortName : undefined
+        }];
+      });
+      const narrativeRows = new Map<string, MarketIntelligenceAssetSnapshot[]>();
+      for (const asset of assets) {
+        const key = asset.narrative || (language === 'ro' ? 'Altele' : 'Other');
+        narrativeRows.set(key, [...(narrativeRows.get(key) || []), asset]);
+      }
+      const narratives: MarketIntelligenceNarrativeSnapshot[] = [...narrativeRows.entries()]
+        .map(([name, rows]) => ({
+          name,
+          averageChange24h: Number((rows.reduce((sum, row) => sum + row.change24h, 0) / rows.length).toFixed(2)),
+          assetCount: rows.length,
+          leaders: [...rows].sort((left, right) => right.change24h - left.change24h).slice(0, 5).map(row => row.symbol)
+        }))
+        .sort((left, right) => right.averageChange24h - left.averageChange24h);
+      const symbols = new Set(catalog.map(asset => asset.symbol));
+      const allNews = appState.news.getLatestNews(100);
+      const discoverySource = scope === 'crypto'
+        ? 'Crypto Narrative Discovery'
+        : scope === 'stocks'
+          ? 'Stock Narrative Discovery'
+          : 'Metals Narrative Discovery';
+      const isDiscoveryStory = (value: string) => {
+        if (scope === 'crypto') {
+          return /\b(PONS|launchpad|token launch|new crypto|protocol launch)\b/i.test(value)
+            || (/\bfounder\b/i.test(value) && /\b(crypto|blockchain|token|protocol)\b/i.test(value))
+            || (/\bRobinhood\b/i.test(value) && /\b(chain|launchpad|token launch|onchain)\b/i.test(value));
+        }
+        if (scope === 'stocks') {
+          return /\b(IPO|spin-?off|public listing|new product|breakthrough|sector trend)\b/i.test(value)
+            && /\b(stock|equity|company|shares|technology|industry)\b/i.test(value);
+        }
+        return /\b(gold|silver|copper|lithium|rare earth|platinum|palladium)\b/i.test(value)
+          && /\b(supply|demand|mine|deficit|tariff|project|discovery)\b/i.test(value);
+      };
+      const relevantNews = allNews.filter(item =>
+        item.category === 'Macro' ||
+        item.source === discoverySource ||
+        item.mentionedSymbols.some(symbol => symbol.length >= 3 && symbols.has(symbol)) ||
+        isDiscoveryStory(`${item.title} ${item.summary}`)
+      );
+      const prioritizedNews = [...(relevantNews.length ? relevantNews : allNews.slice(0, 12))]
+        .sort((left, right) => {
+          const discoveryPriority = Number(isDiscoveryStory(`${right.title} ${right.summary}`))
+            - Number(isDiscoveryStory(`${left.title} ${left.summary}`));
+          return discoveryPriority || right.publishedAt - left.publishedAt;
+        });
+      const allSocial = appState.social.getRecentVerifiedPosts().sort((a, b) => b.timestamp - a.timestamp);
+      const relevantSocial = allSocial.filter(post =>
+        post.sector === scope || post.sector === 'macro' || post.mentionedSymbols.some(symbol => symbols.has(symbol))
+      );
+
+      const payload = await appState.ai.generateMarketIntelligence(
+        scope,
+        language,
+        assets,
+        narratives,
+        prioritizedNews,
+        relevantSocial.length ? relevantSocial : allSocial.slice(0, 10),
+        overview
+      );
+      intelligenceCache.set(cacheKey, { payload, updatedAt: Date.now() });
+      return payload;
+    })();
+    intelligenceInFlight.set(cacheKey, reportRequest);
+    try {
+      const payload = await reportRequest;
+      res.set('Cache-Control', 'private, max-age=30');
+      res.json(payload);
+    } finally {
+      intelligenceInFlight.delete(cacheKey);
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to generate grounded market intelligence', details: err.message });
+  }
+});
+
 aiRouter.post('/ai/analyze/:symbol', async (req, res) => {
   try {
     const symbol = req.params.symbol.toUpperCase();
@@ -99,6 +236,17 @@ aiRouter.post('/ai/ask', async (req, res) => {
     const { question } = req.body;
     if (!question || typeof question !== 'string') {
       return res.status(400).json({ error: 'Question string is required in request body' });
+    }
+
+    const scope: MarketIntelligenceScope = req.body.scope === 'stocks' || req.body.scope === 'metals'
+      ? req.body.scope
+      : 'crypto';
+    const language: 'ro' | 'en' = req.body.language === 'en' ? 'en' : 'ro';
+    const scopedReport = intelligenceCache.get(`${language}:${scope}`)?.payload;
+    if (scopedReport) {
+      const appState = AppState.getInstance();
+      const response = await appState.ai.askMarketIntelligenceQuestion(question, scopedReport, language);
+      return res.json(response);
     }
 
     const appState = AppState.getInstance();

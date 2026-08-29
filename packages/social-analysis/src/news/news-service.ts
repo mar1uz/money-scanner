@@ -13,7 +13,14 @@ const LIVE_FEEDS = [
   { url: 'https://finance.yahoo.com/news/rssindex', source: 'Yahoo Finance' },
   { url: 'https://news.google.com/rss/search?q=Federal+Reserve+OR+inflation+OR+interest+rates+OR+CPI+when:1d&hl=en-US&gl=US&ceid=US:en', source: 'Macro News' },
   { url: 'https://news.google.com/rss/search?q=Nvidia+OR+Apple+OR+Microsoft+OR+Tesla+stock+when:1d&hl=en-US&gl=US&ceid=US:en', source: 'Stock News' },
-  { url: 'https://news.google.com/rss/search?q=crypto+OR+bitcoin+OR+ethereum+when:1d&hl=en-US&gl=US&ceid=US:en', source: 'Crypto News' }
+  { url: 'https://news.google.com/rss/search?q=crypto+OR+bitcoin+OR+ethereum+when:1d&hl=en-US&gl=US&ceid=US:en', source: 'Crypto News' },
+
+  // Narrative discovery feeds used by the AI Analyst source-grounded fallback.
+  // These remain free RSS sources and let Gemini synthesize recent launches and
+  // sector catalysts even when the paid Google Search grounding quota is empty.
+  { url: 'https://news.google.com/rss/search?q=%28%22token+launch%22+OR+%22crypto+launchpad%22+OR+%22new+crypto%22+OR+PONS%29+%28founder+OR+Robinhood+OR+technology%29+when%3A30d&hl=en-US&gl=US&ceid=US:en', source: 'Crypto Narrative Discovery' },
+  { url: 'https://news.google.com/rss/search?q=%28stock+OR+equity%29+%28%22new+product%22+OR+IPO+OR+%22sector+trend%22+OR+breakthrough%29+when%3A30d&hl=en-US&gl=US&ceid=US:en', source: 'Stock Narrative Discovery' },
+  { url: 'https://news.google.com/rss/search?q=%28gold+OR+silver+OR+copper+OR+lithium+OR+%22rare+earths%22%29+%28supply+OR+demand+OR+mine+OR+tariff%29+when%3A30d&hl=en-US&gl=US&ceid=US:en', source: 'Metals Narrative Discovery' }
 ];
 
 const LIVE_REFRESH_TIMEOUT_MS = 12_000;
@@ -46,6 +53,7 @@ const DETECTABLE_SYMBOLS = [
   'FET', 'RENDER', 'TAO', 'PEPE', 'BNB', 'SHIB', 'XLM', 'BCH', 'ETC', 'ATOM',
   'FIL', 'ARB', 'OP', 'POL', 'TIA', 'WIF', 'BONK', 'FLOKI', 'STX', 'IMX',
   'GALA', 'SAND', 'MANA', 'APE', 'WLD', 'S', 'KAS', 'KAVA',
+  'PONS',
   'NVDA', 'TSLA', 'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'META', 'AMD', 'PLTR',
   'MSTR', 'COIN', 'SPY', 'QQQ', 'DXY', 'GOLD', 'SILVER', 'GLD', 'SLV'
 ];

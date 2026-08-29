@@ -147,4 +147,94 @@ describe('AI Market Analyst Engine', () => {
       else process.env.GEMINI_API_KEY = previousKey;
     }
   });
+
+  it('builds a scoped deterministic intelligence report when Gemini is unavailable', async () => {
+    const previousKey = process.env.GEMINI_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+    try {
+      const analyst = new AIMarketAnalystService();
+      const report = await analyst.generateMarketIntelligence(
+        'metals',
+        'ro',
+        [
+          { symbol: 'XAU', name: 'Gold', change24h: 1.4, narrative: 'Metale Prețioase' },
+          { symbol: 'XAG', name: 'Silver', change24h: -0.2, narrative: 'Metale Prețioase' }
+        ],
+        [{ name: 'Metale Prețioase', averageChange24h: 0.6, assetCount: 2, leaders: ['XAU', 'XAG'] }],
+        [],
+        []
+      );
+
+      assert.equal(report.scope, 'metals');
+      assert.equal(report.mode, 'deterministic');
+      assert.equal(report.narratives[0].name, 'Metale Prețioase');
+      assert.equal(report.discoveries.length, 0);
+      const answer = await analyst.askMarketIntelligenceQuestion('Ce influențează aurul?', report, 'ro');
+      assert.match(answer.answer, /raportul metals/i);
+    } finally {
+      if (previousKey === undefined) delete process.env.GEMINI_API_KEY;
+      else process.env.GEMINI_API_KEY = previousKey;
+    }
+  });
+
+  it('uses Gemini with verified feeds when Google Search quota is unavailable', async () => {
+    const originalFetch = globalThis.fetch;
+    let requestCount = 0;
+    globalThis.fetch = (async () => {
+      requestCount += 1;
+      if (requestCount === 1) {
+        return new Response(JSON.stringify({ error: { message: 'quota exhausted' } }), { status: 429 });
+      }
+      return new Response(JSON.stringify({
+        candidates: [{
+          content: {
+            parts: [{
+              text: JSON.stringify({
+                headline: 'Crypto narrative briefing',
+                macroRegime: 'Selective risk-on',
+                executiveSummary: 'Verified feeds show selective momentum while macro risks remain mixed.',
+                macroDrivers: [
+                  { title: 'Liquidity', impact: 'Bullish', analysis: 'Liquidity conditions improved.', horizon: '1-4 weeks' },
+                  { title: 'Regulation', impact: 'Mixed', analysis: 'Policy remains uncertain.', horizon: '1-3 months' },
+                  { title: 'Risk appetite', impact: 'Mixed', analysis: 'Breadth remains selective.', horizon: 'Days' }
+                ],
+                narratives: [
+                  { name: 'Layer 1', status: 'HOT', score: 78, summary: 'Layer 1 assets lead.', whyNow: 'Momentum improved.', assets: ['BTC', 'SOL'], catalysts: ['Liquidity'], risks: ['Reversal'] },
+                  { name: 'AI', status: 'EMERGING', score: 61, summary: 'AI protocols are active.', whyNow: 'New launches.', assets: ['TAO'], catalysts: ['Adoption'], risks: ['Valuation'] },
+                  { name: 'DeFi', status: 'NEUTRAL', score: 50, summary: 'DeFi is mixed.', whyNow: 'Flows are balanced.', assets: ['AAVE'], catalysts: [], risks: ['Smart contracts'] }
+                ],
+                discoveries: [{ name: 'Pons', symbol: 'PONS', category: 'Launchpad', status: 'Verified', whyItMatters: 'A new launchpad claim.', notableConnection: 'Robinhood claim', catalyst: 'Launch', risks: ['Early project'] }],
+                riskRadar: ['Liquidity reversal', 'Regulatory shock', 'Smart-contract risk'],
+                confidenceScore: 70
+              })
+            }]
+          }
+        }]
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }) as typeof fetch;
+
+    try {
+      const analyst = new AIMarketAnalystService('fake-key');
+      const now = Date.now();
+      const report = await analyst.generateMarketIntelligence(
+        'crypto',
+        'en',
+        [{ symbol: 'BTC', name: 'Bitcoin', change24h: 1.2, narrative: 'Layer 1' }],
+        [{ name: 'Layer 1', averageChange24h: 1.2, assetCount: 1, leaders: ['BTC'] }],
+        [
+          { id: 'n1', title: 'PONS launchpad claim', summary: 'Claim details.', source: 'Publisher One', url: 'https://example.com/pons', publishedAt: now, category: 'Protocol', mentionedSymbols: ['PONS'] },
+          { id: 'n2', title: 'Bitcoin liquidity improves', summary: 'Liquidity details.', source: 'Publisher Two', url: 'https://example.org/btc', publishedAt: now, category: 'Institutional', mentionedSymbols: ['BTC'] },
+          { id: 'n3', title: 'Policy risk persists', summary: 'Policy details.', source: 'Publisher Three', url: 'https://example.net/policy', publishedAt: now, category: 'Regulation', mentionedSymbols: [] }
+        ],
+        []
+      );
+
+      assert.equal(requestCount, 2);
+      assert.equal(report.mode, 'ai-sources');
+      assert.equal(report.sources.length, 3);
+      assert.equal(report.discoveries[0].status, 'Unverified');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

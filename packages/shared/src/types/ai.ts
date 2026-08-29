@@ -54,6 +54,79 @@ export interface AIAnalysisPayload {
   dataFreshness: string;
 }
 
+export type MarketIntelligenceScope = 'crypto' | 'stocks' | 'metals';
+export type MarketIntelligenceImpact = 'Bullish' | 'Bearish' | 'Mixed';
+export type MarketNarrativeStatus = 'HOT' | 'BULLISH' | 'EMERGING' | 'NEUTRAL' | 'COOLING' | 'BEARISH';
+
+export interface MarketIntelligenceSource {
+  id: string;
+  title: string;
+  url: string;
+  domain: string;
+}
+
+export interface MarketMacroDriver {
+  title: string;
+  impact: MarketIntelligenceImpact;
+  analysis: string;
+  horizon: string;
+}
+
+export interface MarketNarrativeInsight {
+  name: string;
+  status: MarketNarrativeStatus;
+  score: number;
+  summary: string;
+  whyNow: string;
+  assets: string[];
+  catalysts: string[];
+  risks: string[];
+}
+
+export interface MarketAlphaDiscovery {
+  name: string;
+  symbol?: string;
+  category: string;
+  status: 'Verified' | 'Emerging' | 'Unverified';
+  whyItMatters: string;
+  notableConnection?: string;
+  catalyst: string;
+  risks: string[];
+}
+
+export interface MarketIntelligenceReport {
+  scope: MarketIntelligenceScope;
+  headline: string;
+  macroRegime: string;
+  executiveSummary: string;
+  macroDrivers: MarketMacroDriver[];
+  narratives: MarketNarrativeInsight[];
+  discoveries: MarketAlphaDiscovery[];
+  riskRadar: string[];
+  sources: MarketIntelligenceSource[];
+  confidenceScore: number;
+  generatedAt: number;
+  dataFreshness: string;
+  mode: 'ai-grounded' | 'ai-sources' | 'deterministic';
+  model?: string;
+  searchQueries: string[];
+  disclaimer: string;
+}
+
+export interface MarketIntelligenceAssetSnapshot {
+  symbol: string;
+  name: string;
+  change24h: number;
+  narrative?: string;
+}
+
+export interface MarketIntelligenceNarrativeSnapshot {
+  name: string;
+  averageChange24h: number;
+  assetCount: number;
+  leaders: string[];
+}
+
 export interface AssetEconomicReport {
   title: string;
   period: string;
