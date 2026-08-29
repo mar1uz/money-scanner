@@ -1720,3 +1720,42 @@ Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 Production bundle: index-cq6KN4zT.js
 ```
+
+## 47. Daily 07:00 AI Intelligence and Crypto Criteria Warm-Up
+
+Implemented and deployed on 29 August 2026.
+
+- Added the secured `POST /api/ai/daily-warmup` operational endpoint for Cloud Scheduler.
+- Added Cloud Scheduler job `money-scanner-daily-ai-warmup`:
+  - cron: `0 7 * * *`;
+  - timezone: `Europe/Oslo` (automatic DST handling);
+  - request deadline: 900 seconds;
+  - authenticated with the existing Secret Manager-backed `DAILY_SCAN_TOKEN` header.
+- Every morning the job pre-generates and caches:
+  - Market Intelligence Crypto in Romanian and English;
+  - Market Intelligence Stocks in Romanian and English;
+  - Market Intelligence Metals in Romanian and English;
+  - Crypto Business Quality / four-criteria Top-200 scan.
+- Reports are generated sequentially to avoid bursting the Gemini quota and free market/news-provider rate limits.
+- Replaced the former 20/30-minute, instance-local-only lifetime with a 26-hour morning snapshot policy.
+- Every result is persisted to the `money-scanner-360` Firestore database. A cold Cloud Run instance restores the morning result before generating anything, so opening AI Analyst later in the day does not wait for Gemini or the Top-200 scan.
+- Manual refresh remains available and can replace the morning snapshot after the existing two-minute refresh floor.
+- The scheduled endpoint is excluded from browser session auth only after constant-time validation of the dedicated secret token.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 5fc100c
+Local build: passed
+Local tests: 55 passed, 0 failed
+Cloud Build: cab651dd-8e8a-42e4-a585-decda09ef09c (SUCCESS)
+Cloud Run revision: market-scanner-360-00114-vnw
+Traffic: 100%
+Cloud Scheduler: money-scanner-daily-ai-warmup ENABLED, 0 7 * * *, Europe/Oslo
+Manual scheduler execution: SUCCESS (empty Scheduler status object)
+Warm-up duration: 166,678 ms
+Warm-up result: 6/6 market reports ready; crypto criteria ready; 200 assets scanned
+Firestore verification: all 7 persistent AI cache documents exist
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
