@@ -1906,4 +1906,17 @@ Implemented and deployed on 29 August 2026.
    - Added 25+ RO $\leftrightarrow$ EN translation pairs for all indicators, criteria, statuses, and filters.
    - 30 backend unit tests + 17 web unit tests passed (72 total across the monorepo).
 
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: e4f30c6
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Local tests: 72 passed, 0 failed (including 6 new API tests and 8 new web lookup tests)
+Cloud Build: b4c90680-3bf0-4d22-9d09-71a80f4afccf (SUCCESS)
+Cloud Run revision: market-scanner-360-00117-jcs
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
+
 
