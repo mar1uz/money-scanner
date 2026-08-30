@@ -2038,3 +2038,35 @@ Public bundle: assets/index-BQ-yt1JO.js
 Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 ```
+
+## 54. Verified Recent Listings / SPCX Asset Detail Fix
+
+Implemented and deployed on 30 August 2026.
+
+### Root cause
+
+`SPCX` was correctly discovered as a verified Nasdaq equity, but it is a recent listing and has fewer than ten monthly candles. Asset detail loaded all six timeframes in one `Promise.all`; rejection of the short 1M history invalidated the entire response. The frontend then rendered an empty/stale detail state with `undefined` values.
+
+### Resolution
+
+1. Yahoo stock history accepts two or more valid OHLCV bars for a newly listed instrument. Indicators that require longer history remain naturally unavailable until enough bars exist.
+2. Candle failures are isolated per timeframe. One unavailable interval no longer invalidates the verified asset, quote or other charts.
+3. Asset detail clears stale data and presents a retryable provider-error state instead of rendering `undefined` values if a full request genuinely fails.
+4. `InteractiveChart` now uses the selected `marketClass`; dynamic stocks such as SPCX show `USD`, not `USDT`.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 50c47e7
+Local build: passed
+Market-data tests: 8 passed, 0 failed (new recent-listing regression test included)
+API tests: 36 passed, 0 failed
+SPCX local detail: HTTP 200, Nasdaq stock, Yahoo quote $141.50, 13 weekly candles
+Mobile browser QA: $SPCX / USD present, zero "undefined" values
+Cloud Build: e2826664-0030-4610-a71b-87397c339423 (SUCCESS)
+Cloud Run revision: market-scanner-360-00121-p7r
+Traffic: 100%
+Public bundle: assets/index-BBXWdpIw.js
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
