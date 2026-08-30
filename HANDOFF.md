@@ -2070,3 +2070,29 @@ Public bundle: assets/index-BBXWdpIw.js
 Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 ```
+
+## 55. Mobile Header Overlap Fixes
+
+Implemented and deployed on 30 August 2026.
+
+### What changed
+
+1. The global mobile header now renders search as a dedicated fixed-width button. The desktop search input is hidden below the `sm` breakpoint, so its absolute icon/input layers can no longer cover the `1H` timeframe.
+2. Mobile timeframe buttons share the available width and retain compact spacing while refresh, live state, alerts and language controls remain accessible.
+3. The asset detail sticky header now uses separate responsive rows for asset identity/price, timeframe controls/actions and the mobile bias status. Price/change text no longer collides with the timeframe or action controls.
+4. Action controls use compact mobile padding and the timeframe row shrinks safely at narrow widths.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: e04fa7c
+Local web build: passed
+Browser QA: 390x844 mobile viewport; search button and 1H have non-overlapping bounds
+Asset header QA: identity row y=92–124, timeframe row y=134–163, bias row y=171–197
+Cloud Build: f8304102-e34c-4470-9809-cc78ca71c915 (SUCCESS)
+Cloud Run revision: market-scanner-360-00122-x6t
+Traffic: 100%
+Public bundle: assets/index-BI4yyW7i.js
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
