@@ -1919,4 +1919,122 @@ Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 ```
 
+## 51. Top 50 Market Cap Ranking List & YTD Return Under Heat Map
 
+Implemented and deployed on 29 August 2026.
+
+### What was added
+
+1. **Top 50 Ranking List Under Heat Map Squares (`CryptoHeatMapView.tsx`)**:
+   - Added a responsive, mobile-first detailed list/table directly beneath the treemap squares for both **Crypto** and **Stocks**.
+   - Displays all Top 50 assets ranked by market capitalization.
+
+2. **Metrics & Visual Breakdown**:
+   - **# Rank**: Position badge (`#1`, `#2`...).
+   - **Asset Info**: Logo/avatar, ticker cashtag (`$BTC`, `$NVDA`), full asset name.
+   - **Live Price**: Formatted currency with proper dynamic decimal precision.
+   - **Timeframe Change %**: Interval delta (`1D`, `1W`, `1M`) with green/red directional indicators.
+   - **YTD % Return**: Clear, color-coded badge (`+XX.X% YTD` in emerald, `-XX.X% YTD` in rose) for instant performance assessment.
+   - **Market Cap**: Formatted total market capitalization ($T, $B, $M).
+   - **Direct Navigation**: Clicking any asset or table row immediately routes to the asset's Money Line Deep Dive view (`onSelectAsset`).
+
+3. **Mobile-First Optimization**:
+   - On small screens (`< md`), renders touch-friendly cards with high-contrast typography, clear market cap and YTD badges, and full-card tap navigation.
+   - On desktop (`md+`), renders a full cyber-dark tabular view with sortable columns (Rank, Price, Change %, YTD %, Market Cap) and a real-time search filter.
+
+4. **API Integration (`apps/api/src/routes/market-routes.ts`, `apps/web/src/services/api.ts`)**:
+   - Updated `/api/crypto/bubbles` to include `1y` percentage return in the CoinGecko query and map `changeYtd` to `CryptoBubbleAsset`.
+   - Mapped `changeYtd` from the verified scanner records for stocks.
+
+5. **Translations (`i18n.tsx`)**:
+   - Added bilingual support for header titles, subtitle descriptions, search placeholders, and empty states.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 7dc186d
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Local tests: 78 passed, 0 failed
+Cloud Build: 2901bce8-4528-489e-a05e-28aa88a7f8c5 (SUCCESS)
+Cloud Run revision: market-scanner-360-00118-h2x
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
+
+## 52. Crypto Heat Map Multi-Tier Fallback & Rate-Limit Resilience
+
+Implemented and deployed on 29 August 2026.
+
+### Problem Identified & Root Cause
+
+When users loaded or refreshed the Crypto Heat Map, CoinGecko's unauthenticated public API occasionally returned HTTP 429 (Rate Limit Exceeded) due to Cloud Run's shared outbound IP addresses. Because `/api/crypto/bubbles` lacked an upstream fallback, the backend returned HTTP 502, leaving the frontend showing an error banner and retaining previous tab data.
+
+### Resolution & Multi-Tier Resilience Architecture
+
+1. **Backend Multi-Tier Fallback (`apps/api/src/routes/market-routes.ts`)**:
+   - **Tier 1 (Primary)**: CoinGecko API with extended 3-minute caching (`180_000ms`).
+   - **Tier 2 (Automatic Fallback on 429/Error)**: CoinPaprika API (`https://api.coinpaprika.com/v1/tickers?quotes=USD&limit=100`), mapping prices, market caps, intervals (24h, 7d, 30d, 1y).
+   - **Tier 3 (Offline / Absolute Fallback)**: Binance-backed verified scanner signals from internal `AppState` (`refreshSignals('1w', 'crypto')`).
+   - If any refresh attempt fails, existing cached data is preserved and served to prevent downtime.
+
+2. **Frontend Resilient Client Fallback (`apps/web/src/components/CryptoHeatMapView.tsx`)**:
+   - In `loadCoins`, if `fetchCryptoBubbles` encounters any network or parsing error, it catches it and immediately fetches crypto assets from `fetchScanner(..., 'crypto')`.
+   - Clears transient error states and guarantees that switching between Crypto and Stocks always renders the correct asset universe.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 7dc186d
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Local tests: 78 passed, 0 failed
+Cloud Build: f1e5308a-7e22-46a0-8c05-5a1554398216 (SUCCESS)
+Cloud Run revision: market-scanner-360-00119-lth
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
+
+## 53. TradingView-Style Universal Symbol Search
+
+Implemented and deployed on 30 August 2026.
+
+### What changed
+
+1. **One deterministic search/ranking engine (`packages/shared/src/search/symbol-search.ts`)**:
+   - Exact ticker, exchange-qualified symbol, pair, exact name and exact alias matches are ranked before prefixes, contains matches and one-character typo recovery.
+   - Parses TradingView-style input such as `$NVDA`, `NASDAQ:ASML`, `BTC/USDT`, `BINANCE:BTCUSDT` and `LITUSDT.P`.
+   - Search identity includes asset class, exchange, instrument type, provider symbol and CoinGecko ID. Equal text tickers are no longer collapsed into the wrong instrument.
+
+2. **Verified provider aggregation (`GET /api/search`)**:
+   - Merges the internal catalog with Binance spot, Binance perpetuals, Yahoo Finance and CoinGecko.
+   - Removed the expensive weekly scanner refresh previously triggered by every search keystroke.
+   - Added short provider/response caches and abortable frontend requests.
+   - An unknown ticker is no longer silently invented as a stock; any direct fallback is visibly marked unverified.
+
+3. **TradingView-like search modal (`UniversalSearchModal.tsx`)**:
+   - Shows explicit exchange, instrument type and verified/direct status.
+   - Preserves crypto/stock/metals/forex variants and applies strict category filters.
+   - Recent tickers reopen ranked results instead of immediately guessing an asset class.
+   - Responsive behavior verified at a 390 × 844 mobile viewport.
+
+4. **Correct end-to-end routing for ambiguous tickers**:
+   - The selected `marketClass` and CoinGecko identity are passed to Money Line.
+   - Asset detail resolution now respects the requested class before reading the catalog.
+   - Verified example: `CAKE · NASDAQ · equity` opens The Cheesecake Factory with stock candles; `CAKE · crypto` opens PancakeSwap. `LITUSDT.P` remains distinct from the `LIT` lithium ETF.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 57c2160
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+API tests: 36 passed, 0 failed (6 symbol-search cases)
+Live provider checks: CAKE, LITUSDT.P, BINANCE:BTCUSDT, NVDQ and PONS
+Browser QA: desktop + 390x844 mobile, ambiguous stock navigation verified
+Cloud Build: 6b4ff5c0-fa95-4e4b-bf97-dad4f9b4b988 (SUCCESS)
+Cloud Run revision: market-scanner-360-00120-q4f
+Traffic: 100%
+Public bundle: assets/index-BQ-yt1JO.js
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
