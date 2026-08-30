@@ -191,9 +191,20 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className={`fixed top-0 right-0 ${hasSidebar ? 'left-0 md:left-[260px]' : 'left-0'} z-40 bg-[#0a0e17]/95 backdrop-blur-2xl border-b border-white/[0.08] px-2.5 sm:px-6 lg:px-8 h-[56px] flex items-center justify-between gap-2 sm:gap-4 shadow-2xl transition-all`}>
-      {/* Central AI Search Bar (Mobile & Desktop Central Spotlight Trigger) */}
-      <div ref={dropdownRef} className="flex-1 max-w-xl mx-auto relative min-w-0">
+    <header className={`fixed top-0 right-0 ${hasSidebar ? 'left-0 md:left-[260px]' : 'left-0'} z-40 bg-[#0a0e17]/95 backdrop-blur-2xl border-b border-white/[0.08] px-2 sm:px-6 lg:px-8 h-[56px] flex items-center justify-between gap-1.5 sm:gap-4 shadow-2xl transition-all`}>
+      {/* Mobile search is a real fixed-width control, so it cannot overlap the timeframe pills. */}
+      <button
+        type="button"
+        onClick={onOpenSearchModal}
+        aria-label="Caută active"
+        title="Caută active"
+        className="sm:hidden grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-cyan-500/20 bg-white/[0.03] text-cyan-400 transition-colors hover:bg-cyan-500/10"
+      >
+        <Search className="h-4 w-4" />
+      </button>
+
+      {/* Central AI Search Bar (desktop/tablet spotlight trigger) */}
+      <div ref={dropdownRef} className="hidden sm:block flex-1 max-w-xl mx-auto relative min-w-0">
         <div 
           onClick={() => {
             if (onOpenSearchModal) onOpenSearchModal();
@@ -381,14 +392,14 @@ export const Header: React.FC<HeaderProps> = ({
     </div>
 
       {/* Right Controls: Timeframe Pills, Live Status, Refresh */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 sm:flex-none sm:gap-2.5">
         {/* Timeframe Selector */}
-        <div className="flex items-center bg-white/[0.03] border border-white/[0.06] rounded-xl p-0.5 shrink-0">
+        <div className="flex min-w-0 flex-1 items-center rounded-xl border border-white/[0.06] bg-white/[0.03] p-0.5 sm:flex-none">
           {(['1h', '4h', '8h', '1d', '1w', '1m'] as Timeframe[]).map((tf) => (
             <button
               key={tf}
               onClick={() => onTimeframeChange(tf)}
-              className={`px-2 sm:px-2.5 py-1 text-[10px] sm:text-[11px] font-mono rounded-lg transition-all ${
+              className={`min-w-0 flex-1 px-1.5 py-1 text-[10px] font-mono rounded-lg transition-all sm:flex-none sm:px-2.5 sm:text-[11px] ${
                 timeframe === tf
                   ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold shadow-sm'
                   : 'text-slate-400 hover:text-slate-200'

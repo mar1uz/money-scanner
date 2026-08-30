@@ -237,10 +237,10 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
           ZONE 1 — Sticky Compact Header
           ═══════════════════════════════════════════════════════════════════ */}
       <div className="asset-header-sticky px-4 sm:px-6 py-3 mb-4 -mx-4 lg:-mx-8">
-        <div className="flex items-center justify-between gap-3 max-w-[1600px] mx-auto">
+        <div className="flex flex-col gap-2.5 max-w-[1600px] mx-auto sm:flex-row sm:items-center sm:justify-between sm:gap-3">
 
           {/* Left: Back + Asset Identity + Price */}
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:gap-3">
             <button
               onClick={onBack}
               className="p-2 rounded-lg text-slate-400 hover:text-cyan-300 hover:bg-white/[0.04] transition-all shrink-0"
@@ -249,7 +249,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
               <ArrowLeft className="w-4 h-4" />
             </button>
 
-            <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1 sm:flex-nowrap">
               <span className="text-sm font-bold text-slate-100 font-mono shrink-0">
                 ${symbol}
               </span>
@@ -310,14 +310,14 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
           </div>
 
           {/* Right: Timeframe pills + Actions */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex w-full min-w-0 items-center gap-1.5 sm:w-auto sm:shrink-0 sm:gap-2">
             {/* Timeframe pills */}
-            <div className="flex items-center bg-white/[0.03] border border-white/[0.06] rounded-lg p-0.5">
+            <div className="flex min-w-0 flex-1 items-center rounded-lg border border-white/[0.06] bg-white/[0.03] p-0.5 sm:flex-none">
               {(['1h', '4h', '8h', '1d', '1w', '1m'] as Timeframe[]).map((tf) => (
                 <button
                   key={tf}
                   onClick={() => onTimeframeChange(tf)}
-                  className={`px-2 sm:px-2.5 py-1 text-[11px] font-mono rounded-md transition-all ${
+                  className={`min-w-0 flex-1 px-1.5 py-1 text-[10px] font-mono rounded-md transition-all sm:flex-none sm:px-2.5 sm:text-[11px] ${
                     timeframe === tf
                       ? 'bg-cyan-500/15 text-cyan-300 font-bold'
                       : 'text-slate-500 hover:text-slate-300'
@@ -342,7 +342,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
             )}
             <button
               onClick={() => onToggleWatchlist(symbol)}
-              className={`p-2 rounded-lg transition-all ${
+              className={`shrink-0 p-1.5 sm:p-2 rounded-lg transition-all ${
                 isInWatchlist
                   ? 'text-amber-300 hover:bg-amber-500/10'
                   : 'text-slate-500 hover:text-slate-300 hover:bg-white/[0.04]'
@@ -354,7 +354,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
 
             <button
               onClick={handleSendAlert}
-              className={`p-2 rounded-lg transition-all ${
+              className={`shrink-0 p-1.5 sm:p-2 rounded-lg transition-all ${
                 alertSent
                   ? 'text-emerald-400 bg-emerald-500/10'
                   : 'text-slate-500 hover:text-cyan-300 hover:bg-white/[0.04]'
@@ -366,7 +366,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
 
             <button
               onClick={loadData}
-              className="p-2 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/[0.04] transition-all"
+              className="shrink-0 p-1.5 sm:p-2 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/[0.04] transition-all"
               title="Refresh"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
