@@ -16,7 +16,8 @@ import {
   BacktestDirectionMode,
   BacktestStrategy,
   AssetMarketClass,
-  StrategyAlertSnapshot
+  StrategyAlertSnapshot,
+  SymbolSearchResult
 } from '@money-scanner/shared';
 import { AssetDetailResponse } from '../types.js';
 import { requestCsrfToken } from './firebase-auth.js';
@@ -43,6 +44,7 @@ export interface CryptoBubbleAsset {
   price: number;
   marketCap: number;
   change: number | null;
+  changeYtd?: number | null;
 }
 
 export async function fetchCryptoBubbles(
@@ -536,24 +538,17 @@ export async function fetchUSAStatus(): Promise<any> {
   return res.json();
 }
 
-export interface SearchAssetItem {
-  symbol: string;
-  name: string;
-  category: string;
-  marketClass: 'stocks' | 'crypto' | 'metals' | 'forex' | 'macro' | string;
-  exchange: string;
-  instrumentType?: string;
+export interface SearchAssetItem extends SymbolSearchResult {
   price: number;
   change24h: number;
   changeYtd: number;
   moneyLineScore: number;
   tier: string;
-  matchType: 'local' | 'yahoo' | 'custom';
 }
 
-export async function searchUniversalAssets(query: string): Promise<SearchAssetItem[]> {
+export async function searchUniversalAssets(query: string, signal?: AbortSignal): Promise<SearchAssetItem[]> {
   if (!query.trim()) return [];
-  const res = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query.trim())}`);
+  const res = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query.trim())}`, { signal });
   if (!res.ok) return [];
   return res.json();
 }

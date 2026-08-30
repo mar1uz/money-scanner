@@ -384,8 +384,11 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
       <UniversalSearchModal
         isOpen={isSearchModalOpen}
         onClose={() => setIsSearchModalOpen(false)}
-        onSelectAsset={(sym) => {
-          openAsset(sym);
+        onSelectAsset={(asset) => {
+          const marketClass = asset.marketClass === 'crypto' || asset.marketClass === 'stocks' || asset.marketClass === 'metals'
+            ? asset.marketClass
+            : undefined;
+          openAsset(asset.symbol, marketClass, undefined, asset.coinGeckoId);
           setIsSearchModalOpen(false);
         }}
         allAssets={scannerRows}

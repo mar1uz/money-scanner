@@ -1,217 +1,244 @@
 import { Router } from 'express';
 import { AppState } from '../services/app-state.js';
-import { Timeframe, TRADING_360_ASSETS, ScannerMarketClass, AssetMarketClass, MarketNarrativeId } from '@money-scanner/shared';
+import {
+  Timeframe,
+  TRADING_360_ASSETS,
+  ScannerMarketClass,
+  AssetMarketClass,
+  AssetInfo,
+  MarketNarrativeId,
+  SymbolSearchCandidate,
+  catalogToSearchCandidates,
+  parseSymbolSearchQuery,
+  rankSymbolSearchCandidates
+} from '@money-scanner/shared';
 import { calculateMTFConfluence } from '@money-scanner/money-line';
 
 export const scannerRouter = Router();
 
+interface BinanceMarketRow {
+  symbol?: string;
+  baseAsset?: string;
+  quoteAsset?: string;
+  contractType?: string;
+  status?: string;
+}
+
+let binanceSpotCache: { rows: BinanceMarketRow[]; expiresAt: number } | undefined;
+let binanceFuturesCache: { rows: BinanceMarketRow[]; expiresAt: number } | undefined;
+const searchResponseCache = new Map<string, { payload: ReturnType<typeof rankSymbolSearchCandidates>; expiresAt: number }>();
+
+const fetchJson = async <T>(url: string, timeoutMs = 3_500, headers?: Record<string, string>): Promise<T | undefined> => {
+  try {
+    const response = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
+    if (!response.ok) return undefined;
+    return await response.json() as T;
+  } catch {
+    return undefined;
+  }
+};
+
+const loadBinanceMarkets = async (kind: 'spot' | 'futures'): Promise<BinanceMarketRow[]> => {
+  const current = kind === 'spot' ? binanceSpotCache : binanceFuturesCache;
+  if (current && current.expiresAt > Date.now()) return current.rows;
+  const url = kind === 'spot'
+    ? 'https://api.binance.com/api/v3/exchangeInfo'
+    : 'https://fapi.binance.com/fapi/v1/exchangeInfo';
+  const payload = await fetchJson<{ symbols?: BinanceMarketRow[] }>(url);
+  const rows = payload?.symbols || current?.rows || [];
+  const cache = { rows, expiresAt: Date.now() + 15 * 60_000 };
+  if (kind === 'spot') binanceSpotCache = cache;
+  else binanceFuturesCache = cache;
+  return rows;
+};
+
+const binanceSearchCandidates = async (): Promise<SymbolSearchCandidate[]> => {
+  const [spotRows, futuresRows] = await Promise.all([
+    loadBinanceMarkets('spot'),
+    loadBinanceMarkets('futures')
+  ]);
+  const spotQuotes = new Set(['USDT', 'USDC', 'FDUSD', 'BTC', 'ETH', 'EUR']);
+  const spot = spotRows.flatMap<SymbolSearchCandidate>(market => {
+    const pair = String(market.symbol || '').toUpperCase();
+    const base = String(market.baseAsset || '').toUpperCase();
+    const quote = String(market.quoteAsset || '').toUpperCase();
+    if (!pair || !base || market.status !== 'TRADING' || !spotQuotes.has(quote)) return [];
+    return [{
+      symbol: base,
+      displaySymbol: pair,
+      providerSymbol: pair,
+      name: `${base} / ${quote}`,
+      category: 'Crypto Spot',
+      marketClass: 'crypto',
+      exchange: 'BINANCE',
+      instrumentType: 'spot',
+      quoteCurrency: quote,
+      aliases: [base, pair, `${base}/${quote}`],
+      verified: true,
+      matchType: 'binance'
+    }];
+  });
+  const futures = futuresRows.flatMap<SymbolSearchCandidate>(market => {
+    const pair = String(market.symbol || '').toUpperCase();
+    const base = String(market.baseAsset || '').toUpperCase();
+    const quote = String(market.quoteAsset || '').toUpperCase();
+    if (!pair || !base || quote !== 'USDT' || market.status !== 'TRADING' || market.contractType !== 'PERPETUAL') return [];
+    return [{
+      symbol: `${pair}.P`,
+      displaySymbol: `${pair}.P`,
+      providerSymbol: pair,
+      name: `${base} / USDT Perpetual`,
+      category: 'Crypto Perpetual',
+      marketClass: 'crypto',
+      exchange: 'BINANCE Futures',
+      instrumentType: 'perpetual',
+      quoteCurrency: 'USDT',
+      aliases: [base, pair, `${pair}.P`, `${base}/USDT perpetual`],
+      verified: true,
+      matchType: 'binance'
+    }];
+  });
+  return [...spot, ...futures];
+};
+
+const yahooSearchCandidates = async (query: string): Promise<SymbolSearchCandidate[]> => {
+  const payload = await fetchJson<{ quotes?: any[] }>(
+    `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=20&newsCount=0`,
+    3_500,
+    { 'User-Agent': 'Mozilla/5.0 (compatible; MarketScanner360/1.0)' }
+  );
+  return (payload?.quotes || []).flatMap<SymbolSearchCandidate>(quote => {
+    if (!quote?.symbol) return [];
+    const providerSymbol = String(quote.symbol).toUpperCase();
+    const quoteType = String(quote.quoteType || '').toUpperCase();
+    let marketClass: SymbolSearchCandidate['marketClass'] = 'stocks';
+    let instrumentType: SymbolSearchCandidate['instrumentType'] = 'equity';
+    let category = quote.sectorDisp || quote.industryDisp || quote.typeDisp || 'Equity';
+    let symbol = providerSymbol;
+    let quoteCurrency = 'USD';
+    if (quoteType === 'CRYPTOCURRENCY') {
+      marketClass = 'crypto';
+      instrumentType = 'spot';
+      category = 'Crypto Spot';
+      const cryptoPair = providerSymbol.match(/^(.+?)-(USD|USDT|USDC)$/);
+      if (cryptoPair) {
+        symbol = cryptoPair[1];
+        quoteCurrency = cryptoPair[2];
+      }
+    } else if (quoteType === 'CURRENCY') {
+      marketClass = 'forex';
+      instrumentType = 'forex';
+      category = 'Forex Pair';
+    } else if (quoteType === 'ETF') {
+      instrumentType = 'etf';
+      category = quote.typeDisp || 'ETF';
+    } else if (quoteType === 'INDEX') {
+      marketClass = 'macro';
+      instrumentType = 'index';
+      category = 'Index';
+    } else if (quoteType === 'COMMODITY' || quoteType === 'FUTURE') {
+      marketClass = 'metals';
+      category = 'Commodity';
+    }
+    return [{
+      symbol,
+      displaySymbol: providerSymbol,
+      providerSymbol,
+      name: quote.shortname || quote.longname || providerSymbol,
+      category,
+      marketClass,
+      exchange: quote.exchDisp || quote.exchange || 'GLOBAL',
+      instrumentType,
+      quoteCurrency,
+      aliases: [providerSymbol, quote.shortname, quote.longname].filter(Boolean),
+      verified: true,
+      matchType: 'yahoo'
+    }];
+  });
+};
+
+const coinGeckoSearchCandidates = async (query: string): Promise<SymbolSearchCandidate[]> => {
+  const payload = await fetchJson<{ coins?: Array<{
+    id?: string;
+    name?: string;
+    symbol?: string;
+    market_cap_rank?: number | null;
+  }> }>(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(query)}`, 3_500);
+  return (payload?.coins || []).slice(0, 25).flatMap<SymbolSearchCandidate>(coin => {
+    const symbol = String(coin.symbol || '').toUpperCase();
+    if (!symbol || !coin.name || !coin.id) return [];
+    return [{
+      symbol,
+      displaySymbol: symbol,
+      name: coin.name,
+      category: 'Crypto Asset',
+      marketClass: 'crypto',
+      exchange: 'COINGECKO',
+      instrumentType: 'spot',
+      quoteCurrency: 'USD',
+      aliases: [coin.id, coin.name, symbol],
+      coinGeckoId: coin.id,
+      rank: coin.market_cap_rank || undefined,
+      verified: true,
+      matchType: 'coingecko'
+    }];
+  });
+};
+
 scannerRouter.get('/search', async (req, res) => {
   try {
     const rawQuery = (req.query.q as string || '').trim();
-    if (!rawQuery) {
-      return res.json([]);
+    if (!rawQuery) return res.json([]);
+    const cacheKey = rawQuery.toLowerCase();
+    const cached = searchResponseCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return res.json(cached.payload);
+
+    const localCandidates = catalogToSearchCandidates(TRADING_360_ASSETS);
+    const [binance, yahoo, coinGecko] = await Promise.all([
+      binanceSearchCandidates(),
+      yahooSearchCandidates(rawQuery),
+      coinGeckoSearchCandidates(rawQuery)
+    ]);
+    const candidates = [...localCandidates, ...binance, ...yahoo, ...coinGecko];
+    let results = rankSymbolSearchCandidates(rawQuery, candidates, 60);
+
+    // A direct result is a last-resort attempt, never an invented stock. It is
+    // only shown when no verified provider/catalog candidate matched.
+    if (!results.length) {
+      const parsed = parseSymbolSearchQuery(rawQuery);
+      if (/^[A-Z0-9.^=-]{1,24}$/.test(parsed.text.toUpperCase())) {
+        const directSymbol = parsed.perpetual ? `${parsed.compact}.P` : parsed.compact;
+        results = rankSymbolSearchCandidates(rawQuery, [{
+          symbol: directSymbol,
+          displaySymbol: parsed.text.toUpperCase(),
+          providerSymbol: parsed.compact,
+          name: `${parsed.text.toUpperCase()} · instrument direct neverificat`,
+          category: 'Direct symbol',
+          marketClass: parsed.quote || parsed.perpetual ? 'crypto' : 'unknown',
+          exchange: parsed.exchange || 'TRADINGVIEW',
+          instrumentType: parsed.perpetual ? 'perpetual' : undefined,
+          quoteCurrency: parsed.quote,
+          verified: false,
+          matchType: 'direct'
+        }], 1).map(result => ({ ...result, matchReason: 'direct' as const }));
+      }
     }
 
-    const cleanQ = rawQuery.replace(/^[$#]/, '').trim();
-    const cleanQLower = cleanQ.toLowerCase();
     const appState = AppState.getInstance();
-    const latestRows = await appState.refreshSignals('1w');
-
-    const results: Array<{
-      symbol: string;
-      name: string;
-      category: string;
-      marketClass: string;
-      exchange: string;
-      instrumentType?: string;
-      price: number;
-      change24h: number;
-      changeYtd: number;
-      moneyLineScore: number;
-      tier: string;
-      matchType: 'local' | 'yahoo' | 'custom';
-    }> = [];
-
-    const seenSymbols = new Set<string>();
-
-    // 1. Search Local High-Speed Catalog
-    for (const asset of TRADING_360_ASSETS) {
-      const sym = asset.symbol.toUpperCase();
-      const symLower = sym.toLowerCase();
-      const nameLower = asset.name.toLowerCase();
-      const catLower = asset.category.toLowerCase();
-      const aliasesLower = (asset.aliases || []).map(a => a.toLowerCase());
-
-      const isMatch = 
-        symLower === cleanQLower ||
-        symLower.startsWith(cleanQLower) ||
-        nameLower.includes(cleanQLower) ||
-        catLower.includes(cleanQLower) ||
-        aliasesLower.some(al => al.includes(cleanQLower) || cleanQLower.includes(al));
-
-      if (isMatch && !seenSymbols.has(sym)) {
-        seenSymbols.add(sym);
-        const live = latestRows.find(r => r.symbol.toUpperCase() === sym);
-        results.push({
-          symbol: asset.symbol,
-          name: asset.name,
-          category: asset.category,
-          marketClass: asset.marketClass || 'crypto',
-          exchange: asset.exchange || (asset.marketClass === 'stocks' ? 'NASDAQ/NYSE' : (asset.marketClass === 'crypto' ? 'BINANCE' : 'GLOBAL')),
-          instrumentType: asset.instrumentType,
-          price: live?.price || 0,
-          change24h: live?.change24h || 0,
-          changeYtd: live?.changeYtd || 0,
-          moneyLineScore: live?.moneyLineScore || 0,
-          tier: live?.tier || 'Neutral',
-          matchType: 'local'
-        });
-      }
-    }
-
-    // 2. Discover matching Binance USDT-M perpetuals. The `.P` suffix is an
-    // app/TradingView-safe identity, so a perpetual never replaces a spot
-    // coin, stock or ETF that happens to share the same ticker.
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2800);
-      const futuresRes = await fetch('https://fapi.binance.com/fapi/v1/exchangeInfo', {
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-
-      if (futuresRes.ok) {
-        const data = await futuresRes.json() as { symbols?: Array<{
-          symbol?: string;
-          baseAsset?: string;
-          quoteAsset?: string;
-          contractType?: string;
-          status?: string;
-        }> };
-        const normalizedQuery = cleanQ.toUpperCase().replace(/[^A-Z0-9]/g, '');
-        for (const market of data.symbols || []) {
-          const pair = String(market.symbol || '').toUpperCase();
-          const base = String(market.baseAsset || '').toUpperCase();
-          if (
-            !pair ||
-            market.quoteAsset !== 'USDT' ||
-            market.contractType !== 'PERPETUAL' ||
-            market.status !== 'TRADING' ||
-            !(pair.includes(normalizedQuery) || base.includes(normalizedQuery))
-          ) continue;
-
-          const appSymbol = `${pair}.P`;
-          if (seenSymbols.has(appSymbol)) continue;
-          seenSymbols.add(appSymbol);
-          results.push({
-            symbol: appSymbol,
-            name: `${base} / USDT Perpetual`,
-            category: 'Infrastructure',
-            marketClass: 'crypto',
-            exchange: 'BINANCE Futures',
-            instrumentType: 'perpetual',
-            price: 0,
-            change24h: 0,
-            changeYtd: 0,
-            moneyLineScore: 0,
-            tier: 'Neutral',
-            matchType: 'custom'
-          });
-          if (results.filter(result => result.instrumentType === 'perpetual').length >= 8) break;
-        }
-      }
-    } catch {}
-
-    // 3. Query Global Yahoo Finance Public Search (TradingView-style global coverage)
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2800);
-      const yahooUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(cleanQ)}&quotesCount=10&newsCount=0`;
-      
-      const yahooRes = await fetch(yahooUrl, {
-        signal: controller.signal,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-      });
-      clearTimeout(timeoutId);
-
-      if (yahooRes.ok) {
-        const yahooData = await yahooRes.json() as any;
-        const quotes = yahooData?.quotes || [];
-
-        for (const q of quotes) {
-          if (!q.symbol) continue;
-          let sym = q.symbol.toUpperCase();
-          // Normalize crypto pairs like BTC-USD -> BTC if not present
-          if (q.quoteType === 'CRYPTOCURRENCY' && sym.endsWith('-USD')) {
-            const baseCrypto = sym.replace('-USD', '');
-            if (!seenSymbols.has(baseCrypto)) {
-              sym = baseCrypto;
-            }
-          }
-
-          if (seenSymbols.has(sym)) continue;
-          seenSymbols.add(sym);
-
-          let marketClass = 'stocks';
-          let category = q.sectorDisp || q.industryDisp || q.typeDisp || 'Equities';
-
-          if (q.quoteType === 'CRYPTOCURRENCY') {
-            marketClass = 'crypto';
-            category = 'Crypto Token';
-          } else if (q.quoteType === 'CURRENCY') {
-            marketClass = 'forex';
-            category = 'Forex Pair';
-          } else if (q.quoteType === 'COMMODITY') {
-            marketClass = 'metals';
-            category = 'Commodity';
-          } else if (q.quoteType === 'ETF') {
-            marketClass = 'stocks';
-            category = 'ETF Fund';
-          } else if (q.quoteType === 'INDEX') {
-            marketClass = 'macro';
-            category = 'Index';
-          }
-
-          const live = latestRows.find(r => r.symbol.toUpperCase() === sym);
-
-          results.push({
-            symbol: sym,
-            name: q.shortname || q.longname || q.symbol,
-            category,
-            marketClass,
-            exchange: q.exchDisp || q.exchange || 'GLOBAL',
-            price: live?.price || 0,
-            change24h: live?.change24h || 0,
-            changeYtd: live?.changeYtd || 0,
-            moneyLineScore: live?.moneyLineScore || 0,
-            tier: live?.tier || 'Neutral',
-            matchType: 'yahoo'
-          });
-        }
-      }
-    } catch (e) {}
-
-    // 4. Guarantee Direct Custom TradingView Fallback (User can always open ANY ticker directly)
-    const upperTicker = cleanQ.toUpperCase();
-    if (!seenSymbols.has(upperTicker) && upperTicker.length >= 2 && upperTicker.length <= 10) {
-      results.push({
-        symbol: upperTicker,
-        name: `${upperTicker} (TradingView & MoneyLine)`,
-        category: 'Direct Asset Search',
-        marketClass: 'stocks',
-        exchange: 'TRADINGVIEW',
-        price: 0,
-        change24h: 0,
-        changeYtd: 0,
-        moneyLineScore: 0,
-        tier: 'Active',
-        matchType: 'custom'
-      });
-    }
-
-    res.json(results);
+    const enriched = results.map(result => {
+      const signal = appState.cachedSignals.get(`${result.symbol}_1w`);
+      return {
+        ...result,
+        price: result.price || 0,
+        change24h: result.change24h || 0,
+        changeYtd: result.changeYtd || 0,
+        moneyLineScore: signal?.score || result.moneyLineScore || 0,
+        tier: signal?.tier || result.tier || 'Neutral'
+      };
+    });
+    searchResponseCache.set(cacheKey, { payload: enriched, expiresAt: Date.now() + 30_000 });
+    res.set('Cache-Control', 'private, max-age=15');
+    res.json(enriched);
   } catch (err: any) {
     res.status(500).json({ error: 'Search failed', details: err.message });
   }
@@ -341,8 +368,10 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       : undefined;
     const appState = AppState.getInstance();
 
-    let assetInfo = TRADING_360_ASSETS.find(a => a.symbol === symbol);
-    if (requestedMarketClass === 'crypto') {
+    let assetInfo = TRADING_360_ASSETS.find(asset =>
+      asset.symbol === symbol && (!requestedMarketClass || asset.marketClass === requestedMarketClass)
+    );
+    if (!assetInfo && requestedMarketClass === 'crypto' && !/\.P$/i.test(symbol)) {
       const liveCryptoAsset = (await appState.marketData.getTopCryptoAssets(80))
         .find(asset => asset.symbol.toUpperCase() === symbol);
       assetInfo = liveCryptoAsset || {
@@ -358,6 +387,27 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
         instrumentType: 'spot',
         marketDataSource: 'binance_spot'
       };
+    }
+    if (!assetInfo && requestedMarketClass === 'stocks') {
+      const yahooCandidates = await yahooSearchCandidates(symbol);
+      const exactStock = rankSymbolSearchCandidates(symbol, yahooCandidates, 20)
+        .find(candidate => candidate.marketClass === 'stocks' && candidate.isExact);
+      if (exactStock) {
+        assetInfo = {
+          symbol,
+          name: exactStock.name,
+          category: 'Tech Stock',
+          marketClass: 'stocks',
+          quoteCurrency: exactStock.quoteCurrency || 'USD',
+          aliases: [symbol.toLowerCase(), exactStock.name.toLowerCase()],
+          rank: exactStock.rank || 999,
+          decimals: 2,
+          exchange: exactStock.exchange,
+          instrumentType: exactStock.instrumentType || 'equity',
+          marketDataSource: 'public_stock',
+          providerSymbol: exactStock.providerSymbol || symbol
+        } satisfies AssetInfo;
+      }
     }
     // Dynamic Top 50 assets do not all exist in the hand-curated catalog.
     // Preserve their verified crypto class when opening a deep-dive/chart.

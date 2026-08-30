@@ -9,3 +9,4 @@ export * from './types/backtest.js';
 export * from './types/macro.js';
 export * from './constants/assets.js';
 export * from './constants/scoring.js';
+export * from './search/symbol-search.js';

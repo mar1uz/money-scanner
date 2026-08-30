@@ -14,16 +14,21 @@ import {
   CornerDownLeft,
   Loader2,
   Clock,
-  ExternalLink
+  BadgeCheck,
+  AlertTriangle
 } from 'lucide-react';
+import {
+  TRADING_360_ASSETS,
+  catalogToSearchCandidates,
+  rankSymbolSearchCandidates
+} from '@money-scanner/shared';
 import { AssetScannerRow } from '../types.js';
 import { searchUniversalAssets, SearchAssetItem } from '../services/api.js';
-import { buildSearchUniverse, performAISearchMatch } from '../services/ai-search.js';
 
 interface UniversalSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectAsset: (symbol: string) => void;
+  onSelectAsset: (asset: SearchAssetItem) => void;
   allAssets: AssetScannerRow[];
   watchlist: string[];
   onToggleWatchlist: (symbol: string) => void;
@@ -32,6 +37,7 @@ interface UniversalSearchModalProps {
 type MarketCategoryTab = 'ALL' | 'stocks' | 'crypto' | 'metals' | 'forex';
 
 const RECENT_SEARCHES_KEY = 'money_scanner_recent_searches_v2';
+const LOCAL_SEARCH_CANDIDATES = catalogToSearchCandidates(TRADING_360_ASSETS);
 
 export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
   isOpen,
@@ -85,12 +91,25 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
     }
   }, [isOpen]);
 
-  // Local semantic AI search for instant 0ms results
-  const searchUniverse = useMemo(() => buildSearchUniverse(allAssets), [allAssets]);
-  const localAIMatches = useMemo(() => {
+  // The same deterministic ranking engine runs locally for instant catalog
+  // matches and on the API for exchange/provider discovery.
+  const localMatches = useMemo<SearchAssetItem[]>(() => {
     if (!query.trim()) return [];
-    return performAISearchMatch(query, searchUniverse);
-  }, [query, searchUniverse]);
+    return rankSymbolSearchCandidates(query, LOCAL_SEARCH_CANDIDATES, 40).map(result => {
+      const live = allAssets.find(asset =>
+        asset.symbol.toUpperCase() === result.symbol.toUpperCase() &&
+        (!result.marketClass || asset.marketClass === result.marketClass)
+      );
+      return {
+        ...result,
+        price: live?.price || result.price || 0,
+        change24h: live?.change24h || result.change24h || 0,
+        changeYtd: live?.changeYtd || result.changeYtd || 0,
+        moneyLineScore: live?.moneyLineScore || result.moneyLineScore || 0,
+        tier: live?.tier || result.tier || 'Neutral'
+      };
+    });
+  }, [query, allAssets]);
 
   // Asynchronous remote universal symbol search (Yahoo Finance / Binance / Global)
   useEffect(() => {
@@ -101,77 +120,42 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
       return;
     }
 
+    const controller = new AbortController();
     setIsLoadingRemote(true);
     const timer = setTimeout(async () => {
       try {
-        const results = await searchUniversalAssets(q);
+        const results = await searchUniversalAssets(q, controller.signal);
         setRemoteResults(results);
       } catch (err) {
-        setRemoteResults([]);
+        if (!controller.signal.aborted) setRemoteResults([]);
       } finally {
-        setIsLoadingRemote(false);
+        if (!controller.signal.aborted) setIsLoadingRemote(false);
       }
     }, 180);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [query]);
 
-  // Combine and deduplicate local AI matches + remote results
+  // Preserve instrument identity. Identical text tickers on different markets
+  // are separate results, just as they are in TradingView symbol search.
   const unifiedResults: SearchAssetItem[] = useMemo(() => {
-    const q = query.trim();
-    if (!q) return [];
-
+    if (!query.trim()) return [];
     const map = new Map<string, SearchAssetItem>();
-
-    // 1. Add Local AI Matches first (high precision)
-    for (const local of localAIMatches) {
-      const sym = local.symbol.toUpperCase();
-      const live = allAssets.find(a => a.symbol.toUpperCase() === sym);
-      map.set(sym, {
-        symbol: local.symbol,
-        name: local.name,
-        category: local.category,
-        marketClass: (local.marketClass || live?.marketClass || (sym === 'XAU' || sym === 'XAG' || sym === 'OIL' ? 'metals' : (local.category.includes('Stock') || local.category.includes('Equity') ? 'stocks' : 'crypto'))),
-        exchange: local.exchange || (local.category.includes('Stock') ? 'NASDAQ/NYSE' : (local.category.includes('Crypto') ? 'BINANCE' : 'TVC')),
-        instrumentType: local.instrumentType,
-        price: local.price || live?.price || 0,
-        change24h: local.change24h || live?.change24h || 0,
-        changeYtd: live?.changeYtd || 0,
-        moneyLineScore: local.moneyLineScore || live?.moneyLineScore || 0,
-        tier: local.tier || live?.tier || 'Neutral',
-        matchType: 'local'
-      });
-    }
-
-    // 2. Add Remote / Yahoo Global Results
-    for (const rem of remoteResults) {
-      const sym = rem.symbol.toUpperCase();
-      if (!map.has(sym)) {
-        map.set(sym, rem);
-      } else {
-        const existing = map.get(sym)!;
-        if (rem.exchange && rem.exchange !== 'GLOBAL') {
-          existing.exchange = rem.exchange;
-        }
-      }
-    }
-
-    // 3. If user typed an exact ticker not yet in list, guarantee direct TradingView entry
-    const cleanUpper = q.replace(/^[$#]/, '').trim().toUpperCase();
-    if (!map.has(cleanUpper) && cleanUpper.length >= 2 && cleanUpper.length <= 12) {
-      map.set(cleanUpper, {
-        symbol: cleanUpper,
-        name: `${cleanUpper} (Direct TradingView Asset)`,
-        category: 'Global Market Ticker',
-        marketClass: 'stocks',
-        exchange: 'TRADINGVIEW',
-        price: 0,
-        change24h: 0,
-        changeYtd: 0,
-        moneyLineScore: 0,
-        tier: 'Active',
-        matchType: 'custom'
-      });
+    for (const local of localMatches) map.set(local.resultId, local);
+    for (const remote of remoteResults) {
+      const local = map.get(remote.resultId);
+      map.set(remote.resultId, local ? {
+        ...local,
+        ...remote,
+        price: remote.price || local.price,
+        change24h: remote.change24h || local.change24h,
+        changeYtd: remote.changeYtd || local.changeYtd,
+        moneyLineScore: remote.moneyLineScore || local.moneyLineScore,
+        tier: remote.tier === 'Neutral' ? local.tier : remote.tier
+      } : remote);
     }
 
     let list = Array.from(map.values());
@@ -179,16 +163,20 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
     // Filter by selected category tab
     if (selectedCategory !== 'ALL') {
       list = list.filter(item => {
-        if (selectedCategory === 'stocks') return item.marketClass === 'stocks' || item.category.toLowerCase().includes('stock') || item.category.toLowerCase().includes('tech');
+        if (selectedCategory === 'stocks') return item.marketClass === 'stocks';
         if (selectedCategory === 'crypto') return item.marketClass === 'crypto';
-        if (selectedCategory === 'metals') return item.marketClass === 'metals' || item.category.toLowerCase().includes('metal') || item.category.toLowerCase().includes('commodity') || item.category.toLowerCase().includes('gold') || item.category.toLowerCase().includes('oil');
-        if (selectedCategory === 'forex') return item.marketClass === 'forex' || item.marketClass === 'macro' || item.category.toLowerCase().includes('forex') || item.category.toLowerCase().includes('index') || item.category.toLowerCase().includes('dxy');
+        if (selectedCategory === 'metals') return item.marketClass === 'metals';
+        if (selectedCategory === 'forex') return item.marketClass === 'forex' || item.marketClass === 'macro';
         return true;
       });
     }
 
-    return list;
-  }, [query, localAIMatches, remoteResults, allAssets, selectedCategory]);
+    return list.sort((left, right) =>
+      right.matchScore - left.matchScore ||
+      Number(right.isExact) - Number(left.isExact) ||
+      (left.rank || Number.MAX_SAFE_INTEGER) - (right.rank || Number.MAX_SAFE_INTEGER)
+    ).slice(0, 60);
+  }, [query, localMatches, remoteResults, selectedCategory]);
 
   // Reset highlight index when results or query changes
   useEffect(() => {
@@ -213,19 +201,16 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
       e.preventDefault();
       if (unifiedResults.length > 0) {
         const target = unifiedResults[highlightedIndex] || unifiedResults[0];
-        handleSelect(target.symbol);
-      } else if (query.trim()) {
-        handleSelect(query.trim().replace(/^[$#]/, '').toUpperCase());
+        handleSelect(target);
       }
     } else if (e.key === 'Escape') {
       onClose();
     }
   };
 
-  const handleSelect = (symbol: string) => {
-    const sym = symbol.replace(/^[$#]/, '').trim().toUpperCase();
-    saveRecentSearch(sym);
-    onSelectAsset(sym);
+  const handleSelect = (asset: SearchAssetItem) => {
+    saveRecentSearch(asset.displaySymbol || asset.symbol);
+    onSelectAsset(asset);
     onClose();
   };
 
@@ -250,7 +235,7 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Caută orice asset mondial: ASML, NVDA, BTC, BABA, Aur, DXY..."
+            placeholder="Ticker, nume sau pereche: NVDA, BTCUSDT, NASDAQ:ASML..."
             className="w-full bg-transparent text-sm sm:text-base font-mono text-slate-100 placeholder-slate-500 focus:outline-none"
           />
 
@@ -350,16 +335,17 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
                 {unifiedResults.map((item, index) => {
                   const isHighlighted = highlightedIndex === index;
                   const isInWatchlist = watchlist.includes(item.symbol.toUpperCase());
+                  const visibleSymbol = item.displaySymbol || item.symbol;
                   const isPos = item.change24h >= 0;
                   const isBull = item.tier?.includes('Bullish');
                   const isBear = item.tier?.includes('Bearish');
 
                   return (
                     <div
-                      key={`${item.symbol}-${index}`}
+                      key={item.resultId}
                       ref={el => itemRefs.current[index] = el}
                       onMouseEnter={() => setHighlightedIndex(index)}
-                      onClick={() => handleSelect(item.symbol)}
+                      onClick={() => handleSelect(item)}
                       className={`p-3 rounded-xl transition-all flex items-center justify-between cursor-pointer group border-l-2 ${
                         isHighlighted
                           ? 'bg-cyan-500/15 border-cyan-400 text-slate-100 shadow-inner'
@@ -384,13 +370,13 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
                         </button>
 
                         <div className="w-10 h-10 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center font-mono font-bold text-xs text-cyan-300 shrink-0">
-                          ${item.symbol}
+                          ${visibleSymbol.slice(0, 8)}
                         </div>
 
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <span className="font-bold text-sm text-slate-100 group-hover:text-cyan-300 transition-colors font-mono">
-                              ${item.symbol}
+                              ${visibleSymbol}
                             </span>
                             <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-white/[0.04] text-slate-400 border border-white/[0.04]">
                               {item.exchange || 'GLOBAL'}
@@ -398,6 +384,15 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
                             {item.instrumentType && (
                               <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-violet-500/10 text-violet-300 border border-violet-500/20 uppercase">
                                 {item.instrumentType}
+                              </span>
+                            )}
+                            {item.verified !== false ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                                <BadgeCheck className="w-3 h-3" /> verificat
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                                <AlertTriangle className="w-3 h-3" /> direct
                               </span>
                             )}
                             <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-800/80 text-slate-400">
@@ -457,16 +452,18 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
               </div>
             ) : (
               <div className="p-8 text-center space-y-3 font-mono">
-                <p className="text-sm text-slate-300">
-                  Deschide direct activul <strong className="text-cyan-300">${query.toUpperCase()}</strong> pe TradingView
-                </p>
-                <button
-                  onClick={() => handleSelect(query.toUpperCase())}
-                  className="px-4 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs font-bold transition-all flex items-center gap-2 mx-auto"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  <span>Deschide Grafic & Analiză MoneyLine</span>
-                </button>
+                {isLoadingRemote ? (
+                  <>
+                    <Loader2 className="w-6 h-6 text-cyan-400 animate-spin mx-auto" />
+                    <p className="text-sm text-slate-400">Verific bursele și furnizorii de simboluri…</p>
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="w-6 h-6 text-amber-300 mx-auto" />
+                    <p className="text-sm text-slate-300">Nu am găsit un instrument pentru <strong className="text-cyan-300">{query}</strong>.</p>
+                    <p className="text-xs text-slate-500">Încearcă tickerul complet, perechea sau prefixul bursei, de exemplu BINANCE:BTCUSDT.</p>
+                  </>
+                )}
               </div>
             )
           ) : (
@@ -482,7 +479,10 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
                   {recentSearches.map(sym => (
                     <button
                       key={sym}
-                      onClick={() => handleSelect(sym)}
+                      onClick={() => {
+                        setQuery(sym);
+                        inputRef.current?.focus();
+                      }}
                       className="px-3 py-1.5 rounded-xl bg-white/[0.03] hover:bg-cyan-500/15 border border-white/[0.06] hover:border-cyan-500/30 text-xs font-mono text-slate-200 hover:text-cyan-300 transition-all flex items-center gap-1.5"
                     >
                       <span className="font-bold">${sym}</span>
@@ -495,7 +495,7 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
               <div>
                 <div className="flex items-center gap-1.5 text-xs font-mono text-slate-400 mb-2.5">
                   <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>EXEMPLE DE CĂUTARE INTELIGENTĂ</span>
+                  <span>EXEMPLE DE SYMBOL SEARCH</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
                   <button
@@ -521,22 +521,22 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
                   </button>
 
                   <button
-                    onClick={() => { setQuery('moneda vitalik'); inputRef.current?.focus(); }}
+                    onClick={() => { setQuery('BINANCE:ETHUSDT'); inputRef.current?.focus(); }}
                     className="p-2.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.04] text-left transition-all flex items-center justify-between group"
                   >
                     <div>
-                      <span className="font-bold text-slate-200 group-hover:text-cyan-300">"moneda vitalik"</span>
-                      <span className="block text-[11px] text-slate-500">Căutare semantică AI → Ethereum</span>
+                      <span className="font-bold text-slate-200 group-hover:text-cyan-300">BINANCE:ETHUSDT</span>
+                      <span className="block text-[11px] text-slate-500">Pereche spot pe bursă exactă</span>
                     </div>
                     <ArrowUpRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-cyan-300" />
                   </button>
 
                   <button
-                    onClick={() => { setQuery('aur spot'); inputRef.current?.focus(); }}
+                    onClick={() => { setQuery('gold'); inputRef.current?.focus(); }}
                     className="p-2.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.04] text-left transition-all flex items-center justify-between group"
                   >
                     <div>
-                      <span className="font-bold text-slate-200 group-hover:text-cyan-300">"aur spot"</span>
+                      <span className="font-bold text-slate-200 group-hover:text-cyan-300">gold</span>
                       <span className="block text-[11px] text-slate-500">Metal prețios refugiu ($XAU)</span>
                     </div>
                     <ArrowUpRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-cyan-300" />
@@ -554,7 +554,7 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
             <span>Selectează: <strong className="text-emerald-400">Enter ↵</strong></span>
             <span>Închide: <strong className="text-slate-400">ESC</strong></span>
           </div>
-          <span className="text-cyan-400/80">Agregator Universal TradingView</span>
+          <span className="text-cyan-400/80">Symbol Search · burse și perechi</span>
         </div>
       </div>
     </div>
