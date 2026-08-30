@@ -119,7 +119,11 @@ export class PublicStockMarketAdapter {
               ? aggregateCandles(candles, 8)
               : candles;
 
-          if (timeframeCandles.length >= 10) {
+          // Newly listed instruments can have fewer than ten weekly/monthly
+          // bars. Two valid OHLCV bars are enough to verify and render the
+          // chart; indicators that need more history remain unavailable until
+          // the required sample exists.
+          if (timeframeCandles.length >= 2) {
             this.healthMonitor.recordSuccess('YahooFinance', Date.now() - startTime);
             return timeframeCandles.slice(-limit);
           }

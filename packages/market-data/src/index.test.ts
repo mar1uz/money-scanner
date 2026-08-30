@@ -181,6 +181,37 @@ describe('Market Data Service & Normalization', () => {
     }
   });
 
+  it('keeps a newly listed verified stock usable with short monthly history', async () => {
+    const originalFetch = globalThis.fetch;
+    const now = Math.floor(Date.now() / 1000);
+    globalThis.fetch = (async () => Response.json({
+      chart: {
+        result: [{
+          timestamp: [now - 5_184_000, now - 2_592_000, now],
+          indicators: {
+            quote: [{
+              open: [135, 148, 156],
+              high: [151, 160, 169],
+              low: [132, 145, 153],
+              close: [148, 156, 165],
+              volume: [1_000_000, 1_200_000, 1_100_000]
+            }]
+          }
+        }],
+        error: null
+      }
+    })) as typeof fetch;
+
+    try {
+      const service = new MarketDataService();
+      const candles = await service.getCandles('SPCX', '1m', 10, 'stocks');
+      assert.equal(candles.length, 3);
+      assert.equal(candles.at(-1)?.close, 165);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('loads a closed historical page strictly before the requested timestamp', async () => {
     const originalFetch = globalThis.fetch;
     const before = Date.now() - 3_600_000;

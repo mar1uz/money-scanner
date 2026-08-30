@@ -437,16 +437,39 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
     }
 
     const resolvedMarketClass = requestedMarketClass || assetInfo.marketClass;
-    const activeCandles = await appState.marketData.getCandles(symbol, timeframe, 1500, resolvedMarketClass);
+    const loadCandles = async (requestedTimeframe: Timeframe, limit: number) => {
+      try {
+        return await appState.marketData.getCandles(
+          symbol,
+          requestedTimeframe,
+          requestedTimeframe === timeframe ? 1500 : limit,
+          resolvedMarketClass
+        );
+      } catch (error: any) {
+        // One unavailable interval (common for recent IPOs on 1M) must not
+        // invalidate the verified instrument or every other timeframe.
+        console.warn(`Candles unavailable for ${symbol} ${requestedTimeframe}: ${error?.message || error}`);
+        return [];
+      }
+    };
 
     const [candles1h, candles4h, candles8h, candles1d, candles1w, candles1m] = await Promise.all([
-      timeframe === '1h' ? activeCandles : appState.marketData.getCandles(symbol, '1h', 500, resolvedMarketClass),
-      timeframe === '4h' ? activeCandles : appState.marketData.getCandles(symbol, '4h', 500, resolvedMarketClass),
-      timeframe === '8h' ? activeCandles : appState.marketData.getCandles(symbol, '8h', 500, resolvedMarketClass),
-      timeframe === '1d' ? activeCandles : appState.marketData.getCandles(symbol, '1d', 500, resolvedMarketClass),
-      timeframe === '1w' ? activeCandles : appState.marketData.getCandles(symbol, '1w', 300, resolvedMarketClass),
-      timeframe === '1m' ? activeCandles : appState.marketData.getCandles(symbol, '1m', 150, resolvedMarketClass)
+      loadCandles('1h', 500),
+      loadCandles('4h', 500),
+      loadCandles('8h', 500),
+      loadCandles('1d', 500),
+      loadCandles('1w', 300),
+      loadCandles('1m', 150)
     ]);
+    const candlesByTimeframe: Record<Timeframe, typeof candles1h> = {
+      '1h': candles1h,
+      '4h': candles4h,
+      '8h': candles8h,
+      '1d': candles1d,
+      '1w': candles1w,
+      '1m': candles1m
+    };
+    const activeCandles = candlesByTimeframe[timeframe];
 
     const signal1h = appState.moneyLine.calculateLatest(symbol, '1h', candles1h);
     const signal4h = appState.moneyLine.calculateLatest(symbol, '4h', candles4h);

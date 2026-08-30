@@ -439,7 +439,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   };
 
   const isDominanceOrRatio = ['BTC.D', 'ETH.D', 'USDT.D', 'US10Y', 'US02Y', 'US30Y', 'US05Y'].includes(symbol.toUpperCase());
-  const isStockOrMetal = ['SPACEX', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'PLTR', 'AMD', 'MSTR', 'COIN', 'SPY', 'QQQ', 'XAU', 'XAG', 'OIL', 'COPPER', 'DXY', 'DYXY', 'VIX', 'EURUSD', 'GBPUSD', 'USDJPY', 'BRENT', 'NATGAS', 'SILVER', 'GOLD', 'PLATINUM', 'PALLADIUM', 'JPM', 'V', 'MA', 'LLY', 'XOM', 'BA'].includes(symbol.toUpperCase());
+  const isStockOrMetal = marketClass === 'stocks' || marketClass === 'metals' || ['SPACEX', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'PLTR', 'AMD', 'MSTR', 'COIN', 'SPY', 'QQQ', 'XAU', 'XAG', 'OIL', 'COPPER', 'DXY', 'DYXY', 'VIX', 'EURUSD', 'GBPUSD', 'USDJPY', 'BRENT', 'NATGAS', 'SILVER', 'GOLD', 'PLATINUM', 'PALLADIUM', 'JPM', 'V', 'MA', 'LLY', 'XOM', 'BA'].includes(symbol.toUpperCase());
   const quoteCurrency = isDominanceOrRatio ? '%' : (isStockOrMetal ? 'USD' : 'USDT');
   const tvSymbol = getTradingViewSymbol(symbol);
   const normalizedAlertMarketClass: 'crypto' | 'stocks' | 'metals' =

@@ -54,6 +54,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
 }) => {
   const [data, setData] = useState<AssetDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [alertSent, setAlertSent] = useState(false);
   const [activeInfoTab, setActiveInfoTab] = useState<InfoTab>('mtf');
   const [showFlipTooltip, setShowFlipTooltip] = useState(false);
@@ -65,13 +66,19 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
 
   const loadData = () => {
     setLoading(true);
+    setLoadError(null);
     fetchAssetDetail(symbol, timeframe, marketClass)
       .then(setData)
-      .catch(console.error)
+      .catch(error => {
+        console.error(error);
+        setData(null);
+        setLoadError('Instrumentul a fost găsit, dar datele de piață nu au putut fi încărcate momentan.');
+      })
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
+    setData(null);
     setHasMoreHistory(true);
     setLoadingOlderHistory(false);
     historyRequestActiveRef.current = false;
@@ -187,6 +194,26 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
       <div className="p-16 text-center text-slate-400 font-mono space-y-3">
         <Zap className="w-8 h-8 mx-auto animate-spin text-cyan-400" />
         <p className="text-sm">Loading {symbol}...</p>
+      </div>
+    );
+  }
+
+  if (!loading && !data) {
+    return (
+      <div className="p-6 sm:p-12 text-center font-mono space-y-4">
+        <AlertTriangle className="w-9 h-9 mx-auto text-amber-300" />
+        <div>
+          <h2 className="text-base font-bold text-slate-100">${symbol} · date indisponibile temporar</h2>
+          <p className="mt-2 text-sm text-slate-400">{loadError}</p>
+        </div>
+        <div className="flex items-center justify-center gap-3">
+          <button onClick={onBack} className="px-4 py-2 rounded-xl border border-white/[0.08] text-slate-300 hover:bg-white/[0.04]">
+            Înapoi
+          </button>
+          <button onClick={loadData} className="px-4 py-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20">
+            Reîncearcă
+          </button>
+        </div>
       </div>
     );
   }
