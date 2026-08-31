@@ -2,6 +2,9 @@ import {
   TelegramCommandPayload,
   TelegramFlipAlertPreferences,
   TelegramFlipTimeframe,
+  AssetMarketClass,
+  ScannerMarketClass,
+  Timeframe,
   MoneyLineSignal,
   MarketOverviewSummary,
   XTrendTopic,
@@ -30,6 +33,30 @@ export interface TelegramMarkdownResponse {
   reply_markup?: { inline_keyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>> };
 }
 
+export interface TelegramLiveScanInput {
+  mode: 'signals' | 'flips';
+  timeframe: Timeframe;
+  marketClass: ScannerMarketClass;
+  scannedAssets: number;
+  totalAssets: number;
+  errors: number;
+  signals: Array<{ signal: MoneyLineSignal; price: number; marketClass: AssetMarketClass }>;
+  flips: Array<{
+    symbol: string;
+    timeframe: TelegramFlipTimeframe;
+    marketClass: AssetMarketClass;
+    direction: 'BULLISH' | 'BEARISH';
+    currentPrice: number;
+    priorityScore: number;
+    rvol: number;
+  }>;
+}
+
+const telegramPrice = (value: number) => `$${value.toLocaleString('en-US', {
+  minimumFractionDigits: value < 1 ? 4 : 2,
+  maximumFractionDigits: value < 1 ? 8 : 4
+})}`;
+
 export class TelegramBotHandler {
   private botToken?: string;
   private defaultChatId?: string;
@@ -38,7 +65,8 @@ export class TelegramBotHandler {
 
   constructor(options: TelegramBotOptions = {}) {
     this.botToken = options.botToken || process.env.TELEGRAM_BOT_TOKEN;
-    this.defaultChatId = options.chatId || process.env.TELEGRAM_CHAT_ID;
+    const configuredChatId = options.chatId || process.env.TELEGRAM_CHAT_ID;
+    this.defaultChatId = configuredChatId?.trim();
     this.webhookSecret = options.webhookSecret || process.env.TELEGRAM_WEBHOOK_SECRET || 'money-scanner-secret';
     this.dashboardBaseUrl = options.dashboardBaseUrl || process.env.PUBLIC_BASE_URL || DEFAULT_MONEY_SCANNER_URL;
   }
@@ -233,6 +261,65 @@ export class TelegramBotHandler {
     };
   }
 
+  public buildLiveScanResponse(input: TelegramLiveScanInput): TelegramMarkdownResponse {
+    const scope = input.marketClass === 'ALL' ? 'TOATE PIEȚELE' : input.marketClass.toUpperCase();
+    const footer = [
+      ``,
+      `_Scanate ${input.scannedAssets}/${input.totalAssets} asseturi${input.errors ? ` · ${input.errors} indisponibile` : ''}._`,
+      `_Rezultat tehnic pe lumânări închise; nu reprezintă recomandare financiară._`
+    ];
+
+    if (input.mode === 'flips') {
+      const lines = [
+        `🔄 *FLIPURI MONEYLINE CONFIRMATE · ${input.timeframe.toUpperCase()}*`,
+        `_${scope} · scanare live_`,
+        ``
+      ];
+      if (!input.flips.length) {
+        lines.push(`Nu există flipuri confirmate pe ultima lumânare închisă pentru filtrul ales.`);
+      } else {
+        input.flips.slice(0, 10).forEach(flip => lines.push(
+          `${flip.direction === 'BULLISH' ? '🟢 ▲' : '🔴 ▼'} ${telegramAssetLink({
+            baseUrl: this.dashboardBaseUrl,
+            symbol: flip.symbol,
+            timeframe: flip.timeframe,
+            marketClass: flip.marketClass
+          })} · ${flip.direction === 'BULLISH' ? 'BULL FLIP' : 'BEAR FLIP'} · ${telegramPrice(flip.currentPrice)}`,
+          `Scor tehnic ${flip.priorityScore.toFixed(0)}/100 · RVOL ${flip.rvol.toFixed(2)}x`
+        ));
+        if (input.flips.length > 10) lines.push(`…și încă ${input.flips.length - 10} flipuri confirmate.`);
+      }
+      return { text: [...lines, ...footer].join('\n'), parse_mode: 'Markdown' };
+    }
+
+    const bulls = input.signals
+      .filter(row => row.signal.score >= 20)
+      .sort((left, right) => right.signal.score - left.signal.score)
+      .slice(0, 5);
+    const bears = input.signals
+      .filter(row => row.signal.score <= -20)
+      .sort((left, right) => left.signal.score - right.signal.score)
+      .slice(0, 5);
+    const signalLine = (row: TelegramLiveScanInput['signals'][number], emoji: string) =>
+      `${emoji} ${telegramAssetLink({
+        baseUrl: this.dashboardBaseUrl,
+        symbol: row.signal.symbol,
+        timeframe: row.signal.timeframe,
+        marketClass: row.marketClass
+      })} · ${row.signal.tier} · *${row.signal.score > 0 ? '+' : ''}${row.signal.score}* · RVOL ${row.signal.rawIndicators.rvol.toFixed(2)}x`;
+    const lines = [
+      `📡 *SEMNAL MONEYLINE LIVE · ${input.timeframe.toUpperCase()}*`,
+      `_${scope} · ordonat după scor_`,
+      ``,
+      `*🟢 CELE MAI PUTERNICE BULLISH:*`,
+      ...(bulls.length ? bulls.map(row => signalLine(row, '🟢')) : ['Niciun semnal peste +20.']),
+      ``,
+      `*🔴 CELE MAI PUTERNICE BEARISH:*`,
+      ...(bears.length ? bears.map(row => signalLine(row, '🔴')) : ['Niciun semnal sub −20.'])
+    ];
+    return { text: [...lines, ...footer].join('\n'), parse_mode: 'Markdown' };
+  }
+
   /**
    * Handles commands and produces formatted Markdown responses.
    */
@@ -255,7 +342,8 @@ export class TelegramBotHandler {
             `⚡ *MONEY SCANNER BOT* ⚡`,
             `Your real-time crypto market intelligence companion.\n`,
             `*Available Commands:*`,
-            `• \`/scan\` — View strongest bullish & bearish Money Line signals`,
+            `• \`/scan 4h\` — Scanează live semnalele pe timeframe-ul ales`,
+            `• \`/scan flips 1w\` — Caută flipuri confirmate în toate piețele`,
             `• \`/status <symbol>\` — Deep status on a specific asset (e.g. \`/status BTC\`)`,
             `• \`/trending\` — View top rising crypto topics & cashtags on X`,
             `• \`/news <symbol>\` — Recent breaking news and catalyst analysis`,

@@ -7,6 +7,7 @@ import { validateScheduledRequestToken } from '../services/scheduler-auth.js';
 export const telegramRouter = Router();
 
 const telegramFlipTimeframes = new Set<TelegramFlipTimeframe>(['4h', '8h', '1d', '1w']);
+const telegramScanTimeframes = new Set<Timeframe>(['1h', '4h', '8h', '1d', '1w']);
 
 const parseFlipTimeframeArgs = (args: string[]) => args.map(value => {
   const normalized = value.trim().toLowerCase();
@@ -14,6 +15,36 @@ const parseFlipTimeframeArgs = (args: string[]) => args.map(value => {
   if (normalized === 'daily' || normalized === 'day') return '1d';
   return normalized;
 });
+
+export const parseTelegramScanArgs = (args: string[]): {
+  mode: 'signals' | 'flips';
+  timeframe: Timeframe;
+  marketClass: 'ALL' | 'crypto' | 'stocks' | 'metals';
+} | undefined => {
+  let mode: 'signals' | 'flips' = 'signals';
+  let timeframe: Timeframe | undefined;
+  let marketClass: 'ALL' | 'crypto' | 'stocks' | 'metals' | undefined;
+  for (const rawValue of args) {
+    let value = rawValue.trim().toLowerCase();
+    if (value === 'weekly' || value === 'week') value = '1w';
+    if (value === 'daily' || value === 'day') value = '1d';
+    if (value === 'flip') value = 'flips';
+    if (value === 'flips') {
+      mode = 'flips';
+    } else if (telegramScanTimeframes.has(value as Timeframe) && !timeframe) {
+      timeframe = value as Timeframe;
+    } else if ((value === 'crypto' || value === 'stocks' || value === 'metals' || value === 'all') && !marketClass) {
+      marketClass = value === 'all' ? 'ALL' : value;
+    } else {
+      return undefined;
+    }
+  }
+  return {
+    mode,
+    timeframe: timeframe || (mode === 'flips' ? '1w' : '1h'),
+    marketClass: marketClass || (mode === 'flips' ? 'ALL' : 'crypto')
+  };
+};
 
 telegramRouter.post('/telegram/webhook', async (req, res) => {
   const appState = AppState.getInstance();
@@ -74,6 +105,54 @@ telegramRouter.post('/telegram/webhook', async (req, res) => {
     return res.json({ status: 'ignored' });
   }
   appState.telegramBot.registerChat(commandPayload.chatId);
+
+  if (commandPayload.command === 'scan') {
+    if (!appState.telegramBot.isOwnerUser(commandPayload.userId)) {
+      const delivered = await appState.telegramBot.sendMarkdown(
+        '🔒 Doar proprietarul botului poate porni scanări live.',
+        commandPayload.chatId
+      );
+      return res.json({ status: 'owner_required', delivered });
+    }
+    const options = parseTelegramScanArgs(commandPayload.args);
+    if (!options || (options.mode === 'flips' && options.timeframe === '1h')) {
+      const delivered = await appState.telegramBot.sendMarkdown(
+        '⚠️ Format invalid. Exemple: `/scan 4h`, `/scan 1d crypto`, `/scan 1w stocks`, `/scan flips 1w`, `/scan flips 4h metals`.',
+        commandPayload.chatId
+      );
+      return res.json({ status: 'invalid_scan_options', delivered });
+    }
+
+    await appState.telegramBot.sendMarkdown(
+      `⏳ Pornesc scanarea live: *${options.mode === 'flips' ? 'FLIPURI' : 'SEMNALE'} · ${options.timeframe.toUpperCase()} · ${options.marketClass === 'ALL' ? 'TOATE PIEȚELE' : options.marketClass.toUpperCase()}*.`,
+      commandPayload.chatId
+    );
+    try {
+      const result = await appState.scanTelegramMoneyLine(options.mode, options.timeframe, options.marketClass);
+      const response = appState.telegramBot.buildLiveScanResponse(result);
+      const delivered = await appState.telegramBot.sendMarkdown(response.text, commandPayload.chatId);
+      return res.json({
+        status: 'scan_complete',
+        delivered,
+        scan: {
+          mode: result.mode,
+          timeframe: result.timeframe,
+          marketClass: result.marketClass,
+          scannedAssets: result.scannedAssets,
+          totalAssets: result.totalAssets,
+          errors: result.errors,
+          matches: result.mode === 'flips' ? result.flips.length : result.signals.length
+        }
+      });
+    } catch (error) {
+      console.error('Telegram live scan failed:', error instanceof Error ? error.message : error);
+      const delivered = await appState.telegramBot.sendMarkdown(
+        `⚠️ Scanarea live a eșuat: ${error instanceof Error ? error.message : 'eroare necunoscută'}`,
+        commandPayload.chatId
+      );
+      return res.json({ status: 'scan_failed', delivered });
+    }
+  }
 
   if (commandPayload.command === 'subscribe' || commandPayload.command === 'unsubscribe') {
     if (!appState.telegramBot.isOwnerUser(commandPayload.userId)) {

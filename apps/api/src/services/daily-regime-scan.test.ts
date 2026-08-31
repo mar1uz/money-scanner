@@ -264,4 +264,39 @@ describe('Daily MoneyLine regime scan', () => {
     assert.ok(deliveries.find(delivery => delivery.chatId === '-200')?.message.includes('$BTC'));
     assert.equal(deliveries.find(delivery => delivery.chatId === '-200')?.message.includes('$ETH'), false);
   });
+
+  it('runs and briefly caches a live Telegram Money Line scan for the selected scope', async () => {
+    const state = new AppState();
+    (state.marketData as any).getTopCryptoAssets = async () => [
+      { symbol: 'BTC', name: 'Bitcoin', marketClass: 'crypto' },
+      { symbol: 'ETH', name: 'Ethereum', marketClass: 'crypto' }
+    ];
+    (state.marketData as any).getQuotesForAssets = async () => [
+      { symbol: 'BTC', price: 100 },
+      { symbol: 'ETH', price: 200 }
+    ];
+    let candleRequests = 0;
+    (state.marketData as any).getCandles = async () => {
+      candleRequests += 1;
+      return candles(100);
+    };
+    (state.moneyLine as any).calculateLatest = (symbol: string) => ({
+      symbol,
+      timeframe: '4h',
+      score: symbol === 'ETH' ? 70 : 35,
+      tier: 'Bullish',
+      previousTier: 'Neutral',
+      isTransition: true,
+      rawIndicators: { rvol: 1.2 }
+    });
+
+    const first = await state.scanTelegramMoneyLine('signals', '4h', 'crypto');
+    const second = await state.scanTelegramMoneyLine('signals', '4h', 'crypto');
+
+    assert.equal(first.totalAssets, 2);
+    assert.equal(first.scannedAssets, 2);
+    assert.deepEqual(first.signals.map(row => row.signal.symbol), ['ETH', 'BTC']);
+    assert.equal(second.completedAt, first.completedAt);
+    assert.equal(candleRequests, 2);
+  });
 });

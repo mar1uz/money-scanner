@@ -173,4 +173,50 @@ describe('Telegram Bot & Alert Dispatcher', () => {
     assert.equal(bot.isOwnerUser(command.userId), true);
     assert.equal(bot.isOwnerUser(999), false);
   });
+
+  it('sorts live scan results by score and renders confirmed flips separately', () => {
+    const bot = new TelegramBotHandler({ dashboardBaseUrl: 'https://scanner.example' });
+    const signal = (symbol: string, score: number): MoneyLineSignal => ({
+      symbol,
+      timeframe: '4h',
+      score,
+      tier: score > 0 ? 'Bullish' : 'Bearish',
+      previousTier: 'Neutral',
+      isTransition: true,
+      rawIndicators: {
+        ema20: 1, ema50: 1, ema200: 1, ema20Slope: 0, roc9: 0, roc21: 0,
+        macd: { line: 0, signal: 0, histogram: 0, histogramSlope: 0 },
+        rsi14: 50, rsiRegime: 'Neutral', rvol: 1.2, volumeMA20: 1, atr14: 1, atrPercent: 1
+      },
+      contributions: {
+        emaAlignmentScore: 0, emaSlopeScore: 0, rocScore: 0, macdScore: 0,
+        rsiScore: 0, rvolScore: 0, volatilityRegimeScore: 0, mtfConfirmationScore: 0
+      },
+      candleTimestamp: 1,
+      calculationTimestamp: 1,
+      version: 'test'
+    });
+    const signals = bot.buildLiveScanResponse({
+      mode: 'signals', timeframe: '4h', marketClass: 'crypto', scannedAssets: 3,
+      totalAssets: 3, errors: 0, flips: [],
+      signals: [
+        { signal: signal('BTC', 30), price: 1, marketClass: 'crypto' },
+        { signal: signal('ETH', 70), price: 1, marketClass: 'crypto' },
+        { signal: signal('SOL', -60), price: 1, marketClass: 'crypto' }
+      ]
+    });
+    assert.ok(signals.text.indexOf('$ETH') < signals.text.indexOf('$BTC'));
+    assert.ok(signals.text.includes('SEMNAL MONEYLINE LIVE · 4H'));
+
+    const flips = bot.buildLiveScanResponse({
+      mode: 'flips', timeframe: '1w', marketClass: 'ALL', scannedAssets: 3,
+      totalAssets: 3, errors: 0, signals: [],
+      flips: [{
+        symbol: 'ETH', timeframe: '1w', marketClass: 'crypto', direction: 'BULLISH',
+        currentPrice: 2500, priorityScore: 92, rvol: 1.5
+      }]
+    });
+    assert.ok(flips.text.includes('FLIPURI MONEYLINE CONFIRMATE · 1W'));
+    assert.ok(flips.text.includes('BULL FLIP'));
+  });
 });

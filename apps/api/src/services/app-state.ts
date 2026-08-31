@@ -89,6 +89,22 @@ export interface ManualAlertScanAssetInput {
   marketClass?: AssetMarketClass;
 }
 
+export interface TelegramMoneyLineScanResult {
+  mode: 'signals' | 'flips';
+  timeframe: Timeframe;
+  marketClass: ScannerMarketClass;
+  scannedAssets: number;
+  totalAssets: number;
+  errors: number;
+  completedAt: number;
+  signals: Array<{
+    signal: MoneyLineSignal;
+    price: number;
+    marketClass: AssetMarketClass;
+  }>;
+  flips: FlipCandidate[];
+}
+
 export type FlipCandidateDirection = 'BULLISH' | 'BEARISH';
 export type FlipCandidateStatus = 'CONFIRMED' | 'AWAITING_CLOSE' | 'VERY_CLOSE' | 'APPROACHING';
 
@@ -180,6 +196,8 @@ export class AppState {
   private strategySetups: StrategyAlertSnapshot[] = [];
   private telegramFlipPreferences = new Map<string, TelegramFlipAlertPreferences>();
   private telegramFlipSubscriptions = new Map<string, TelegramFlipAlertSubscription>();
+  private telegramScanCache = new Map<string, { expiresAt: number; result: TelegramMoneyLineScanResult }>();
+  private telegramScanPromises = new Map<string, Promise<TelegramMoneyLineScanResult>>();
   private dailyRegimeScanStatus: DailyRegimeScanStatus = {
     enabled: true,
     schedule: '5 */4 * * *',
@@ -357,6 +375,127 @@ export class AppState {
     if (selected.has(action)) selected.delete(action);
     else selected.add(action);
     return this.setTelegramFlipAlertPreferences(chatId, selected.size > 0, Array.from(selected));
+  }
+
+  public scanTelegramMoneyLine(
+    mode: 'signals' | 'flips',
+    timeframe: Timeframe,
+    marketClass: ScannerMarketClass
+  ): Promise<TelegramMoneyLineScanResult> {
+    if (mode === 'flips' && !TELEGRAM_FLIP_TIMEFRAMES.includes(timeframe as TelegramFlipTimeframe)) {
+      return Promise.reject(new Error('Scanarea de flipuri acceptă numai 4H, 8H, 1D sau 1W.'));
+    }
+    const key = `${mode}:${timeframe}:${marketClass}`;
+    const cached = this.telegramScanCache.get(key);
+    if (cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.result);
+    const running = this.telegramScanPromises.get(key);
+    if (running) return running;
+
+    const promise = this.executeTelegramMoneyLineScan(mode, timeframe, marketClass)
+      .then(result => {
+        this.telegramScanCache.set(key, { expiresAt: Date.now() + 60_000, result });
+        return result;
+      })
+      .finally(() => this.telegramScanPromises.delete(key));
+    this.telegramScanPromises.set(key, promise);
+    return promise;
+  }
+
+  private async executeTelegramMoneyLineScan(
+    mode: 'signals' | 'flips',
+    timeframe: Timeframe,
+    marketClass: ScannerMarketClass
+  ): Promise<TelegramMoneyLineScanResult> {
+    const liveCrypto = marketClass === 'crypto' || marketClass === 'ALL'
+      ? await this.marketData.getTopCryptoAssets(50)
+      : [];
+    const catalogAssets = marketClass === 'ALL'
+      ? [...getScannerAssets('stocks'), ...getScannerAssets('metals')]
+      : marketClass === 'stocks' || marketClass === 'metals'
+        ? getScannerAssets(marketClass)
+        : [];
+    const uniqueAssets = new Map<string, (typeof liveCrypto)[number]>();
+    [...liveCrypto, ...catalogAssets].forEach(asset => {
+      if (asset.marketClass === 'crypto' || asset.marketClass === 'stocks' || asset.marketClass === 'metals') {
+        uniqueAssets.set(`${asset.marketClass}:${asset.symbol}`, asset);
+      }
+    });
+    const assets = Array.from(uniqueAssets.values());
+    const quoteByAsset = new Map<string, number>();
+    await Promise.all((['crypto', 'stocks', 'metals'] as AssetMarketClass[]).map(async assetClass => {
+      const classAssets = assets.filter(asset => asset.marketClass === assetClass);
+      if (!classAssets.length) return;
+      const quotes = await this.marketData.getQuotesForAssets(classAssets);
+      quotes.forEach(quote => quoteByAsset.set(`${assetClass}:${quote.symbol}`, quote.price));
+    }));
+
+    const signals: TelegramMoneyLineScanResult['signals'] = [];
+    const flips: FlipCandidate[] = [];
+    let errors = 0;
+    let scannedAssets = 0;
+    const concurrency = 6;
+    for (let index = 0; index < assets.length; index += concurrency) {
+      const settled = await Promise.allSettled(assets.slice(index, index + concurrency).map(async asset => {
+        const assetClass = asset.marketClass as AssetMarketClass;
+        const candleLimit = timeframe === '1w' ? 300 : 360;
+        const targetCandles = await this.marketData.getCandles(asset.symbol, timeframe, candleLimit, assetClass);
+        const closedTarget = targetCandles
+          .filter(candle => candle.isClosed !== false)
+          .sort((left, right) => left.timestamp - right.timestamp);
+        if (closedTarget.length < 50) throw new Error(`Insufficient ${timeframe} candles for ${asset.symbol}`);
+        const signal = this.moneyLine.calculateLatest(asset.symbol, timeframe, closedTarget);
+        if (!signal) throw new Error(`No Money Line signal for ${asset.symbol}`);
+        this.cachedSignals.set(`${asset.symbol}_${timeframe}`, signal);
+        const price = quoteByAsset.get(`${assetClass}:${asset.symbol}`) || closedTarget[closedTarget.length - 1].close;
+
+        if (mode === 'signals') {
+          return { signal, price, marketClass: assetClass };
+        }
+
+        const weeklyCandles = timeframe === '1w'
+          ? closedTarget
+          : (await this.marketData.getCandles(asset.symbol, '1w', 300, assetClass))
+            .filter(candle => candle.isClosed !== false)
+            .sort((left, right) => left.timestamp - right.timestamp);
+        const weeklySignal = this.moneyLine.calculateLatest(asset.symbol, '1w', weeklyCandles);
+        if (!weeklySignal) throw new Error(`No Weekly context for ${asset.symbol}`);
+        const candidate = this.calculateFlipCandidate(
+          asset.symbol,
+          assetClass,
+          timeframe as TelegramFlipTimeframe,
+          closedTarget,
+          price,
+          weeklySignal.tier,
+          weeklySignal.score
+        );
+        return candidate;
+      }));
+
+      settled.forEach(result => {
+        if (result.status === 'rejected') {
+          errors += 1;
+          return;
+        }
+        scannedAssets += 1;
+        if (!result.value) return;
+        if ('signal' in result.value) signals.push(result.value);
+        else if (result.value.status === 'CONFIRMED') flips.push(result.value);
+      });
+    }
+
+    signals.sort((left, right) => Math.abs(right.signal.score) - Math.abs(left.signal.score));
+    flips.sort((left, right) => right.priorityScore - left.priorityScore || right.candleTimestamp - left.candleTimestamp);
+    return {
+      mode,
+      timeframe,
+      marketClass,
+      scannedAssets,
+      totalAssets: assets.length,
+      errors,
+      completedAt: Date.now(),
+      signals,
+      flips
+    };
   }
 
   public listBullishCloudAlerts(userId: string) {
