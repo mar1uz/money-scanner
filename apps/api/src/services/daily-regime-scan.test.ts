@@ -169,4 +169,55 @@ describe('Daily MoneyLine regime scan', () => {
 
     assert.deepEqual(ranked.map((candidate: any) => candidate.id), ['btc-4h', 'sol-4h', 'btc-1d']);
   });
+
+  it('delivers only the Telegram flip timeframes selected for the chat', async () => {
+    const state = new AppState();
+    const timestamp = Date.now();
+    const base = {
+      marketClass: 'crypto',
+      direction: 'BULLISH',
+      status: 'CONFIRMED',
+      currentPrice: 100,
+      triggerPrice: 99,
+      distancePercent: 0,
+      distanceAtr: 0,
+      priorityScore: 88,
+      atr: 4,
+      rvol: 1.2,
+      moneyLineTier: 'Bullish',
+      moneyLineScore: 35,
+      weeklyTier: 'Bullish',
+      weeklyScore: 35,
+      sma50: 95,
+      sma200: 90,
+      weeklyAligned: true,
+      sma50Aligned: true,
+      sma200Aligned: true,
+      candleTimestamp: timestamp,
+      scannedAt: timestamp
+    };
+    (state.telegramBot as any).getDefaultChatId = () => '67890';
+    (state as any).getTelegramFlipAlertPreferences = async () => ({
+      chatId: '67890',
+      enabled: true,
+      timeframes: ['1w'],
+      updatedAt: timestamp
+    });
+    let sentMessage = '';
+    (state.telegramBot as any).sendMarkdown = async (message: string) => {
+      sentMessage = message;
+      return true;
+    };
+
+    await (state as any).publishConfirmedFlipEvents([
+      { ...base, id: 'btc-4h', symbol: 'BTC', timeframe: '4h' },
+      { ...base, id: 'eth-1w', symbol: 'ETH', timeframe: '1w' }
+    ], 'scheduled/full scan');
+
+    assert.ok(sentMessage.includes('$ETH'));
+    assert.ok(sentMessage.includes('1W'));
+    assert.equal(sentMessage.includes('$BTC'), false);
+    assert.equal(state.alertHistory.find(alert => alert.symbol === 'ETH')?.isDelivered, true);
+    assert.equal(state.alertHistory.find(alert => alert.symbol === 'BTC')?.isDelivered, false);
+  });
 });

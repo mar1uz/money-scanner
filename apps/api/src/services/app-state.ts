@@ -11,7 +11,9 @@ import {
   DispatchedAlert,
   ScannerMarketClass,
   AssetMarketClass,
-  StrategyAlertSnapshot
+  StrategyAlertSnapshot,
+  TelegramFlipAlertPreferences,
+  TelegramFlipTimeframe
 } from '@money-scanner/shared';
 import { MarketDataService } from '@money-scanner/market-data';
 import {
@@ -145,6 +147,8 @@ const formatAlertPrice = (value: number) => `$${value.toLocaleString('en-US', {
   maximumFractionDigits: value < 1 ? 8 : 4
 })}`;
 
+const TELEGRAM_FLIP_TIMEFRAMES: TelegramFlipTimeframe[] = ['4h', '8h', '1d', '1w'];
+
 const tradePlanActionLabel = (action: BullishTradePlan['action']) => {
   if (action === 'READY') return '🟢 SETUP VALID — intrare numai în zona indicată';
   if (action === 'WAIT_RETEST') return '🟡 AȘTEAPTĂ RETEST — nu urmări prețul';
@@ -173,6 +177,7 @@ export class AppState {
   private flipCandidates: FlipCandidate[] = [];
   private confirmedFlips: FlipCandidate[] = [];
   private strategySetups: StrategyAlertSnapshot[] = [];
+  private telegramFlipPreferences = new Map<string, TelegramFlipAlertPreferences>();
   private dailyRegimeScanStatus: DailyRegimeScanStatus = {
     enabled: true,
     schedule: '5 */4 * * *',
@@ -198,6 +203,89 @@ export class AppState {
 
   public getBullishCloudAlert(userId: string, symbol: string, timeframe: Timeframe) {
     return this.bullishCloudAlerts.get(this.bullishAlertId(userId, symbol, timeframe));
+  }
+
+  private telegramFlipPreferencesDocument(chatId: string) {
+    const app = getApps()[0] || initializeApp({
+      projectId: process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || 'gen-lang-client-0610749770'
+    });
+    return getFirestore(app, 'money-scanner-360').collection('telegram-flip-alert-preferences').doc(chatId);
+  }
+
+  public async getTelegramFlipAlertPreferences(
+    chatId: string | number,
+    forceRefresh = false
+  ): Promise<TelegramFlipAlertPreferences> {
+    const normalizedChatId = String(chatId);
+    const cached = this.telegramFlipPreferences.get(normalizedChatId);
+    if (cached && !forceRefresh) return { ...cached, timeframes: [...cached.timeframes] };
+
+    try {
+      const snapshot = await this.telegramFlipPreferencesDocument(normalizedChatId).get();
+      if (snapshot.exists) {
+        const stored = snapshot.data() as Partial<TelegramFlipAlertPreferences>;
+        const timeframes = TELEGRAM_FLIP_TIMEFRAMES.filter(timeframe => stored.timeframes?.includes(timeframe));
+        const preferences: TelegramFlipAlertPreferences = {
+          chatId: normalizedChatId,
+          enabled: stored.enabled !== false && timeframes.length > 0,
+          timeframes: timeframes.length ? timeframes : [...TELEGRAM_FLIP_TIMEFRAMES],
+          updatedAt: Number(stored.updatedAt) || Date.now()
+        };
+        this.telegramFlipPreferences.set(normalizedChatId, preferences);
+        return { ...preferences, timeframes: [...preferences.timeframes] };
+      }
+    } catch (error) {
+      console.warn('Telegram flip preferences restore failed:', error instanceof Error ? error.message : error);
+      if (cached) return { ...cached, timeframes: [...cached.timeframes] };
+    }
+
+    const defaults: TelegramFlipAlertPreferences = {
+      chatId: normalizedChatId,
+      enabled: true,
+      timeframes: [...TELEGRAM_FLIP_TIMEFRAMES],
+      updatedAt: Date.now()
+    };
+    this.telegramFlipPreferences.set(normalizedChatId, defaults);
+    return { ...defaults, timeframes: [...defaults.timeframes] };
+  }
+
+  public async setTelegramFlipAlertPreferences(
+    chatId: string | number,
+    enabled: boolean,
+    requestedTimeframes: TelegramFlipTimeframe[]
+  ): Promise<TelegramFlipAlertPreferences> {
+    const normalizedChatId = String(chatId);
+    const timeframes = TELEGRAM_FLIP_TIMEFRAMES.filter(timeframe => requestedTimeframes.includes(timeframe));
+    const preferences: TelegramFlipAlertPreferences = {
+      chatId: normalizedChatId,
+      enabled: enabled && timeframes.length > 0,
+      timeframes: timeframes.length ? timeframes : [...TELEGRAM_FLIP_TIMEFRAMES],
+      updatedAt: Date.now()
+    };
+    await this.telegramFlipPreferencesDocument(normalizedChatId).set(preferences);
+    this.telegramFlipPreferences.set(normalizedChatId, preferences);
+    return { ...preferences, timeframes: [...preferences.timeframes] };
+  }
+
+  public async toggleTelegramFlipAlertPreference(
+    chatId: string | number,
+    action: TelegramFlipTimeframe | 'all' | 'off'
+  ): Promise<TelegramFlipAlertPreferences> {
+    const current = await this.getTelegramFlipAlertPreferences(chatId, true);
+    if (action === 'all') {
+      return this.setTelegramFlipAlertPreferences(chatId, true, TELEGRAM_FLIP_TIMEFRAMES);
+    }
+    if (action === 'off') {
+      return this.setTelegramFlipAlertPreferences(chatId, false, current.timeframes);
+    }
+
+    const selected = new Set(current.timeframes);
+    if (!current.enabled || selected.size === TELEGRAM_FLIP_TIMEFRAMES.length) {
+      return this.setTelegramFlipAlertPreferences(chatId, true, [action]);
+    }
+    if (selected.has(action)) selected.delete(action);
+    else selected.add(action);
+    return this.setTelegramFlipAlertPreferences(chatId, selected.size > 0, Array.from(selected));
   }
 
   public listBullishCloudAlerts(userId: string) {
@@ -1202,17 +1290,24 @@ export class AppState {
     });
     if (!fresh.length) return 0;
     const ranked = fresh.slice().sort((left, right) => right.priorityScore - left.priorityScore);
+    const telegramChatId = this.telegramBot.getDefaultChatId();
+    const telegramPreferences = telegramChatId
+      ? await this.getTelegramFlipAlertPreferences(telegramChatId, true)
+      : undefined;
+    const telegramRanked = telegramPreferences?.enabled
+      ? ranked.filter(candidate => telegramPreferences.timeframes.includes(candidate.timeframe))
+      : [];
     const dashboardBaseUrl = process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app';
     const lines = [
-      `🔔 *${ranked.length} FLIP${ranked.length === 1 ? '' : 'URI'} MONEYLINE CONFIRMAT${ranked.length === 1 ? '' : 'E'}*`,
+      `🔔 *${telegramRanked.length} FLIP${telegramRanked.length === 1 ? '' : 'URI'} MONEYLINE CONFIRMAT${telegramRanked.length === 1 ? '' : 'E'}*`,
       `_Numai lumânări închise · ordonate după scorul setupului_`,
       ''
     ];
-    ranked.slice(0, 10).forEach(candidate => lines.push(
+    telegramRanked.slice(0, 10).forEach(candidate => lines.push(
       `${candidate.direction === 'BULLISH' ? '🟢 ▲' : '🔴 ▼'} ${telegramAssetLink({ baseUrl: dashboardBaseUrl, symbol: candidate.symbol, timeframe: candidate.timeframe, marketClass: candidate.marketClass })} ${candidate.timeframe.toUpperCase()} · ${candidate.priorityScore.toFixed(0)}/100 · ${candidate.marketClass.toUpperCase()} · ${formatAlertPrice(candidate.currentPrice)}`,
       `ML1W ${candidate.weeklyTier} (${candidate.weeklyScore > 0 ? '+' : ''}${candidate.weeklyScore}) · RVOL ${candidate.rvol.toFixed(2)}x · SMA50 ${candidate.sma50Aligned ? 'aliniat' : 'neconfirmat'} · SMA200 ${candidate.sma200Aligned ? 'aliniat' : 'neconfirmat'}`
     ));
-    if (ranked.length > 10) lines.push(`…și încă ${ranked.length - 10} flipuri în pagina Alerte.`);
+    if (telegramRanked.length > 10) lines.push(`…și încă ${telegramRanked.length - 10} flipuri în pagina Alerte.`);
     lines.push(
       '',
       `_Scorul este un clasament tehnic, nu o probabilitate de profit._`,
@@ -1220,10 +1315,18 @@ export class AppState {
       `🔗 [Deschide Top Alerte](${dashboardBaseUrl})`
     );
     const message = lines.join('\n');
-    const delivered = await this.telegramBot.sendMarkdown(message);
+    const delivered = telegramRanked.length > 0
+      ? await this.telegramBot.sendMarkdown(message)
+      : false;
+    const deliveredKeys = new Set(telegramRanked.map(candidate =>
+      `${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}:${candidate.direction}:${candidate.candleTimestamp}`
+    ));
 
     ranked.forEach(candidate => {
       const idempotencyKey = `flip:${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}:${candidate.direction}:${candidate.candleTimestamp}`;
+      const telegramSelected = deliveredKeys.has(
+        `${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}:${candidate.direction}:${candidate.candleTimestamp}`
+      );
       this.alertHistory.unshift({
         id: `flip_${candidate.candleTimestamp}_${candidate.symbol}_${candidate.timeframe}_${candidate.direction}`,
         idempotencyKey,
@@ -1231,7 +1334,9 @@ export class AppState {
         symbol: candidate.symbol,
         type: 'MoneyLineTransition',
         title: `${candidate.direction === 'BULLISH' ? 'Bull' : 'Bear'} flip ${candidate.timeframe.toUpperCase()} confirmat — ${candidate.symbol}`,
-        message,
+        message: telegramSelected
+          ? message
+          : `Flip ${candidate.direction.toLowerCase()} ${candidate.timeframe.toUpperCase()} confirmat. Telegram filtrat conform preferințelor; evenimentul rămâne disponibil în pagina Alerte.`,
         timeframe: candidate.timeframe,
         price: candidate.currentPrice,
         tier: candidate.moneyLineTier,
@@ -1244,7 +1349,7 @@ export class AppState {
           timeframe: candidate.timeframe,
           marketClass: candidate.marketClass
         }),
-        isDelivered: delivered
+        isDelivered: telegramSelected && delivered
       });
     });
     if (this.alertHistory.length > 250) this.alertHistory.splice(250);

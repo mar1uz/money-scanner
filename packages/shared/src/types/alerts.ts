@@ -26,6 +26,15 @@ export interface AlertRule {
   lastTriggeredAt?: number;
 }
 
+export type TelegramFlipTimeframe = '4h' | '8h' | '1d' | '1w';
+
+export interface TelegramFlipAlertPreferences {
+  chatId: string;
+  enabled: boolean;
+  timeframes: TelegramFlipTimeframe[];
+  updatedAt: number;
+}
+
 export interface DispatchedAlert {
   id: string;
   idempotencyKey: string;
@@ -135,7 +144,7 @@ export interface AlertTradePlanSnapshot {
 }
 
 export interface TelegramCommandPayload {
-  command: 'start' | 'scan' | 'status' | 'trending' | 'news' | 'watch' | 'unwatch' | 'alerts' | 'brief' | 'help';
+  command: 'start' | 'scan' | 'status' | 'trending' | 'news' | 'watch' | 'unwatch' | 'alerts' | 'flipalerts' | 'brief' | 'help';
   args: string[];
   chatId: number;
   userId: number;

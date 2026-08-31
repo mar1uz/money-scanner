@@ -108,4 +108,51 @@ describe('Telegram Bot & Alert Dispatcher', () => {
     const response = bot.handleCommand(parsed, { topSignals: [] });
     assert.ok(response.text.includes('MONEY SCANNER TOP SIGNALS'));
   });
+
+  it('parses flip alert commands and Telegram timeframe button callbacks', () => {
+    const bot = new TelegramBotHandler({ webhookSecret: 'test-secret-123' });
+    const command = bot.parseUpdate({
+      message: {
+        message_id: 43,
+        from: { id: 12345 },
+        chat: { id: 67890 },
+        text: '/flipalerts 1w'
+      }
+    });
+    assert.ok(command !== null);
+    assert.equal(command.command, 'flipalerts');
+    assert.deepEqual(command.args, ['1w']);
+
+    const callback = bot.parseCallbackQuery({
+      callback_query: {
+        id: 'callback-1',
+        from: { id: 12345 },
+        data: 'flip_tf:1w',
+        message: { message_id: 44, chat: { id: 67890 } }
+      }
+    });
+    assert.ok(callback !== null);
+    assert.equal(callback.action, '1w');
+    assert.equal(callback.chatId, 67890);
+    assert.equal(bot.parseCallbackQuery({ callback_query: { data: 'other:1w' } }), null);
+  });
+
+  it('renders the saved Weekly-only flip alert selection', () => {
+    const bot = new TelegramBotHandler();
+    const response = bot.buildFlipAlertSettingsResponse({
+      chatId: '67890',
+      enabled: true,
+      timeframes: ['1w'],
+      updatedAt: Date.now()
+    });
+    assert.ok(response.text.includes('Timeframe-uri active:* 1W'));
+    assert.equal(response.reply_markup?.inline_keyboard[1][1].text, '✅ 1W');
+    assert.equal(response.reply_markup?.inline_keyboard[0][0].text, '▫️ 4H');
+  });
+
+  it('does not let an incoming command redirect the configured alert chat', () => {
+    const bot = new TelegramBotHandler({ chatId: 'configured-chat' });
+    bot.registerChat('different-chat');
+    assert.equal(bot.getDefaultChatId(), 'configured-chat');
+  });
 });

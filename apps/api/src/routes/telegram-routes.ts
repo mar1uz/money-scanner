@@ -1,10 +1,19 @@
 import { Router } from 'express';
 import { AppState } from '../services/app-state.js';
-import { AssetMarketClass, MoneyLineSignal, Timeframe } from '@money-scanner/shared';
+import { AssetMarketClass, MoneyLineSignal, TelegramFlipTimeframe, Timeframe } from '@money-scanner/shared';
 import { AuthenticatedRequest, validateCsrfToken } from '../middleware/auth.js';
 import { validateScheduledRequestToken } from '../services/scheduler-auth.js';
 
 export const telegramRouter = Router();
+
+const telegramFlipTimeframes = new Set<TelegramFlipTimeframe>(['4h', '8h', '1d', '1w']);
+
+const parseFlipTimeframeArgs = (args: string[]) => args.map(value => {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'weekly' || normalized === 'week') return '1w';
+  if (normalized === 'daily' || normalized === 'day') return '1d';
+  return normalized;
+});
 
 telegramRouter.post('/telegram/webhook', async (req, res) => {
   const appState = AppState.getInstance();
@@ -19,11 +28,93 @@ telegramRouter.post('/telegram/webhook', async (req, res) => {
     return res.json({ status: socialPostIngested ? 'social_post_ingested' : 'social_post_ignored' });
   }
 
+  const callbackPayload = appState.telegramBot.parseCallbackQuery(req.body);
+  if (callbackPayload) {
+    appState.telegramBot.registerChat(callbackPayload.chatId);
+    await appState.telegramBot.answerCallbackQuery(callbackPayload.callbackQueryId);
+    try {
+      const preferences = await appState.toggleTelegramFlipAlertPreference(
+        callbackPayload.chatId,
+        callbackPayload.action
+      );
+      const response = appState.telegramBot.buildFlipAlertSettingsResponse(preferences, 'Preferințele au fost salvate.');
+      let delivered = await appState.telegramBot.editMarkdown(
+        response.text,
+        callbackPayload.chatId,
+        callbackPayload.messageId,
+        response.reply_markup
+      );
+      if (!delivered) {
+        delivered = await appState.telegramBot.sendMarkdown(
+          response.text,
+          callbackPayload.chatId,
+          response.reply_markup
+        );
+      }
+      return res.json({ status: 'ok', delivered, preferences });
+    } catch (error) {
+      console.error('Telegram flip preference update failed:', error instanceof Error ? error.message : error);
+      await appState.telegramBot.sendMarkdown(
+        '⚠️ Preferința nu a putut fi salvată momentan. Încearcă din nou cu `/alerts`.',
+        callbackPayload.chatId
+      );
+      return res.json({ status: 'preference_update_failed' });
+    }
+  }
+
   const commandPayload = appState.telegramBot.parseUpdate(req.body);
   if (!commandPayload) {
     return res.json({ status: 'ignored' });
   }
   appState.telegramBot.registerChat(commandPayload.chatId);
+
+  if (commandPayload.command === 'alerts' || commandPayload.command === 'flipalerts') {
+    try {
+      const args = parseFlipTimeframeArgs(commandPayload.args);
+      let notice: string | undefined;
+      let preferences;
+      if (!args.length) {
+        preferences = await appState.getTelegramFlipAlertPreferences(commandPayload.chatId, true);
+      } else if (args.length === 1 && args[0] === 'all') {
+        preferences = await appState.setTelegramFlipAlertPreferences(
+          commandPayload.chatId,
+          true,
+          ['4h', '8h', '1d', '1w']
+        );
+        notice = 'Toate timeframe-urile au fost activate.';
+      } else if (args.length === 1 && (args[0] === 'off' || args[0] === 'stop')) {
+        const current = await appState.getTelegramFlipAlertPreferences(commandPayload.chatId, true);
+        preferences = await appState.setTelegramFlipAlertPreferences(
+          commandPayload.chatId,
+          false,
+          current.timeframes
+        );
+        notice = 'Alertele Telegram pentru flipuri au fost oprite.';
+      } else if (args.every(value => telegramFlipTimeframes.has(value as TelegramFlipTimeframe))) {
+        const timeframes = Array.from(new Set(args)) as TelegramFlipTimeframe[];
+        preferences = await appState.setTelegramFlipAlertPreferences(commandPayload.chatId, true, timeframes);
+        notice = `Timeframe-uri activate: ${timeframes.map(value => value.toUpperCase()).join(', ')}.`;
+      } else {
+        preferences = await appState.getTelegramFlipAlertPreferences(commandPayload.chatId, true);
+        notice = 'Opțiune invalidă. Folosește 4h, 8h, 1d, 1w, all sau off.';
+      }
+
+      const response = appState.telegramBot.buildFlipAlertSettingsResponse(preferences, notice);
+      const delivered = await appState.telegramBot.sendMarkdown(
+        response.text,
+        commandPayload.chatId,
+        response.reply_markup
+      );
+      return res.json({ status: 'ok', delivered, preferences });
+    } catch (error) {
+      console.error('Telegram flip settings command failed:', error instanceof Error ? error.message : error);
+      const delivered = await appState.telegramBot.sendMarkdown(
+        '⚠️ Setările alertelor nu sunt disponibile momentan. Încearcă din nou.',
+        commandPayload.chatId
+      );
+      return res.json({ status: 'preference_command_failed', delivered });
+    }
+  }
 
   const overview = await appState.marketData.getMarketOverview();
   const topSignals = Array.from(appState.cachedSignals.values());
@@ -36,7 +127,11 @@ telegramRouter.post('/telegram/webhook', async (req, res) => {
     trends,
     news
   });
-  const delivered = await appState.telegramBot.sendMarkdown(response.text, commandPayload.chatId);
+  const delivered = await appState.telegramBot.sendMarkdown(
+    response.text,
+    commandPayload.chatId,
+    response.reply_markup
+  );
 
   res.json({
     status: 'ok',

@@ -1,5 +1,7 @@
 import {
   TelegramCommandPayload,
+  TelegramFlipAlertPreferences,
+  TelegramFlipTimeframe,
   MoneyLineSignal,
   MarketOverviewSummary,
   XTrendTopic,
@@ -12,6 +14,20 @@ export interface TelegramBotOptions {
   chatId?: string;
   webhookSecret?: string;
   dashboardBaseUrl?: string;
+}
+
+export interface TelegramCallbackPayload {
+  callbackQueryId: string;
+  action: TelegramFlipTimeframe | 'all' | 'off';
+  chatId: number;
+  userId: number;
+  messageId: number;
+}
+
+export interface TelegramMarkdownResponse {
+  text: string;
+  parse_mode: 'Markdown';
+  reply_markup?: { inline_keyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>> };
 }
 
 export class TelegramBotHandler {
@@ -28,7 +44,13 @@ export class TelegramBotHandler {
   }
 
   public registerChat(chatId: string | number) {
-    this.defaultChatId = String(chatId);
+    // Keep the configured delivery destination stable. Incoming bot commands
+    // may come from other chats and must not redirect scheduled alerts.
+    if (!this.defaultChatId) this.defaultChatId = String(chatId);
+  }
+
+  public getDefaultChatId() {
+    return this.defaultChatId;
   }
 
   public getDeliveryConfiguration() {
@@ -40,7 +62,7 @@ export class TelegramBotHandler {
   }
 
   /** Sends a real Telegram message; tokens are never returned or logged. */
-  public async sendMarkdown(text: string, chatId?: string | number): Promise<boolean> {
+  public async sendMarkdown(text: string, chatId?: string | number, replyMarkup?: unknown): Promise<boolean> {
     const destination = chatId === undefined ? this.defaultChatId : String(chatId);
     if (!this.botToken || !destination) return false;
 
@@ -52,7 +74,8 @@ export class TelegramBotHandler {
           chat_id: destination,
           text,
           parse_mode: 'Markdown',
-          disable_web_page_preview: true
+          disable_web_page_preview: true,
+          ...(replyMarkup ? { reply_markup: replyMarkup } : {})
         })
       });
       if (!response.ok) {
@@ -63,6 +86,48 @@ export class TelegramBotHandler {
       return true;
     } catch (error) {
       console.error('Telegram delivery failed:', error instanceof Error ? error.message : error);
+      return false;
+    }
+  }
+
+  public async editMarkdown(
+    text: string,
+    chatId: string | number,
+    messageId: number,
+    replyMarkup?: unknown
+  ): Promise<boolean> {
+    if (!this.botToken) return false;
+    try {
+      const response = await fetch(`https://api.telegram.org/bot${this.botToken}/editMessageText`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: String(chatId),
+          message_id: messageId,
+          text,
+          parse_mode: 'Markdown',
+          disable_web_page_preview: true,
+          ...(replyMarkup ? { reply_markup: replyMarkup } : {})
+        })
+      });
+      return response.ok;
+    } catch (error) {
+      console.error('Telegram message edit failed:', error instanceof Error ? error.message : error);
+      return false;
+    }
+  }
+
+  public async answerCallbackQuery(callbackQueryId: string, text?: string): Promise<boolean> {
+    if (!this.botToken) return false;
+    try {
+      const response = await fetch(`https://api.telegram.org/bot${this.botToken}/answerCallbackQuery`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callback_query_id: callbackQueryId, ...(text ? { text } : {}) })
+      });
+      return response.ok;
+    } catch (error) {
+      console.error('Telegram callback acknowledgement failed:', error instanceof Error ? error.message : error);
       return false;
     }
   }
@@ -90,7 +155,7 @@ export class TelegramBotHandler {
     const args = parts.slice(1);
 
     const validCommands: TelegramCommandPayload['command'][] = [
-      'start', 'scan', 'status', 'trending', 'news', 'watch', 'unwatch', 'alerts', 'brief', 'help'
+      'start', 'scan', 'status', 'trending', 'news', 'watch', 'unwatch', 'alerts', 'flipalerts', 'brief', 'help'
     ];
 
     if (!validCommands.includes(commandRaw as any)) {
@@ -104,6 +169,61 @@ export class TelegramBotHandler {
       userId: msg.from.id,
       username: msg.from.username,
       messageId: msg.message_id
+    };
+  }
+
+  public parseCallbackQuery(body: any): TelegramCallbackPayload | null {
+    const query = body?.callback_query;
+    const match = typeof query?.data === 'string'
+      ? query.data.match(/^flip_tf:(4h|8h|1d|1w|all|off)$/)
+      : null;
+    if (!query?.id || !query?.message?.chat?.id || !query?.message?.message_id || !match) return null;
+    return {
+      callbackQueryId: String(query.id),
+      action: match[1] as TelegramCallbackPayload['action'],
+      chatId: Number(query.message.chat.id),
+      userId: Number(query.from?.id || 0),
+      messageId: Number(query.message.message_id)
+    };
+  }
+
+  public buildFlipAlertSettingsResponse(
+    preferences: TelegramFlipAlertPreferences,
+    notice?: string
+  ): TelegramMarkdownResponse {
+    const selected = new Set(preferences.timeframes);
+    const mark = (timeframe: TelegramFlipTimeframe, label: string) =>
+      `${preferences.enabled && selected.has(timeframe) ? '✅' : '▫️'} ${label}`;
+    const activeLabel = preferences.enabled
+      ? preferences.timeframes.map(timeframe => timeframe.toUpperCase()).join(', ')
+      : 'Oprite';
+    return {
+      text: [
+        `🔔 *ALERTE FLIP MONEYLINE*`,
+        notice ? `_${notice}_` : '',
+        ``,
+        `*Timeframe-uri active:* ${activeLabel || 'Niciunul'}`,
+        `Primești numai flipuri confirmate pe lumânări închise. Setarea filtrează Telegramul; pagina Alerte păstrează toate timeframe-urile.`,
+        ``,
+        `Comandă rapidă: \`/flipalerts 1w\`, \`/flipalerts 4h 1d\`, \`/flipalerts all\` sau \`/flipalerts off\`.`
+      ].filter(Boolean).join('\n'),
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: mark('4h', '4H'), callback_data: 'flip_tf:4h' },
+            { text: mark('8h', '8H'), callback_data: 'flip_tf:8h' }
+          ],
+          [
+            { text: mark('1d', '1D'), callback_data: 'flip_tf:1d' },
+            { text: mark('1w', '1W'), callback_data: 'flip_tf:1w' }
+          ],
+          [
+            { text: selected.size === 4 && preferences.enabled ? '✅ Toate' : '☑️ Toate', callback_data: 'flip_tf:all' },
+            { text: preferences.enabled ? '🔕 Oprește' : '🔕 Oprite', callback_data: 'flip_tf:off' }
+          ]
+        ]
+      }
     };
   }
 
@@ -135,7 +255,8 @@ export class TelegramBotHandler {
             `• \`/news <symbol>\` — Recent breaking news and catalyst analysis`,
             `• \`/brief\` — Latest AI market regime executive briefing`,
             `• \`/watch <symbol>\` — Add asset to your private watchlist`,
-            `• \`/alerts\` — View and configure active alert triggers\n`,
+            `• \`/alerts\` — Selectează timeframe-urile alertelor de flip`,
+            `• \`/flipalerts 1w\` — Primește numai flipuri Weekly\n`,
             `🌐 [Open Money Scanner Dashboard](${this.dashboardBaseUrl})`
           ].join('\n'),
           parse_mode: 'Markdown',
