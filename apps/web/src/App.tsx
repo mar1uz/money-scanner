@@ -39,9 +39,28 @@ interface AuthenticatedAppProps {
   onLogout: () => Promise<void>;
 }
 
+const VALID_TIMEFRAMES: Timeframe[] = ['1h', '4h', '8h', '1d', '1w', '1m'];
+const VALID_MARKET_CLASSES = ['crypto', 'stocks', 'metals'] as const;
+
+const readMoneyLineDeepLink = () => {
+  const params = new URLSearchParams(window.location.search);
+  const rawSymbol = (params.get('asset') || '').replace(/^[$#]/, '').trim().toUpperCase();
+  const rawTimeframe = params.get('timeframe')?.toLowerCase() as Timeframe | undefined;
+  const rawMarketClass = params.get('marketClass')?.toLowerCase();
+  return {
+    symbol: /^[A-Z0-9][A-Z0-9._:-]{0,30}$/.test(rawSymbol) ? rawSymbol : null,
+    timeframe: rawTimeframe && VALID_TIMEFRAMES.includes(rawTimeframe) ? rawTimeframe : undefined,
+    marketClass: VALID_MARKET_CLASSES.includes(rawMarketClass as typeof VALID_MARKET_CLASSES[number])
+      ? rawMarketClass as typeof VALID_MARKET_CLASSES[number]
+      : undefined,
+    coinGeckoId: params.get('coinGeckoId') || undefined
+  };
+};
+
 const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) => {
+  const initialDeepLink = useRef(readMoneyLineDeepLink()).current;
   const [activeTab, setActiveTab] = useState<AppTab>('market');
-  const [timeframe, setTimeframe] = useState<Timeframe>('1w');
+  const [timeframe, setTimeframe] = useState<Timeframe>(initialDeepLink.timeframe || '1w');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [selectedTier, setSelectedTier] = useState('ALL');
@@ -67,9 +86,9 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
     return ['BTC', 'ETH', 'SOL', 'SUI', 'FET'];
   });
 
-  const [selectedAssetSymbol, setSelectedAssetSymbol] = useState<string | null>(null);
-  const [selectedAssetMarketClass, setSelectedAssetMarketClass] = useState<AssetScannerRow['marketClass']>(undefined);
-  const [selectedAssetCoinGeckoId, setSelectedAssetCoinGeckoId] = useState<string | undefined>(undefined);
+  const [selectedAssetSymbol, setSelectedAssetSymbol] = useState<string | null>(initialDeepLink.symbol);
+  const [selectedAssetMarketClass, setSelectedAssetMarketClass] = useState<AssetScannerRow['marketClass']>(initialDeepLink.marketClass);
+  const [selectedAssetCoinGeckoId, setSelectedAssetCoinGeckoId] = useState<string | undefined>(initialDeepLink.coinGeckoId);
   const [selectedMarketCategory, setSelectedMarketCategory] = useState<'ALL' | 'crypto' | 'stocks' | 'metals'>('ALL');
   const [overview, setOverview] = useState<MarketOverviewSummary | null>(null);
   const [narratives, setNarratives] = useState<NarrativeSummary[]>([]);
@@ -128,6 +147,26 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
     } catch {}
   }, [sidebarCollapsed]);
 
+  // Keep a shareable URL in sync with the open Money Line chart. Telegram
+  // alerts use these same parameters, including the alert's exact timeframe.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (selectedAssetSymbol) {
+      url.searchParams.set('asset', selectedAssetSymbol);
+      url.searchParams.set('timeframe', timeframe);
+      if (selectedAssetMarketClass) url.searchParams.set('marketClass', selectedAssetMarketClass);
+      else url.searchParams.delete('marketClass');
+      if (selectedAssetCoinGeckoId) url.searchParams.set('coinGeckoId', selectedAssetCoinGeckoId);
+      else url.searchParams.delete('coinGeckoId');
+    } else {
+      url.searchParams.delete('asset');
+      url.searchParams.delete('timeframe');
+      url.searchParams.delete('marketClass');
+      url.searchParams.delete('coinGeckoId');
+    }
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }, [selectedAssetSymbol, selectedAssetMarketClass, selectedAssetCoinGeckoId, timeframe]);
+
   const toggleWatchlist = (symbol: string) => {
     const sym = symbol.toUpperCase();
     const isAdding = !watchlist.includes(sym);
@@ -159,11 +198,12 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
     selectedTimeframe?: Timeframe,
     coinGeckoId?: string
   ) => {
-    const verifiedClass = marketClass || scannerRows.find(row => row.symbol.toUpperCase() === symbol.toUpperCase())?.marketClass;
+    const normalizedSymbol = symbol.replace(/^[$#]/, '').trim().toUpperCase();
+    const verifiedClass = marketClass || scannerRows.find(row => row.symbol.toUpperCase() === normalizedSymbol)?.marketClass;
     if (selectedTimeframe) setTimeframe(selectedTimeframe);
     setSelectedAssetMarketClass(verifiedClass);
     setSelectedAssetCoinGeckoId(coinGeckoId);
-    setSelectedAssetSymbol(symbol);
+    setSelectedAssetSymbol(normalizedSymbol);
   };
 
   return (

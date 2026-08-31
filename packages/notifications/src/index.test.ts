@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { AlertDispatcher } from './alert-dispatcher.js';
 import { TelegramBotHandler } from './telegram-bot.js';
+import { buildMoneyLineAssetUrl, telegramAssetLink } from './asset-link.js';
 import { MoneyLineSignal } from '@money-scanner/shared';
 
 describe('Telegram Bot & Alert Dispatcher', () => {
@@ -49,6 +50,8 @@ describe('Telegram Bot & Alert Dispatcher', () => {
     assert.ok(alert1.message.includes('BULLISH FLIP CONFIRMAT'));
     assert.ok(alert1.message.includes('BUY / LONG'));
     assert.ok(alert1.message.includes('$BTC'));
+    assert.ok(alert1.message.includes('?asset=BTC&timeframe=1h'));
+    assert.equal(alert1.dashboardLink.includes('?asset=BTC&timeframe=1h'), true);
 
     // Repeating exact same signal should be blocked by idempotency
     const alert2 = dispatcher.evaluateSignal(dummySignal, 65200);
@@ -63,6 +66,23 @@ describe('Telegram Bot & Alert Dispatcher', () => {
     dispatcher.clearCooldown('BTC');
     const alert4 = dispatcher.evaluateSignal(newCandleSignal, 65400);
     assert.ok(alert4 !== null);
+  });
+
+  it('builds Telegram ticker links that deep-link to the exact Money Line chart', () => {
+    const url = buildMoneyLineAssetUrl({
+      baseUrl: 'https://scanner.example/app?source=telegram',
+      symbol: '$eth',
+      timeframe: '4h',
+      marketClass: 'crypto'
+    });
+    assert.equal(
+      url,
+      'https://scanner.example/app?source=telegram&asset=ETH&timeframe=4h&marketClass=crypto'
+    );
+    assert.equal(
+      telegramAssetLink({ baseUrl: 'https://scanner.example', symbol: 'ETH', timeframe: '4h', marketClass: 'crypto' }),
+      '[$ETH](https://scanner.example/?asset=ETH&timeframe=4h&marketClass=crypto)'
+    );
   });
 
   it('validates telegram webhook tokens and parses incoming commands', () => {

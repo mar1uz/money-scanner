@@ -5,6 +5,7 @@ import {
   XTrendTopic,
   NewsItem
 } from '@money-scanner/shared';
+import { DEFAULT_MONEY_SCANNER_URL, buildMoneyLineAssetUrl, telegramAssetLink } from './asset-link.js';
 
 export interface TelegramBotOptions {
   botToken?: string;
@@ -23,7 +24,7 @@ export class TelegramBotHandler {
     this.botToken = options.botToken || process.env.TELEGRAM_BOT_TOKEN;
     this.defaultChatId = options.chatId || process.env.TELEGRAM_CHAT_ID;
     this.webhookSecret = options.webhookSecret || process.env.TELEGRAM_WEBHOOK_SECRET || 'money-scanner-secret';
-    this.dashboardBaseUrl = options.dashboardBaseUrl || 'https://scanner.relayhub.no';
+    this.dashboardBaseUrl = options.dashboardBaseUrl || process.env.PUBLIC_BASE_URL || DEFAULT_MONEY_SCANNER_URL;
   }
 
   public registerChat(chatId: string | number) {
@@ -153,8 +154,8 @@ export class TelegramBotHandler {
         const bulls = signals.filter(s => s.score >= 20).slice(0, 5);
         const bears = signals.filter(s => s.score <= -20).slice(0, 5);
 
-        const bullLines = bulls.map(b => `🟢 *$${b.symbol}* (${b.tier}) — Score: *+${b.score}* | RVOL: ${b.rawIndicators.rvol}x`).join('\n') || 'None';
-        const bearLines = bears.map(b => `🔴 *$${b.symbol}* (${b.tier}) — Score: *${b.score}* | RVOL: ${b.rawIndicators.rvol}x`).join('\n') || 'None';
+        const bullLines = bulls.map(b => `🟢 ${telegramAssetLink({ baseUrl: this.dashboardBaseUrl, symbol: b.symbol, timeframe: b.timeframe })} (${b.tier}) — Score: *+${b.score}* | RVOL: ${b.rawIndicators.rvol}x`).join('\n') || 'None';
+        const bearLines = bears.map(b => `🔴 ${telegramAssetLink({ baseUrl: this.dashboardBaseUrl, symbol: b.symbol, timeframe: b.timeframe })} (${b.tier}) — Score: *${b.score}* | RVOL: ${b.rawIndicators.rvol}x`).join('\n') || 'None';
 
         return {
           text: [
@@ -185,7 +186,7 @@ export class TelegramBotHandler {
 
         return {
           text: [
-            `${emoji} *ASSET STATUS: $${symbol}* (${signal.timeframe.toUpperCase()})`,
+            `${emoji} *ASSET STATUS:* ${telegramAssetLink({ baseUrl: this.dashboardBaseUrl, symbol, timeframe: signal.timeframe })} (${signal.timeframe.toUpperCase()})`,
             `*Tier:* ${signal.tier}`,
             `*Money Line Score:* ${signal.score > 0 ? '+' : ''}${signal.score}/100`,
             `*EMA 20/50/200 Alignment:* ${signal.contributions.emaAlignmentScore > 0 ? 'Bullish' : 'Bearish'}`,
@@ -193,7 +194,7 @@ export class TelegramBotHandler {
             `*RSI (14):* ${signal.rawIndicators.rsi14} (${signal.rawIndicators.rsiRegime})`,
             `*Relative Volume (RVOL):* ${signal.rawIndicators.rvol}x`,
             `*ATR Volatility:* ${signal.rawIndicators.atrPercent}%`,
-            `\n🔗 [View Interactive Chart & AI Thesis](${this.dashboardBaseUrl}/assets/${symbol})`
+            `\n🔗 [View Money Line Chart](${buildMoneyLineAssetUrl({ baseUrl: this.dashboardBaseUrl, symbol, timeframe: signal.timeframe })})`
           ].join('\n'),
           parse_mode: 'Markdown'
         };

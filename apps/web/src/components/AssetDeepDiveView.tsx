@@ -405,6 +405,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
           candles={data?.candles || []}
           symbol={symbol}
           marketClass={marketClass || data?.info?.marketClass}
+          assetQuoteCurrency={data?.info?.quoteCurrency}
           timeframe={timeframe}
           onTimeframeChange={onTimeframeChange}
           onLoadMoreHistory={loadOlderHistory}

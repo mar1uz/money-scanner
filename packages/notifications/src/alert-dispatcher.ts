@@ -4,6 +4,7 @@ import {
   MoneyLineSignal,
   Timeframe
 } from '@money-scanner/shared';
+import { DEFAULT_MONEY_SCANNER_URL, buildMoneyLineAssetUrl, telegramAssetLink } from './asset-link.js';
 
 export interface AlertDispatchOptions {
   dashboardBaseUrl?: string;
@@ -17,7 +18,7 @@ export class AlertDispatcher {
   private defaultCooldownMs: number;
 
   constructor(options: AlertDispatchOptions = {}) {
-    this.dashboardBaseUrl = options.dashboardBaseUrl || 'https://scanner.relayhub.no';
+    this.dashboardBaseUrl = options.dashboardBaseUrl || process.env.PUBLIC_BASE_URL || DEFAULT_MONEY_SCANNER_URL;
     this.defaultCooldownMs = options.cooldownMs || 30 * 60 * 1000; // 30 mins
   }
 
@@ -58,16 +59,21 @@ export class AlertDispatcher {
       : signal.tier;
 
     const title = `${direction.emoji} ${direction.heading}: $${signal.symbol} (${signal.timeframe.toUpperCase()})`;
+    const assetUrl = buildMoneyLineAssetUrl({
+      baseUrl: this.dashboardBaseUrl,
+      symbol: signal.symbol,
+      timeframe: signal.timeframe
+    });
     const message = [
       `${direction.emoji} *${direction.heading}*`,
       `*${direction.action}*`,
-      `\n*$${signal.symbol}*  •  *${signal.timeframe.toUpperCase()}*`,
+      `\n${telegramAssetLink({ baseUrl: this.dashboardBaseUrl, symbol: signal.symbol, timeframe: signal.timeframe })}  •  *${signal.timeframe.toUpperCase()}*`,
       `*Preț confirmare:* $${currentPrice.toLocaleString()}`,
       `*Tranziție:* ${transitionText}`,
       `*Money Line Score:* ${signal.score > 0 ? '+' : ''}${signal.score}/100`,
       `*RVOL:* ${signal.rawIndicators.rvol}x | *RSI:* ${signal.rawIndicators.rsi14}`,
       `*EMA:* ${signal.rawIndicators.ema20Slope > 0 ? 'panta bullish ↗' : 'panta bearish ↘'}`,
-      `\n🔗 [Open Deep-Dive Analysis](${this.dashboardBaseUrl}/assets/${signal.symbol})`
+      `\n🔗 [Open Money Line Chart](${assetUrl})`
     ].join('\n');
 
     const alert: DispatchedAlert = {
@@ -84,7 +90,7 @@ export class AlertDispatcher {
       reason: `Money Line score reached ${signal.score} (${signal.tier}) on closed ${signal.timeframe} candle`,
       confidence: 0.9,
       timestamp: now,
-      dashboardLink: `${this.dashboardBaseUrl}/assets/${signal.symbol}`,
+      dashboardLink: assetUrl,
       isDelivered: true
     };
 

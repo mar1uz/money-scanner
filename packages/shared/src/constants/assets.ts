@@ -1932,6 +1932,22 @@ export const TRADING_360_ASSETS: AssetInfo[] = [
     decimals: 2
   },
   {
+    symbol: 'HYPE',
+    name: 'Hyperliquid',
+    category: 'Layer 1',
+    marketClass: 'crypto',
+    narratives: ['crypto_l1', 'crypto_defi'],
+    quoteCurrency: 'USDC',
+    aliases: ['hype', 'hyperliquid', 'hypercore', 'hyperliquid l1'],
+    marketCap: 28000000000,
+    rank: 131,
+    decimals: 3,
+    exchange: 'HYPERLIQUID',
+    instrumentType: 'spot',
+    marketDataSource: 'hyperliquid',
+    providerSymbol: 'HYPE'
+  },
+  {
     symbol: 'SOL',
     name: 'Solana',
     category: 'Layer 1',

@@ -25,7 +25,12 @@ import {
 } from '@money-scanner/money-line';
 import { XSocialIntelligenceService, NewsIntelligenceService } from '@money-scanner/social-analysis';
 import { AIMarketAnalystService } from '@money-scanner/ai-analysis';
-import { AlertDispatcher, TelegramBotHandler } from '@money-scanner/notifications';
+import {
+  AlertDispatcher,
+  TelegramBotHandler,
+  buildMoneyLineAssetUrl,
+  telegramAssetLink
+} from '@money-scanner/notifications';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { evaluateDailyStrategyAlerts, StrategyAlertEvaluation } from './strategy-alert-service.js';
@@ -724,6 +729,12 @@ export class AppState {
     });
 
     for (const event of freshEvents) {
+      const assetUrl = buildMoneyLineAssetUrl({
+        baseUrl: dashboardBaseUrl,
+        symbol: event.symbol,
+        timeframe: event.timeframe,
+        marketClass: event.marketClass
+      });
       const isLong = event.side === 'LONG';
       const isArmed = event.stage === 'ARMED';
       const isLongArmed = isLong && isArmed;
@@ -815,14 +826,14 @@ export class AppState {
       const message = [
         headline,
         `*${strategyName} · ${event.timeframe.toUpperCase()}*`,
-        `\n*$${event.symbol}* • ${event.marketClass.toUpperCase()} • ${formatAlertPrice(event.signalPrice)}`,
+        `\n${telegramAssetLink({ baseUrl: dashboardBaseUrl, symbol: event.symbol, timeframe: event.timeframe, marketClass: event.marketClass })} • ${event.marketClass.toUpperCase()} • ${formatAlertPrice(event.signalPrice)}`,
         ...contextLines,
         `*ATR(14):* ${formatAlertPrice(event.atr14)}${event.sma5 ? ` | *SMA5:* ${formatAlertPrice(event.sma5)}` : ''}`,
         '',
         ...actionLines,
         `\n_Semnal determinist pe lumânare închisă. Nivelurile trebuie recalculate la execuția reală și nu garantează profitul._`,
         source === 'manual quick scan' ? `_Sursă: scanare manuală rapidă._` : `_Sursă: scanare automată/completă._`,
-        `\n🔗 [Deschide pagina Alerte](${dashboardBaseUrl})`
+        `\n📈 [Deschide graficul Money Line](${assetUrl})`
       ].join('\n');
       const delivered = await this.telegramBot.sendMarkdown(message);
 
@@ -858,7 +869,7 @@ export class AppState {
         reason,
         confidence: isDonchian ? (isArmed ? 0.58 : 0.74) : isArmed ? 0.5 : isLong ? 0.68 : 0.67,
         timestamp: Date.now(),
-        dashboardLink: dashboardBaseUrl,
+        dashboardLink: assetUrl,
         isDelivered: delivered,
         strategySetup: event
       });
@@ -891,14 +902,14 @@ export class AppState {
       if (riskOff.length) {
         lines.push(`🔴 *RISK-OFF — 1W bullish, 1D flip bearish sub SMA 50*`);
         riskOff.forEach(match => lines.push(
-          `▼ *$${match.symbol}* · ${formatAlertPrice(match.price)} · SMA50 ${formatAlertPrice(match.sma50)} · ML1W ${match.weeklyTier} (${match.weeklyScore > 0 ? '+' : ''}${match.weeklyScore}) · ML1D ${match.dailyTier} (${match.dailyScore})`
+          `▼ ${telegramAssetLink({ baseUrl: dashboardBaseUrl, symbol: match.symbol, timeframe: '1d', marketClass: match.marketClass })} · ${formatAlertPrice(match.price)} · SMA50 ${formatAlertPrice(match.sma50)} · ML1W ${match.weeklyTier} (${match.weeklyScore > 0 ? '+' : ''}${match.weeklyScore}) · ML1D ${match.dailyTier} (${match.dailyScore})`
         ));
         lines.push('');
       }
       if (reversal.length) {
         lines.push(`🟢 *REVERSAL LONG — 1W bearish, 1D flip bullish peste SMA 50*`);
         reversal.forEach(match => lines.push(
-          `▲ *$${match.symbol}* · ${formatAlertPrice(match.price)} · SMA50 ${formatAlertPrice(match.sma50)} · ML1W ${match.weeklyTier} (${match.weeklyScore}) · ML1D ${match.dailyTier} (+${match.dailyScore})`
+          `▲ ${telegramAssetLink({ baseUrl: dashboardBaseUrl, symbol: match.symbol, timeframe: '1d', marketClass: match.marketClass })} · ${formatAlertPrice(match.price)} · SMA50 ${formatAlertPrice(match.sma50)} · ML1W ${match.weeklyTier} (${match.weeklyScore}) · ML1D ${match.dailyTier} (+${match.dailyScore})`
         ));
         lines.push('');
       }
@@ -931,7 +942,12 @@ export class AppState {
         reason,
         confidence: Math.min(1, Math.abs(match.dailyScore - match.weeklyScore) / 100),
         timestamp: Date.now(),
-        dashboardLink: dashboardBaseUrl,
+        dashboardLink: buildMoneyLineAssetUrl({
+          baseUrl: dashboardBaseUrl,
+          symbol: match.symbol,
+          timeframe: '1d',
+          marketClass: match.marketClass
+        }),
         isDelivered: delivered,
         regimeScan: {
           scenario: match.scenario,
@@ -1193,7 +1209,7 @@ export class AppState {
       ''
     ];
     ranked.slice(0, 10).forEach(candidate => lines.push(
-      `${candidate.direction === 'BULLISH' ? '🟢 ▲' : '🔴 ▼'} *$${candidate.symbol} ${candidate.timeframe.toUpperCase()}* · ${candidate.priorityScore.toFixed(0)}/100 · ${candidate.marketClass.toUpperCase()} · ${formatAlertPrice(candidate.currentPrice)}`,
+      `${candidate.direction === 'BULLISH' ? '🟢 ▲' : '🔴 ▼'} ${telegramAssetLink({ baseUrl: dashboardBaseUrl, symbol: candidate.symbol, timeframe: candidate.timeframe, marketClass: candidate.marketClass })} ${candidate.timeframe.toUpperCase()} · ${candidate.priorityScore.toFixed(0)}/100 · ${candidate.marketClass.toUpperCase()} · ${formatAlertPrice(candidate.currentPrice)}`,
       `ML1W ${candidate.weeklyTier} (${candidate.weeklyScore > 0 ? '+' : ''}${candidate.weeklyScore}) · RVOL ${candidate.rvol.toFixed(2)}x · SMA50 ${candidate.sma50Aligned ? 'aliniat' : 'neconfirmat'} · SMA200 ${candidate.sma200Aligned ? 'aliniat' : 'neconfirmat'}`
     ));
     if (ranked.length > 10) lines.push(`…și încă ${ranked.length - 10} flipuri în pagina Alerte.`);
@@ -1222,7 +1238,12 @@ export class AppState {
         reason: `Flip ${candidate.direction.toLowerCase()} confirmat pe lumânare închisă; scor tehnic ${candidate.priorityScore.toFixed(0)}/100.`,
         confidence: candidate.priorityScore / 100,
         timestamp: candidate.scannedAt,
-        dashboardLink: dashboardBaseUrl,
+        dashboardLink: buildMoneyLineAssetUrl({
+          baseUrl: dashboardBaseUrl,
+          symbol: candidate.symbol,
+          timeframe: candidate.timeframe,
+          marketClass: candidate.marketClass
+        }),
         isDelivered: delivered
       });
     });
@@ -1496,10 +1517,16 @@ export class AppState {
         ? 'fără rezistență apropiată detectată'
         : `R:R până la rezistență ${plan.resistanceRiskReward.toFixed(2)}`;
       const dashboardBaseUrl = process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app';
+      const assetUrl = buildMoneyLineAssetUrl({
+        baseUrl: dashboardBaseUrl,
+        symbol: rule.symbol,
+        timeframe: rule.timeframe,
+        marketClass: rule.marketClass
+      });
       const message = [
         `🟢 *BULLISH FLIP CONFIRMAT*`,
         `*▲ PLAN TEHNIC LONG — ${rule.timeframe.toUpperCase()}*`,
-        `\n*$${rule.symbol}*  •  *${rule.timeframe.toUpperCase()}*`,
+        `\n${telegramAssetLink({ baseUrl: dashboardBaseUrl, symbol: rule.symbol, timeframe: rule.timeframe, marketClass: rule.marketClass })}  •  *${rule.timeframe.toUpperCase()}*`,
         `*Acțiune:* ${tradePlanActionLabel(plan.action)}`,
         `*Calitate setup:* ${plan.confidence}/100`,
         `\n*Preț acum:* ${formatAlertPrice(plan.currentPrice)}`,
@@ -1516,7 +1543,7 @@ export class AppState {
         `*Spațiu:* ${resistanceText}`,
         `*Observații:* ${plan.reasons.slice(0, 4).join('; ') || 'confirmare tehnică completă'}`,
         `\n_Analiză deterministă pe lumânări închise. Nivelurile sunt orientative și nu garantează execuția sau profitul._`,
-        `\n🔗 [Deschide Money Scanner](${dashboardBaseUrl})`
+        `\n📈 [Deschide graficul Money Line](${assetUrl})`
       ].join('\n');
       const delivered = await this.telegramBot.sendMarkdown(message);
       if (!delivered) {
@@ -1541,7 +1568,7 @@ export class AppState {
         reason: `Fast și Slow bullish pe lumânare închisă; plan ${plan.action}, confluence ${plan.confidence}/100.`,
         confidence: plan.confidence / 100,
         timestamp: Date.now(),
-        dashboardLink: dashboardBaseUrl,
+        dashboardLink: assetUrl,
         isDelivered: true,
         tradePlan: {
           action: plan.action,

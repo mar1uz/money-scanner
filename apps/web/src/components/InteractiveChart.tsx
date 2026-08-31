@@ -45,6 +45,8 @@ interface InteractiveChartProps {
   symbol: string;
   /** Provider-verified class prevents TradingView ticker collisions (e.g. CAKE). */
   marketClass?: string;
+  /** Exact provider quote currency (for example HYPE is sourced in USDC). */
+  assetQuoteCurrency?: string;
   timeframe: string;
   onTimeframeChange?: (tf: Timeframe) => void;
   onLoadMoreHistory?: () => void | Promise<void>;
@@ -247,6 +249,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   candles,
   symbol,
   marketClass,
+  assetQuoteCurrency,
   timeframe,
   onTimeframeChange,
   onLoadMoreHistory,
@@ -337,6 +340,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
 
     // TradingView's Binance perpetual notation uses the `.P` suffix.
     if (/^[A-Z0-9]+USDT\.P$/.test(s)) return `BINANCE:${s}`;
+    if (clean === 'HYPE' && marketClass === 'crypto') return 'BINANCE:HYPEUSDT.P';
 
     // Crypto Dominance & Market Caps (TradingView CRYPTOCAP)
     if (clean === 'BTCD' || clean === 'BTC.D' || s === 'BTC.D') return 'CRYPTOCAP:BTC.D';
@@ -440,7 +444,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
 
   const isDominanceOrRatio = ['BTC.D', 'ETH.D', 'USDT.D', 'US10Y', 'US02Y', 'US30Y', 'US05Y'].includes(symbol.toUpperCase());
   const isStockOrMetal = marketClass === 'stocks' || marketClass === 'metals' || ['SPACEX', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'PLTR', 'AMD', 'MSTR', 'COIN', 'SPY', 'QQQ', 'XAU', 'XAG', 'OIL', 'COPPER', 'DXY', 'DYXY', 'VIX', 'EURUSD', 'GBPUSD', 'USDJPY', 'BRENT', 'NATGAS', 'SILVER', 'GOLD', 'PLATINUM', 'PALLADIUM', 'JPM', 'V', 'MA', 'LLY', 'XOM', 'BA'].includes(symbol.toUpperCase());
-  const quoteCurrency = isDominanceOrRatio ? '%' : (isStockOrMetal ? 'USD' : 'USDT');
+  const quoteCurrency = assetQuoteCurrency || (isDominanceOrRatio ? '%' : (isStockOrMetal ? 'USD' : 'USDT'));
   const tvSymbol = getTradingViewSymbol(symbol);
   const normalizedAlertMarketClass: 'crypto' | 'stocks' | 'metals' =
     marketClass === 'stocks' || marketClass === 'metals' || marketClass === 'crypto'

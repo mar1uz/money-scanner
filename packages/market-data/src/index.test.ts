@@ -181,6 +181,33 @@ describe('Market Data Service & Normalization', () => {
     }
   });
 
+  it('routes HYPE to the official Hyperliquid candle API instead of Binance', async () => {
+    const originalFetch = globalThis.fetch;
+    let requestedUrl = '';
+    let requestedBody: any;
+    globalThis.fetch = (async (input, init) => {
+      requestedUrl = String(input);
+      requestedBody = JSON.parse(String(init?.body || '{}'));
+      return Response.json([
+        { t: Date.now() - 7_200_000, T: Date.now() - 3_600_001, o: '82.1', h: '83.2', l: '81.9', c: '82.8', v: '12500' },
+        { t: Date.now() - 3_600_000, T: Date.now() + 1_000, o: '82.8', h: '84.0', l: '82.5', c: '83.7', v: '15300' }
+      ]);
+    }) as typeof fetch;
+
+    try {
+      const service = new MarketDataService();
+      const candles = await service.getCandles('HYPE', '1h', 1500, 'crypto');
+      assert.equal(candles.length, 2);
+      assert.equal(candles.at(-1)?.close, 83.7);
+      assert.equal(requestedUrl, 'https://api.hyperliquid.xyz/info');
+      assert.equal(requestedBody.type, 'candleSnapshot');
+      assert.equal(requestedBody.req.coin, 'HYPE');
+      assert.equal(requestedBody.req.interval, '1h');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('keeps a newly listed verified stock usable with short monthly history', async () => {
     const originalFetch = globalThis.fetch;
     const now = Math.floor(Date.now() / 1000);

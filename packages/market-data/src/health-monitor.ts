@@ -14,6 +14,7 @@ export class MarketHealthMonitor {
 
   constructor() {
     this.registerProvider('Binance');
+    this.registerProvider('Hyperliquid');
     this.registerProvider('CoinGeckoFallback');
     this.registerProvider('FixtureFallback');
   }

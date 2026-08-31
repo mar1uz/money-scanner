@@ -16,6 +16,7 @@ import {
 import { MarketHealthMonitor } from './health-monitor.js';
 import { BinanceMarketAdapter } from './adapters/binance.js';
 import { PublicStockMarketAdapter } from './adapters/public-stock.js';
+import { HyperliquidMarketAdapter } from './adapters/hyperliquid.js';
 
 interface CoinGeckoMarketRow {
   id?: string;
@@ -30,6 +31,7 @@ export class MarketDataService {
   private healthMonitor = new MarketHealthMonitor();
   private binanceAdapter = new BinanceMarketAdapter(this.healthMonitor);
   private stockAdapter = new PublicStockMarketAdapter(this.healthMonitor);
+  private hyperliquidAdapter = new HyperliquidMarketAdapter(this.healthMonitor);
   private candleCache = new Map<string, Candle[]>();
   private quoteCache = new Map<string, AssetPriceQuote>();
   private quoteFetchedAt = new Map<string, number>();
@@ -76,6 +78,7 @@ export class MarketDataService {
     const cacheKey = `${cacheScope}_${symbol}_${timeframe}_${limit}`;
     const isBinanceFutures = this.isBinanceFuturesSymbol(symbol, asset);
     const providerSymbol = asset?.providerSymbol || symbol;
+    const isHyperliquid = asset?.marketDataSource === 'hyperliquid';
     const isExplicitCryptoSpot = resolvedMarketClass === 'crypto' && !symbol.includes('.') && !symbol.startsWith('TOTAL');
     const isStockOrMetal = resolvedMarketClass === 'stocks' || resolvedMarketClass === 'metals'
       ? true
@@ -87,7 +90,9 @@ export class MarketDataService {
     if (cached?.length && Date.now() - fetchedAt < this.candleCacheMs[timeframe]) return cached;
 
     try {
-      const candles = isBinanceFutures
+      const candles = isHyperliquid
+        ? await this.hyperliquidAdapter.fetchCandles(providerSymbol, timeframe, limit)
+        : isBinanceFutures
         ? await this.binanceAdapter.fetchFuturesCandles(providerSymbol, timeframe, limit)
         : isExplicitCryptoSpot
         ? await this.binanceAdapter.fetchCandles(symbol, timeframe, limit)
@@ -115,6 +120,7 @@ export class MarketDataService {
     const resolvedMarketClass = requestedMarketClass || asset?.marketClass;
     const isBinanceFutures = this.isBinanceFuturesSymbol(symbol, asset);
     const providerSymbol = asset?.providerSymbol || symbol;
+    const isHyperliquid = asset?.marketDataSource === 'hyperliquid';
     const isExplicitCryptoSpot = resolvedMarketClass === 'crypto' && !symbol.includes('.') && !symbol.startsWith('TOTAL');
     const isStockOrMetal = resolvedMarketClass === 'stocks' || resolvedMarketClass === 'metals'
       ? true
@@ -122,6 +128,9 @@ export class MarketDataService {
         ? false
         : this.stockAdapter.isStockOrMetal(symbol);
 
+    if (isHyperliquid) {
+      return this.hyperliquidAdapter.fetchCandlesBefore(providerSymbol, timeframe, beforeTimestamp, limit);
+    }
     if (isBinanceFutures) {
       return this.binanceAdapter.fetchFuturesCandlesBefore(providerSymbol, timeframe, beforeTimestamp, limit);
     }
@@ -140,6 +149,7 @@ export class MarketDataService {
     const cacheKey = `${resolvedMarketClass || 'auto'}_${symbol}`;
     const isBinanceFutures = this.isBinanceFuturesSymbol(symbol, asset);
     const providerSymbol = asset?.providerSymbol || symbol;
+    const isHyperliquid = asset?.marketDataSource === 'hyperliquid';
     const isExplicitCryptoSpot = resolvedMarketClass === 'crypto' && !symbol.includes('.') && !symbol.startsWith('TOTAL');
     const isStockOrMetal = resolvedMarketClass === 'stocks' || resolvedMarketClass === 'metals'
       ? true
@@ -150,7 +160,9 @@ export class MarketDataService {
     if (cached && Date.now() - (this.quoteFetchedAt.get(cacheKey) || 0) < this.quoteCacheMs) return cached;
 
     try {
-      const quote = isBinanceFutures
+      const quote = isHyperliquid
+        ? await this.hyperliquidAdapter.fetchQuote(providerSymbol)
+        : isBinanceFutures
         ? await this.binanceAdapter.fetchFutures24hTicker(providerSymbol, symbol)
         : isExplicitCryptoSpot
         ? await this.binanceAdapter.fetch24hTicker(symbol)
