@@ -132,6 +132,8 @@ export interface FlipCandidate {
   sma50Aligned: boolean;
   sma200Aligned: boolean;
   candleTimestamp: number;
+  confirmationPrice?: number;
+  confirmedAt?: number;
   scannedAt: number;
 }
 
@@ -459,7 +461,7 @@ export class AppState {
             .sort((left, right) => left.timestamp - right.timestamp);
         const weeklySignal = this.moneyLine.calculateLatest(asset.symbol, '1w', weeklyCandles);
         if (!weeklySignal) throw new Error(`No Weekly context for ${asset.symbol}`);
-        const candidate = this.calculateFlipCandidate(
+        const candidate = this.findMostRecentConfirmedFlip(
           asset.symbol,
           assetClass,
           timeframe as TelegramFlipTimeframe,
@@ -484,7 +486,10 @@ export class AppState {
     }
 
     signals.sort((left, right) => Math.abs(right.signal.score) - Math.abs(left.signal.score));
-    flips.sort((left, right) => right.priorityScore - left.priorityScore || right.candleTimestamp - left.candleTimestamp);
+    flips.sort((left, right) =>
+      (right.confirmedAt || right.candleTimestamp) - (left.confirmedAt || left.candleTimestamp)
+      || right.priorityScore - left.priorityScore
+    );
     return {
       mode,
       timeframe,
@@ -1428,6 +1433,57 @@ export class AppState {
       sma200Aligned,
       candleTimestamp: closedCandles[lastIndex].timestamp,
       scannedAt: Date.now()
+    };
+  }
+
+  private findMostRecentConfirmedFlip(
+    symbol: string,
+    marketClass: AssetMarketClass,
+    timeframe: TelegramFlipTimeframe,
+    candles: Awaited<ReturnType<MarketDataService['getCandles']>>,
+    currentPrice: number,
+    weeklyTier: MoneyLineTier,
+    weeklyScore: number
+  ): FlipCandidate | undefined {
+    const closedCandles = candles
+      .filter(candle => candle.isClosed !== false)
+      .sort((left, right) => left.timestamp - right.timestamp);
+    if (closedCandles.length < 50) return undefined;
+
+    const cloud = calculateMoneyLineCloud(closedCandles, timeframe);
+    let flipIndex = -1;
+    for (let index = closedCandles.length - 1; index >= 49; index -= 1) {
+      if (cloud.buySignals[index] || cloud.sellSignals[index]) {
+        flipIndex = index;
+        break;
+      }
+    }
+    if (flipIndex < 0) return undefined;
+
+    const confirmationCandle = closedCandles[flipIndex];
+    const candidate = this.calculateFlipCandidate(
+      symbol,
+      marketClass,
+      timeframe,
+      closedCandles.slice(0, flipIndex + 1),
+      confirmationCandle.close,
+      weeklyTier,
+      weeklyScore
+    );
+    if (!candidate || candidate.status !== 'CONFIRMED') return undefined;
+
+    const timeframeDurationMs: Record<TelegramFlipTimeframe, number> = {
+      '4h': 4 * 60 * 60 * 1_000,
+      '8h': 8 * 60 * 60 * 1_000,
+      '1d': 24 * 60 * 60 * 1_000,
+      '1w': 7 * 24 * 60 * 60 * 1_000
+    };
+    const confirmedAt = Math.min(Date.now(), confirmationCandle.timestamp + timeframeDurationMs[timeframe]);
+    return {
+      ...candidate,
+      currentPrice: Number(currentPrice.toFixed(8)),
+      confirmationPrice: Number(confirmationCandle.close.toFixed(8)),
+      confirmedAt
     };
   }
 

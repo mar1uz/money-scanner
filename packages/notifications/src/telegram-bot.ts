@@ -47,6 +47,8 @@ export interface TelegramLiveScanInput {
     marketClass: AssetMarketClass;
     direction: 'BULLISH' | 'BEARISH';
     currentPrice: number;
+    confirmationPrice?: number;
+    confirmedAt?: number;
     priorityScore: number;
     rvol: number;
   }>;
@@ -56,6 +58,23 @@ const telegramPrice = (value: number) => `$${value.toLocaleString('en-US', {
   minimumFractionDigits: value < 1 ? 4 : 2,
   maximumFractionDigits: value < 1 ? 8 : 4
 })}`;
+
+const telegramFlipAge = (confirmedAt: number, now = Date.now()) => {
+  const elapsedMs = Math.max(0, now - confirmedAt);
+  const elapsedMinutes = Math.floor(elapsedMs / 60_000);
+  if (elapsedMinutes < 60) return elapsedMinutes <= 1 ? 'acum 1 minut' : `acum ${elapsedMinutes} minute`;
+  const elapsedHours = Math.floor(elapsedMs / 3_600_000);
+  if (elapsedHours < 24) return elapsedHours === 1 ? 'acum 1 oră' : `acum ${elapsedHours} ore`;
+  const elapsedDays = Math.floor(elapsedMs / 86_400_000);
+  return elapsedDays === 1 ? 'acum 1 zi' : `acum ${elapsedDays} zile`;
+};
+
+const telegramFlipDate = (confirmedAt: number) => new Intl.DateTimeFormat('ro-RO', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  timeZone: 'Europe/Oslo'
+}).format(new Date(confirmedAt));
 
 export class TelegramBotHandler {
   private botToken?: string;
@@ -276,7 +295,7 @@ export class TelegramBotHandler {
         ``
       ];
       if (!input.flips.length) {
-        lines.push(`Nu există flipuri confirmate pe ultima lumânare închisă pentru filtrul ales.`);
+        lines.push(`Nu există flipuri confirmate în istoricul disponibil pentru filtrul ales.`);
       } else {
         input.flips.slice(0, 10).forEach(flip => lines.push(
           `${flip.direction === 'BULLISH' ? '🟢 ▲' : '🔴 ▼'} ${telegramAssetLink({
@@ -284,8 +303,8 @@ export class TelegramBotHandler {
             symbol: flip.symbol,
             timeframe: flip.timeframe,
             marketClass: flip.marketClass
-          })} · ${flip.direction === 'BULLISH' ? 'BULL FLIP' : 'BEAR FLIP'} · ${telegramPrice(flip.currentPrice)}`,
-          `Scor tehnic ${flip.priorityScore.toFixed(0)}/100 · RVOL ${flip.rvol.toFixed(2)}x`
+          })} · ${flip.direction === 'BULLISH' ? 'BULL FLIP' : 'BEAR FLIP'} · ${telegramPrice(flip.confirmationPrice || flip.currentPrice)}`,
+          `${flip.confirmedAt ? `${telegramFlipAge(flip.confirmedAt)} · ${telegramFlipDate(flip.confirmedAt)} · ` : ''}Scor tehnic ${flip.priorityScore.toFixed(0)}/100 · RVOL ${flip.rvol.toFixed(2)}x`
         ));
         if (input.flips.length > 10) lines.push(`…și încă ${input.flips.length - 10} flipuri confirmate.`);
       }

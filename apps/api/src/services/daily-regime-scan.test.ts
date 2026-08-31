@@ -299,4 +299,35 @@ describe('Daily MoneyLine regime scan', () => {
     assert.equal(second.completedAt, first.completedAt);
     assert.equal(candleRequests, 2);
   });
+
+  it('finds the latest historical flip and records its candle-close age', () => {
+    const state = new AppState();
+    const now = Date.now();
+    const series = Array.from({ length: 120 }, (_, index) => {
+      const close = index < 80 ? 100 - index * 0.2 : 84 + (index - 80) * 2;
+      return {
+        symbol: 'TEST',
+        timeframe: '1d' as const,
+        timestamp: now - (119 - index) * 86_400_000,
+        open: close,
+        high: close + 1,
+        low: close - 1,
+        close,
+        volume: 1_000,
+        isClosed: true,
+        source: 'fixture' as const
+      };
+    });
+
+    const result = (state as any).findMostRecentConfirmedFlip(
+      'TEST', 'crypto', '1d', series, 200, 'Bullish', 40
+    );
+
+    assert.equal(result.status, 'CONFIRMED');
+    assert.equal(result.direction, 'BULLISH');
+    assert.equal(result.currentPrice, 200);
+    assert.equal(result.confirmationPrice, series[84].close);
+    assert.equal(result.candleTimestamp, series[84].timestamp);
+    assert.equal(result.confirmedAt, series[84].timestamp + 86_400_000);
+  });
 });

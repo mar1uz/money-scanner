@@ -213,10 +213,13 @@ describe('Telegram Bot & Alert Dispatcher', () => {
       totalAssets: 3, errors: 0, signals: [],
       flips: [{
         symbol: 'ETH', timeframe: '1w', marketClass: 'crypto', direction: 'BULLISH',
-        currentPrice: 2500, priorityScore: 92, rvol: 1.5
+        currentPrice: 2500, confirmationPrice: 2400,
+        confirmedAt: Date.now() - (3 * 86_400_000), priorityScore: 92, rvol: 1.5
       }]
     });
     assert.ok(flips.text.includes('FLIPURI MONEYLINE CONFIRMATE · 1W'));
     assert.ok(flips.text.includes('BULL FLIP'));
+    assert.ok(flips.text.includes('$2,400.00'));
+    assert.ok(flips.text.includes('acum 3 zile'));
   });
 });
