@@ -31,6 +31,13 @@ telegramRouter.post('/telegram/webhook', async (req, res) => {
   const callbackPayload = appState.telegramBot.parseCallbackQuery(req.body);
   if (callbackPayload) {
     appState.telegramBot.registerChat(callbackPayload.chatId);
+    if (!appState.telegramBot.isOwnerUser(callbackPayload.userId)) {
+      await appState.telegramBot.answerCallbackQuery(
+        callbackPayload.callbackQueryId,
+        'Doar proprietarul botului poate modifica alertele.'
+      );
+      return res.json({ status: 'owner_required' });
+    }
     await appState.telegramBot.answerCallbackQuery(callbackPayload.callbackQueryId);
     try {
       const preferences = await appState.toggleTelegramFlipAlertPreference(
@@ -68,7 +75,70 @@ telegramRouter.post('/telegram/webhook', async (req, res) => {
   }
   appState.telegramBot.registerChat(commandPayload.chatId);
 
+  if (commandPayload.command === 'subscribe' || commandPayload.command === 'unsubscribe') {
+    if (!appState.telegramBot.isOwnerUser(commandPayload.userId)) {
+      const delivered = await appState.telegramBot.sendMarkdown(
+        '🔒 Doar proprietarul botului poate adăuga sau elimina acest grup din lista de alerte.',
+        commandPayload.chatId
+      );
+      return res.json({ status: 'owner_required', delivered });
+    }
+
+    const isGroup = commandPayload.chatType === 'group' || commandPayload.chatType === 'supergroup';
+    if (!isGroup) {
+      const delivered = await appState.telegramBot.sendMarkdown(
+        'ℹ️ Comanda se folosește într-un grup. Alertele private configurate rămân active automat.',
+        commandPayload.chatId
+      );
+      return res.json({ status: 'group_required', delivered });
+    }
+
+    try {
+      const enabled = commandPayload.command === 'subscribe';
+      const subscription = await appState.setTelegramFlipAlertSubscription({
+        chatId: commandPayload.chatId,
+        chatType: commandPayload.chatType,
+        title: commandPayload.chatTitle,
+        enabled,
+        addedByUserId: commandPayload.userId
+      });
+      if (!enabled) {
+        const delivered = await appState.telegramBot.sendMarkdown(
+          '🔕 Alertele automate de flip au fost oprite pentru acest grup. Alertele private nu sunt afectate.',
+          commandPayload.chatId
+        );
+        return res.json({ status: 'unsubscribed', delivered, subscription });
+      }
+
+      const preferences = await appState.getTelegramFlipAlertPreferences(commandPayload.chatId, true);
+      const response = appState.telegramBot.buildFlipAlertSettingsResponse(
+        preferences,
+        'Grup abonat. Alege timeframe-urile pentru acest grup.'
+      );
+      const delivered = await appState.telegramBot.sendMarkdown(
+        response.text,
+        commandPayload.chatId,
+        response.reply_markup
+      );
+      return res.json({ status: 'subscribed', delivered, subscription, preferences });
+    } catch (error) {
+      console.error('Telegram group subscription failed:', error instanceof Error ? error.message : error);
+      const delivered = await appState.telegramBot.sendMarkdown(
+        '⚠️ Abonamentul grupului nu a putut fi salvat momentan. Încearcă din nou.',
+        commandPayload.chatId
+      );
+      return res.json({ status: 'subscription_failed', delivered });
+    }
+  }
+
   if (commandPayload.command === 'alerts' || commandPayload.command === 'flipalerts') {
+    if (!appState.telegramBot.isOwnerUser(commandPayload.userId)) {
+      const delivered = await appState.telegramBot.sendMarkdown(
+        '🔒 Doar proprietarul botului poate modifica timeframe-urile alertelor.',
+        commandPayload.chatId
+      );
+      return res.json({ status: 'owner_required', delivered });
+    }
     try {
       const args = parseFlipTimeframeArgs(commandPayload.args);
       let notice: string | undefined;

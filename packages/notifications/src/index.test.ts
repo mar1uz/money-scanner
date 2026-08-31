@@ -155,4 +155,22 @@ describe('Telegram Bot & Alert Dispatcher', () => {
     bot.registerChat('different-chat');
     assert.equal(bot.getDefaultChatId(), 'configured-chat');
   });
+
+  it('parses group subscriptions and authorizes only the configured owner', () => {
+    const bot = new TelegramBotHandler({ chatId: '12345' });
+    const command = bot.parseUpdate({
+      message: {
+        message_id: 45,
+        from: { id: 12345, username: 'owner' },
+        chat: { id: -100987, type: 'supergroup', title: 'Trading Group' },
+        text: '/subscribe'
+      }
+    });
+    assert.ok(command !== null);
+    assert.equal(command.command, 'subscribe');
+    assert.equal(command.chatType, 'supergroup');
+    assert.equal(command.chatTitle, 'Trading Group');
+    assert.equal(bot.isOwnerUser(command.userId), true);
+    assert.equal(bot.isOwnerUser(999), false);
+  });
 });

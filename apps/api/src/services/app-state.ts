@@ -13,6 +13,7 @@ import {
   AssetMarketClass,
   StrategyAlertSnapshot,
   TelegramFlipAlertPreferences,
+  TelegramFlipAlertSubscription,
   TelegramFlipTimeframe
 } from '@money-scanner/shared';
 import { MarketDataService } from '@money-scanner/market-data';
@@ -178,6 +179,7 @@ export class AppState {
   private confirmedFlips: FlipCandidate[] = [];
   private strategySetups: StrategyAlertSnapshot[] = [];
   private telegramFlipPreferences = new Map<string, TelegramFlipAlertPreferences>();
+  private telegramFlipSubscriptions = new Map<string, TelegramFlipAlertSubscription>();
   private dailyRegimeScanStatus: DailyRegimeScanStatus = {
     enabled: true,
     schedule: '5 */4 * * *',
@@ -210,6 +212,75 @@ export class AppState {
       projectId: process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || 'gen-lang-client-0610749770'
     });
     return getFirestore(app, 'money-scanner-360').collection('telegram-flip-alert-preferences').doc(chatId);
+  }
+
+  private telegramFlipSubscriptionsCollection() {
+    const app = getApps()[0] || initializeApp({
+      projectId: process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || 'gen-lang-client-0610749770'
+    });
+    return getFirestore(app, 'money-scanner-360').collection('telegram-flip-alert-subscriptions');
+  }
+
+  public async setTelegramFlipAlertSubscription(input: {
+    chatId: string | number;
+    chatType?: string;
+    title?: string;
+    enabled: boolean;
+    addedByUserId: string | number;
+  }): Promise<TelegramFlipAlertSubscription> {
+    const chatId = String(input.chatId);
+    const subscription: TelegramFlipAlertSubscription = {
+      chatId,
+      chatType: input.chatType || 'group',
+      ...(input.title ? { title: input.title.slice(0, 120) } : {}),
+      enabled: input.enabled,
+      addedByUserId: String(input.addedByUserId),
+      updatedAt: Date.now()
+    };
+    await this.telegramFlipSubscriptionsCollection().doc(chatId).set(subscription);
+    this.telegramFlipSubscriptions.set(chatId, subscription);
+    return { ...subscription };
+  }
+
+  public async getTelegramFlipAlertDestinations(): Promise<TelegramFlipAlertSubscription[]> {
+    const destinations = new Map<string, TelegramFlipAlertSubscription>();
+    const defaultChatId = this.telegramBot.getDefaultChatId();
+    if (defaultChatId) {
+      destinations.set(defaultChatId, {
+        chatId: defaultChatId,
+        chatType: 'private',
+        title: 'Private alerts',
+        enabled: true,
+        addedByUserId: defaultChatId,
+        updatedAt: 0
+      });
+    }
+
+    try {
+      const snapshot = await this.telegramFlipSubscriptionsCollection().where('enabled', '==', true).get();
+      snapshot.docs.forEach(document => {
+        const stored = document.data() as Partial<TelegramFlipAlertSubscription>;
+        const chatId = String(stored.chatId || document.id);
+        if (!chatId) return;
+        const subscription: TelegramFlipAlertSubscription = {
+          chatId,
+          chatType: String(stored.chatType || 'group'),
+          ...(stored.title ? { title: String(stored.title) } : {}),
+          enabled: true,
+          addedByUserId: String(stored.addedByUserId || ''),
+          updatedAt: Number(stored.updatedAt) || 0
+        };
+        destinations.set(chatId, subscription);
+        this.telegramFlipSubscriptions.set(chatId, subscription);
+      });
+    } catch (error) {
+      console.warn('Telegram subscriptions restore failed:', error instanceof Error ? error.message : error);
+      this.telegramFlipSubscriptions.forEach(subscription => {
+        if (subscription.enabled) destinations.set(subscription.chatId, { ...subscription });
+      });
+    }
+
+    return Array.from(destinations.values());
   }
 
   public async getTelegramFlipAlertPreferences(
@@ -1290,43 +1361,51 @@ export class AppState {
     });
     if (!fresh.length) return 0;
     const ranked = fresh.slice().sort((left, right) => right.priorityScore - left.priorityScore);
-    const telegramChatId = this.telegramBot.getDefaultChatId();
-    const telegramPreferences = telegramChatId
-      ? await this.getTelegramFlipAlertPreferences(telegramChatId, true)
-      : undefined;
-    const telegramRanked = telegramPreferences?.enabled
-      ? ranked.filter(candidate => telegramPreferences.timeframes.includes(candidate.timeframe))
-      : [];
     const dashboardBaseUrl = process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app';
-    const lines = [
-      `🔔 *${telegramRanked.length} FLIP${telegramRanked.length === 1 ? '' : 'URI'} MONEYLINE CONFIRMAT${telegramRanked.length === 1 ? '' : 'E'}*`,
-      `_Numai lumânări închise · ordonate după scorul setupului_`,
-      ''
-    ];
-    telegramRanked.slice(0, 10).forEach(candidate => lines.push(
-      `${candidate.direction === 'BULLISH' ? '🟢 ▲' : '🔴 ▼'} ${telegramAssetLink({ baseUrl: dashboardBaseUrl, symbol: candidate.symbol, timeframe: candidate.timeframe, marketClass: candidate.marketClass })} ${candidate.timeframe.toUpperCase()} · ${candidate.priorityScore.toFixed(0)}/100 · ${candidate.marketClass.toUpperCase()} · ${formatAlertPrice(candidate.currentPrice)}`,
-      `ML1W ${candidate.weeklyTier} (${candidate.weeklyScore > 0 ? '+' : ''}${candidate.weeklyScore}) · RVOL ${candidate.rvol.toFixed(2)}x · SMA50 ${candidate.sma50Aligned ? 'aliniat' : 'neconfirmat'} · SMA200 ${candidate.sma200Aligned ? 'aliniat' : 'neconfirmat'}`
-    ));
-    if (telegramRanked.length > 10) lines.push(`…și încă ${telegramRanked.length - 10} flipuri în pagina Alerte.`);
-    lines.push(
-      '',
-      `_Scorul este un clasament tehnic, nu o probabilitate de profit._`,
-      source === 'manual quick scan' ? `_Sursă: scanare rapidă flip-only._` : `_Sursă: scanare completă flip-only._`,
-      `🔗 [Deschide Top Alerte](${dashboardBaseUrl})`
-    );
-    const message = lines.join('\n');
-    const delivered = telegramRanked.length > 0
-      ? await this.telegramBot.sendMarkdown(message)
-      : false;
-    const deliveredKeys = new Set(telegramRanked.map(candidate =>
-      `${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}:${candidate.direction}:${candidate.candleTimestamp}`
-    ));
+    const candidateKey = (candidate: FlipCandidate) =>
+      `${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}:${candidate.direction}:${candidate.candleTimestamp}`;
+    const selectedKeys = new Set<string>();
+    const deliveredKeys = new Set<string>();
+    const candidateMessages = new Map<string, string>();
+    const destinations = await this.getTelegramFlipAlertDestinations();
+
+    await Promise.all(destinations.map(async destination => {
+      const preferences = await this.getTelegramFlipAlertPreferences(destination.chatId, true);
+      const selected = preferences.enabled
+        ? ranked.filter(candidate => preferences.timeframes.includes(candidate.timeframe))
+        : [];
+      if (!selected.length) return;
+
+      const lines = [
+        `🔔 *${selected.length} FLIP${selected.length === 1 ? '' : 'URI'} MONEYLINE CONFIRMAT${selected.length === 1 ? '' : 'E'}*`,
+        `_Numai lumânări închise · ordonate după scorul setupului_`,
+        ''
+      ];
+      selected.slice(0, 10).forEach(candidate => lines.push(
+        `${candidate.direction === 'BULLISH' ? '🟢 ▲' : '🔴 ▼'} ${telegramAssetLink({ baseUrl: dashboardBaseUrl, symbol: candidate.symbol, timeframe: candidate.timeframe, marketClass: candidate.marketClass })} ${candidate.timeframe.toUpperCase()} · ${candidate.priorityScore.toFixed(0)}/100 · ${candidate.marketClass.toUpperCase()} · ${formatAlertPrice(candidate.currentPrice)}`,
+        `ML1W ${candidate.weeklyTier} (${candidate.weeklyScore > 0 ? '+' : ''}${candidate.weeklyScore}) · RVOL ${candidate.rvol.toFixed(2)}x · SMA50 ${candidate.sma50Aligned ? 'aliniat' : 'neconfirmat'} · SMA200 ${candidate.sma200Aligned ? 'aliniat' : 'neconfirmat'}`
+      ));
+      if (selected.length > 10) lines.push(`…și încă ${selected.length - 10} flipuri în pagina Alerte.`);
+      lines.push(
+        '',
+        `_Scorul este un clasament tehnic, nu o probabilitate de profit._`,
+        source === 'manual quick scan' ? `_Sursă: scanare rapidă flip-only._` : `_Sursă: scanare completă flip-only._`,
+        `🔗 [Deschide Top Alerte](${dashboardBaseUrl})`
+      );
+      const message = lines.join('\n');
+      selected.forEach(candidate => {
+        const key = candidateKey(candidate);
+        selectedKeys.add(key);
+        if (!candidateMessages.has(key)) candidateMessages.set(key, message);
+      });
+      const delivered = await this.telegramBot.sendMarkdown(message, destination.chatId);
+      if (delivered) selected.forEach(candidate => deliveredKeys.add(candidateKey(candidate)));
+    }));
 
     ranked.forEach(candidate => {
       const idempotencyKey = `flip:${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}:${candidate.direction}:${candidate.candleTimestamp}`;
-      const telegramSelected = deliveredKeys.has(
-        `${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}:${candidate.direction}:${candidate.candleTimestamp}`
-      );
+      const key = candidateKey(candidate);
+      const telegramSelected = selectedKeys.has(key);
       this.alertHistory.unshift({
         id: `flip_${candidate.candleTimestamp}_${candidate.symbol}_${candidate.timeframe}_${candidate.direction}`,
         idempotencyKey,
@@ -1335,7 +1414,7 @@ export class AppState {
         type: 'MoneyLineTransition',
         title: `${candidate.direction === 'BULLISH' ? 'Bull' : 'Bear'} flip ${candidate.timeframe.toUpperCase()} confirmat — ${candidate.symbol}`,
         message: telegramSelected
-          ? message
+          ? candidateMessages.get(key) || `Flip ${candidate.direction.toLowerCase()} ${candidate.timeframe.toUpperCase()} confirmat.`
           : `Flip ${candidate.direction.toLowerCase()} ${candidate.timeframe.toUpperCase()} confirmat. Telegram filtrat conform preferințelor; evenimentul rămâne disponibil în pagina Alerte.`,
         timeframe: candidate.timeframe,
         price: candidate.currentPrice,
@@ -1349,7 +1428,7 @@ export class AppState {
           timeframe: candidate.timeframe,
           marketClass: candidate.marketClass
         }),
-        isDelivered: telegramSelected && delivered
+        isDelivered: deliveredKeys.has(key)
       });
     });
     if (this.alertHistory.length > 250) this.alertHistory.splice(250);

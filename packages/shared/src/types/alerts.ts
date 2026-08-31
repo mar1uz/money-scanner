@@ -35,6 +35,15 @@ export interface TelegramFlipAlertPreferences {
   updatedAt: number;
 }
 
+export interface TelegramFlipAlertSubscription {
+  chatId: string;
+  chatType: string;
+  title?: string;
+  enabled: boolean;
+  addedByUserId: string;
+  updatedAt: number;
+}
+
 export interface DispatchedAlert {
   id: string;
   idempotencyKey: string;
@@ -144,10 +153,12 @@ export interface AlertTradePlanSnapshot {
 }
 
 export interface TelegramCommandPayload {
-  command: 'start' | 'scan' | 'status' | 'trending' | 'news' | 'watch' | 'unwatch' | 'alerts' | 'flipalerts' | 'brief' | 'help';
+  command: 'start' | 'scan' | 'status' | 'trending' | 'news' | 'watch' | 'unwatch' | 'alerts' | 'flipalerts' | 'subscribe' | 'unsubscribe' | 'brief' | 'help';
   args: string[];
   chatId: number;
   userId: number;
   username?: string;
+  chatType?: string;
+  chatTitle?: string;
   messageId: number;
 }

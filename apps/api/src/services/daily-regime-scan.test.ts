@@ -196,7 +196,13 @@ describe('Daily MoneyLine regime scan', () => {
       candleTimestamp: timestamp,
       scannedAt: timestamp
     };
-    (state.telegramBot as any).getDefaultChatId = () => '67890';
+    (state as any).getTelegramFlipAlertDestinations = async () => [{
+      chatId: '67890',
+      chatType: 'private',
+      enabled: true,
+      addedByUserId: '67890',
+      updatedAt: timestamp
+    }];
     (state as any).getTelegramFlipAlertPreferences = async () => ({
       chatId: '67890',
       enabled: true,
@@ -219,5 +225,43 @@ describe('Daily MoneyLine regime scan', () => {
     assert.equal(sentMessage.includes('$BTC'), false);
     assert.equal(state.alertHistory.find(alert => alert.symbol === 'ETH')?.isDelivered, true);
     assert.equal(state.alertHistory.find(alert => alert.symbol === 'BTC')?.isDelivered, false);
+  });
+
+  it('broadcasts different flip timeframes to private and subscribed group chats', async () => {
+    const state = new AppState();
+    const timestamp = Date.now();
+    const base = {
+      marketClass: 'crypto', direction: 'BULLISH', status: 'CONFIRMED', currentPrice: 100,
+      triggerPrice: 99, distancePercent: 0, distanceAtr: 0, priorityScore: 88, atr: 4,
+      rvol: 1.2, moneyLineTier: 'Bullish', moneyLineScore: 35, weeklyTier: 'Bullish',
+      weeklyScore: 35, sma50: 95, sma200: 90, weeklyAligned: true, sma50Aligned: true,
+      sma200Aligned: true, candleTimestamp: timestamp, scannedAt: timestamp
+    };
+    (state as any).getTelegramFlipAlertDestinations = async () => [
+      { chatId: '100', chatType: 'private', enabled: true, addedByUserId: '100', updatedAt: timestamp },
+      { chatId: '-200', chatType: 'supergroup', enabled: true, addedByUserId: '100', updatedAt: timestamp }
+    ];
+    (state as any).getTelegramFlipAlertPreferences = async (chatId: string) => ({
+      chatId,
+      enabled: true,
+      timeframes: chatId === '100' ? ['1w'] : ['4h'],
+      updatedAt: timestamp
+    });
+    const deliveries: Array<{ chatId: string; message: string }> = [];
+    (state.telegramBot as any).sendMarkdown = async (message: string, chatId: string) => {
+      deliveries.push({ chatId, message });
+      return true;
+    };
+
+    await (state as any).publishConfirmedFlipEvents([
+      { ...base, id: 'btc-4h', symbol: 'BTC', timeframe: '4h' },
+      { ...base, id: 'eth-1w', symbol: 'ETH', timeframe: '1w' }
+    ], 'scheduled/full scan');
+
+    assert.equal(deliveries.length, 2);
+    assert.ok(deliveries.find(delivery => delivery.chatId === '100')?.message.includes('$ETH'));
+    assert.equal(deliveries.find(delivery => delivery.chatId === '100')?.message.includes('$BTC'), false);
+    assert.ok(deliveries.find(delivery => delivery.chatId === '-200')?.message.includes('$BTC'));
+    assert.equal(deliveries.find(delivery => delivery.chatId === '-200')?.message.includes('$ETH'), false);
   });
 });

@@ -53,6 +53,10 @@ export class TelegramBotHandler {
     return this.defaultChatId;
   }
 
+  public isOwnerUser(userId: string | number) {
+    return Boolean(this.defaultChatId) && String(userId) === this.defaultChatId;
+  }
+
   public getDeliveryConfiguration() {
     return {
       botConfigured: Boolean(this.botToken),
@@ -155,7 +159,7 @@ export class TelegramBotHandler {
     const args = parts.slice(1);
 
     const validCommands: TelegramCommandPayload['command'][] = [
-      'start', 'scan', 'status', 'trending', 'news', 'watch', 'unwatch', 'alerts', 'flipalerts', 'brief', 'help'
+      'start', 'scan', 'status', 'trending', 'news', 'watch', 'unwatch', 'alerts', 'flipalerts', 'subscribe', 'unsubscribe', 'brief', 'help'
     ];
 
     if (!validCommands.includes(commandRaw as any)) {
@@ -168,6 +172,8 @@ export class TelegramBotHandler {
       chatId: msg.chat.id,
       userId: msg.from.id,
       username: msg.from.username,
+      chatType: msg.chat.type,
+      chatTitle: msg.chat.title,
       messageId: msg.message_id
     };
   }
@@ -257,6 +263,8 @@ export class TelegramBotHandler {
             `• \`/watch <symbol>\` — Add asset to your private watchlist`,
             `• \`/alerts\` — Selectează timeframe-urile alertelor de flip`,
             `• \`/flipalerts 1w\` — Primește numai flipuri Weekly\n`,
+            `• \`/subscribe\` — Activează alertele în grupul curent`,
+            `• \`/unsubscribe\` — Oprește alertele în grupul curent\n`,
             `🌐 [Open Money Scanner Dashboard](${this.dashboardBaseUrl})`
           ].join('\n'),
           parse_mode: 'Markdown',
