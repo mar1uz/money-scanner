@@ -2491,3 +2491,41 @@ Public bundle: assets/index-DHwYIXXt.js
 Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 ```
+
+## 67. Complete MoneyLine Flip-Regime History
+
+Implemented and deployed on 02 September 2026.
+
+### What changed
+
+1. **Historical regime discovery (`apps/api/src/services/app-state.ts`)**:
+   - Every full or quick flip scan now finds the most recent confirmed transition for each asset on 4H, 8H, 1D and 1W, even when it occurred before the latest candle.
+   - Upcoming candidates remain separate from historical confirmations, so the expanded dashboard history cannot send retroactive Telegram notifications.
+   - Only the latest closed-candle flip remains eligible for a new Telegram event.
+   - The stored history retains the latest regime transition for up to 1,000 asset/timeframe combinations.
+
+2. **Accurate flip context and current prices**:
+   - `confirmedAt` is the real close time of the candle that confirmed the flip.
+   - Cards and Telegram scan results show the flip-close price, current quote, percentage move since the flip and elapsed time.
+   - Current quotes are refreshed once per unique asset and shared across its timeframe records.
+
+3. **Complete confirmed-flip UI (`apps/web/src/components/AlertsCenterView.tsx`)**:
+   - Removed the 4H/8H/1D/1W age windows and the artificial Top-10 truncation.
+   - `Bullish + 1W` and `Bearish + 1W` now expose every available asset whose latest Weekly transition has that direction, ordered newest-first.
+   - The card displays both relative age and the exact confirmation date.
+
+Verification and deployment evidence:
+
+```text
+Source commits/image tags: 3bfc7d9, 9d8b781
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Local tests: 85 passed, 0 failed (100% test pass rate)
+Cloud Build: 4952f4e5-ae7a-41e8-9ba3-5dbdeac59f64 (SUCCESS)
+Cloud Run revision: market-scanner-360-00144-xkr
+Traffic: 100%
+Public bundle: assets/index-CfUOaVp3.js
+Full production scan: 177 assets, 0 errors
+Persisted flip regimes: 693 total; 162 Weekly (97 bullish, 65 bearish)
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
