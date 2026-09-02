@@ -1369,7 +1369,7 @@ export class AppState {
         running: false
       };
       if (Array.isArray(stored?.flipCandidates)) this.flipCandidates = stored.flipCandidates.slice(0, 400);
-      if (Array.isArray(stored?.confirmedFlips)) this.confirmedFlips = stored.confirmedFlips.slice(0, 600);
+      if (Array.isArray(stored?.confirmedFlips)) this.confirmedFlips = stored.confirmedFlips.slice(0, 1_000);
       if (Array.isArray(stored?.strategySetups)) this.strategySetups = stored.strategySetups.slice(0, 100);
       if (Array.isArray(stored?.alerts)) {
         const individual = this.alertHistory.filter(alert =>
@@ -1629,7 +1629,7 @@ export class AppState {
         const key = `${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}`;
         if (!unique.has(key)) unique.set(key, candidate);
       });
-    this.confirmedFlips = Array.from(unique.values()).slice(0, 600);
+    this.confirmedFlips = Array.from(unique.values()).slice(0, 1_000);
   }
 
   private async publishConfirmedFlipEvents(
