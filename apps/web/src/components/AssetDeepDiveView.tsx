@@ -4,6 +4,7 @@ import { fetchAssetDetail, fetchHistoricalCandles, triggerTestAlert } from '../s
 import { InteractiveChart } from './InteractiveChart.js';
 import { CryptoBusinessQualityCard } from './CryptoBusinessQualityCard.js';
 import { StockBusinessQualityCard } from './StockBusinessQualityCard.js';
+import { AssetProfileOverviewCard } from './AssetProfileOverviewCard.js';
 import {
   ArrowLeft,
   Zap,
@@ -40,7 +41,7 @@ interface AssetDeepDiveViewProps {
   onToggleWatchlist: (symbol: string) => void;
 }
 
-type InfoTab = 'mtf' | 'ai' | 'social';
+type InfoTab = 'ai' | 'mtf' | 'social';
 
 export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   symbol,
@@ -56,7 +57,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [alertSent, setAlertSent] = useState(false);
-  const [activeInfoTab, setActiveInfoTab] = useState<InfoTab>('mtf');
+  const [activeInfoTab, setActiveInfoTab] = useState<InfoTab>('ai');
   const [showFlipTooltip, setShowFlipTooltip] = useState(false);
   const [loadingOlderHistory, setLoadingOlderHistory] = useState(false);
   const [hasMoreHistory, setHasMoreHistory] = useState(true);
@@ -423,21 +424,21 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
         {/* Tab Navigation */}
         <div className="tab-nav overflow-x-auto px-1">
           <button
-            className={`tab-item ${activeInfoTab === 'mtf' ? 'tab-active' : ''}`}
-            onClick={() => setActiveInfoTab('mtf')}
-          >
-            <span className="flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5" />
-              Multi-Timeframe
-            </span>
-          </button>
-          <button
             className={`tab-item ${activeInfoTab === 'ai' ? 'tab-active' : ''}`}
             onClick={() => setActiveInfoTab('ai')}
           >
             <span className="flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5" />
               Analiză AI
+            </span>
+          </button>
+          <button
+            className={`tab-item ${activeInfoTab === 'mtf' ? 'tab-active' : ''}`}
+            onClick={() => setActiveInfoTab('mtf')}
+          >
+            <span className="flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5" />
+              Multi-Timeframe
             </span>
           </button>
           <button
@@ -455,83 +456,18 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
         <div className="p-5" key={activeInfoTab}>
           <div className="tab-content-enter">
 
-            {/* ─── TAB: Multi-Timeframe Matrix ─── */}
-            {activeInfoTab === 'mtf' && (
-              <div className="space-y-4">
-                {/* Composite Score Summary */}
-                {data?.multiTimeframe && (
-                  <div className="flex items-center justify-between text-xs font-mono mb-3">
-                    <span className="text-slate-400">Confluență compozită:</span>
-                    <span className={`px-2.5 py-1 rounded-lg font-semibold border ${
-                      data.multiTimeframe.confluenceTier?.includes('Bullish')
-                        ? 'text-emerald-300 border-emerald-500/20 bg-emerald-500/5'
-                        : (data.multiTimeframe.confluenceTier?.includes('Bearish')
-                          ? 'text-rose-300 border-rose-500/20 bg-rose-500/5'
-                          : 'text-slate-300 border-slate-700 bg-slate-800/50')
-                    }`}>
-                      {data.multiTimeframe.confluenceTier} ({data.multiTimeframe.compositeMtfScore > 0 ? `+${data.multiTimeframe.compositeMtfScore}` : data.multiTimeframe.compositeMtfScore})
-                    </span>
-                  </div>
-                )}
-
-                {/* Compact 6-Column Grid */}
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                  {['1h', '4h', '8h', '1d', '1w', '1m'].map((tf) => {
-                    const mtfSignal = data?.multiTimeframe?.[tf as keyof typeof data.multiTimeframe] as any;
-                    const tfIsBull = mtfSignal?.tier?.includes('Bullish');
-                    const tfIsBear = mtfSignal?.tier?.includes('Bearish');
-                    const rawRoi = mtfSignal?.roiPercent !== undefined
-                      ? mtfSignal.roiPercent
-                      : (mtfSignal?.rawIndicators?.roc9 !== undefined ? Number(mtfSignal.rawIndicators.roc9.toFixed(2)) : 0);
-                    const isRoiPos = rawRoi > 0;
-                    const isRoiNeg = rawRoi < 0;
-
-                    const borderLeft = tfIsBull
-                      ? 'border-l-emerald-400'
-                      : (tfIsBear ? 'border-l-rose-400' : 'border-l-slate-600');
-
-                    return (
-                      <button
-                        key={tf}
-                        onClick={() => onTimeframeChange(tf as Timeframe)}
-                        className={`text-left p-3 rounded-lg border-l-2 transition-all ${borderLeft} ${
-                          timeframe === tf
-                            ? 'bg-cyan-500/[0.07] border border-r border-t border-b border-cyan-500/20'
-                            : 'bg-white/[0.02] border border-r border-t border-b border-white/[0.04] hover:bg-white/[0.04]'
-                        }`}
-                        title={`ROI: ${isRoiPos ? '+' : ''}${rawRoi}% | RVOL: ${mtfSignal?.rawIndicators?.rvol ? `${mtfSignal.rawIndicators.rvol}x` : '1.0x'}`}
-                      >
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-[11px] font-mono font-bold text-slate-300 uppercase">{tf}</span>
-                          <span className={`w-1.5 h-1.5 rounded-full ${
-                            tfIsBull ? 'bg-emerald-400' : (tfIsBear ? 'bg-rose-400' : 'bg-slate-600')
-                          }`}></span>
-                        </div>
-                        <div className={`text-sm font-bold font-mono ${
-                          tfIsBull ? 'text-emerald-300' : (tfIsBear ? 'text-rose-300' : 'text-slate-400')
-                        }`}>
-                          {mtfSignal?.score > 0 ? `+${mtfSignal.score}` : (mtfSignal?.score !== undefined ? mtfSignal.score : '–')}
-                        </div>
-                        <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                          {mtfSignal?.tier?.replace('Strong ', 'S.') || 'Neutral'}
-                        </div>
-                        {/* ROI inline subtle */}
-                        <div className={`text-[10px] font-mono mt-1 ${
-                          isRoiPos ? 'text-emerald-400/70' : (isRoiNeg ? 'text-rose-400/70' : 'text-slate-600')
-                        }`}>
-                          {isRoiPos ? `+${rawRoi}%` : `${rawRoi}%`}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-
             {/* ─── TAB: AI Analysis & Economic Forward Guidance ─── */}
             {activeInfoTab === 'ai' && (
               <div className="space-y-6">
+                {/* 0. 📘 PROFIL ACTIV, CE FACE & ISTORIC */}
+                <AssetProfileOverviewCard
+                  symbol={symbol}
+                  name={data?.info?.name || explanation?.assetName}
+                  category={data?.info?.category || explanation?.sectorOrNarrative}
+                  marketClass={resolvedMarketClass}
+                  coinGeckoId={resolvedCoinGeckoId}
+                />
+
                 {explanation ? (
                   <>
                     {/* 1. 🎯 GHID DE INVESTIȚIE & VERDICT STRATEGIC */}
@@ -803,8 +739,82 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
                     />
                   </>
                 ) : (
-                  <p className="text-sm text-slate-500 font-mono">Analiza AI nu este disponibilă pentru acest asset.</p>
+                  <p className="text-sm text-slate-500 font-mono">Analiza AI detaliată se generează în fundal pentru acest asset.</p>
                 )}
+              </div>
+            )}
+
+
+            {/* ─── TAB: Multi-Timeframe Matrix ─── */}
+            {activeInfoTab === 'mtf' && (
+              <div className="space-y-4">
+                {/* Composite Score Summary */}
+                {data?.multiTimeframe && (
+                  <div className="flex items-center justify-between text-xs font-mono mb-3">
+                    <span className="text-slate-400">Confluență compozită:</span>
+                    <span className={`px-2.5 py-1 rounded-lg font-semibold border ${
+                      data.multiTimeframe.confluenceTier?.includes('Bullish')
+                        ? 'text-emerald-300 border-emerald-500/20 bg-emerald-500/5'
+                        : (data.multiTimeframe.confluenceTier?.includes('Bearish')
+                          ? 'text-rose-300 border-rose-500/20 bg-rose-500/5'
+                          : 'text-slate-300 border-slate-700 bg-slate-800/50')
+                    }`}>
+                      {data.multiTimeframe.confluenceTier} ({data.multiTimeframe.compositeMtfScore > 0 ? `+${data.multiTimeframe.compositeMtfScore}` : data.multiTimeframe.compositeMtfScore})
+                    </span>
+                  </div>
+                )}
+
+                {/* Compact 6-Column Grid */}
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                  {['1h', '4h', '8h', '1d', '1w', '1m'].map((tf) => {
+                    const mtfSignal = data?.multiTimeframe?.[tf as keyof typeof data.multiTimeframe] as any;
+                    const tfIsBull = mtfSignal?.tier?.includes('Bullish');
+                    const tfIsBear = mtfSignal?.tier?.includes('Bearish');
+                    const rawRoi = mtfSignal?.roiPercent !== undefined
+                      ? mtfSignal.roiPercent
+                      : (mtfSignal?.rawIndicators?.roc9 !== undefined ? Number(mtfSignal.rawIndicators.roc9.toFixed(2)) : 0);
+                    const isRoiPos = rawRoi > 0;
+                    const isRoiNeg = rawRoi < 0;
+
+                    const borderLeft = tfIsBull
+                      ? 'border-l-emerald-400'
+                      : (tfIsBear ? 'border-l-rose-400' : 'border-l-slate-600');
+
+                    return (
+                      <button
+                        key={tf}
+                        onClick={() => onTimeframeChange(tf as Timeframe)}
+                        className={`text-left p-3 rounded-lg border-l-2 transition-all ${borderLeft} ${
+                          timeframe === tf
+                            ? 'bg-cyan-500/[0.07] border border-r border-t border-b border-cyan-500/20'
+                            : 'bg-white/[0.02] border border-r border-t border-b border-white/[0.04] hover:bg-white/[0.04]'
+                        }`}
+                        title={`ROI: ${isRoiPos ? '+' : ''}${rawRoi}% | RVOL: ${mtfSignal?.rawIndicators?.rvol ? `${mtfSignal.rawIndicators.rvol}x` : '1.0x'}`}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[11px] font-mono font-bold text-slate-300 uppercase">{tf}</span>
+                          <span className={`w-1.5 h-1.5 rounded-full ${
+                            tfIsBull ? 'bg-emerald-400' : (tfIsBear ? 'bg-rose-400' : 'bg-slate-600')
+                          }`}></span>
+                        </div>
+                        <div className={`text-sm font-bold font-mono ${
+                          tfIsBull ? 'text-emerald-300' : (tfIsBear ? 'text-rose-300' : 'text-slate-400')
+                        }`}>
+                          {mtfSignal?.score > 0 ? `+${mtfSignal.score}` : (mtfSignal?.score !== undefined ? mtfSignal.score : '–')}
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                          {mtfSignal?.tier?.replace('Strong ', 'S.') || 'Neutral'}
+                        </div>
+                        {/* ROI inline subtle */}
+                        <div className={`text-[10px] font-mono mt-1 ${
+                          isRoiPos ? 'text-emerald-400/70' : (isRoiNeg ? 'text-rose-400/70' : 'text-slate-600')
+                        }`}>
+                          {isRoiPos ? `+${rawRoi}%` : `${rawRoi}%`}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
 

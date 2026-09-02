@@ -2096,3 +2096,398 @@ Public bundle: assets/index-BI4yyW7i.js
 Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 ```
+
+## 56. Telegram Alert Deep-Linking & SPA Asset Routing
+
+Implemented and deployed on 30 August 2026.
+
+### What changed
+
+1. **Telegram Alert & Command Deep-Links (`packages/notifications/src/asset-link.ts`)**:
+   - Added `buildMoneyLineAssetUrl` and `telegramAssetLink` helper utilities in `@money-scanner/notifications`.
+   - Formats URLs with `?asset=<SYMBOL>&timeframe=<TF>&marketClass=<CLASS>`.
+   - Telegram notifications for bullish/bearish flips, status queries, and trending alerts now embed clickable Markdown links directly on the `$TICKER` text and in the footer action button (`[Open Money Line Chart]`).
+
+2. **Client-Side Deep Link Query Parameter Parsing (`apps/web/src/App.tsx`)**:
+   - On initial mount, `readMoneyLineDeepLink()` inspects `window.location.search`.
+   - Validates symbol (`^[A-Z0-9][A-Z0-9._:-]{0,30}$`), timeframe (`1h`, `4h`, `8h`, `1d`, `1w`, `1m`), and marketClass (`crypto`, `stocks`, `metals`).
+   - Automatically opens the exact asset's Money Line Deep Dive view on the requested timeframe and data source without requiring manual search or clicking.
+
+3. **Crypto Heat Map Top 50 & Resilience (`apps/web/src/components/CryptoHeatMapView.tsx`, `apps/api/src/routes/market-routes.ts`)**:
+   - Integrated Top 50 Market Cap ranking table under the treemap with live price, timeframe delta %, and YTD % return.
+   - Built multi-tier fallback (CoinGecko $\to$ CoinPaprika $\to$ Binance-backed AppState) ensuring zero rate-limit downtime on Cloud Run.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 574fdc3
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Local tests: 78 passed, 0 failed (100% test pass rate)
+Cloud Build: 45c7b5eb-7e8d-4455-9447-24d76ca2c3c1 (SUCCESS)
+Cloud Run revision: market-scanner-360-00123-4g5
+Traffic: 100%
+Public bundle: assets/index-B81CrRSl.js
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
+
+## 57. Default AI Analysis Tab, Reordered Tab Bar & Asset Profile Knowledge Card
+
+Implemented and deployed on 31 August 2026.
+
+### What changed
+
+1. **Default Active Tab & Reordered Tab Navigation (`apps/web/src/components/AssetDeepDiveView.tsx`)**:
+   - Switched the default active information tab under the Money Line chart from `'mtf'` to `'ai'` (`activeInfoTab = 'ai'`).
+   - Reordered tab buttons in the UI:
+     1. **Analiză AI** (`ai`) — First & Default
+     2. **Multi-Timeframe** (`mtf`)
+     3. **Știri & Social** (`social`)
+
+2. **Asset Profile & Overview Knowledge Engine (`packages/shared/src/constants/asset-profiles.ts`)**:
+   - Built an authoritative database covering major crypto protocols (BTC, ETH, SOL, BNB, XRP, SUI, LINK, AAVE, FET, RENDER, etc.), mega-cap equities (NVDA, AAPL, MSFT, TSLA, etc.), and commodities/metals (Gold XAU, Silver XAG, Copper XCU).
+   - Implemented `getAssetProfile(symbol, marketClass, category, name)` with dynamic synthesis fallback for any new/unrecognized asset.
+   - Provides structured fields in both Romanian and English:
+     - `headline`: Prominent one-line value proposition.
+     - `whatItDoes`: Concise, informative summary of the project/company mission and technology.
+     - `coreUtility`: How the token is used, product offerings, or main revenue streams.
+     - `origin`: Year of launch, creators/founders, and historical milestone.
+     - `ecosystem`: Blockchain / consensus model or exchange listing.
+     - `keyPoints`: 3 bullet points with key strengths / competitive moats.
+
+3. **Asset Profile UI Card (`apps/web/src/components/AssetProfileOverviewCard.tsx`)**:
+   - Rendered at the very top of the **Analiză AI** tab.
+   - Clean, modern layout matching the platform's cyber-terminal design language with bilingual translation integration (`useLanguage`).
+   - Ensures any user clicking an asset from Weekly Flips, Scanner, Search, Heat Map, or Watchlist immediately understands what the asset is and what it does.
+
+4. **Unit Tests & Regression Protection (`packages/shared/src/constants/asset-profiles.test.ts`)**:
+   - Added 6 new unit tests verifying curated crypto/stock/metal lookups, cashtag cleaning, and dynamic fallback synthesis.
+   - Total test suite: 84 passed, 0 failed.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 53cae5e
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Local tests: 84 passed, 0 failed (100% test pass rate)
+Cloud Build: 74e60573-4899-41b7-b029-9355b058a37d (SUCCESS)
+Cloud Run revision: market-scanner-360-00131-7sb
+Traffic: 100%
+Public bundle: assets/index-DrLtoZrE.js
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
+
+## 58. Automated Retest Alerts & Support Zone Confirmation Engine
+
+Implemented and deployed on 31 August 2026.
+
+### What changed
+
+1. **Retest Alert Evaluation & State Management (`apps/api/src/services/app-state.ts`)**:
+   - Upgraded `BullishCloudAlertRule` to track `lastRetestTriggeredCandle?: number`.
+   - In `evaluateBullishCloudAlert`, added discrete detection for support pullbacks after an initial Bullish Flip:
+     - Detects when `rule.lastWasBullish === true` and price tests the support zone (`lastCandle.low <= plan.entryHigh && lastCandle.close >= plan.stopLoss` or `price <= plan.entryHigh && price >= plan.stopLoss`).
+     - Verifies `plan.action !== 'AVOID'` and prevents duplicates on the same closed candle (`lastRetestTriggeredCandle !== candleTimestamp`).
+   - Automatically resets state (`lastWasBullish = false`, `lastRetestTriggeredCandle = undefined`) if the trend breaks below the Slow cloud line.
+
+2. **Dedicated Retest Telegram Alert Format (`apps/api/src/services/app-state.ts`)**:
+   - Formats dedicated Telegram notification with:
+     - `🎯 RETEST CONFIRMAT ÎN ZONA DE INTRARE`
+     - `*▲ PLAN TEHNIC LONG (RETEST) — <TIMEFRAME>*`
+     - `Acțiune: 🟢 SETUP VALID — intrare optimă activată la retest`
+     - `Calitate setup: <score>/100 ⭐`
+     - Initial flip close vs Retest price delta %.
+     - Exact support bounds tested (`entryLow` – `entryHigh`), suggested entry, Stop Loss, TP1 (1.5R), TP2 (3.0R), and risk %.
+
+3. **Unit Tests & Regression Suite (`apps/api/src/services/daily-regime-scan.test.ts`)**:
+   - Added unit test simulating an initial Bullish Flip followed by a subsequent candle pulling back to `entryLow`/`suggestedEntry`, confirming that both the initial flip and the subsequent retest alert are dispatched sequentially without duplication.
+   - Total test suite: 85 passed, 0 failed.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 53cae5e
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Local tests: 85 passed, 0 failed (100% test pass rate)
+Cloud Build: f737aa7c-b910-478e-990d-27b8cb0e1072 (SUCCESS)
+Cloud Run revision: market-scanner-360-00132-t97
+Traffic: 100%
+Public bundle: assets/index-DrLtoZrE.js
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
+
+## 59. Progressive Take-Profit Architecture & TP3 (Macro Expansion / Runner Target)
+
+Implemented and deployed on 31 August 2026.
+
+### What changed
+
+1. **Trade Plan Engine TP3 Calibration (`packages/money-line/src/trade-plan.ts`)**:
+   - Added `target3?: number` and `target3RiskReward?: number` to `BullishTradePlan` and `AlertTradePlanSnapshot`.
+   - Formulated timeframe-specific macro expansion targets:
+     - `1w`: $\max(\text{entry} + \text{risk} \times 5.5\text{R}, \text{entry} \times 1.50)$ ensuring minimum $+50\%$ macro runner target for crypto weekly flips.
+     - `1d`: $\text{entry} + \text{risk} \times 4.5\text{R}$.
+     - `4h` / `8h`: $\text{entry} + \text{risk} \times 3.5\text{R}$.
+     - `1h` / `1m`: $\text{entry} + \text{risk} \times 2.5\text{R}$.
+
+2. **Telegram Alert Template & Snapshot Engine (`apps/api/src/services/app-state.ts`)**:
+   - Updated both `BULLISH FLIP CONFIRMAT` and `RETEST CONFIRMAT ÎN ZONA DE INTRARE` Telegram alert messages to render the full 3-tier progressive take-profit roadmap:
+     - `Ținta 1 (1.5R — De-risk): $X.XX (+Y.YY%)`
+     - `Ținta 2 (3.0R — Swing): $X.XX (+Y.YY%)`
+     - `Ținta 3 (5.5R / Macro — Runner / +50%+): $X.XX (+Y.YY%)`
+   - Stored `target3` and `target3RiskReward` in `DispatchedAlert.tradePlan` snapshots.
+
+3. **Unit Tests & Regression Suite (`packages/money-line/src/trade-plan.test.ts`)**:
+   - Updated test suite to verify `target3 > target2 > target1 > suggestedEntry`.
+   - Total test suite: 85 passed, 0 failed.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 53cae5e
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Local tests: 85 passed, 0 failed (100% test pass rate)
+Cloud Build: 5dce8ac0-a992-41d7-be24-c6e1a2c55b59 (SUCCESS)
+Cloud Run revision: market-scanner-360-00133-rzp
+Traffic: 100%
+Public bundle: assets/index-DrLtoZrE.js
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
+
+## 60. Confirmation Price vs Current Price & Move Tracking on Web & Telegram
+
+Implemented and deployed on 31 August 2026.
+
+### What changed
+
+1. **Web Confirmed Flip Cards (`apps/web/src/components/AlertsCenterView.tsx`)**:
+   - In `ConfirmedFlipCard` (under *Top 10 alerte de trading confirmate*), upgraded the layout to explicitly render both:
+     - `Închidere flip`: exact close price of the candle that triggered the flip (`confirmationPrice`).
+     - `Preț actual`: live market price (`candidate.currentPrice`).
+     - `Față de flip`: exact delta percentage with green/red badge (`moveFromFlipLabel`).
+   - Added a header tag indicating `+X.XX% de la flip` for rapid visual appraisal.
+   - Expanded the responsive metrics grid to 6 columns: `[Închidere flip, Preț actual, Față de flip, Scor setup, ML 1W, RVOL]`.
+
+2. **Telegram Alerts & Scans**:
+   - Confirmed both individual transition alerts and periodic/scan broadcast messages prominently feature `Închidere flip: $X.XX → Preț acum: $Y.YY (+Z.ZZ% față de flip)` and `Distanță față de flip`.
+
+3. **Unit Tests & Monorepo Build**:
+   - Built and tested all workspace packages and apps (85 tests passing, 0 failing).
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 53cae5e
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Local tests: 85 passed, 0 failed (100% test pass rate)
+Cloud Build: 802a3b67-ce4b-4ed6-b3ea-51d470a2ce70 (SUCCESS)
+Cloud Run revision: market-scanner-360-00136-zk2
+Traffic: 100%
+Public bundle: assets/index-D5e8lqF-.js
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
+
+## 61. Daily 08:00 AM Scan & Exclusive 1W Flip / Retest Telegram Notifications
+
+Implemented and deployed on 31 August 2026.
+
+### What changed
+
+1. **Daily Scheduled Flip Scan at 08:00 AM Europe/Bucharest (`apps/api/src/services/app-state.ts`, Cloud Scheduler)**:
+   - Updated Cloud Scheduler job `money-scanner-daily-regime-scan` in `europe-west3` to run daily at `0 8 * * *` with `--time-zone="Europe/Bucharest"`.
+   - Updated `DailyRegimeScanStatus` in `app-state.ts` to reflect `schedule: '0 8 * * *'` and `timezone: 'Europe/Bucharest'`.
+   - Added in-process daily 08:00 AM Europe/Bucharest trigger fallback in `startBullishAlertMonitor` to execute `runDailyRegimeScan()` automatically across all assets (Crypto Top 50, Stocks, Metals).
+
+2. **Exclusive Telegram Notification Filter (`apps/api/src/services/app-state.ts`)**:
+   - In `getTelegramFlipAlertPreferences`: updated default subscription timeframes to `['1w']` (Weekly only).
+   - In `evaluateBullishCloudAlert`: enforced `shouldSendTelegram = (isInitialFlip && rule.timeframe === '1w') || isRetestAlert`. All other lower-timeframe initial transitions remain recorded in the web dashboard without triggering Telegram notifications.
+   - In `publishConfirmedFlipEvents`: daily broadcast defaults to delivering confirmed `1W` flips exclusively.
+
+3. **Unit Tests & Regression Suite (`apps/api/src/services/daily-regime-scan.test.ts`)**:
+   - Verified that 1W flips and Retest alerts are delivered sequentially while lower timeframe initial noise is suppressed.
+   - Total test suite: 85 passed, 0 failed.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 53cae5e
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Local tests: 85 passed, 0 failed (100% test pass rate)
+Cloud Build: f36ed013-0ebe-49bf-89b6-35fc63e2e17b (SUCCESS)
+Cloud Run revision: market-scanner-360-00137-25z
+Traffic: 100%
+Public bundle: assets/index-D5e8lqF-.js
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
+
+## 62. Collapsible Sections (Alerts & Alpha Narratives) & Reordered Alerts Center
+
+Implemented and deployed on 01 September 2026.
+
+### What changed
+
+1. **Reordered Alerts Center (`apps/web/src/components/AlertsCenterView.tsx`)**:
+   - Reordered sections so that **Top 10 alerte de trading confirmate** is displayed as the first/top section in the Alerts page.
+   - Updated summary cards, filter tabs (`CONFIRMED`, `STRATEGIES`, `FLIPS`, `WATCHED`), and layout sequence:
+     1. `Top 10 alerte de trading confirmate` (Top position)
+     2. `Strategii de Trading (Weekly Trend + Donchian 55/20 LONG)`
+     3. `Top 10 aproape de flip`
+     4. `Tracked Alerts (Alerte urmărite)`
+
+2. **Collapsible Section Controls (`apps/web/src/components/AlertsCenterView.tsx`)**:
+   - Added collapsible chevron arrow toggle buttons to all 4 sections in the Alerts Command Center.
+   - Smooth `-rotate-90` animation on collapse with live counter badges for active items.
+   - Designed for mobile convenience to easily minimize/expand sections on small screens.
+
+3. **Collapsible Alpha Narratives & Sectors (`apps/web/src/components/NarrativeBar.tsx`)**:
+   - Added interactive chevron arrow toggle button to the **Alpha Narratives & Sectors** section header on the main Market 360 page.
+   - Allows collapsing and expanding the grid of narrative/sector cards on mobile and desktop.
+
+4. **Unit Tests & Regression Suite**:
+   - All 85 automated tests pass cleanly across all packages and apps.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 53cae5e
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Local tests: 85 passed, 0 failed (100% test pass rate)
+Cloud Build: dfce4a38-90f3-4f94-8a70-734cd4b7f6b3 (SUCCESS)
+Cloud Run revision: market-scanner-360-00138-4sh
+Traffic: 100%
+Public bundle: assets/index-Bsh43Wls.js
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
+
+## 63. Repositioning AI Analyst Next to Market 360° Navigation
+
+Implemented and deployed on 01 September 2026.
+
+### What changed
+
+1. **Sidebar and Mobile Navigation Order (`apps/web/src/components/Sidebar.tsx`)**:
+   - Reordered `navItems` array so that **AI Analyst** (`BrainCircuit` icon, purple accent) is positioned directly next to **Market Intelligence / Market 360°** (position #2).
+   - This takes effect seamlessly across both the desktop sidebar navigation and the horizontally scrollable mobile bottom navigation bar.
+
+2. **Unit Tests & Regression Suite**:
+   - All 85 automated tests pass cleanly across all packages and apps.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 53cae5e
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Local tests: 85 passed, 0 failed (100% test pass rate)
+Cloud Build: 3ccc5bae-afce-4f2f-8606-fe63e7ccae2a (SUCCESS)
+Cloud Run revision: market-scanner-360-00139-gwd
+Traffic: 100%
+Public bundle: assets/index-BNQ_5r-u.js
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
+
+## 64. Market Heat Map: Repositioning Next to AI Analyst & Multi-Scope Expansion (Top 150 Crypto, Top 100 Stocks, Top 50 Metals)
+
+Implemented and deployed on 01 September 2026.
+
+### What changed
+
+1. **Navigation Repositioning (`apps/web/src/components/Sidebar.tsx`)**:
+   - Reordered `navItems` so that **Market Heat Map** (`LayoutGrid` icon, emerald accent) is positioned directly next to **AI Analyst** (position #3 in sidebar and mobile navigation).
+   - Order: `Market 360°` -> `AI Analyst` -> `Heat Map` -> `Crypto Bubble` -> `USA Macro` -> `X Trends` -> `News Feed` -> `Backtest` -> `Status`.
+
+2. **Heat Map Scope Expansion (`apps/web/src/components/CryptoHeatMapView.tsx`)**:
+   - Expanded `HeatMapScope` from `crypto | stocks` to `crypto | stocks | metals`.
+   - **Crypto (Top 150)**: Fetches up to 150 live cryptocurrencies from CoinGecko / CoinPaprika with real-time prices, percentage returns, and market cap weighting.
+   - **Stocks (Top 100)**: Fetches and displays Top 100 real stocks sorted by market capitalization.
+   - **Metals & Mărfuri (Top 50)**: Fetches all available real precious metals and commodities (up to 50 / 44 active catalog instruments).
+   - Updated scope toggle pills with dedicated active colors (Cyan for Crypto, Blue for Stocks, Amber for Metals).
+   - Enhanced search filter, sortable column headers, treemap squarify layout, and mobile cards.
+
+3. **Backend Upstream Crypto Bubbles Endpoint (`apps/api/src/routes/market-routes.ts`)**:
+   - Upgraded `/crypto/bubbles` to fetch `per_page=150` from CoinGecko and `limit=150` from CoinPaprika with fallback slicing up to 150 assets.
+
+4. **Unit Tests & Regression Suite**:
+   - All 85 automated tests pass cleanly across all packages and apps.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 53cae5e
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Local tests: 85 passed, 0 failed (100% test pass rate)
+Cloud Build: 4e89d2c5-ada5-470f-898c-a6d22297ba52 (SUCCESS)
+Cloud Run revision: market-scanner-360-00140-xh5
+Traffic: 100%
+Public bundle: assets/index-CFvVwFsp.js
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
+
+## 65. Collapsible Market Intelligence Briefing & Renaming AI Analyst to AI Briefing
+
+Implemented and deployed on 01 September 2026.
+
+### What changed
+
+1. **Renamed "AI Analyst" to "AI Briefing"**:
+   - Updated navigation in `apps/web/src/components/Sidebar.tsx` (`label: 'AI Briefing'`, `shortLabel: 'AI Briefing'`).
+   - Updated view headers, sidebar branding logo, and chat headers in `apps/web/src/components/AIBriefingView.tsx`.
+   - Updated welcome initial conversational prompt to refer to "AI Briefing".
+   - Updated meta description in `apps/web/index.html`.
+
+2. **Collapsible Market Intelligence Briefing (`apps/web/src/components/AIBriefingView.tsx`)**:
+   - Added interactive chevron arrow toggle button (`ChevronDown` with smooth `-rotate-90` animation when collapsed) directly on the **Market Intelligence Briefing** header.
+   - Allows collapsing and expanding the macro intelligence dashboard and criteria scanners so users can easily minimize the report to focus directly on interactive Q&A or criteria screening.
+
+3. **Unit Tests & Regression Suite**:
+   - All 85 automated tests pass cleanly across all packages and apps.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 53cae5e
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Local tests: 85 passed, 0 failed (100% test pass rate)
+Cloud Build: c7e54132-9cc5-417a-a8f2-5fe15b149b37 (SUCCESS)
+Cloud Run revision: market-scanner-360-00141-9lr
+Traffic: 100%
+Public bundle: assets/index-C8n_E1T4.js
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
+
+## 66. Independent & Separated Collapsible Crypto Business Quality Scanner
+
+Implemented and deployed on 01 September 2026.
+
+### What changed
+
+1. **Separated Crypto Business Quality Scanner (`apps/web/src/components/AIBriefingView.tsx`)**:
+   - Decoupled `renderCryptoCriteriaScanner()` and `renderStockCriteriaScanner()` from the Market Intelligence Briefing section.
+   - Added dedicated state `isCryptoQualityCollapsed` and `isStockQualityCollapsed`.
+   - Added an interactive chevron toggle button (`ChevronDown` with smooth `-rotate-90` animation) to the **Crypto Business Quality · 4 Criterii de Selecție** header and **Stock Business Quality** header.
+   - Restructured the view container so each component collapses and expands completely independently of Market Intelligence Briefing.
+
+2. **Unit Tests & Regression Suite**:
+   - All 85 automated tests pass cleanly across all packages and apps (100% pass rate).
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 53cae5e
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Local tests: 85 passed, 0 failed (100% test pass rate)
+Cloud Build: f5a6fa9d-8459-494f-897c-5814923e8f44 (SUCCESS)
+Cloud Run revision: market-scanner-360-00142-nj4
+Traffic: 100%
+Public bundle: assets/index-DHwYIXXt.js
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```

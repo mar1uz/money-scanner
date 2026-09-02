@@ -5,6 +5,7 @@ import {
   BellRing,
   CalendarClock,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   Clock3,
   RefreshCw,
@@ -52,6 +53,27 @@ const formatDate = (value?: number) => value
   ? new Date(value).toLocaleString('ro-RO', { dateStyle: 'medium', timeStyle: 'short' })
   : '—';
 
+const formatRelativeAge = (value?: number) => {
+  if (!value) return '—';
+  const elapsedMs = Math.max(0, Date.now() - value);
+  const minutes = Math.floor(elapsedMs / 60_000);
+  if (minutes < 60) return minutes <= 1 ? 'acum 1 minut' : `acum ${minutes} minute`;
+  const hours = Math.floor(elapsedMs / 3_600_000);
+  if (hours < 24) return hours === 1 ? 'acum 1 oră' : `acum ${hours} ore`;
+  const days = Math.floor(elapsedMs / 86_400_000);
+  return days === 1 ? 'acum 1 zi' : `acum ${days} zile`;
+};
+
+const FLIP_CONFIRMATION_DURATION_MS: Record<'4h' | '8h' | '1d' | '1w', number> = {
+  '4h': 4 * 60 * 60_000,
+  '8h': 8 * 60 * 60_000,
+  '1d': 24 * 60 * 60_000,
+  '1w': 7 * 24 * 60 * 60_000
+};
+
+const getFlipConfirmedAt = (candidate: FlipCandidateDashboardItem) => candidate.confirmedAt
+  || Math.min(Date.now(), candidate.candleTimestamp + FLIP_CONFIRMATION_DURATION_MS[candidate.timeframe]);
+
 const statusMeta: Record<AlertProgressStatus, { label: string; tone: string; bar: string }> = {
   CONFIRMED: { label: 'Confirmat bullish', tone: 'text-emerald-300 bg-emerald-500/15 border-emerald-500/35', bar: 'bg-emerald-400' },
   AWAITING_CLOSE: { label: 'Așteaptă închiderea', tone: 'text-cyan-300 bg-cyan-500/15 border-cyan-500/35', bar: 'bg-cyan-400' },
@@ -70,7 +92,11 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
   const [removingId, setRemovingId] = useState('');
   const [clearingTarget, setClearingTarget] = useState<'active' | 'history' | 'all' | null>(null);
   const [preparingId, setPreparingId] = useState('');
-  const [activeTab, setActiveTab] = useState<'ALL' | 'STRATEGIES' | 'FLIPS' | 'WATCHED'>('ALL');
+  const [activeTab, setActiveTab] = useState<'ALL' | 'CONFIRMED' | 'STRATEGIES' | 'FLIPS' | 'WATCHED'>('ALL');
+  const [confirmedOpen, setConfirmedOpen] = useState(true);
+  const [strategiesOpen, setStrategiesOpen] = useState(true);
+  const [candidatesOpen, setCandidatesOpen] = useState(true);
+  const [activeAlertsOpen, setActiveAlertsOpen] = useState(true);
   const [candidateFilter, setCandidateFilter] = useState<'ALL' | 'BULLISH' | 'BEARISH'>('ALL');
   const [candidateTimeframe, setCandidateTimeframe] = useState<'ALL' | '4h' | '8h' | '1d' | '1w'>('ALL');
   const [candidateSearch, setCandidateSearch] = useState('');
@@ -283,25 +309,30 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
     }).slice(0, 10);
   }, [candidateFilter, candidateSearch, candidateTimeframe, data?.flipCandidates]);
   const topConfirmedFlips = useMemo(() => {
-    const now = Date.now();
     const query = confirmedSearch.replace(/^[$#]/, '').trim().toUpperCase();
-    const maxAgeByTimeframe = { '4h': 12 * 60 * 60_000, '8h': 24 * 60 * 60_000, '1d': 72 * 60 * 60_000, '1w': 14 * 24 * 60 * 60_000 } as const;
+    const latestByAssetTimeframe = new Map<string, FlipCandidateDashboardItem>();
+    (data?.confirmedFlips || [])
+      .slice()
+      .sort((left, right) => getFlipConfirmedAt(right) - getFlipConfirmedAt(left))
+      .forEach(candidate => {
+        const key = `${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}`;
+        if (!latestByAssetTimeframe.has(key)) latestByAssetTimeframe.set(key, candidate);
+      });
     const seenAssets = new Set<string>();
-    return (data?.confirmedFlips || [])
-      .filter(candidate => now - candidate.candleTimestamp <= maxAgeByTimeframe[candidate.timeframe])
+    return Array.from(latestByAssetTimeframe.values())
       .filter(candidate =>
         (confirmedFilter === 'ALL' || candidate.direction === confirmedFilter)
         && (confirmedTimeframe === 'ALL' || candidate.timeframe === confirmedTimeframe)
         && (!query || candidate.symbol.includes(query))
       )
-      .sort((left, right) => right.priorityScore - left.priorityScore || right.candleTimestamp - left.candleTimestamp)
+      .sort((left, right) => getFlipConfirmedAt(right) - getFlipConfirmedAt(left)
+        || right.priorityScore - left.priorityScore)
       .filter(candidate => {
         const key = `${candidate.marketClass}:${candidate.symbol}`;
         if (seenAssets.has(key)) return false;
         seenAssets.add(key);
         return true;
-      })
-      .slice(0, 10);
+      });
   }, [confirmedFilter, confirmedSearch, confirmedTimeframe, data?.confirmedFlips]);
 
   const candidateFilterControls = (
@@ -435,9 +466,9 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <SummaryCard icon={CheckCircle2} label="Flipuri Confirmate" value={summary.confirmed} tone="emerald" />
           <SummaryCard icon={Sparkles} label="Strategii Trading (Donchian 55)" value={summary.strategies} tone="amber" />
           <SummaryCard icon={TrendingUp} label="Top Aproape Flip" value={summary.close} tone="cyan" />
-          <SummaryCard icon={CheckCircle2} label="Flipuri Confirmate" value={summary.confirmed} tone="emerald" />
           <SummaryCard icon={BellRing} label="Alerte Urmărite" value={summary.active} tone="slate" />
         </div>
 
@@ -534,7 +565,14 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
           onClick={() => setActiveTab('ALL')}
           className={`rounded-xl px-3.5 py-2 text-xs font-bold transition ${activeTab === 'ALL' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-400 hover:text-slate-200'}`}
         >
-          TOATE ({summary.strategies + summary.close + summary.confirmed + summary.active})
+          TOATE ({summary.confirmed + summary.strategies + summary.close + summary.active})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('CONFIRMED')}
+          className={`rounded-xl px-3.5 py-2 text-xs font-bold transition ${activeTab === 'CONFIRMED' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-slate-200'}`}
+        >
+          FLIPURI CONFIRMATE ({summary.confirmed})
         </button>
         <button
           type="button"
@@ -548,112 +586,57 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
           onClick={() => setActiveTab('FLIPS')}
           className={`rounded-xl px-3.5 py-2 text-xs font-bold transition ${activeTab === 'FLIPS' ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30' : 'text-slate-400 hover:text-slate-200'}`}
         >
-          TOP 10 FLIPURI ({summary.close + summary.confirmed})
+          APROAPE DE FLIP ({summary.close})
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('WATCHED')}
-          className={`rounded-xl px-3.5 py-2 text-xs font-bold transition ${activeTab === 'WATCHED' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-slate-200'}`}
+          className={`rounded-xl px-3.5 py-2 text-xs font-bold transition ${activeTab === 'WATCHED' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-400 hover:text-slate-200'}`}
         >
           ALERTE URMĂRITE ({summary.active})
         </button>
       </div>
 
-      {/* 1. STRATEGIES SECTION */}
-      {(activeTab === 'ALL' || activeTab === 'STRATEGIES') && (
+      {/* 1. ISTORICUL CELUI MAI RECENT FLIP CONFIRMAT PER ASSET */}
+      {(activeTab === 'ALL' || activeTab === 'CONFIRMED') && (
         <section className="space-y-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-amber-300" />
-                <h2 className="text-sm font-bold text-slate-100">Strategii de Trading (Weekly Trend + Donchian 55/20 LONG)</h2>
+            <button
+              type="button"
+              onClick={() => setConfirmedOpen(prev => !prev)}
+              className="flex items-start gap-2.5 text-left group transition focus:outline-none"
+            >
+              <div className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-lg border border-emerald-500/25 bg-emerald-500/10 text-emerald-300 group-hover:border-emerald-500/40 group-hover:bg-emerald-500/20 transition">
+                <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${confirmedOpen ? '' : '-rotate-90'}`} />
               </div>
-              <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
-                Numai stocks/ETF: Fast + Slow Weekly bullish, SMA 40 Weekly crescător, SMA 50/200 Daily aliniate și crescătoare, momentum pozitiv, breakout Donchian 55, volatilitate controlată și stop maxim 4%.
-              </p>
-            </div>
-            {data?.strategySetups?.length ? (
-              <span className="font-mono text-xs font-bold text-amber-300">
-                {data.strategySetups.length} setupuri active
-              </span>
-            ) : null}
-          </div>
-
-          {data?.strategySetups?.length ? (
-            <div className="grid gap-3 lg:grid-cols-2">
-              {data.strategySetups.map((setup, index) => (
-                <StrategySetupCard
-                  key={`${setup.strategy}:${setup.symbol}:${setup.candleTimestamp || index}`}
-                  setup={setup}
-                  onOpen={() => onOpenAsset(setup.symbol, setup.marketClass, setup.timeframe)}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-dashed border-amber-500/20 bg-amber-500/[0.04] px-5 py-8 text-center">
-              <Sparkles className="mx-auto h-7 w-7 text-amber-400" />
-              <h3 className="mt-3 text-sm font-semibold text-slate-200">Niciun setup de strategie activ în memorie</h3>
-              <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-400">
-                Apasă pe <strong className="text-amber-300">„Scanare Strategii (Donchian 55)”</strong> pentru a analiza universul stocks/ETF. Lipsa rezultatelor este normală: filtrele sunt intenționat rare și conservatoare.
-              </p>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+                  <h2 className="text-sm font-bold text-slate-100 group-hover:text-emerald-300 transition">Flipuri Money Line confirmate</h2>
+                  <span className="rounded-md border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-emerald-300">
+                    {topConfirmedFlips.length} confirmate
+                  </span>
+                </div>
+                <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
+                  Ultimul flip confirmat pentru fiecare asset și timeframe, păstrat indiferent de vechime. Filtrează 1W + Bullish/Bearish pentru a vedea toate regimurile Weekly și data exactă a flipului.
+                </p>
+              </div>
+            </button>
+            <div className="space-y-2">
+              {confirmedFilterControls}
               <button
                 type="button"
-                onClick={() => void startManualScan('strategies')}
-                disabled={Boolean(activeScanScope)}
-                className="mt-4 inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/20 px-4 py-2 text-xs font-bold text-amber-200 transition hover:bg-amber-500/30 disabled:opacity-50"
+                onClick={() => void clearAlertGroup('history')}
+                disabled={clearingTarget !== null || !data?.confirmedFlips?.length}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-rose-500/25 bg-rose-500/[0.06] px-3 py-2 text-[10px] font-bold text-rose-300 transition hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <Sparkles className="h-4 w-4" /> Pornește Scanarea de Strategii
+                <Trash2 className={`h-3.5 w-3.5 ${clearingTarget === 'history' ? 'animate-pulse' : ''}`} /> Șterge istoricul
               </button>
             </div>
-          )}
-        </section>
-      )}
+          </div>
 
-      {/* 2. TOP 10 FLIPS SECTION */}
-      {(activeTab === 'ALL' || activeTab === 'FLIPS') && (
-        <>
-          <section className="space-y-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Radar className="h-4 w-4 text-violet-300" />
-                  <h2 className="text-sm font-bold text-slate-100">Top 10 aproape de flip</h2>
-                </div>
-                <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
-                  Un singur candidat per asset, din 4H/8H/1D/1W, ordonat după distanța ATR, alinierea ML 1W, SMA 50/200 și volum. „Așteaptă închiderea” nu este încă flip confirmat.
-                </p>
-              </div>
-              {candidateFilterControls}
-            </div>
-
-            {flipCandidateCards}
-          </section>
-
-          <section className="space-y-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-300" />
-                  <h2 className="text-sm font-bold text-slate-100">Top 10 alerte de trading confirmate</h2>
-                </div>
-                <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
-                  Cele mai recente flipuri pe lumânări închise, cu prioritate pentru 4H și confirmări 1W/SMA. Scorul este tehnic, nu procent de reușită.
-                </p>
-              </div>
-              <div className="space-y-2">
-                {confirmedFilterControls}
-                <button
-                  type="button"
-                  onClick={() => void clearAlertGroup('history')}
-                  disabled={clearingTarget !== null || !data?.confirmedFlips?.length}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-rose-500/25 bg-rose-500/[0.06] px-3 py-2 text-[10px] font-bold text-rose-300 transition hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <Trash2 className={`h-3.5 w-3.5 ${clearingTarget === 'history' ? 'animate-pulse' : ''}`} /> Șterge istoricul
-                </button>
-              </div>
-            </div>
-
-            {topConfirmedFlips.length ? (
+          {confirmedOpen && (
+            topConfirmedFlips.length ? (
               <div className="grid gap-3 lg:grid-cols-2">
                 {topConfirmedFlips.map((candidate, index) => (
                   <ConfirmedFlipCard
@@ -666,21 +649,129 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
               </div>
             ) : (
               <div className="rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.02] px-5 py-8 text-center text-xs text-slate-500">
-                Niciun flip confirmat nu corespunde filtrelor selectate în fereastra activă.
+                Niciun flip confirmat nu corespunde filtrelor selectate. Rulează „Scanare Top Flips” pentru a actualiza întregul univers.
               </div>
-            )}
-          </section>
-        </>
+            )
+          )}
+        </section>
       )}
 
-      {/* 3. WATCHED ALERTS SECTION */}
+      {/* 2. STRATEGII DE TRADING (DONCHIAN 55/20 LONG) */}
+      {(activeTab === 'ALL' || activeTab === 'STRATEGIES') && (
+        <section className="space-y-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <button
+              type="button"
+              onClick={() => setStrategiesOpen(prev => !prev)}
+              className="flex items-start gap-2.5 text-left group transition focus:outline-none"
+            >
+              <div className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-lg border border-amber-500/25 bg-amber-500/10 text-amber-300 group-hover:border-amber-500/40 group-hover:bg-amber-500/20 transition">
+                <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${strategiesOpen ? '' : '-rotate-90'}`} />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-amber-300" />
+                  <h2 className="text-sm font-bold text-slate-100 group-hover:text-amber-300 transition">Strategii de Trading (Weekly Trend + Donchian 55/20 LONG)</h2>
+                  {data?.strategySetups?.length ? (
+                    <span className="rounded-md border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-300">
+                      {data.strategySetups.length} active
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
+                  Numai stocks/ETF: Fast + Slow Weekly bullish, SMA 40 Weekly crescător, SMA 50/200 Daily aliniate și crescătoare, momentum pozitiv, breakout Donchian 55, volatilitate controlată și stop maxim 4%.
+                </p>
+              </div>
+            </button>
+          </div>
+
+          {strategiesOpen && (
+            data?.strategySetups?.length ? (
+              <div className="grid gap-3 lg:grid-cols-2">
+                {data.strategySetups.map((setup, index) => (
+                  <StrategySetupCard
+                    key={`${setup.strategy}:${setup.symbol}:${setup.candleTimestamp || index}`}
+                    setup={setup}
+                    onOpen={() => onOpenAsset(setup.symbol, setup.marketClass, setup.timeframe)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-amber-500/20 bg-amber-500/[0.04] px-5 py-8 text-center">
+                <Sparkles className="mx-auto h-7 w-7 text-amber-400" />
+                <h3 className="mt-3 text-sm font-semibold text-slate-200">Niciun setup de strategie activ în memorie</h3>
+                <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-400">
+                  Apasă pe <strong className="text-amber-300">„Scanare Strategii (Donchian 55)”</strong> pentru a analiza universul stocks/ETF. Lipsa rezultatelor este normală: filtrele sunt intenționat rare și conservatoare.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void startManualScan('strategies')}
+                  disabled={Boolean(activeScanScope)}
+                  className="mt-4 inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/20 px-4 py-2 text-xs font-bold text-amber-200 transition hover:bg-amber-500/30 disabled:opacity-50"
+                >
+                  <Sparkles className="h-4 w-4" /> Pornește Scanarea de Strategii
+                </button>
+              </div>
+            )
+          )}
+        </section>
+      )}
+
+      {/* 3. TOP 10 APROAPE DE FLIP */}
+      {(activeTab === 'ALL' || activeTab === 'FLIPS') && (
+        <section className="space-y-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <button
+              type="button"
+              onClick={() => setCandidatesOpen(prev => !prev)}
+              className="flex items-start gap-2.5 text-left group transition focus:outline-none"
+            >
+              <div className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-lg border border-violet-500/25 bg-violet-500/10 text-violet-300 group-hover:border-violet-500/40 group-hover:bg-violet-500/20 transition">
+                <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${candidatesOpen ? '' : '-rotate-90'}`} />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Radar className="h-4 w-4 text-violet-300" />
+                  <h2 className="text-sm font-bold text-slate-100 group-hover:text-violet-300 transition">Top 10 aproape de flip</h2>
+                  <span className="rounded-md border border-violet-500/25 bg-violet-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-violet-300">
+                    {visibleCandidates.length} candidați
+                  </span>
+                </div>
+                <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
+                  Un singur candidat per asset, din 4H/8H/1D/1W, ordonat după distanța ATR, alinierea ML 1W, SMA 50/200 și volum. „Așteaptă închiderea” nu este încă flip confirmat.
+                </p>
+              </div>
+            </button>
+            {candidateFilterControls}
+          </div>
+
+          {candidatesOpen && flipCandidateCards}
+        </section>
+      )}
+
+      {/* 4. TRACKED ALERTS (ALERTE URMĂRITE) */}
       {(activeTab === 'ALL' || activeTab === 'WATCHED') && (
         <section className="space-y-3">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-bold text-slate-100">Alerte urmărite</h2>
-              <p className="mt-1 text-xs text-slate-500">Progresul este normalizat cu ATR până la Marginea Nor Slow, nivelul care confirmă flipul.</p>
-            </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <button
+              type="button"
+              onClick={() => setActiveAlertsOpen(prev => !prev)}
+              className="flex items-start gap-2.5 text-left group transition focus:outline-none"
+            >
+              <div className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-lg border border-cyan-500/25 bg-cyan-500/10 text-cyan-300 group-hover:border-cyan-500/40 group-hover:bg-cyan-500/20 transition">
+                <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${activeAlertsOpen ? '' : '-rotate-90'}`} />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <BellRing className="h-4 w-4 text-cyan-300" />
+                  <h2 className="text-sm font-bold text-slate-100 group-hover:text-cyan-300 transition">Tracked Alerts (Alerte urmărite)</h2>
+                  <span className="rounded-md border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-cyan-300">
+                    {data?.activeAlerts.length || 0} active
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">Progresul este normalizat cu ATR până la Marginea Nor Slow, nivelul care confirmă flipul.</p>
+              </div>
+            </button>
             <div className="flex items-center gap-2">
               <span className="hidden font-mono text-[10px] text-slate-600 sm:inline">AUTO REFRESH 60S</span>
               <button
@@ -694,31 +785,33 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
             </div>
           </div>
 
-          {loading && !data ? (
-            <div className="grid gap-3 lg:grid-cols-2">
-              {[0, 1].map(item => <div key={item} className="h-56 animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.03]" />)}
-            </div>
-          ) : data?.activeAlerts.length ? (
-            <div className="grid gap-3 lg:grid-cols-2">
-              {data.activeAlerts
-                .slice()
-                .sort((left, right) => right.progressPercent - left.progressPercent)
-                .map(alert => (
-                  <ActiveAlertCard
-                    key={alert.id}
-                    alert={alert}
-                    removing={removingId === alert.id}
-                    onRemove={() => void removeAlert(alert)}
-                    onOpen={() => onOpenAsset(alert.symbol, alert.marketClass, alert.timeframe)}
-                  />
-                ))}
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-dashed border-white/[0.10] bg-white/[0.02] px-5 py-12 text-center">
-              <BellRing className="mx-auto h-8 w-8 text-slate-600" />
-              <h3 className="mt-3 text-sm font-semibold text-slate-200">Nu ai alerte active</h3>
-              <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">Deschide un asset, alege timeframe-ul și apasă „Alertă plan”. Aplicația îl va monitoriza automat.</p>
-            </div>
+          {activeAlertsOpen && (
+            loading && !data ? (
+              <div className="grid gap-3 lg:grid-cols-2">
+                {[0, 1].map(item => <div key={item} className="h-56 animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.03]" />)}
+              </div>
+            ) : data?.activeAlerts.length ? (
+              <div className="grid gap-3 lg:grid-cols-2">
+                {data.activeAlerts
+                  .slice()
+                  .sort((left, right) => right.progressPercent - left.progressPercent)
+                  .map(alert => (
+                    <ActiveAlertCard
+                      key={alert.id}
+                      alert={alert}
+                      removing={removingId === alert.id}
+                      onRemove={() => void removeAlert(alert)}
+                      onOpen={() => onOpenAsset(alert.symbol, alert.marketClass, alert.timeframe)}
+                    />
+                  ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-white/[0.10] bg-white/[0.02] px-5 py-12 text-center">
+                <BellRing className="mx-auto h-8 w-8 text-slate-600" />
+                <h3 className="mt-3 text-sm font-semibold text-slate-200">Nu ai alerte active</h3>
+                <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">Deschide un asset, alege timeframe-ul și apasă „Alertă plan”. Aplicația îl va monitoriza automat.</p>
+              </div>
+            )
           )}
         </section>
       )}
@@ -866,6 +959,11 @@ const FlipCandidateCard: React.FC<{
     ? 100
     : Math.max(4, Math.min(98, Math.round((1 - candidate.distanceAtr / 2.5) * 100)));
   const alignmentCount = [candidate.weeklyAligned, candidate.sma50Aligned, candidate.sma200Aligned].filter(Boolean).length;
+  const confirmationPrice = candidate.confirmationPrice || candidate.currentPrice;
+  const moveFromFlip = confirmationPrice > 0
+    ? ((candidate.currentPrice - confirmationPrice) / confirmationPrice) * 100
+    : 0;
+  const moveFromFlipLabel = `${moveFromFlip >= 0 ? '+' : ''}${moveFromFlip.toFixed(2)}%`;
 
   return (
     <article className="overflow-hidden rounded-2xl border border-white/[0.07] bg-background-card shadow-sm transition hover:border-violet-500/20">
@@ -903,12 +1001,23 @@ const FlipCandidateCard: React.FC<{
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <LevelBox label="Preț acum" value={formatPrice(candidate.currentPrice)} tone="slate" />
-          <LevelBox label={`${bullish ? 'Peste' : 'Sub'} Slow`} value={formatPrice(candidate.triggerPrice)} tone={bullish ? 'emerald' : 'rose'} />
-          <LevelBox label="ML 1W" value={`${candidate.weeklyTier} · ${candidate.weeklyScore > 0 ? '+' : ''}${candidate.weeklyScore}`} tone={candidate.weeklyAligned ? (bullish ? 'emerald' : 'rose') : 'slate'} />
-          <LevelBox label="Prioritate" value={`${candidate.priorityScore.toFixed(0)}/100`} tone={candidate.priorityScore >= 80 ? 'amber' : 'slate'} />
-        </div>
+        {candidate.status === 'CONFIRMED' ? (
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <LevelBox label="Închidere flip" value={formatPrice(confirmationPrice)} tone={bullish ? 'emerald' : 'rose'} />
+            <LevelBox label="Preț acum" value={formatPrice(candidate.currentPrice)} tone="cyan" />
+            <LevelBox label="Față de flip" value={moveFromFlipLabel} tone={moveFromFlip >= 0 ? 'emerald' : 'rose'} />
+            <LevelBox label="Confirmat" value={formatRelativeAge(getFlipConfirmedAt(candidate))} tone="slate" />
+            <LevelBox label="ML 1W" value={`${candidate.weeklyTier} · ${candidate.weeklyScore > 0 ? '+' : ''}${candidate.weeklyScore}`} tone={candidate.weeklyAligned ? (bullish ? 'emerald' : 'rose') : 'slate'} />
+            <LevelBox label="Prioritate" value={`${candidate.priorityScore.toFixed(0)}/100`} tone={candidate.priorityScore >= 80 ? 'amber' : 'slate'} />
+          </div>
+        ) : (
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <LevelBox label="Preț acum" value={formatPrice(candidate.currentPrice)} tone="slate" />
+            <LevelBox label={`${bullish ? 'Peste' : 'Sub'} Slow`} value={formatPrice(candidate.triggerPrice)} tone={bullish ? 'emerald' : 'rose'} />
+            <LevelBox label="ML 1W" value={`${candidate.weeklyTier} · ${candidate.weeklyScore > 0 ? '+' : ''}${candidate.weeklyScore}`} tone={candidate.weeklyAligned ? (bullish ? 'emerald' : 'rose') : 'slate'} />
+            <LevelBox label="Prioritate" value={`${candidate.priorityScore.toFixed(0)}/100`} tone={candidate.priorityScore >= 80 ? 'amber' : 'slate'} />
+          </div>
+        )}
 
         <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[9px] font-bold uppercase tracking-wide">
           <span className={`rounded-md border px-2 py-1 ${candidate.weeklyAligned ? directionTone : 'border-white/[0.06] text-slate-600'}`}>1W aliniat</span>
@@ -949,6 +1058,13 @@ const ConfirmedFlipCard: React.FC<{
     ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
     : 'border-rose-500/25 bg-rose-500/10 text-rose-300';
   const alignmentCount = [candidate.weeklyAligned, candidate.sma50Aligned, candidate.sma200Aligned].filter(Boolean).length;
+  const confirmationPrice = candidate.confirmationPrice || candidate.currentPrice;
+  const moveFromFlip = confirmationPrice > 0
+    ? ((candidate.currentPrice - confirmationPrice) / confirmationPrice) * 100
+    : 0;
+  const moveFromFlipLabel = `${moveFromFlip >= 0 ? '+' : ''}${moveFromFlip.toFixed(2)}%`;
+  const confirmedAtTimestamp = getFlipConfirmedAt(candidate);
+
   return (
     <article className="rounded-2xl border border-white/[0.07] bg-background-card p-4 shadow-sm transition hover:border-emerald-500/20">
       <div className="flex items-start justify-between gap-3">
@@ -960,16 +1076,23 @@ const ConfirmedFlipCard: React.FC<{
               <span className="rounded-md border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-cyan-300">{candidate.timeframe.toUpperCase()}</span>
               <span className="rounded-md border border-white/[0.07] bg-white/[0.03] px-1.5 py-0.5 text-[9px] uppercase text-slate-500">{candidate.marketClass}</span>
             </div>
-            <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500"><Clock3 className="h-3 w-3" /> Confirmat {formatDate(candidate.candleTimestamp)}</div>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500"><Clock3 className="h-3 w-3" /> Confirmat {formatRelativeAge(confirmedAtTimestamp)} · {formatDate(confirmedAtTimestamp)}</div>
           </div>
         </button>
-        <span className={`shrink-0 rounded-lg border px-2 py-1 font-mono text-[10px] font-black ${tone}`}>
-          {bullish ? '▲ BULL FLIP' : '▼ BEAR FLIP'}
-        </span>
+        <div className="flex flex-col items-end gap-1">
+          <span className={`shrink-0 rounded-lg border px-2 py-1 font-mono text-[10px] font-black ${tone}`}>
+            {bullish ? '▲ BULL FLIP' : '▼ BEAR FLIP'}
+          </span>
+          <span className={`font-mono text-[11px] font-bold ${moveFromFlip >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            {moveFromFlipLabel} de la flip
+          </span>
+        </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <LevelBox label="Preț confirmare" value={formatPrice(candidate.currentPrice)} tone="slate" />
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        <LevelBox label="Închidere flip" value={formatPrice(confirmationPrice)} tone={bullish ? 'emerald' : 'rose'} />
+        <LevelBox label="Preț actual" value={formatPrice(candidate.currentPrice)} tone="cyan" />
+        <LevelBox label="Față de flip" value={moveFromFlipLabel} tone={moveFromFlip >= 0 ? 'emerald' : 'rose'} />
         <LevelBox label="Scor setup" value={`${candidate.priorityScore.toFixed(0)}/100`} tone={candidate.priorityScore >= 80 ? 'amber' : 'cyan'} />
         <LevelBox label="ML 1W" value={`${candidate.weeklyTier} · ${candidate.weeklyScore > 0 ? '+' : ''}${candidate.weeklyScore}`} tone={candidate.weeklyAligned ? (bullish ? 'emerald' : 'rose') : 'slate'} />
         <LevelBox label="RVOL" value={`${candidate.rvol.toFixed(2)}x`} tone={candidate.rvol >= 1.2 ? 'emerald' : 'slate'} />

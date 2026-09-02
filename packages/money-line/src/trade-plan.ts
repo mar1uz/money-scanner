@@ -28,7 +28,9 @@ export interface BullishTradePlan {
   stopLoss: number;
   target1: number;
   target2: number;
+  target3?: number;
   targetRiskReward: number;
+  target3RiskReward?: number;
   riskPercent: number;
   riskAtr: number;
   chaseAtr: number;
@@ -140,6 +142,10 @@ export function calculateBullishTradePlan(input: {
   const risk = Math.max(suggestedEntry - stopLoss, atr * 0.10);
   const target1 = suggestedEntry + risk * 1.5;
   const target2 = suggestedEntry + risk * profile.targetRiskReward;
+  const target3RiskReward = timeframe === '1w' ? 5.5 : timeframe === '1d' ? 4.5 : timeframe === '8h' || timeframe === '4h' ? 3.5 : 2.5;
+  const target3 = timeframe === '1w'
+    ? Math.max(suggestedEntry + risk * target3RiskReward, suggestedEntry * 1.50)
+    : suggestedEntry + risk * target3RiskReward;
   const riskPercent = suggestedEntry > 0 ? (risk / suggestedEntry) * 100 : 0;
   const riskAtr = risk / atr;
   const chaseAtr = Math.max(0, (input.currentPrice - entryHigh) / atr);
@@ -255,7 +261,9 @@ export function calculateBullishTradePlan(input: {
     stopLoss,
     target1,
     target2,
+    target3,
     targetRiskReward: profile.targetRiskReward,
+    target3RiskReward,
     riskPercent,
     riskAtr,
     chaseAtr,

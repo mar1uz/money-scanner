@@ -330,4 +330,62 @@ describe('Daily MoneyLine regime scan', () => {
     assert.equal(result.candleTimestamp, series[84].timestamp);
     assert.equal(result.confirmedAt, series[84].timestamp + 86_400_000);
   });
+
+  it('triggers an initial Bullish Flip alert and a subsequent Retest alert on support touch', async () => {
+    const state = new AppState();
+    const timestamp = Date.now();
+    const sentMessages: string[] = [];
+    (state.telegramBot as any).sendMarkdown = async (message: string) => {
+      sentMessages.push(message);
+      return true;
+    };
+    (state.marketData as any).getCandles = async () => series;
+
+    // Construct candles that flip bullish
+    const series = Array.from({ length: 120 }, (_, index) => {
+      const close = index < 80 ? 100 - index * 0.2 : 84 + (index - 80) * 2;
+      return {
+        timestamp: timestamp - (119 - index) * 86_400_000,
+        open: close,
+        high: close + 1,
+        low: close - 1,
+        close,
+        volume: 2_000,
+        isClosed: true
+      };
+    });
+
+    const rule: any = {
+      id: 'user1:TEST:1w',
+      userId: 'user1',
+      symbol: 'TEST',
+      timeframe: '1w',
+      marketClass: 'crypto',
+      isEnabled: true,
+      createdAt: timestamp
+    };
+
+    // 1. Initial evaluation triggers Bullish Flip
+    await (state as any).evaluateBullishCloudAlert(rule, { candles: series, price: 164 });
+    assert.equal(sentMessages.length, 1);
+    assert.ok(sentMessages[0].includes('BULLISH FLIP CONFIRMAT'));
+
+    // 2. Subsequent candle where price pulls back into retest zone
+    const lastPlan = rule.lastPlan!;
+    const retestCandle = {
+      timestamp: timestamp + 86_400_000,
+      open: 160,
+      high: 162,
+      low: lastPlan.entryLow,
+      close: lastPlan.suggestedEntry,
+      volume: 2_500,
+      isClosed: true
+    };
+    const seriesWithRetest = [...series, retestCandle];
+
+    await (state as any).evaluateBullishCloudAlert(rule, { candles: seriesWithRetest, price: lastPlan.suggestedEntry });
+    assert.equal(sentMessages.length, 2);
+    assert.ok(sentMessages[1].includes('RETEST CONFIRMAT ÎN ZONA DE INTRARE'));
+    assert.ok(sentMessages[1].includes('SETUP VALID'));
+  });
 });

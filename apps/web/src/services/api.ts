@@ -443,6 +443,8 @@ export interface FlipCandidateDashboardItem {
   sma50Aligned: boolean;
   sma200Aligned: boolean;
   candleTimestamp: number;
+  confirmationPrice?: number;
+  confirmedAt?: number;
   scannedAt: number;
 }
 

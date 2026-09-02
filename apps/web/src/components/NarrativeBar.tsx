@@ -23,6 +23,7 @@ import {
   Gamepad2,
   TrendingUp,
   TrendingDown,
+  ChevronDown,
   ChevronRight,
   Sparkles,
   SlidersHorizontal,
@@ -70,6 +71,8 @@ export const NarrativeBar: React.FC<NarrativeBarProps> = ({
   loading = false
 }) => {
   const { language } = useLanguage();
+  const [isCollapsed, setIsCollapsed] = React.useState(false);
+
   const formatMarketCap = (cap?: number) => {
     if (!cap) return '-';
     if (cap >= 1e12) return `$${(cap / 1e12).toFixed(2)}T`;
@@ -82,30 +85,38 @@ export const NarrativeBar: React.FC<NarrativeBarProps> = ({
     <div className="space-y-3">
       {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
-            <Sparkles className="w-4 h-4 text-cyan-400" />
+        <button
+          type="button"
+          onClick={() => setIsCollapsed(prev => !prev)}
+          className="flex items-start gap-2.5 text-left group transition focus:outline-none"
+        >
+          <div className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-lg border border-cyan-500/25 bg-cyan-500/10 text-cyan-300 group-hover:border-cyan-500/40 group-hover:bg-cyan-500/20 transition">
+            <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isCollapsed ? '-rotate-90' : ''}`} />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-xs font-bold tracking-wider uppercase font-mono text-slate-200">
+            <div className="flex flex-wrap items-center gap-2">
+              <Sparkles className="w-4 h-4 text-cyan-400" />
+              <h2 className="text-xs font-bold tracking-wider uppercase font-mono text-slate-200 group-hover:text-cyan-300 transition">
                 {language === 'ro'
                   ? 'Narative & Sectoare Alpha · Categorii Multi-Asset'
                   : 'Alpha Narratives & Sectors · Multi-Asset Categories'}
               </h2>
+              <span className="rounded-md border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-cyan-300">
+                {narratives.length} sectoare
+              </span>
               {selectedNarrative !== 'ALL' && (
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-semibold">
                   Filtru Activ
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-slate-400 font-sans">
+            <p className="mt-1 text-[11px] text-slate-400 font-sans">
               {language === 'ro'
                 ? `Performanță agregată pe ultima lumânare ${timeframe.toUpperCase()} închisă și compoziție după Market Cap`
                 : `Aggregated performance on the latest closed ${timeframe.toUpperCase()} candle and Market Cap composition`}
             </p>
           </div>
-        </div>
+        </button>
 
         {selectedNarrative !== 'ALL' && (
           <button
@@ -119,7 +130,8 @@ export const NarrativeBar: React.FC<NarrativeBarProps> = ({
       </div>
 
       {/* Horizontal Scrollable / Grid Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-8 gap-2.5">
+      {!isCollapsed && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-8 gap-2.5">
         {narratives.map((n) => {
           const isSelected = selectedNarrative === n.id;
           const performance = n.avgChangePercent ?? n.avgChange24h;
@@ -199,6 +211,7 @@ export const NarrativeBar: React.FC<NarrativeBarProps> = ({
           );
         })}
       </div>
+      )}
     </div>
   );
 };

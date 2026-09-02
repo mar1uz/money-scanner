@@ -48,6 +48,7 @@ export interface BullishCloudAlertRule {
   createdAt: number;
   lastEvaluatedCandle?: number;
   lastTriggeredCandle?: number;
+  lastRetestTriggeredCandle?: number;
   lastWasBullish?: boolean;
   lastPlan?: BullishTradePlan;
   lastError?: string;
@@ -55,8 +56,8 @@ export interface BullishCloudAlertRule {
 
 export interface DailyRegimeScanStatus {
   enabled: true;
-  schedule: '5 */4 * * *';
-  timezone: 'UTC';
+  schedule: '0 8 * * *';
+  timezone: 'Europe/Bucharest';
   lastStartedAt?: number;
   lastCompletedAt?: number;
   scannedAssets: number;
@@ -146,6 +147,12 @@ interface PreliminaryFlipAsset {
   candidate: FlipCandidate;
 }
 
+interface FlipAssetScanResult {
+  upcoming: FlipCandidate[];
+  confirmedHistory: FlipCandidate[];
+  newlyConfirmed: FlipCandidate[];
+}
+
 interface DailyRegimeMatch {
   symbol: string;
   marketClass: AssetMarketClass;
@@ -167,6 +174,37 @@ const formatAlertPrice = (value: number) => `$${value.toLocaleString('en-US', {
 })}`;
 
 const TELEGRAM_FLIP_TIMEFRAMES: TelegramFlipTimeframe[] = ['4h', '8h', '1d', '1w'];
+const FLIP_TIMEFRAME_DURATION_MS: Record<TelegramFlipTimeframe, number> = {
+  '4h': 4 * 60 * 60 * 1_000,
+  '8h': 8 * 60 * 60 * 1_000,
+  '1d': 24 * 60 * 60 * 1_000,
+  '1w': 7 * 24 * 60 * 60 * 1_000
+};
+
+const flipPriceMovePercent = (confirmationPrice: number, currentPrice: number) =>
+  confirmationPrice > 0 ? ((currentPrice - confirmationPrice) / confirmationPrice) * 100 : 0;
+
+const formatFlipMove = (confirmationPrice: number, currentPrice: number) => {
+  const move = flipPriceMovePercent(confirmationPrice, currentPrice);
+  return `${move >= 0 ? '+' : ''}${move.toFixed(2)}%`;
+};
+
+const formatFlipAge = (confirmedAt: number, now = Date.now()) => {
+  const elapsedMs = Math.max(0, now - confirmedAt);
+  const minutes = Math.floor(elapsedMs / 60_000);
+  if (minutes < 60) return minutes <= 1 ? 'acum 1 minut' : `acum ${minutes} minute`;
+  const hours = Math.floor(elapsedMs / 3_600_000);
+  if (hours < 24) return hours === 1 ? 'acum 1 oră' : `acum ${hours} ore`;
+  const days = Math.floor(elapsedMs / 86_400_000);
+  return days === 1 ? 'acum 1 zi' : `acum ${days} zile`;
+};
+
+const formatFlipDate = (confirmedAt: number) => new Intl.DateTimeFormat('ro-RO', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  timeZone: 'Europe/Oslo'
+}).format(new Date(confirmedAt));
 
 const tradePlanActionLabel = (action: BullishTradePlan['action']) => {
   if (action === 'READY') return '🟢 SETUP VALID — intrare numai în zona indicată';
@@ -202,8 +240,8 @@ export class AppState {
   private telegramScanPromises = new Map<string, Promise<TelegramMoneyLineScanResult>>();
   private dailyRegimeScanStatus: DailyRegimeScanStatus = {
     enabled: true,
-    schedule: '5 */4 * * *',
-    timezone: 'UTC',
+    schedule: '0 8 * * *',
+    timezone: 'Europe/Bucharest',
     scannedAssets: 0,
     matches: 0,
     errors: 0,
@@ -319,7 +357,7 @@ export class AppState {
         const preferences: TelegramFlipAlertPreferences = {
           chatId: normalizedChatId,
           enabled: stored.enabled !== false && timeframes.length > 0,
-          timeframes: timeframes.length ? timeframes : [...TELEGRAM_FLIP_TIMEFRAMES],
+          timeframes: timeframes.length ? timeframes : ['1w'],
           updatedAt: Number(stored.updatedAt) || Date.now()
         };
         this.telegramFlipPreferences.set(normalizedChatId, preferences);
@@ -333,7 +371,7 @@ export class AppState {
     const defaults: TelegramFlipAlertPreferences = {
       chatId: normalizedChatId,
       enabled: true,
-      timeframes: [...TELEGRAM_FLIP_TIMEFRAMES],
+      timeframes: ['1w'],
       updatedAt: Date.now()
     };
     this.telegramFlipPreferences.set(normalizedChatId, defaults);
@@ -524,6 +562,30 @@ export class AppState {
       || alert.type === 'MultiTimeframeReversal'
       || alert.type === 'StrategySetup'
     );
+
+    const confirmedAssets = Array.from(new Map(
+      this.confirmedFlips.map(candidate => [
+        `${candidate.marketClass}:${candidate.symbol}`,
+        { symbol: candidate.symbol, marketClass: candidate.marketClass }
+      ])
+    ).values());
+    const currentPriceByAsset = new Map<string, number>();
+    for (let index = 0; index < confirmedAssets.length; index += concurrency) {
+      const batch = confirmedAssets.slice(index, index + concurrency);
+      const settled = await Promise.allSettled(
+        batch.map(asset => this.marketData.getPriceQuote(asset.symbol, asset.marketClass))
+      );
+      settled.forEach((result, batchIndex) => {
+        if (result.status !== 'fulfilled' || !Number.isFinite(result.value.price) || result.value.price <= 0) return;
+        const asset = batch[batchIndex];
+        currentPriceByAsset.set(`${asset.marketClass}:${asset.symbol}`, result.value.price);
+      });
+    }
+    this.confirmedFlips.forEach(candidate => {
+      const price = currentPriceByAsset.get(`${candidate.marketClass}:${candidate.symbol}`);
+      if (price) candidate.currentPrice = price;
+    });
+
     return {
       activeAlerts,
       history,
@@ -846,6 +908,8 @@ export class AppState {
         !assets.some(asset => asset.symbol === item.symbol && (!item.marketClass || asset.marketClass === item.marketClass))
       ).length;
       const candidates: FlipCandidate[] = [];
+      const confirmedHistory: FlipCandidate[] = [];
+      const newlyConfirmed: FlipCandidate[] = [];
       this.updateManualAlertScanStatus(userId, {
         scope: 'quick',
         running: true,
@@ -868,7 +932,9 @@ export class AppState {
 
         settled.forEach(result => {
           if (result.status === 'fulfilled') {
-            candidates.push(...result.value);
+            candidates.push(...result.value.upcoming);
+            confirmedHistory.push(...result.value.confirmedHistory);
+            newlyConfirmed.push(...result.value.newlyConfirmed);
           } else {
             errors += 1;
             console.warn('Quick manual alert scan failed:', result.reason instanceof Error ? result.reason.message : result.reason);
@@ -876,14 +942,13 @@ export class AppState {
         });
         this.updateManualAlertScanStatus(userId, {
           scannedAssets: Math.min(assets.length, index + batch.length),
-          matches: candidates.filter(candidate => candidate.status === 'CONFIRMED').length,
+          matches: newlyConfirmed.length,
           errors
         });
       }
 
-      const confirmed = candidates.filter(candidate => candidate.status === 'CONFIRMED');
-      await this.publishConfirmedFlipEvents(confirmed, 'manual quick scan');
-      this.mergeConfirmedFlips(confirmed);
+      await this.publishConfirmedFlipEvents(newlyConfirmed, 'manual quick scan');
+      this.mergeConfirmedFlips(confirmedHistory);
       this.flipCandidates = this.rankUpcomingCandidates([...candidates, ...this.flipCandidates]);
       await this.persistDailyRegimeState();
       return this.updateManualAlertScanStatus(userId, {
@@ -891,7 +956,7 @@ export class AppState {
         running: false,
         scannedAssets: assets.length,
         totalAssets: assets.length,
-        matches: confirmed.length,
+        matches: newlyConfirmed.length,
         errors,
         lastCompletedAt: Date.now(),
         lastError: undefined
@@ -949,6 +1014,8 @@ export class AppState {
       );
       this.dailyRegimeScanStatus.totalAssets = universe.length;
       const candidates: FlipCandidate[] = [];
+      const confirmedHistory: FlipCandidate[] = [];
+      const newlyConfirmed: FlipCandidate[] = [];
       let errors = 0;
       const concurrency = 4;
 
@@ -960,7 +1027,9 @@ export class AppState {
 
         settled.forEach(result => {
           if (result.status === 'fulfilled') {
-            candidates.push(...result.value);
+            candidates.push(...result.value.upcoming);
+            confirmedHistory.push(...result.value.confirmedHistory);
+            newlyConfirmed.push(...result.value.newlyConfirmed);
           } else {
             errors += 1;
             console.warn('Flip-only asset scan failed:', result.reason instanceof Error ? result.reason.message : result.reason);
@@ -969,15 +1038,14 @@ export class AppState {
         this.dailyRegimeScanStatus.scannedAssets += settled.filter(result => result.status === 'fulfilled').length;
       }
 
-      const confirmed = candidates.filter(candidate => candidate.status === 'CONFIRMED');
       this.flipCandidates = this.rankUpcomingCandidates(candidates);
-      await this.publishConfirmedFlipEvents(confirmed, 'scheduled/full scan');
-      this.mergeConfirmedFlips(confirmed);
+      await this.publishConfirmedFlipEvents(newlyConfirmed, 'scheduled/full scan');
+      this.mergeConfirmedFlips(confirmedHistory);
 
       this.dailyRegimeScanStatus = {
         ...this.dailyRegimeScanStatus,
         lastCompletedAt: Date.now(),
-        matches: confirmed.length,
+        matches: newlyConfirmed.length,
         strategyMatches: 0,
         strategyArmed: 0,
         errors,
@@ -1296,12 +1364,12 @@ export class AppState {
       if (stored?.status && !scanIsRunning) this.dailyRegimeScanStatus = {
         ...stored.status,
         enabled: true,
-        schedule: '5 */4 * * *',
-        timezone: 'UTC',
+        schedule: '0 8 * * *',
+        timezone: 'Europe/Bucharest',
         running: false
       };
       if (Array.isArray(stored?.flipCandidates)) this.flipCandidates = stored.flipCandidates.slice(0, 400);
-      if (Array.isArray(stored?.confirmedFlips)) this.confirmedFlips = stored.confirmedFlips.slice(0, 100);
+      if (Array.isArray(stored?.confirmedFlips)) this.confirmedFlips = stored.confirmedFlips.slice(0, 600);
       if (Array.isArray(stored?.strategySetups)) this.strategySetups = stored.strategySetups.slice(0, 100);
       if (Array.isArray(stored?.alerts)) {
         const individual = this.alertHistory.filter(alert =>
@@ -1407,6 +1475,9 @@ export class AppState {
     const priorityScore = Math.max(0, Math.min(100,
       92 - Math.min(distanceAtr, 4) * 18 + statusBoost + alignmentBoost + volumeBoost + timeframeBoost
     ));
+    const confirmedAt = confirmed
+      ? Math.min(Date.now(), closedCandles[lastIndex].timestamp + FLIP_TIMEFRAME_DURATION_MS[timeframe])
+      : undefined;
 
     return {
       id: `${marketClass}:${symbol}:${timeframe}:${direction}`,
@@ -1432,6 +1503,8 @@ export class AppState {
       sma50Aligned,
       sma200Aligned,
       candleTimestamp: closedCandles[lastIndex].timestamp,
+      confirmationPrice: confirmed ? Number(closedCandles[lastIndex].close.toFixed(8)) : undefined,
+      confirmedAt,
       scannedAt: Date.now()
     };
   }
@@ -1472,13 +1545,7 @@ export class AppState {
     );
     if (!candidate || candidate.status !== 'CONFIRMED') return undefined;
 
-    const timeframeDurationMs: Record<TelegramFlipTimeframe, number> = {
-      '4h': 4 * 60 * 60 * 1_000,
-      '8h': 8 * 60 * 60 * 1_000,
-      '1d': 24 * 60 * 60 * 1_000,
-      '1w': 7 * 24 * 60 * 60 * 1_000
-    };
-    const confirmedAt = Math.min(Date.now(), confirmationCandle.timestamp + timeframeDurationMs[timeframe]);
+    const confirmedAt = Math.min(Date.now(), confirmationCandle.timestamp + FLIP_TIMEFRAME_DURATION_MS[timeframe]);
     return {
       ...candidate,
       currentPrice: Number(currentPrice.toFixed(8)),
@@ -1487,7 +1554,7 @@ export class AppState {
     };
   }
 
-  private async scanFlipAsset(symbol: string, marketClass: AssetMarketClass): Promise<FlipCandidate[]> {
+  private async scanFlipAsset(symbol: string, marketClass: AssetMarketClass): Promise<FlipAssetScanResult> {
     const [quote, dailyRaw, weekly, candles4h, candles8h] = await Promise.all([
       this.marketData.getPriceQuote(symbol, marketClass).catch(() => undefined),
       this.marketData.getCandles(symbol, '1d', 320, marketClass),
@@ -1503,15 +1570,31 @@ export class AppState {
         : candle
     );
     const dailyClosed = daily.filter(candle => candle.isClosed !== false).sort((left, right) => left.timestamp - right.timestamp);
-    const weeklySignal = this.moneyLine.calculateLatest(symbol, '1w', weekly);
+    const weeklyClosed = weekly.filter(candle => candle.isClosed !== false).sort((left, right) => left.timestamp - right.timestamp);
+    const weeklySignal = this.moneyLine.calculateLatest(symbol, '1w', weeklyClosed);
     const price = quote?.price || dailyClosed[dailyClosed.length - 1]?.close || 0;
-    if (!weeklySignal || !price) return [];
-    return [
-      this.calculateFlipCandidate(symbol, marketClass, '4h', candles4h, price, weeklySignal.tier, weeklySignal.score),
-      this.calculateFlipCandidate(symbol, marketClass, '8h', candles8h, price, weeklySignal.tier, weeklySignal.score),
-      this.calculateFlipCandidate(symbol, marketClass, '1d', dailyClosed, price, weeklySignal.tier, weeklySignal.score),
-      this.calculateFlipCandidate(symbol, marketClass, '1w', weekly, price, weeklySignal.tier, weeklySignal.score)
-    ].filter((candidate): candidate is FlipCandidate => Boolean(candidate));
+    if (!weeklySignal || !price) return { upcoming: [], confirmedHistory: [], newlyConfirmed: [] };
+
+    const timeframeCandles = [
+      ['4h', candles4h],
+      ['8h', candles8h],
+      ['1d', dailyClosed],
+      ['1w', weeklyClosed]
+    ] as const;
+    const latestCandidates = timeframeCandles.map(([timeframe, timeframeSeries]) =>
+      this.calculateFlipCandidate(symbol, marketClass, timeframe, timeframeSeries, price, weeklySignal.tier, weeklySignal.score)
+    ).filter((candidate): candidate is FlipCandidate => Boolean(candidate));
+    const confirmedHistory = timeframeCandles.map(([timeframe, timeframeSeries]) =>
+      this.findMostRecentConfirmedFlip(symbol, marketClass, timeframe, timeframeSeries, price, weeklySignal.tier, weeklySignal.score)
+    ).filter((candidate): candidate is FlipCandidate => Boolean(candidate));
+
+    return {
+      upcoming: latestCandidates.filter(candidate => candidate.status !== 'CONFIRMED'),
+      confirmedHistory,
+      // Only a flip on the latest closed candle is a new event eligible for
+      // Telegram delivery. Historical flips are dashboard context only.
+      newlyConfirmed: latestCandidates.filter(candidate => candidate.status === 'CONFIRMED')
+    };
   }
 
   private rankUpcomingCandidates(candidates: FlipCandidate[]): FlipCandidate[] {
@@ -1538,12 +1621,15 @@ export class AppState {
   private mergeConfirmedFlips(candidates: FlipCandidate[]) {
     const unique = new Map<string, FlipCandidate>();
     [...candidates, ...this.confirmedFlips]
-      .sort((left, right) => right.candleTimestamp - left.candleTimestamp || right.priorityScore - left.priorityScore)
+      .sort((left, right) => (right.confirmedAt || right.candleTimestamp) - (left.confirmedAt || left.candleTimestamp)
+        || right.priorityScore - left.priorityScore)
       .forEach(candidate => {
-        const key = `${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}:${candidate.direction}:${candidate.candleTimestamp}`;
+        // The dashboard represents the current Money Line regime: retain only
+        // the most recent confirmed transition for each asset/timeframe.
+        const key = `${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}`;
         if (!unique.has(key)) unique.set(key, candidate);
       });
-    this.confirmedFlips = Array.from(unique.values()).slice(0, 100);
+    this.confirmedFlips = Array.from(unique.values()).slice(0, 600);
   }
 
   private async publishConfirmedFlipEvents(
@@ -1576,10 +1662,17 @@ export class AppState {
         `_Numai lumânări închise · ordonate după scorul setupului_`,
         ''
       ];
-      selected.slice(0, 10).forEach(candidate => lines.push(
-        `${candidate.direction === 'BULLISH' ? '🟢 ▲' : '🔴 ▼'} ${telegramAssetLink({ baseUrl: dashboardBaseUrl, symbol: candidate.symbol, timeframe: candidate.timeframe, marketClass: candidate.marketClass })} ${candidate.timeframe.toUpperCase()} · ${candidate.priorityScore.toFixed(0)}/100 · ${candidate.marketClass.toUpperCase()} · ${formatAlertPrice(candidate.currentPrice)}`,
-        `ML1W ${candidate.weeklyTier} (${candidate.weeklyScore > 0 ? '+' : ''}${candidate.weeklyScore}) · RVOL ${candidate.rvol.toFixed(2)}x · SMA50 ${candidate.sma50Aligned ? 'aliniat' : 'neconfirmat'} · SMA200 ${candidate.sma200Aligned ? 'aliniat' : 'neconfirmat'}`
-      ));
+      selected.slice(0, 10).forEach(candidate => {
+        const confirmationPrice = candidate.confirmationPrice || candidate.currentPrice;
+        const confirmedAt = candidate.confirmedAt
+          || Math.min(Date.now(), candidate.candleTimestamp + FLIP_TIMEFRAME_DURATION_MS[candidate.timeframe]);
+        lines.push(
+          `${candidate.direction === 'BULLISH' ? '🟢 ▲' : '🔴 ▼'} ${telegramAssetLink({ baseUrl: dashboardBaseUrl, symbol: candidate.symbol, timeframe: candidate.timeframe, marketClass: candidate.marketClass })} ${candidate.timeframe.toUpperCase()} · ${candidate.priorityScore.toFixed(0)}/100 · ${candidate.marketClass.toUpperCase()}`,
+          `*Închidere flip:* ${formatAlertPrice(confirmationPrice)} → *Preț acum:* ${formatAlertPrice(candidate.currentPrice)} (*${formatFlipMove(confirmationPrice, candidate.currentPrice)}*)`,
+          `*Confirmat:* ${formatFlipAge(confirmedAt)} · ${formatFlipDate(confirmedAt)}`,
+          `ML1W ${candidate.weeklyTier} (${candidate.weeklyScore > 0 ? '+' : ''}${candidate.weeklyScore}) · RVOL ${candidate.rvol.toFixed(2)}x · SMA50 ${candidate.sma50Aligned ? 'aliniat' : 'neconfirmat'} · SMA200 ${candidate.sma200Aligned ? 'aliniat' : 'neconfirmat'}`
+        );
+      });
       if (selected.length > 10) lines.push(`…și încă ${selected.length - 10} flipuri în pagina Alerte.`);
       lines.push(
         '',
@@ -1613,6 +1706,11 @@ export class AppState {
           : `Flip ${candidate.direction.toLowerCase()} ${candidate.timeframe.toUpperCase()} confirmat. Telegram filtrat conform preferințelor; evenimentul rămâne disponibil în pagina Alerte.`,
         timeframe: candidate.timeframe,
         price: candidate.currentPrice,
+        confirmationPrice: candidate.confirmationPrice || candidate.currentPrice,
+        currentPrice: candidate.currentPrice,
+        priceChangePercent: flipPriceMovePercent(candidate.confirmationPrice || candidate.currentPrice, candidate.currentPrice),
+        confirmedAt: candidate.confirmedAt
+          || Math.min(Date.now(), candidate.candleTimestamp + FLIP_TIMEFRAME_DURATION_MS[candidate.timeframe]),
         tier: candidate.moneyLineTier,
         reason: `Flip ${candidate.direction.toLowerCase()} confirmat pe lumânare închisă; scor tehnic ${candidate.priorityScore.toFixed(0)}/100.`,
         confidence: candidate.priorityScore / 100,
@@ -1837,14 +1935,18 @@ export class AppState {
       const lastIndex = closedCandles.length - 1;
       const isBullish = cloud.dirFast[lastIndex] < 0 && cloud.dirSlow[lastIndex] < 0;
       const candleTimestamp = closedCandles[lastIndex].timestamp;
-      const shouldNotify = isBullish && (
+
+      if (!isBullish) {
+        rule.lastWasBullish = false;
+        rule.lastRetestTriggeredCandle = undefined;
+        rule.lastEvaluatedCandle = candleTimestamp;
+        rule.lastError = undefined;
+        return;
+      }
+
+      const isInitialFlip = isBullish && (
         rule.lastWasBullish !== true || rule.lastTriggeredCandle === undefined
       );
-
-      rule.lastWasBullish = isBullish;
-      rule.lastEvaluatedCandle = candleTimestamp;
-      rule.lastError = undefined;
-      if (!shouldNotify) return;
 
       const price = supplied?.price || (await this.marketData.getPriceQuote(rule.symbol, rule.marketClass)).price;
       const signal = this.moneyLine.calculateLatest(rule.symbol, rule.timeframe, closedCandles);
@@ -1884,6 +1986,29 @@ export class AppState {
       });
       rule.lastPlan = plan;
 
+      const lastCandle = closedCandles[lastIndex];
+      const inRetestZone = (lastCandle.low <= plan.entryHigh && lastCandle.close >= plan.stopLoss)
+        || (price <= plan.entryHigh && price >= plan.stopLoss);
+      const isRetestAlert = !isInitialFlip
+        && rule.lastWasBullish === true
+        && inRetestZone
+        && plan.action !== 'AVOID'
+        && rule.lastRetestTriggeredCandle !== candleTimestamp
+        && candleTimestamp > (rule.lastTriggeredCandle || 0);
+
+      const shouldNotify = isInitialFlip || isRetestAlert;
+
+      rule.lastWasBullish = isBullish;
+      rule.lastEvaluatedCandle = candleTimestamp;
+      rule.lastError = undefined;
+      if (!shouldNotify) return;
+
+      if (isRetestAlert) {
+        rule.lastRetestTriggeredCandle = candleTimestamp;
+      } else {
+        rule.lastTriggeredCandle = candleTimestamp;
+      }
+
       const contextText = profile.confirmationTimeframes.length
         ? profile.confirmationTimeframes.map(timeframe => {
             const confirmation = confirmationSignals[timeframe];
@@ -1902,53 +2027,83 @@ export class AppState {
         timeframe: rule.timeframe,
         marketClass: rule.marketClass
       });
+
+      const messageHeader = isRetestAlert
+        ? [
+            `🎯 *RETEST CONFIRMAT ÎN ZONA DE INTRARE*`,
+            `*▲ PLAN TEHNIC LONG (RETEST) — ${rule.timeframe.toUpperCase()}*`
+          ]
+        : [
+            `🟢 *BULLISH FLIP CONFIRMAT*`,
+            `*▲ PLAN TEHNIC LONG — ${rule.timeframe.toUpperCase()}*`
+          ];
+
+      const actionText = isRetestAlert
+        ? '🟢 SETUP VALID — intrare optimă activată la retest'
+        : tradePlanActionLabel(plan.action);
+
+      const priceLabel = isRetestAlert ? 'Preț la retest:' : 'Preț acum:';
+
       const message = [
-        `🟢 *BULLISH FLIP CONFIRMAT*`,
-        `*▲ PLAN TEHNIC LONG — ${rule.timeframe.toUpperCase()}*`,
+        ...messageHeader,
         `\n${telegramAssetLink({ baseUrl: dashboardBaseUrl, symbol: rule.symbol, timeframe: rule.timeframe, marketClass: rule.marketClass })}  •  *${rule.timeframe.toUpperCase()}*`,
-        `*Acțiune:* ${tradePlanActionLabel(plan.action)}`,
-        `*Calitate setup:* ${plan.confidence}/100`,
-        `\n*Preț acum:* ${formatAlertPrice(plan.currentPrice)}`,
+        `*Acțiune:* ${actionText}`,
+        `*Calitate setup:* ${plan.confidence}/100${isRetestAlert ? ' ⭐' : ''}`,
+        `\n*Închidere flip:* ${formatAlertPrice(closedCandles[lastIndex].close)}`,
+        `*${priceLabel}* ${formatAlertPrice(plan.currentPrice)} (*${formatFlipMove(closedCandles[lastIndex].close, plan.currentPrice)} față de flip*)`,
+        isRetestAlert
+          ? `*Zonă suport testată:* ${formatAlertPrice(plan.entryLow)} – ${formatAlertPrice(plan.entryHigh)}`
+          : `*Confirmat:* ${formatFlipAge(Math.min(Date.now(), candleTimestamp + (FLIP_TIMEFRAME_DURATION_MS[rule.timeframe as TelegramFlipTimeframe] || 0)))}`,
         `*Intrare optimă:* ${formatAlertPrice(plan.suggestedEntry)}`,
         `*Zonă intrare:* ${formatAlertPrice(plan.entryLow)} – ${formatAlertPrice(plan.entryHigh)}`,
         `*Alternativ breakout:* peste ${formatAlertPrice(plan.breakoutTrigger)}`,
         `*STOP LOSS tehnic:* ${formatAlertPrice(plan.stopLoss)}`,
-        `*Ținta 1 (1.5R):* ${formatAlertPrice(plan.target1)}`,
-        `*Ținta 2 (${plan.targetRiskReward.toFixed(1)}R):* ${formatAlertPrice(plan.target2)}`,
-        `*Risc entry → SL:* ${plan.riskPercent.toFixed(2)}% | *R:R plan:* 1:${plan.targetRiskReward.toFixed(1)}`,
+        `*Ținta 1 (1.5R — De-risk):* ${formatAlertPrice(plan.target1)} (*${formatFlipMove(plan.suggestedEntry, plan.target1)}*)`,
+        `*Ținta 2 (${plan.targetRiskReward.toFixed(1)}R — Swing):* ${formatAlertPrice(plan.target2)} (*${formatFlipMove(plan.suggestedEntry, plan.target2)}*)`,
+        ...(plan.target3 ? [`*Ținta 3 (${plan.target3RiskReward ? `${plan.target3RiskReward.toFixed(1)}R` : 'Macro'} — Runner / +50%+):* ${formatAlertPrice(plan.target3)} (*${formatFlipMove(plan.suggestedEntry, plan.target3)}*)`] : []),
+        `*Risc entry → SL:* ${plan.riskPercent.toFixed(2)}% | *R:R swing:* 1:${plan.targetRiskReward.toFixed(1)}`,
         `\n*Context superior:* ${contextText}`,
         `*ML ${rule.timeframe.toUpperCase()}:* ${plan.tier} (${plan.score > 0 ? '+' : ''}${plan.score}) | *RVOL:* ${plan.rvol.toFixed(2)}x | *RSI:* ${plan.rsi.toFixed(1)}`,
         `*Nor:* Fast ${formatAlertPrice(plan.fastLine)} | Slow ${formatAlertPrice(plan.slowLine)}`,
         `*Spațiu:* ${resistanceText}`,
-        `*Observații:* ${plan.reasons.slice(0, 4).join('; ') || 'confirmare tehnică completă'}`,
+        `*Observații:* ${isRetestAlert ? 'Suportul norului Money Line a fost testat cu succes; risc minimizat și R:R optim.' : (plan.reasons.slice(0, 4).join('; ') || 'confirmare tehnică completă')}`,
         `\n_Analiză deterministă pe lumânări închise. Nivelurile sunt orientative și nu garantează execuția sau profitul._`,
         `\n📈 [Deschide graficul Money Line](${assetUrl})`
       ].join('\n');
-      const delivered = await this.telegramBot.sendMarkdown(message);
-      if (!delivered) {
-        rule.lastError = this.telegramBot.getDeliveryConfiguration().telegramConfigured
-          ? 'Telegram a respins mesajul; verifică botul și chatul.'
-          : 'Telegram nu este configurat: lipsesc TELEGRAM_BOT_TOKEN sau TELEGRAM_CHAT_ID.';
-        return;
+      const isWeeklyFlip = isInitialFlip && rule.timeframe === '1w';
+      const shouldSendTelegram = isWeeklyFlip || isRetestAlert;
+
+      let delivered = false;
+      if (shouldSendTelegram) {
+        delivered = await this.telegramBot.sendMarkdown(message);
+        if (!delivered) {
+          rule.lastError = this.telegramBot.getDeliveryConfiguration().telegramConfigured
+            ? 'Telegram a respins mesajul; verifică botul și chatul.'
+            : 'Telegram nu este configurat: lipsesc TELEGRAM_BOT_TOKEN sau TELEGRAM_CHAT_ID.';
+          return;
+        }
       }
 
-      rule.lastTriggeredCandle = candleTimestamp;
       const alert: DispatchedAlert = {
-        id: `cloud_bull_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-        idempotencyKey: `${rule.id}:${candleTimestamp}`,
+        id: `${isRetestAlert ? 'cloud_retest' : 'cloud_bull'}_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        idempotencyKey: `${rule.id}:${isRetestAlert ? 'retest' : 'flip'}:${candleTimestamp}`,
         ruleId: rule.id,
         symbol: rule.symbol,
         type: 'MoneyLineTransition',
-        title: `MoneyLine bullish confirmat: ${rule.symbol} ${rule.timeframe.toUpperCase()}`,
+        title: isRetestAlert
+          ? `MoneyLine retest confirmat: ${rule.symbol} ${rule.timeframe.toUpperCase()}`
+          : `MoneyLine bullish confirmat: ${rule.symbol} ${rule.timeframe.toUpperCase()}`,
         message,
         timeframe: rule.timeframe,
         price,
         tier: 'Bullish',
-        reason: `Fast și Slow bullish pe lumânare închisă; plan ${plan.action}, confluence ${plan.confidence}/100.`,
+        reason: isRetestAlert
+          ? `Retest în zona de suport cu plan ${plan.action}, confluence ${plan.confidence}/100.`
+          : `Fast și Slow bullish pe lumânare închisă; plan ${plan.action}, confluence ${plan.confidence}/100.`,
         confidence: plan.confidence / 100,
         timestamp: Date.now(),
         dashboardLink: assetUrl,
-        isDelivered: true,
+        isDelivered: shouldSendTelegram ? delivered : false,
         tradePlan: {
           action: plan.action,
           confidence: plan.confidence,
@@ -1959,7 +2114,9 @@ export class AppState {
           stopLoss: plan.stopLoss,
           target1: plan.target1,
           target2: plan.target2,
+          target3: plan.target3,
           targetRiskReward: plan.targetRiskReward,
+          target3RiskReward: plan.target3RiskReward,
           riskPercent: plan.riskPercent,
           fastLine: plan.fastLine,
           slowLine: plan.slowLine,
@@ -1999,10 +2156,33 @@ export class AppState {
     }
   }
 
+  private lastScheduledScanDateBucharest?: string;
+
   public startBullishAlertMonitor(intervalMs = 60_000) {
     if (this.bullishAlertTimer) return;
     this.bullishAlertTimer = setInterval(() => {
       this.checkAllBullishCloudAlerts().catch(error => console.error('Bullish alert monitor failed:', error));
+
+      // Automated daily 08:00 AM Europe/Bucharest scan across all assets
+      try {
+        const bucharestTime = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Europe/Bucharest',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        }).format(new Date());
+        const [datePart, timePart] = bucharestTime.split(', ');
+        const [hour, minute] = (timePart || '').split(':').map(Number);
+        if (hour === 8 && minute <= 5 && this.lastScheduledScanDateBucharest !== datePart && !this.dailyRegimeScanStatus.running) {
+          this.lastScheduledScanDateBucharest = datePart;
+          this.runDailyRegimeScan().catch(error => console.error('Automated 08:00 AM scan failed:', error));
+        }
+      } catch (err) {
+        console.warn('Scheduled daily scan check error:', err);
+      }
     }, intervalMs);
     this.bullishAlertTimer.unref();
   }

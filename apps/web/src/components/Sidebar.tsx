@@ -42,12 +42,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const navItems: { id: AppTab; label: string; shortLabel: string; icon: any; accent?: string; badge?: string }[] = [
     { id: 'market', label: 'Market Intelligence', shortLabel: 'Market 360°', icon: LayoutGrid, accent: 'text-cyan-400' },
+    { id: 'ai', label: 'AI Briefing', shortLabel: 'AI Briefing', icon: BrainCircuit, accent: 'text-purple-400', badge: 'AI' },
+    { id: 'crypto_heatmap', label: 'Market Heat Map', shortLabel: 'Heat Map', icon: LayoutGrid, accent: 'text-emerald-400', badge: '360°' },
     { id: 'crypto_bubbles', label: 'Crypto Bubble', shortLabel: 'Bubbles', icon: CircleDot, accent: 'text-fuchsia-400', badge: '100' },
-    { id: 'crypto_heatmap', label: 'Crypto Heat Map', shortLabel: 'Heat Map', icon: LayoutGrid, accent: 'text-emerald-400', badge: '50' },
     { id: 'usa_status', label: 'USA Macro', shortLabel: 'USA Macro', icon: Landmark, accent: 'text-blue-400', badge: '🇺🇸' },
     { id: 'trends', label: 'X Intelligence', shortLabel: 'X Trends', icon: Radio, accent: 'text-violet-400' },
     { id: 'news', label: 'News Feed', shortLabel: 'News Feed', icon: Newspaper, accent: 'text-amber-400' },
-    { id: 'ai', label: 'AI Analyst', shortLabel: 'AI Analyst', icon: BrainCircuit, accent: 'text-purple-400', badge: 'AI' },
     { id: 'backtest', label: 'Backtest Lab', shortLabel: 'Backtest', icon: LineChart, accent: 'text-emerald-400' },
     { id: 'status', label: 'System & Bot Health', shortLabel: 'Status', icon: Activity, accent: 'text-emerald-400' }
   ];

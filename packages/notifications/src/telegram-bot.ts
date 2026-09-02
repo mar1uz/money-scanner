@@ -76,6 +76,11 @@ const telegramFlipDate = (confirmedAt: number) => new Intl.DateTimeFormat('ro-RO
   timeZone: 'Europe/Oslo'
 }).format(new Date(confirmedAt));
 
+const telegramFlipMove = (confirmationPrice: number, currentPrice: number) => {
+  const move = confirmationPrice > 0 ? ((currentPrice - confirmationPrice) / confirmationPrice) * 100 : 0;
+  return `${move >= 0 ? '+' : ''}${move.toFixed(2)}%`;
+};
+
 export class TelegramBotHandler {
   private botToken?: string;
   private defaultChatId?: string;
@@ -297,15 +302,19 @@ export class TelegramBotHandler {
       if (!input.flips.length) {
         lines.push(`Nu există flipuri confirmate în istoricul disponibil pentru filtrul ales.`);
       } else {
-        input.flips.slice(0, 10).forEach(flip => lines.push(
+        input.flips.slice(0, 10).forEach(flip => {
+          const confirmationPrice = flip.confirmationPrice || flip.currentPrice;
+          lines.push(
           `${flip.direction === 'BULLISH' ? '🟢 ▲' : '🔴 ▼'} ${telegramAssetLink({
             baseUrl: this.dashboardBaseUrl,
             symbol: flip.symbol,
             timeframe: flip.timeframe,
             marketClass: flip.marketClass
-          })} · ${flip.direction === 'BULLISH' ? 'BULL FLIP' : 'BEAR FLIP'} · ${telegramPrice(flip.confirmationPrice || flip.currentPrice)}`,
-          `${flip.confirmedAt ? `${telegramFlipAge(flip.confirmedAt)} · ${telegramFlipDate(flip.confirmedAt)} · ` : ''}Scor tehnic ${flip.priorityScore.toFixed(0)}/100 · RVOL ${flip.rvol.toFixed(2)}x`
-        ));
+          })} · ${flip.direction === 'BULLISH' ? 'BULL FLIP' : 'BEAR FLIP'}`,
+          `*Închidere flip:* ${telegramPrice(confirmationPrice)} → *Preț acum:* ${telegramPrice(flip.currentPrice)} (*${telegramFlipMove(confirmationPrice, flip.currentPrice)}*)`,
+          `${flip.confirmedAt ? `*Confirmat:* ${telegramFlipAge(flip.confirmedAt)} · ${telegramFlipDate(flip.confirmedAt)} · ` : ''}Scor tehnic ${flip.priorityScore.toFixed(0)}/100 · RVOL ${flip.rvol.toFixed(2)}x`
+          );
+        });
         if (input.flips.length > 10) lines.push(`…și încă ${input.flips.length - 10} flipuri confirmate.`);
       }
       return { text: [...lines, ...footer].join('\n'), parse_mode: 'Markdown' };

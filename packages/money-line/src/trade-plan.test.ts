@@ -81,6 +81,7 @@ describe('timeframe-aware bullish trade plan', () => {
     assert.ok(plan.stopLoss < plan.suggestedEntry);
     assert.ok(plan.target1 > plan.suggestedEntry);
     assert.ok(plan.target2 > plan.target1);
+    assert.ok(plan.target3 !== undefined && plan.target3 > plan.target2);
     assert.ok(plan.confidence >= 65);
   });
 

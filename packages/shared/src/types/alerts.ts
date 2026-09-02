@@ -54,6 +54,10 @@ export interface DispatchedAlert {
   message: string;
   timeframe: Timeframe;
   price: number;
+  confirmationPrice?: number;
+  currentPrice?: number;
+  priceChangePercent?: number;
+  confirmedAt?: number;
   tier?: MoneyLineTier;
   previousTier?: MoneyLineTier;
   reason: string;
@@ -142,7 +146,9 @@ export interface AlertTradePlanSnapshot {
   stopLoss: number;
   target1: number;
   target2: number;
+  target3?: number;
   targetRiskReward: number;
+  target3RiskReward?: number;
   riskPercent: number;
   fastLine: number;
   slowLine: number;

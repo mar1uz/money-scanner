@@ -38,6 +38,7 @@ import {
   Lightbulb,
   TrendingUp,
   TrendingDown,
+  ChevronDown,
   Flame,
   Radar,
   RefreshCw,
@@ -164,6 +165,9 @@ export const AIBriefingView: React.FC = () => {
   const [stockCriteriaScanError, setStockCriteriaScanError] = useState<string | null>(null);
   const [stockCriteriaFilter, setStockCriteriaFilter] = useState<StockCriteriaFilter>('top-pick');
   const [stockCriteriaSearch, setStockCriteriaSearch] = useState('');
+  const [isBriefingCollapsed, setIsBriefingCollapsed] = useState(false);
+  const [isCryptoQualityCollapsed, setIsCryptoQualityCollapsed] = useState(false);
+  const [isStockQualityCollapsed, setIsStockQualityCollapsed] = useState(false);
   const inspirationQuestions = language === 'en'
     ? scope === 'crypto'
       ? ['What are the hottest crypto narratives?', 'Analyze $BTC on Money Line', 'Which new crypto launches matter?', 'What are the main crypto macro risks?']
@@ -247,8 +251,8 @@ export const AIBriefingView: React.FC = () => {
       id: 'welcome',
       sender: 'ai',
       text: language === 'ro'
-        ? '## 🧠 Întreabă AI Analyst\n\nRaportul macro și narațiunile fundamentate în surse sunt afișate mai sus. Aici poți cere o analiză suplimentară pentru un activ, sector sau risc.'
-        : '## 🧠 Ask AI Analyst\n\nThe grounded macro and narrative report is shown above. Ask for additional analysis on an asset, sector or risk here.',
+        ? '## 🧠 Întreabă AI Briefing\n\nRaportul macro și narațiunile fundamentate în surse sunt afișate mai sus. Aici poți cere o analiză suplimentară pentru un activ, sector sau risc.'
+        : '## 🧠 Ask AI Briefing\n\nThe grounded macro and narrative report is shown above. Ask for additional analysis on an asset, sector or risk here.',
       timestamp: Date.now()
     }]);
   }, [messages.length, activeChatId, language]);
@@ -599,122 +603,141 @@ export const AIBriefingView: React.FC = () => {
     return (
       <section className="rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-cyan-500/[0.06] via-[#111827] to-purple-500/[0.04] p-4 sm:p-5 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <Radar className="w-4 h-4 text-cyan-300" />
-              <h3 className="text-sm sm:text-base font-bold text-slate-100">Crypto Business Quality · 4 Criteria</h3>
+          <button
+            type="button"
+            onClick={() => setIsCryptoQualityCollapsed(prev => !prev)}
+            className="flex items-start gap-2.5 text-left group focus:outline-none transition cursor-pointer"
+          >
+            <div className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-lg border border-cyan-500/25 bg-cyan-500/10 text-cyan-300 group-hover:border-cyan-500/40 group-hover:bg-cyan-500/20 transition">
+              <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isCryptoQualityCollapsed ? '-rotate-90' : ''}`} />
             </div>
-            <p className="mt-1.5 text-[11px] text-slate-500 max-w-3xl">
-              {language === 'ro'
-                ? 'Scannerul transpune criteriile din segmentul 30:03–30:35 în praguri verificabile. „Efect de rețea” folosește un proxy conservator; datele lipsă rămân necunoscute.'
-                : 'The scanner translates the 30:03–30:35 criteria into auditable thresholds. Network effect uses a conservative proxy; missing data stays unknown.'}
-            </p>
-          </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Radar className="w-4 h-4 text-cyan-300" />
+                <h3 className="text-sm sm:text-base font-bold text-slate-100 group-hover:text-cyan-300 transition">
+                  {language === 'ro' ? 'Crypto Business Quality · 4 Criterii de Selecție' : 'Crypto Business Quality · 4 Selection Criteria'}
+                </h3>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-semibold">
+                  Top 200
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400 max-w-3xl font-sans">
+                {language === 'ro'
+                  ? (isCryptoQualityCollapsed ? 'Apasă pentru a extinde analiza celor 4 criterii de selecție' : 'Scannerul transpune criteriile fundamentale (Creștere, Efect de rețea, Venit sustenabil, Valoare către holderi) în praguri verificabile.')
+                  : (isCryptoQualityCollapsed ? 'Click to expand 4-criteria selection analysis' : 'Scanner evaluates the 4 fundamental criteria: Growth, Network Effect, Sustainable Revenue, and Holder Value.')}
+              </p>
+            </div>
+          </button>
+
           <button
             onClick={() => void loadCriteriaScan(true)}
             disabled={loadingCriteriaScan}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-cyan-500/25 bg-cyan-500/10 text-xs font-semibold text-cyan-200 disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-cyan-500/25 bg-cyan-500/10 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/20 disabled:opacity-50 transition"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loadingCriteriaScan ? 'animate-spin' : ''}`} />
-            {language === 'ro' ? 'Scanează din nou' : 'Scan again'}
+            <span>{language === 'ro' ? 'Scanează din nou' : 'Scan again'}</span>
           </button>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-          {[
-            [language === 'ro' ? 'Scanate' : 'Scanned', criteriaScan.scannedCount, 'text-cyan-300'],
-            [language === 'ro' ? 'Cu date' : 'With data', criteriaScan.coveredCount, 'text-slate-200'],
-            ['4 / 4', criteriaScan.allFourCount, 'text-emerald-300'],
-            [language === 'ro' ? 'Primele 3' : 'First 3', criteriaScan.firstThreeCount, 'text-amber-300']
-          ].map(([label, value, tone]) => (
-            <div key={String(label)} className="rounded-xl border border-white/[0.07] bg-black/10 p-3">
-              <span className="block text-[9px] font-mono uppercase text-slate-600">{label}</span>
-              <span className={`block mt-1 text-xl font-mono font-black ${tone}`}>{value}</span>
+        {!isCryptoQualityCollapsed && (
+          <>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+              {[
+                [language === 'ro' ? 'Scanate' : 'Scanned', criteriaScan.scannedCount, 'text-cyan-300'],
+                [language === 'ro' ? 'Cu date' : 'With data', criteriaScan.coveredCount, 'text-slate-200'],
+                ['4 / 4', criteriaScan.allFourCount, 'text-emerald-300'],
+                [language === 'ro' ? 'Primele 3' : 'First 3', criteriaScan.firstThreeCount, 'text-amber-300']
+              ].map(([label, value, tone]) => (
+                <div key={String(label)} className="rounded-xl border border-white/[0.07] bg-black/10 p-3">
+                  <span className="block text-[9px] font-mono uppercase text-slate-600">{label}</span>
+                  <span className={`block mt-1 text-xl font-mono font-black ${tone}`}>{value}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
 
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="flex items-center rounded-xl border border-white/[0.07] bg-black/10 p-1 overflow-x-auto">
-            {([
-              ['leaders', language === 'ro' ? 'Top scor' : 'Top score'],
-              ['all-four', '4 / 4'],
-              ['first-three', language === 'ro' ? 'Primele 3' : 'First 3']
-            ] as [CryptoCriteriaFilter, string][]).map(([id, label]) => (
-              <button key={id} onClick={() => setCriteriaFilter(id)} className={`shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-semibold ${criteriaFilter === id ? 'bg-purple-500/20 text-purple-200' : 'text-slate-500'}`}>
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="flex-1 flex items-center gap-2 rounded-xl border border-white/[0.07] bg-black/10 px-3">
-            <Search className="w-3.5 h-3.5 text-slate-600" />
-            <input value={criteriaSearch} onChange={event => setCriteriaSearch(event.target.value)} placeholder={language === 'ro' ? 'Caută în top 200…' : 'Search the top 200…'} className="w-full bg-transparent py-2 text-xs text-slate-200 placeholder-slate-600 outline-none" />
-          </div>
-        </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex items-center rounded-xl border border-white/[0.07] bg-black/10 p-1 overflow-x-auto">
+                {([
+                  ['leaders', language === 'ro' ? 'Top scor' : 'Top score'],
+                  ['all-four', '4 / 4'],
+                  ['first-three', language === 'ro' ? 'Primele 3' : 'First 3']
+                ] as [CryptoCriteriaFilter, string][]).map(([id, label]) => (
+                  <button key={id} onClick={() => setCriteriaFilter(id)} className={`shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-semibold ${criteriaFilter === id ? 'bg-purple-500/20 text-purple-200' : 'text-slate-500'}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex-1 flex items-center gap-2 rounded-xl border border-white/[0.07] bg-black/10 px-3">
+                <Search className="w-3.5 h-3.5 text-slate-600" />
+                <input value={criteriaSearch} onChange={event => setCriteriaSearch(event.target.value)} placeholder={language === 'ro' ? 'Caută în top 200…' : 'Search the top 200…'} className="w-full bg-transparent py-2 text-xs text-slate-200 placeholder-slate-600 outline-none" />
+              </div>
+            </div>
 
-        <div className="space-y-2.5">
-          {visibleAssets.map(asset => {
-            const criteria = Object.values(asset.criteria);
-            return (
-              <article
-                key={asset.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => navigateAsset({ symbol: asset.symbol, marketClass: 'crypto', coinGeckoId: asset.coinGeckoId })}
-                onKeyDown={event => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    navigateAsset({ symbol: asset.symbol, marketClass: 'crypto', coinGeckoId: asset.coinGeckoId });
-                  }
-                }}
-                className="cursor-pointer rounded-xl border border-white/[0.07] bg-black/10 p-3 sm:p-4 transition-colors hover:border-cyan-500/30"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    {asset.image ? <img src={asset.image} alt="" className="w-8 h-8 rounded-full bg-white/[0.04]" loading="lazy" /> : <Coins className="w-8 h-8 text-slate-600" />}
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-slate-100">${asset.symbol}</span>
-                        <span className="text-[10px] font-mono text-slate-600">#{asset.marketCapRank}</span>
-                      </div>
-                      <span className="block text-[10px] text-slate-500 truncate">{asset.name}</span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className={`text-lg font-mono font-black ${asset.passedCriteria >= 3 ? 'text-emerald-300' : asset.score >= 50 ? 'text-amber-300' : 'text-slate-400'}`}>{asset.score}</span>
-                    <span className="text-[9px] text-slate-600"> / 100 · {asset.passedCriteria}/4 pass</span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2 mt-3">
-                  {criteria.map((item, index) => {
-                    const Icon = criterionIcons[index];
-                    return (
-                      <div key={item.label} title={language === 'ro' ? item.explanation : englishExplanations[item.status][index]} className={`rounded-lg border p-2.5 ${criteriaTone(item.status)}`}>
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wide"><Icon className="w-3 h-3" />{criterionLabels[index]}</span>
-                          {statusIcon(item.status)}
+            <div className="space-y-2.5">
+              {visibleAssets.map(asset => {
+                const criteria = Object.values(asset.criteria);
+                return (
+                  <article
+                    key={asset.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigateAsset({ symbol: asset.symbol, marketClass: 'crypto', coinGeckoId: asset.coinGeckoId })}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        navigateAsset({ symbol: asset.symbol, marketClass: 'crypto', coinGeckoId: asset.coinGeckoId });
+                      }
+                    }}
+                    className="cursor-pointer rounded-xl border border-white/[0.07] bg-black/10 p-3 sm:p-4 transition-colors hover:border-cyan-500/30"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {asset.image ? <img src={asset.image} alt="" className="w-8 h-8 rounded-full bg-white/[0.04]" loading="lazy" /> : <Coins className="w-8 h-8 text-slate-600" />}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-slate-100">${asset.symbol}</span>
+                            <span className="text-[10px] font-mono text-slate-600">#{asset.marketCapRank}</span>
+                          </div>
+                          <span className="block text-[10px] text-slate-500 truncate">{asset.name}</span>
                         </div>
-                        <span className="block mt-1.5 text-[11px] font-mono text-slate-200">{localizedValue(item.value)}</span>
-                        <p className="mt-1 text-[9px] leading-relaxed text-slate-500">{language === 'ro' ? item.explanation : englishExplanations[item.status][index]}</p>
                       </div>
-                    );
-                  })}
-                </div>
-              </article>
-            );
-          })}
-          {visibleAssets.length === 0 && <p className="py-5 text-center text-xs text-slate-500">{language === 'ro' ? 'Nicio monedă nu îndeplinește filtrul în datele curente.' : 'No coin matches this filter in current data.'}</p>}
-        </div>
+                      <div className="text-right">
+                        <span className={`text-lg font-mono font-black ${asset.passedCriteria >= 3 ? 'text-emerald-300' : asset.score >= 50 ? 'text-amber-300' : 'text-slate-400'}`}>{asset.score}</span>
+                        <span className="text-[9px] text-slate-600"> / 100 · {asset.passedCriteria}/4 pass</span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2 mt-3">
+                      {criteria.map((item, index) => {
+                        const Icon = criterionIcons[index];
+                        return (
+                          <div key={item.label} title={language === 'ro' ? item.explanation : englishExplanations[item.status][index]} className={`rounded-lg border p-2.5 ${criteriaTone(item.status)}`}>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wide"><Icon className="w-3 h-3" />{criterionLabels[index]}</span>
+                              {statusIcon(item.status)}
+                            </div>
+                            <span className="block mt-1.5 text-[11px] font-mono text-slate-200">{localizedValue(item.value)}</span>
+                            <p className="mt-1 text-[9px] leading-relaxed text-slate-500">{language === 'ro' ? item.explanation : englishExplanations[item.status][index]}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </article>
+                );
+              })}
+              {visibleAssets.length === 0 && <p className="py-5 text-center text-xs text-slate-500">{language === 'ro' ? 'Nicio monedă nu îndeplinește filtrul în datele curente.' : 'No coin matches this filter in current data.'}</p>}
+            </div>
 
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3 pt-2 border-t border-white/[0.06]">
-          <div className="space-y-1">
-            {methodology.map(item => <p key={item} className="text-[9px] text-slate-600 leading-relaxed">• {item}</p>)}
-          </div>
-          <div className="flex flex-wrap gap-1.5 lg:justify-end">
-            {criteriaScan.sources.map(source => <a key={source.id} href={source.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-md border border-white/[0.06] px-2 py-1 text-[9px] text-slate-500 hover:text-cyan-300"><ExternalLink className="w-2.5 h-2.5" />{source.domain}</a>)}
-          </div>
-        </div>
-        <p className="text-[9px] text-slate-600">{language === 'ro' ? criteriaScan.disclaimer : 'Fundamental research scanner, not a buy signal. A pass means the current proxy threshold is met; it does not mean the investment will be profitable.'}</p>
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3 pt-2 border-t border-white/[0.06]">
+              <div className="space-y-1">
+                {methodology.map(item => <p key={item} className="text-[9px] text-slate-600 leading-relaxed">• {item}</p>)}
+              </div>
+              <div className="flex flex-wrap gap-1.5 lg:justify-end">
+                {criteriaScan.sources.map(source => <a key={source.id} href={source.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-md border border-white/[0.06] px-2 py-1 text-[9px] text-slate-500 hover:text-cyan-300"><ExternalLink className="w-2.5 h-2.5" />{source.domain}</a>)}
+              </div>
+            </div>
+            <p className="text-[9px] text-slate-600">{language === 'ro' ? criteriaScan.disclaimer : 'Fundamental research scanner, not a buy signal. A pass means the current proxy threshold is met; it does not mean the investment will be profitable.'}</p>
+          </>
+        )}
       </section>
     );
   };
@@ -780,203 +803,220 @@ export const AIBriefingView: React.FC = () => {
     return (
       <section className="rounded-2xl border border-purple-500/25 bg-gradient-to-br from-purple-500/[0.08] via-[#111827] to-cyan-500/[0.04] p-4 sm:p-5 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <Award className="w-4 h-4 text-purple-300" />
-              <h3 className="text-sm sm:text-base font-bold text-slate-100">
-                {language === 'ro' ? 'Stock Business Quality · 6 Criterii & Indicatori Profitabilitate' : 'Stock Business Quality · 6 Criteria & Profitability Indicators'}
-              </h3>
+          <button
+            type="button"
+            onClick={() => setIsStockQualityCollapsed(prev => !prev)}
+            className="flex items-start gap-2.5 text-left group focus:outline-none transition cursor-pointer"
+          >
+            <div className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-lg border border-purple-500/25 bg-purple-500/10 text-purple-300 group-hover:border-purple-500/40 group-hover:bg-purple-500/20 transition">
+              <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isStockQualityCollapsed ? '-rotate-90' : ''}`} />
             </div>
-            <p className="mt-1.5 text-[11px] text-slate-500 max-w-3xl">
-              {language === 'ro'
-                ? 'Analiză fundamentală detaliată a profitabilității, marjelor nete/operaționale, eficienței capitalului (ROE), creșterii veniturilor/EPS, generării de Free Cash Flow și evaluării PEG.'
-                : 'In-depth fundamental analysis of operating/net margins, capital efficiency (ROE), revenue/EPS growth, Free Cash Flow generation and PEG valuation.'}
-            </p>
-          </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Award className="w-4 h-4 text-purple-300" />
+                <h3 className="text-sm sm:text-base font-bold text-slate-100 group-hover:text-purple-300 transition">
+                  {language === 'ro' ? 'Stock Business Quality · 6 Criterii & Indicatori Profitabilitate' : 'Stock Business Quality · 6 Criteria & Profitability Indicators'}
+                </h3>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 font-semibold">
+                  Top Picks & Fundamentals
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400 max-w-3xl font-sans">
+                {language === 'ro'
+                  ? (isStockQualityCollapsed ? 'Apasă pentru a extinde analiza calității fundamentale a acțiunilor' : 'Analiză fundamentală detaliată a profitabilității, marjelor nete/operaționale, eficienței capitalului (ROE), creșterii veniturilor/EPS, generării de Free Cash Flow și evaluării PEG.')
+                  : (isStockQualityCollapsed ? 'Click to expand stock fundamental quality analysis' : 'In-depth fundamental analysis of operating/net margins, capital efficiency (ROE), revenue/EPS growth, Free Cash Flow generation and PEG valuation.')}
+              </p>
+            </div>
+          </button>
+
           <button
             onClick={() => void loadStockCriteriaScan(true)}
             disabled={loadingStockCriteriaScan}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-purple-500/25 bg-purple-500/10 text-xs font-semibold text-purple-200 disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-purple-500/25 bg-purple-500/10 text-xs font-semibold text-purple-200 hover:bg-purple-500/20 disabled:opacity-50 transition"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loadingStockCriteriaScan ? 'animate-spin' : ''}`} />
-            {language === 'ro' ? 'Scanează din nou' : 'Scan again'}
+            <span>{language === 'ro' ? 'Scanează din nou' : 'Scan again'}</span>
           </button>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-          {[
-            [language === 'ro' ? 'Scanate' : 'Scanned', stockCriteriaScan.scannedCount, 'text-purple-300'],
-            [language === 'ro' ? 'Top Recomandate AI' : 'Top AI Picks', stockCriteriaScan.topPicksCount, 'text-emerald-300'],
-            [language === 'ro' ? 'Marje & ROE Ridicat' : 'High Margins & ROE', stockCriteriaScan.highProfitabilityCount, 'text-cyan-300'],
-            [language === 'ro' ? 'Creștere & FCF' : 'Growth & FCF', stockCriteriaScan.growthFcfCount, 'text-amber-300']
-          ].map(([label, value, tone]) => (
-            <div key={String(label)} className="rounded-xl border border-white/[0.07] bg-black/10 p-3">
-              <span className="block text-[9px] font-mono uppercase text-slate-500">{label}</span>
-              <span className={`block mt-1 text-xl font-mono font-black ${tone}`}>{value}</span>
+        {!isStockQualityCollapsed && (
+          <>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+              {[
+                [language === 'ro' ? 'Scanate' : 'Scanned', stockCriteriaScan.scannedCount, 'text-purple-300'],
+                [language === 'ro' ? 'Top Recomandate AI' : 'Top AI Picks', stockCriteriaScan.topPicksCount, 'text-emerald-300'],
+                [language === 'ro' ? 'Marje & ROE Ridicat' : 'High Margins & ROE', stockCriteriaScan.highProfitabilityCount, 'text-cyan-300'],
+                [language === 'ro' ? 'Creștere & FCF' : 'Growth & FCF', stockCriteriaScan.growthFcfCount, 'text-amber-300']
+              ].map(([label, value, tone]) => (
+                <div key={String(label)} className="rounded-xl border border-white/[0.07] bg-black/10 p-3">
+                  <span className="block text-[9px] font-mono uppercase text-slate-500">{label}</span>
+                  <span className={`block mt-1 text-xl font-mono font-black ${tone}`}>{value}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
 
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="flex items-center rounded-xl border border-white/[0.07] bg-black/10 p-1 overflow-x-auto">
-            {([
-              ['top-pick', language === 'ro' ? '🟢 Top Recomandate AI' : '🟢 Top AI Picks'],
-              ['all-passed', language === 'ro' ? '🌟 Toate (6/6)' : '🌟 All 6/6'],
-              ['high-profitability', language === 'ro' ? '💰 Marje Mari & ROE' : '💰 High Margins & ROE'],
-              ['growth-fcf', language === 'ro' ? '🚀 Creștere & FCF' : '🚀 Growth & FCF'],
-              ['dividend-value', language === 'ro' ? '🛡️ Valoare & Dividende' : '🛡️ Value & Dividends']
-            ] as [StockCriteriaFilter, string][]).map(([id, label]) => (
-              <button
-                key={id}
-                onClick={() => setStockCriteriaFilter(id)}
-                className={`shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
-                  stockCriteriaFilter === id
-                    ? 'bg-purple-500/25 text-purple-200 border border-purple-500/30'
-                    : 'text-slate-500 hover:text-slate-300'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="flex-1 flex items-center gap-2 rounded-xl border border-white/[0.07] bg-black/10 px-3">
-            <Search className="w-3.5 h-3.5 text-slate-500" />
-            <input
-              value={stockCriteriaSearch}
-              onChange={event => setStockCriteriaSearch(event.target.value)}
-              placeholder={language === 'ro' ? 'Caută după simbol sau companie (ex: NVDA, AAPL)…' : 'Search by symbol or company (e.g. NVDA, AAPL)…'}
-              className="w-full bg-transparent py-2 text-xs text-slate-200 placeholder-slate-600 outline-none font-mono"
-            />
-          </div>
-        </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex items-center rounded-xl border border-white/[0.07] bg-black/10 p-1 overflow-x-auto">
+                {([
+                  ['top-pick', language === 'ro' ? '🟢 Top Recomandate AI' : '🟢 Top AI Picks'],
+                  ['all-passed', language === 'ro' ? '🌟 Toate (6/6)' : '🌟 All 6/6'],
+                  ['high-profitability', language === 'ro' ? '💰 Marje Mari & ROE' : '💰 High Margins & ROE'],
+                  ['growth-fcf', language === 'ro' ? '🚀 Creștere & FCF' : '🚀 Growth & FCF'],
+                  ['dividend-value', language === 'ro' ? '🛡️ Valoare & Dividende' : '🛡️ Value & Dividends']
+                ] as [StockCriteriaFilter, string][]).map(([id, label]) => (
+                  <button
+                    key={id}
+                    onClick={() => setStockCriteriaFilter(id)}
+                    className={`shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
+                      stockCriteriaFilter === id
+                        ? 'bg-purple-500/25 text-purple-200 border border-purple-500/30'
+                        : 'text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex-1 flex items-center gap-2 rounded-xl border border-white/[0.07] bg-black/10 px-3">
+                <Search className="w-3.5 h-3.5 text-slate-500" />
+                <input
+                  value={stockCriteriaSearch}
+                  onChange={event => setStockCriteriaSearch(event.target.value)}
+                  placeholder={language === 'ro' ? 'Caută după simbol sau companie (ex: NVDA, AAPL)…' : 'Search by symbol or company (e.g. NVDA, AAPL)…'}
+                  className="w-full bg-transparent py-2 text-xs text-slate-200 placeholder-slate-600 outline-none font-mono"
+                />
+              </div>
+            </div>
 
-        <div className="space-y-3">
-          {visibleAssets.map(asset => {
-            const criteriaList = stockCriterionKeys.map(k => asset.criteria[k]);
-            const verdictTone = asset.score >= 80 ? 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10' : asset.score >= 65 ? 'text-cyan-300 border-cyan-500/30 bg-cyan-500/10' : 'text-amber-300 border-amber-500/30 bg-amber-500/10';
+            <div className="space-y-3">
+              {visibleAssets.map(asset => {
+                const criteriaList = stockCriterionKeys.map(k => asset.criteria[k]);
+                const verdictTone = asset.score >= 80 ? 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10' : asset.score >= 65 ? 'text-cyan-300 border-cyan-500/30 bg-cyan-500/10' : 'text-amber-300 border-amber-500/30 bg-amber-500/10';
 
-            return (
-              <article
-                key={asset.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => navigateAsset({ symbol: asset.symbol, marketClass: 'stocks' })}
-                onKeyDown={event => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    navigateAsset({ symbol: asset.symbol, marketClass: 'stocks' });
-                  }
-                }}
-                className="cursor-pointer rounded-xl border border-white/[0.07] bg-black/15 p-3 sm:p-4 transition-all hover:border-purple-500/40 hover:bg-white/[0.02]"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="p-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-300 shrink-0">
-                      <Award className="w-5 h-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-slate-100">${asset.symbol}</span>
-                        {asset.sector && (
-                          <span className="px-2 py-0.5 rounded-full text-[9px] font-mono bg-white/[0.04] border border-white/[0.08] text-slate-400">
-                            {asset.sector}
+                return (
+                  <article
+                    key={asset.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigateAsset({ symbol: asset.symbol, marketClass: 'stocks' })}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        navigateAsset({ symbol: asset.symbol, marketClass: 'stocks' });
+                      }
+                    }}
+                    className="cursor-pointer rounded-xl border border-white/[0.07] bg-black/15 p-3 sm:p-4 transition-all hover:border-purple-500/40 hover:bg-white/[0.02]"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="p-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-300 shrink-0">
+                          <Award className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-slate-100">${asset.symbol}</span>
+                            {asset.sector && (
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-mono bg-white/[0.04] border border-white/[0.08] text-slate-400">
+                                {asset.sector}
+                              </span>
+                            )}
+                            <span className="text-[10px] font-mono text-slate-500">#{asset.marketCapRank}</span>
+                          </div>
+                          <span className="block text-[11px] text-slate-400 truncate mt-0.5">{asset.name}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 text-right">
+                        <div className="hidden sm:block">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-mono font-semibold border ${verdictTone}`}>
+                            {language === 'ro' ? asset.aiVerdictLabelRo : asset.aiVerdict}
                           </span>
-                        )}
-                        <span className="text-[10px] font-mono text-slate-500">#{asset.marketCapRank}</span>
+                        </div>
+                        <div>
+                          <span className={`text-lg font-mono font-black ${asset.score >= 80 ? 'text-emerald-300' : asset.score >= 60 ? 'text-cyan-300' : 'text-amber-300'}`}>
+                            {asset.score}
+                          </span>
+                          <span className="text-[9px] text-slate-500"> / 100 · {asset.passedCriteria}/6 pass</span>
+                        </div>
                       </div>
-                      <span className="block text-[11px] text-slate-400 truncate mt-0.5">{asset.name}</span>
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-3 text-right">
-                    <div className="hidden sm:block">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-mono font-semibold border ${verdictTone}`}>
-                        {language === 'ro' ? asset.aiVerdictLabelRo : asset.aiVerdict}
-                      </span>
+                    {/* AI Thesis snippet */}
+                    {asset.aiThesis && (
+                      <p className="mt-2.5 text-xs text-slate-300 leading-relaxed bg-purple-500/[0.04] p-2.5 rounded-lg border border-purple-500/15">
+                        <strong className="text-purple-300 font-mono">AI Thesis: </strong>
+                        {asset.aiThesis}
+                      </p>
+                    )}
+
+                    {/* Financial Indicators Row */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-1.5 mt-2.5 pt-2.5 border-t border-white/[0.05]">
+                      {[
+                        { label: language === 'ro' ? 'Marjă Netă' : 'Net Margin', val: asset.metrics.netMargin !== undefined ? `${asset.metrics.netMargin.toFixed(1)}%` : 'N/A' },
+                        { label: language === 'ro' ? 'Marjă Op' : 'Op Margin', val: asset.metrics.operatingMargin !== undefined ? `${asset.metrics.operatingMargin.toFixed(1)}%` : 'N/A' },
+                        { label: 'ROE', val: asset.metrics.roe !== undefined ? `${asset.metrics.roe.toFixed(1)}%` : 'N/A' },
+                        { label: language === 'ro' ? 'Creșt. YoY' : 'Rev YoY', val: asset.metrics.revenueGrowthYoY !== undefined ? `${asset.metrics.revenueGrowthYoY >= 0 ? '+' : ''}${asset.metrics.revenueGrowthYoY.toFixed(1)}%` : 'N/A' },
+                        { label: 'FCF', val: asset.metrics.freeCashFlow ? `$${(asset.metrics.freeCashFlow / 1e9).toFixed(1)}B` : 'N/A' },
+                        { label: 'Debt/Eq', val: asset.metrics.debtToEquity !== undefined ? asset.metrics.debtToEquity.toFixed(2) : 'N/A' },
+                        { label: 'Fwd P/E', val: asset.metrics.forwardPE !== undefined ? `${asset.metrics.forwardPE.toFixed(1)}x` : 'N/A' },
+                        { label: 'PEG', val: asset.metrics.pegRatio !== undefined ? asset.metrics.pegRatio.toFixed(2) : 'N/A' }
+                      ].map((m, i) => (
+                        <div key={i} className="p-1.5 rounded-md bg-black/30 border border-white/[0.04]">
+                          <span className="block text-[8px] font-mono text-slate-500 uppercase truncate">{m.label}</span>
+                          <span className="block text-[10px] font-mono font-bold text-slate-200">{m.val}</span>
+                        </div>
+                      ))}
                     </div>
-                    <div>
-                      <span className={`text-lg font-mono font-black ${asset.score >= 80 ? 'text-emerald-300' : asset.score >= 60 ? 'text-cyan-300' : 'text-amber-300'}`}>
-                        {asset.score}
-                      </span>
-                      <span className="text-[9px] text-slate-500"> / 100 · {asset.passedCriteria}/6 pass</span>
+
+                    {/* 6 Criteria Pills */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2 mt-2.5">
+                      {criteriaList.map((item, index) => (
+                        <div key={item.label} className={`rounded-lg border p-2 ${criteriaTone(item.status)}`}>
+                          <div className="flex items-center justify-between gap-1.5">
+                            <span className="inline-flex items-center gap-1 text-[8.5px] font-bold uppercase tracking-tight truncate">
+                              {stockCriterionLabels[index]}
+                            </span>
+                            {statusIcon(item.status)}
+                          </div>
+                          <span className="block mt-1 text-[10px] font-mono text-slate-200 truncate">{item.value}</span>
+                          <p className="mt-0.5 text-[8.5px] leading-tight text-slate-400 line-clamp-2">{item.explanation}</p>
+                        </div>
+                      ))}
                     </div>
-                  </div>
-                </div>
+                  </article>
+                );
+              })}
+              {visibleAssets.length === 0 && (
+                <p className="py-5 text-center text-xs text-slate-500 font-mono">
+                  {language === 'ro' ? 'Nicio acțiune nu îndeplinește criteriile filtrului curent.' : 'No stock matches this filter in current data.'}
+                </p>
+              )}
+            </div>
 
-                {/* AI Thesis snippet */}
-                {asset.aiThesis && (
-                  <p className="mt-2.5 text-xs text-slate-300 leading-relaxed bg-purple-500/[0.04] p-2.5 rounded-lg border border-purple-500/15">
-                    <strong className="text-purple-300 font-mono">AI Thesis: </strong>
-                    {asset.aiThesis}
-                  </p>
-                )}
-
-                {/* Financial Indicators Row */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-1.5 mt-2.5 pt-2.5 border-t border-white/[0.05]">
-                  {[
-                    { label: language === 'ro' ? 'Marjă Netă' : 'Net Margin', val: asset.metrics.netMargin !== undefined ? `${asset.metrics.netMargin.toFixed(1)}%` : 'N/A' },
-                    { label: language === 'ro' ? 'Marjă Op' : 'Op Margin', val: asset.metrics.operatingMargin !== undefined ? `${asset.metrics.operatingMargin.toFixed(1)}%` : 'N/A' },
-                    { label: 'ROE', val: asset.metrics.roe !== undefined ? `${asset.metrics.roe.toFixed(1)}%` : 'N/A' },
-                    { label: language === 'ro' ? 'Creșt. YoY' : 'Rev YoY', val: asset.metrics.revenueGrowthYoY !== undefined ? `${asset.metrics.revenueGrowthYoY >= 0 ? '+' : ''}${asset.metrics.revenueGrowthYoY.toFixed(1)}%` : 'N/A' },
-                    { label: 'FCF', val: asset.metrics.freeCashFlow ? `$${(asset.metrics.freeCashFlow / 1e9).toFixed(1)}B` : 'N/A' },
-                    { label: 'Debt/Eq', val: asset.metrics.debtToEquity !== undefined ? asset.metrics.debtToEquity.toFixed(2) : 'N/A' },
-                    { label: 'Fwd P/E', val: asset.metrics.forwardPE !== undefined ? `${asset.metrics.forwardPE.toFixed(1)}x` : 'N/A' },
-                    { label: 'PEG', val: asset.metrics.pegRatio !== undefined ? asset.metrics.pegRatio.toFixed(2) : 'N/A' }
-                  ].map((m, i) => (
-                    <div key={i} className="p-1.5 rounded-md bg-black/30 border border-white/[0.04]">
-                      <span className="block text-[8px] font-mono text-slate-500 uppercase truncate">{m.label}</span>
-                      <span className="block text-[10px] font-mono font-bold text-slate-200">{m.val}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* 6 Criteria Pills */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2 mt-2.5">
-                  {criteriaList.map((item, index) => (
-                    <div key={item.label} className={`rounded-lg border p-2 ${criteriaTone(item.status)}`}>
-                      <div className="flex items-center justify-between gap-1.5">
-                        <span className="inline-flex items-center gap-1 text-[8.5px] font-bold uppercase tracking-tight truncate">
-                          {stockCriterionLabels[index]}
-                        </span>
-                        {statusIcon(item.status)}
-                      </div>
-                      <span className="block mt-1 text-[10px] font-mono text-slate-200 truncate">{item.value}</span>
-                      <p className="mt-0.5 text-[8.5px] leading-tight text-slate-400 line-clamp-2">{item.explanation}</p>
-                    </div>
-                  ))}
-                </div>
-              </article>
-            );
-          })}
-          {visibleAssets.length === 0 && (
-            <p className="py-5 text-center text-xs text-slate-500 font-mono">
-              {language === 'ro' ? 'Nicio acțiune nu îndeplinește criteriile filtrului curent.' : 'No stock matches this filter in current data.'}
-            </p>
-          )}
-        </div>
-
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3 pt-2 border-t border-white/[0.06]">
-          <div className="space-y-1">
-            {stockCriteriaScan.methodology.map(item => (
-              <p key={item} className="text-[9px] text-slate-600 leading-relaxed">• {item}</p>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-1.5 lg:justify-end">
-            {stockCriteriaScan.sources.map(source => (
-              <a
-                key={source.id}
-                href={source.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 rounded-md border border-white/[0.06] px-2 py-1 text-[9px] text-slate-500 hover:text-purple-300"
-              >
-                <ExternalLink className="w-2.5 h-2.5" />
-                {source.domain}
-              </a>
-            ))}
-          </div>
-        </div>
-        <p className="text-[9px] text-slate-600">{stockCriteriaScan.disclaimer}</p>
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3 pt-2 border-t border-white/[0.06]">
+              <div className="space-y-1">
+                {stockCriteriaScan.methodology.map(item => (
+                  <p key={item} className="text-[9px] text-slate-600 leading-relaxed">• {item}</p>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-1.5 lg:justify-end">
+                {stockCriteriaScan.sources.map(source => (
+                  <a
+                    key={source.id}
+                    href={source.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded-md border border-white/[0.06] px-2 py-1 text-[9px] text-slate-500 hover:text-purple-300"
+                  >
+                    <ExternalLink className="w-2.5 h-2.5" />
+                    {source.domain}
+                  </a>
+                ))}
+              </div>
+            </div>
+            <p className="text-[9px] text-slate-600">{stockCriteriaScan.disclaimer}</p>
+          </>
+        )}
       </section>
     );
   };
@@ -1211,7 +1251,7 @@ export const AIBriefingView: React.FC = () => {
               <BrainCircuit className="w-4 h-4 text-purple-400" />
             </div>
             <span className="font-semibold text-sm bg-gradient-to-r from-purple-300 to-cyan-300 bg-clip-text text-transparent">
-              AI Analyst
+              AI Briefing
             </span>
           </div>
 
@@ -1283,13 +1323,31 @@ export const AIBriefingView: React.FC = () => {
       <div className="flex-1 flex flex-col min-w-0">
         <div className="shrink-0 border-b border-white/[0.06] bg-[#0d1117]/95 px-3 sm:px-6 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-purple-300" />
-                <h1 className="text-sm font-bold text-slate-100">Market Intelligence Briefing</h1>
+            <button
+              type="button"
+              onClick={() => setIsBriefingCollapsed(prev => !prev)}
+              className="flex items-start gap-2.5 text-left group focus:outline-none transition cursor-pointer"
+            >
+              <div className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-lg border border-purple-500/25 bg-purple-500/10 text-purple-300 group-hover:border-purple-500/40 group-hover:bg-purple-500/20 transition">
+                <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isBriefingCollapsed ? '-rotate-90' : ''}`} />
               </div>
-              <p className="hidden sm:block mt-0.5 text-[10px] text-slate-600">Macro · Narratives · Alpha discoveries · Grounded sources</p>
-            </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-purple-300" />
+                  <h1 className="text-sm font-bold text-slate-100 group-hover:text-purple-300 transition">Market Intelligence Briefing</h1>
+                  {intelligence && (
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 font-semibold">
+                      {intelligence.macroRegime}
+                    </span>
+                  )}
+                </div>
+                <p className="hidden sm:block mt-0.5 text-[10px] text-slate-400 font-sans">
+                  {language === 'ro'
+                    ? (isBriefingCollapsed ? 'Apasă pentru a extinde raportul complet' : 'Macro · Narațiuni · Descoperiri Alpha · Surse verificate')
+                    : (isBriefingCollapsed ? 'Click to expand full intelligence report' : 'Macro · Narratives · Alpha discoveries · Grounded sources')}
+                </p>
+              </div>
+            </button>
             <div className="flex items-center gap-1.5">
               {scope === 'crypto' && (
                 <button
@@ -1344,13 +1402,13 @@ export const AIBriefingView: React.FC = () => {
 
         {/* Chat Messages */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 space-y-6">
-          {renderIntelligenceDashboard()}
+          {!isBriefingCollapsed && renderIntelligenceDashboard()}
           {scope === 'crypto' && renderCryptoCriteriaScanner()}
           {scope === 'stocks' && renderStockCriteriaScanner()}
 
           <div className="flex items-center gap-3 pt-2">
             <span className="h-px flex-1 bg-white/[0.06]" />
-            <span className="text-[10px] font-mono text-slate-600 uppercase tracking-wider">{language === 'ro' ? 'Întreabă analistul' : 'Ask the analyst'}</span>
+            <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider">{language === 'ro' ? 'Întreabă AI Briefing' : 'Ask AI Briefing'}</span>
             <span className="h-px flex-1 bg-white/[0.06]" />
           </div>
 
