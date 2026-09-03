@@ -101,6 +101,47 @@ const statusMeta: Record<AlertProgressStatus, { label: string; tone: string; bar
 };
 
 export type ConfirmedMarketClassFilter = 'ALL' | 'crypto' | 'stocks';
+export type CandidateMarketClassFilter = 'ALL' | 'crypto' | 'stocks';
+
+export interface FilterFlipCandidatesOptions {
+  candidateFilter?: 'ALL' | 'BULLISH' | 'BEARISH';
+  candidateTimeframe?: 'ALL' | '4h' | '8h' | '1d' | '1w';
+  candidateMarketClass?: CandidateMarketClassFilter;
+  candidateSearch?: string;
+  knownAssets?: AssetScannerRow[];
+}
+
+export function filterFlipCandidates(
+  flipCandidates: FlipCandidateDashboardItem[] | undefined,
+  options: FilterFlipCandidatesOptions = {}
+): FlipCandidateDashboardItem[] {
+  const {
+    candidateFilter = 'ALL',
+    candidateTimeframe = 'ALL',
+    candidateMarketClass = 'ALL',
+    candidateSearch = '',
+    knownAssets
+  } = options;
+
+  const query = candidateSearch.replace(/^[$#]/, '').trim().toUpperCase();
+  const filtered = (flipCandidates || []).filter(candidate => {
+    const name = getAssetName(candidate.symbol, candidate.name, knownAssets).toUpperCase();
+    return (candidateFilter === 'ALL' || candidate.direction === candidateFilter)
+      && (candidateTimeframe === 'ALL' || candidate.timeframe === candidateTimeframe)
+      && (candidateMarketClass === 'ALL' || candidate.marketClass === candidateMarketClass)
+      && (!query || candidate.symbol.toUpperCase().includes(query) || name.includes(query));
+  });
+
+  if (query || candidateTimeframe !== 'ALL') return filtered.slice(0, 10);
+
+  const seenAssets = new Set<string>();
+  return filtered.filter(candidate => {
+    const key = `${candidate.marketClass}:${candidate.symbol}`;
+    if (seenAssets.has(key)) return false;
+    seenAssets.add(key);
+    return true;
+  }).slice(0, 10);
+}
 
 export interface FilterConfirmedFlipsOptions {
   confirmedFilter?: 'ALL' | 'BULLISH' | 'BEARISH';
@@ -166,6 +207,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
   const [activeAlertsOpen, setActiveAlertsOpen] = useState(true);
   const [candidateFilter, setCandidateFilter] = useState<'ALL' | 'BULLISH' | 'BEARISH'>('ALL');
   const [candidateTimeframe, setCandidateTimeframe] = useState<'ALL' | '4h' | '8h' | '1d' | '1w'>('ALL');
+  const [candidateMarketClass, setCandidateMarketClass] = useState<CandidateMarketClassFilter>('ALL');
   const [candidateSearch, setCandidateSearch] = useState('');
   const [confirmedFilter, setConfirmedFilter] = useState<'ALL' | 'BULLISH' | 'BEARISH'>('ALL');
   const [confirmedTimeframe, setConfirmedTimeframe] = useState<'ALL' | '4h' | '8h' | '1d' | '1w'>('ALL');
@@ -360,23 +402,14 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
     ? Math.min(100, Math.round((activeManualScanStatus.scannedAssets / activeManualScanStatus.totalAssets) * 100))
     : 0;
   const visibleCandidates = useMemo(() => {
-    const query = candidateSearch.replace(/^[$#]/, '').trim().toUpperCase();
-    const filtered = (data?.flipCandidates || []).filter(candidate => {
-      const name = getAssetName(candidate.symbol, candidate.name, knownAssets).toUpperCase();
-      return (candidateFilter === 'ALL' || candidate.direction === candidateFilter)
-        && (candidateTimeframe === 'ALL' || candidate.timeframe === candidateTimeframe)
-        && (!query || candidate.symbol.toUpperCase().includes(query) || name.includes(query));
+    return filterFlipCandidates(data?.flipCandidates, {
+      candidateFilter,
+      candidateTimeframe,
+      candidateMarketClass,
+      candidateSearch,
+      knownAssets
     });
-    if (query || candidateTimeframe !== 'ALL') return filtered.slice(0, 10);
-
-    const seenAssets = new Set<string>();
-    return filtered.filter(candidate => {
-      const key = `${candidate.marketClass}:${candidate.symbol}`;
-      if (seenAssets.has(key)) return false;
-      seenAssets.add(key);
-      return true;
-    }).slice(0, 10);
-  }, [candidateFilter, candidateSearch, candidateTimeframe, data?.flipCandidates, knownAssets]);
+  }, [candidateFilter, candidateMarketClass, candidateSearch, candidateTimeframe, data?.flipCandidates, knownAssets]);
   const topConfirmedFlips = useMemo(() => {
     return filterConfirmedFlips(data?.confirmedFlips, {
       confirmedFilter,
@@ -403,6 +436,24 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                   : 'bg-violet-500/15 text-violet-200'
               : 'text-slate-500 hover:text-slate-300'}`}
           >{filter === 'ALL' ? 'TOATE' : filter}</button>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-1 rounded-lg border border-white/[0.06] bg-white/[0.025] p-1">
+        {(['ALL', 'crypto', 'stocks'] as const).map(marketClass => (
+          <button
+            key={marketClass}
+            type="button"
+            onClick={() => setCandidateMarketClass(marketClass)}
+            className={`min-w-16 flex-1 rounded-md px-2.5 py-1.5 text-[10px] font-bold transition ${candidateMarketClass === marketClass
+              ? marketClass === 'crypto'
+                ? 'bg-cyan-500/15 text-cyan-300'
+                : marketClass === 'stocks'
+                  ? 'bg-blue-500/15 text-blue-300'
+                  : 'bg-violet-500/15 text-violet-200'
+              : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            {marketClass === 'ALL' ? 'Toate' : marketClass === 'crypto' ? 'Crypto' : 'Stocks'}
+          </button>
         ))}
       </div>
       <div className="flex flex-wrap gap-1 rounded-lg border border-white/[0.06] bg-white/[0.025] p-1">
