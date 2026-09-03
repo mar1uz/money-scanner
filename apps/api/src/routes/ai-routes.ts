@@ -227,6 +227,43 @@ const getMarketIntelligenceReport = async (
   }
 };
 
+const attachLiveNarrativeChanges = async (
+  payload: MarketIntelligenceReport,
+  scope: MarketIntelligenceScope
+): Promise<MarketIntelligenceReport> => {
+  try {
+    // Collect every ticker shown in the narrative cards (e.g. $PEPE, $DOGE).
+    // Only ticker-like values are resolved; free-form names are skipped so no
+    // value is ever invented. Quotes come from the verified provider path:
+    // Binance /ticker/24hr for crypto, Yahoo Finance for stocks/metals.
+    // The 60s quote cache keeps this fast on repeat views.
+    const symbols = Array.from(new Set(
+      payload.narratives.flatMap(narrative => narrative.assets || [])
+        .map(asset => String(asset || '').replace(/^[$#]/, '').trim().toUpperCase())
+        .filter(symbol => /^[A-Z0-9.\-]{2,12}$/.test(symbol))
+    )).slice(0, 60);
+    if (!symbols.length) return payload;
+    const appState = AppState.getInstance();
+    const changes: Record<string, number> = {};
+    const concurrency = 6;
+    for (let index = 0; index < symbols.length; index += concurrency) {
+      const batch = symbols.slice(index, index + concurrency);
+      const settled = await Promise.allSettled(
+        batch.map(symbol => appState.marketData.getPriceQuote(symbol, scope))
+      );
+      settled.forEach((result, batchIndex) => {
+        if (result.status === 'fulfilled' && Number.isFinite(result.value?.change24h)) {
+          changes[batch[batchIndex]] = Number(result.value.change24h);
+        }
+      });
+    }
+    // Return a copy so the 26h cached report is never polluted with live values.
+    return { ...payload, assetChanges: changes };
+  } catch {
+    return payload;
+  }
+};
+
 aiRouter.get('/ai/market-intelligence', async (req, res) => {
   try {
     const scope: MarketIntelligenceScope = req.query.scope === 'stocks' || req.query.scope === 'metals'
@@ -234,8 +271,9 @@ aiRouter.get('/ai/market-intelligence', async (req, res) => {
       : 'crypto';
     const language: 'ro' | 'en' = req.query.language === 'en' ? 'en' : 'ro';
     const payload = await getMarketIntelligenceReport(scope, language, req.query.refresh === '1');
+    const enriched = await attachLiveNarrativeChanges(payload, scope);
     res.set('Cache-Control', 'private, max-age=30');
-    res.json(payload);
+    res.json(enriched);
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to generate grounded market intelligence', details: err.message });
   }

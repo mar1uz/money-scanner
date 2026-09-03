@@ -1133,11 +1133,20 @@ export const AIBriefingView: React.FC = () => {
                 <p className="mt-3 text-[11px] text-slate-400"><strong className="text-slate-300">{language === 'ro' ? 'De ce acum:' : 'Why now:'}</strong> {narrative.whyNow}</p>
                 {narrative.assets.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-3">
-                    {narrative.assets.map(asset => {
-                      const assetSymbol = asset.replace(/^\$/, '');
+                    {narrative.assets.map((asset, assetIdx) => {
+                      const assetSymbol = asset.replace(/^[$#]/, '').trim();
+                      const lookupKey = assetSymbol.toUpperCase();
+                      const change24h = intelligence.assetChanges?.[lookupKey];
+                      const hasChange = typeof change24h === 'number' && Number.isFinite(change24h);
+                      const isUp = (change24h ?? 0) >= 0;
                       return (
-                        <AssetLink key={asset} symbol={assetSymbol} marketClass={scope} className="px-2 py-0.5 rounded-md bg-black/20 text-[10px] font-mono text-slate-200">
-                          {asset.startsWith('$') ? asset : `$${asset}`}
+                        <AssetLink key={`${asset}_${assetIdx}`} symbol={assetSymbol} marketClass={scope} className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-black/20 text-[10px] font-mono text-slate-200">
+                          <span>{asset.startsWith('$') || asset.startsWith('#') ? asset : `$${asset}`}</span>
+                          {hasChange && (
+                            <span className={`font-bold ${isUp ? 'text-emerald-300' : 'text-rose-300'}`}>
+                              {isUp ? `+${change24h!.toFixed(2)}%` : `${change24h!.toFixed(2)}%`}
+                            </span>
+                          )}
                         </AssetLink>
                       );
                     })}

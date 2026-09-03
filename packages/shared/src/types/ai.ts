@@ -111,6 +111,13 @@ export interface MarketIntelligenceReport {
   model?: string;
   searchQueries: string[];
   disclaimer: string;
+  /**
+   * Live verified 24h percent change per narrative asset, keyed by normalized
+   * uppercase symbol without $/# prefix (e.g. "PEPE" -> +8.17).
+   * Sourced from Binance /ticker/24hr (crypto) and Yahoo Finance (stocks/metals).
+   * Absent keys mean no verified quote exists; the UI must not invent a value.
+   */
+  assetChanges?: Record<string, number>;
 }
 
 export interface MarketIntelligenceAssetSnapshot {
