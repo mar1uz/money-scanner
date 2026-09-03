@@ -2529,3 +2529,51 @@ Persisted flip regimes: 693 total; 162 Weekly (97 bullish, 65 bearish)
 Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 ```
+
+## 68. Full Asset Names on Confirmed Flips & Alert Cards
+
+Implemented on 03 September 2026.
+
+- Added full company and token names to confirmed MoneyLine flips, upcoming candidates, strategy setups, and active alerts.
+- In `apps/api/src/services/app-state.ts`:
+  - Enriched `FlipCandidate` with `name?: string` resolved from `TRADING_360_ASSETS`.
+  - Telegram flip broadcasts now include both symbol and company/token name (e.g. `$CVX Chevron Corp`).
+- In `apps/web/src/components/AlertsCenterView.tsx`:
+  - Added `getAssetName(symbol, candidateName?, knownAssets?)` helper backed by `catalogNameBySymbol` and `knownAssets`.
+  - All cards (`ConfirmedFlipCard`, `FlipCandidateCard`, `StrategySetupCard`, `ActiveAlertCard`) display the full asset name alongside the ticker.
+  - Search filter enables searching by either symbol or full company/token name.
+- Unit tests added in `apps/web/src/components/alerts-asset-name.test.ts`.
+
+## 69. Market Cap Value & Market Cap Rank in Asset Header
+
+Implemented and deployed on 03 September 2026.
+
+### What changed
+
+1. **Market Cap Value in Asset Header (`apps/web/src/components/AssetDeepDiveView.tsx`)**:
+   - Next to the MoneyLine regime / bias badge (`[• Bullish +68.6]`), exactly in the location indicated by the user, added a badge displaying the asset's real Market Cap (e.g. `MCap: $9.50B` for ESTC, `$3.42T` for AAPL, `$3.15T` for NVDA).
+   - On mobile viewports, the badge neatly renders inside the identity row without causing line wraps or horizontal scroll.
+
+2. **Market Cap Rank Number next to Ticker (`apps/web/src/components/AssetDeepDiveView.tsx`, `AssetDetailModal.tsx`)**:
+   - In front of / next to the ticker symbol (e.g. `[#114] $ESTC Elastic N.V.`), added a prominent badge indicating the asset's position in a ranking by market cap.
+   - For stocks, ranks are computed deterministically from `TRADING_360_ASSETS` sorted by market cap descending (Mega-caps: #1 AAPL, #2 MSFT, #3 NVDA; ESTC: #114).
+   - For crypto, ranks reflect CoinGecko / Binance worldwide market cap rank (#1 BTC, #2 ETH, #5 SOL).
+   - Supports dynamic rank estimation for unlisted or newly discovered assets when `marketCap` is provided.
+
+3. **Asset Detail Modal Consistency (`apps/web/src/components/AssetDetailModal.tsx`)**:
+   - Updated modal header to also present `Rank #{marketCapRank}` and `MCap: {formatMarketCap(effectiveMarketCap)}`.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 4b87bf7
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Local tests: 93 passed, 0 failed (100% test pass rate)
+Cloud Build: ab9956e0-af35-497b-9b69-ad1d88103a53 (SUCCESS)
+Cloud Run revision: market-scanner-360-00146-2gh
+Traffic: 100%
+Public bundle: assets/index-smbWYipl.js
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
+
