@@ -1912,7 +1912,66 @@ export class AppState {
     };
     rule.marketClass = marketClass;
     rule.isEnabled = true;
+    const isNewRule = !existing;
     this.bullishCloudAlerts.set(id, rule);
+    // Opening the Alerts view restores persisted browser rules via this endpoint.
+    // That must never emit a Telegram message for a historic flip (e.g. UNI).
+    // Initialize state silently; the periodic monitor will send only genuine new transitions.
+    if (isNewRule) {
+      try {
+        const candles = await this.marketData.getCandles(
+          rule.symbol,
+          rule.timeframe,
+          rule.timeframe === '1w' ? 300 : 500,
+          rule.marketClass
+        );
+        const closedCandles = candles
+          .filter(candle => candle.isClosed !== false)
+          .sort((left, right) => left.timestamp - right.timestamp);
+        if (closedCandles.length >= 2) {
+          const cloud = calculateMoneyLineCloud(closedCandles, rule.timeframe);
+          const lastIndex = closedCandles.length - 1;
+          const isBullish = cloud.dirFast[lastIndex] < 0 && cloud.dirSlow[lastIndex] < 0;
+          const candleTimestamp = closedCandles[lastIndex].timestamp;
+          rule.lastWasBullish = isBullish;
+          rule.lastEvaluatedCandle = candleTimestamp;
+          rule.lastError = undefined;
+          if (isBullish) {
+            rule.lastTriggeredCandle = candleTimestamp;
+            const signal = this.moneyLine.calculateLatest(rule.symbol, rule.timeframe, closedCandles);
+            if (signal) {
+              try {
+                const profile = getTradePlanProfile(rule.timeframe);
+                const confirmationEntries = await Promise.all(profile.confirmationTimeframes.map(async timeframe => {
+                  try {
+                    const confirmationCandles = await this.marketData.getCandles(rule.symbol, timeframe, timeframe === '1m' ? 260 : 300, rule.marketClass);
+                    const confirmationSignal = this.moneyLine.calculateLatest(rule.symbol, timeframe, confirmationCandles);
+                    return [timeframe, confirmationSignal] as const;
+                  } catch {
+                    return [timeframe, null] as const;
+                  }
+                }));
+                const confirmationSignals: Partial<Record<Timeframe, MoneyLineSignal>> = {};
+                confirmationEntries.forEach(([timeframe, confirmationSignal]) => {
+                  if (confirmationSignal) confirmationSignals[timeframe] = confirmationSignal;
+                });
+                rule.lastPlan = calculateBullishTradePlan({
+                  timeframe: rule.timeframe,
+                  candles: closedCandles,
+                  cloud,
+                  signal,
+                  currentPrice: (await this.marketData.getPriceQuote(rule.symbol, rule.marketClass).catch(() => undefined))?.price || closedCandles[lastIndex].close,
+                  confirmationSignals
+                });
+              } catch {}
+            }
+          } else {
+            rule.lastRetestTriggeredCandle = undefined;
+          }
+        }
+      } catch {}
+      return rule;
+    }
     await this.evaluateBullishCloudAlert(rule);
     return rule;
   }
