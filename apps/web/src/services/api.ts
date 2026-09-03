@@ -422,6 +422,7 @@ export type FlipCandidateStatus = 'CONFIRMED' | 'AWAITING_CLOSE' | 'VERY_CLOSE' 
 export interface FlipCandidateDashboardItem {
   id: string;
   symbol: string;
+  name?: string;
   marketClass: 'crypto' | 'stocks' | 'metals';
   timeframe: '4h' | '8h' | '1d' | '1w';
   direction: FlipCandidateDirection;

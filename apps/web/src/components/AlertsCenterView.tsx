@@ -20,7 +20,7 @@ import {
   Zap
 } from 'lucide-react';
 import { AssetScannerRow, Timeframe } from '../types.js';
-import { StrategyAlertSnapshot } from '@money-scanner/shared';
+import { StrategyAlertSnapshot, TRADING_360_ASSETS } from '@money-scanner/shared';
 import {
   ActiveAlertDashboardItem,
   AlertsDashboardResponse,
@@ -40,6 +40,23 @@ interface AlertsCenterViewProps {
 }
 
 const ALERT_STORAGE_PREFIX = 'moneyline-bullish-alert:';
+
+const catalogNameBySymbol = new Map<string, string>(
+  TRADING_360_ASSETS.map(asset => [asset.symbol.toUpperCase(), asset.name])
+);
+
+export const getAssetName = (symbol: string, candidateName?: string, knownAssets?: AssetScannerRow[]): string => {
+  if (candidateName && candidateName.trim() && candidateName.toUpperCase() !== symbol.toUpperCase()) {
+    return candidateName.trim();
+  }
+  const fromCatalog = catalogNameBySymbol.get(symbol.toUpperCase());
+  if (fromCatalog) return fromCatalog;
+  if (knownAssets?.length) {
+    const fromKnown = knownAssets.find(a => a.symbol.toUpperCase() === symbol.toUpperCase())?.name;
+    if (fromKnown) return fromKnown;
+  }
+  return symbol;
+};
 
 const formatPrice = (value?: number) => {
   if (!value || !Number.isFinite(value)) return '—';
@@ -293,11 +310,12 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
     : 0;
   const visibleCandidates = useMemo(() => {
     const query = candidateSearch.replace(/^[$#]/, '').trim().toUpperCase();
-    const filtered = (data?.flipCandidates || []).filter(candidate =>
-      (candidateFilter === 'ALL' || candidate.direction === candidateFilter)
-      && (candidateTimeframe === 'ALL' || candidate.timeframe === candidateTimeframe)
-      && (!query || candidate.symbol.includes(query))
-    );
+    const filtered = (data?.flipCandidates || []).filter(candidate => {
+      const name = getAssetName(candidate.symbol, candidate.name, knownAssets).toUpperCase();
+      return (candidateFilter === 'ALL' || candidate.direction === candidateFilter)
+        && (candidateTimeframe === 'ALL' || candidate.timeframe === candidateTimeframe)
+        && (!query || candidate.symbol.toUpperCase().includes(query) || name.includes(query));
+    });
     if (query || candidateTimeframe !== 'ALL') return filtered.slice(0, 10);
 
     const seenAssets = new Set<string>();
@@ -307,7 +325,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
       seenAssets.add(key);
       return true;
     }).slice(0, 10);
-  }, [candidateFilter, candidateSearch, candidateTimeframe, data?.flipCandidates]);
+  }, [candidateFilter, candidateSearch, candidateTimeframe, data?.flipCandidates, knownAssets]);
   const topConfirmedFlips = useMemo(() => {
     const query = confirmedSearch.replace(/^[$#]/, '').trim().toUpperCase();
     const latestByAssetTimeframe = new Map<string, FlipCandidateDashboardItem>();
@@ -320,11 +338,12 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
       });
     const seenAssets = new Set<string>();
     return Array.from(latestByAssetTimeframe.values())
-      .filter(candidate =>
-        (confirmedFilter === 'ALL' || candidate.direction === confirmedFilter)
-        && (confirmedTimeframe === 'ALL' || candidate.timeframe === confirmedTimeframe)
-        && (!query || candidate.symbol.includes(query))
-      )
+      .filter(candidate => {
+        const name = getAssetName(candidate.symbol, candidate.name, knownAssets).toUpperCase();
+        return (confirmedFilter === 'ALL' || candidate.direction === confirmedFilter)
+          && (confirmedTimeframe === 'ALL' || candidate.timeframe === confirmedTimeframe)
+          && (!query || candidate.symbol.toUpperCase().includes(query) || name.includes(query));
+      })
       .sort((left, right) => getFlipConfirmedAt(right) - getFlipConfirmedAt(left)
         || right.priorityScore - left.priorityScore)
       .filter(candidate => {
@@ -333,7 +352,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
         seenAssets.add(key);
         return true;
       });
-  }, [confirmedFilter, confirmedSearch, confirmedTimeframe, data?.confirmedFlips]);
+  }, [confirmedFilter, confirmedSearch, confirmedTimeframe, data?.confirmedFlips, knownAssets]);
 
   const candidateFilterControls = (
     <div className="space-y-2">
@@ -424,6 +443,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
           alertActive={Boolean(data?.activeAlerts.some(alert =>
             alert.symbol === candidate.symbol && alert.timeframe === candidate.timeframe
           ))}
+          knownAssets={knownAssets}
           onPrepare={() => void prepareCandidateAlert(candidate)}
           onOpen={() => onOpenAsset(candidate.symbol, candidate.marketClass, candidate.timeframe)}
         />
@@ -643,6 +663,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                     key={`${candidate.id}:${candidate.candleTimestamp}`}
                     candidate={candidate}
                     rank={index + 1}
+                    knownAssets={knownAssets}
                     onOpen={() => onOpenAsset(candidate.symbol, candidate.marketClass, candidate.timeframe)}
                   />
                 ))}
@@ -692,6 +713,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                   <StrategySetupCard
                     key={`${setup.strategy}:${setup.symbol}:${setup.candleTimestamp || index}`}
                     setup={setup}
+                    knownAssets={knownAssets}
                     onOpen={() => onOpenAsset(setup.symbol, setup.marketClass, setup.timeframe)}
                   />
                 ))}
@@ -800,6 +822,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                       key={alert.id}
                       alert={alert}
                       removing={removingId === alert.id}
+                      knownAssets={knownAssets}
                       onRemove={() => void removeAlert(alert)}
                       onOpen={() => onOpenAsset(alert.symbol, alert.marketClass, alert.timeframe)}
                     />
@@ -838,14 +861,17 @@ const SummaryCard: React.FC<{ icon: React.ElementType; label: string; value: num
 
 const StrategySetupCard: React.FC<{
   setup: StrategyAlertSnapshot;
+  knownAssets?: AssetScannerRow[];
   onOpen: () => void;
-}> = ({ setup, onOpen }) => {
+}> = ({ setup, knownAssets, onOpen }) => {
   const isConfirmed = setup.stage === 'CONFIRMED';
   const isWatch = setup.stage === 'WATCH';
   const isLong = setup.side === 'LONG';
   const isDonchian = setup.strategy === 'WEEKLY_DONCHIAN_55_LONG';
   const isMacro = setup.strategy === 'MONEYLINE_MACRO_LONG';
   const isSniper = setup.strategy === 'MONEYLINE_4H_SNIPER_LONG';
+  const assetName = getAssetName(setup.symbol, undefined, knownAssets);
+  const showName = assetName && assetName.toUpperCase() !== setup.symbol.toUpperCase();
 
   const strategyTitle = isDonchian
     ? 'Weekly Trend + Donchian 55/20 LONG'
@@ -873,6 +899,11 @@ const StrategySetupCard: React.FC<{
         <button type="button" onClick={onOpen} className="min-w-0 text-left">
           <div className="flex flex-wrap items-center gap-2">
             <strong className="font-mono text-lg text-white">${setup.symbol}</strong>
+            {showName && (
+              <span className="text-xs sm:text-sm font-semibold text-slate-200 truncate max-w-[170px] sm:max-w-[280px]" title={assetName}>
+                {assetName}
+              </span>
+            )}
             <span className="rounded-md border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-cyan-300">
               {setup.timeframe.toUpperCase()}
             </span>
@@ -934,9 +965,10 @@ const FlipCandidateCard: React.FC<{
   rank: number;
   preparing: boolean;
   alertActive: boolean;
+  knownAssets?: AssetScannerRow[];
   onPrepare: () => void;
   onOpen: () => void;
-}> = ({ candidate, rank, preparing, alertActive, onPrepare, onOpen }) => {
+}> = ({ candidate, rank, preparing, alertActive, knownAssets, onPrepare, onOpen }) => {
   const bullish = candidate.direction === 'BULLISH';
   const directionTone = bullish
     ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
@@ -964,6 +996,8 @@ const FlipCandidateCard: React.FC<{
     ? ((candidate.currentPrice - confirmationPrice) / confirmationPrice) * 100
     : 0;
   const moveFromFlipLabel = `${moveFromFlip >= 0 ? '+' : ''}${moveFromFlip.toFixed(2)}%`;
+  const assetName = getAssetName(candidate.symbol, candidate.name, knownAssets);
+  const showName = assetName && assetName.toUpperCase() !== candidate.symbol.toUpperCase();
 
   return (
     <article className="overflow-hidden rounded-2xl border border-white/[0.07] bg-background-card shadow-sm transition hover:border-violet-500/20">
@@ -974,6 +1008,11 @@ const FlipCandidateCard: React.FC<{
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <strong className="font-mono text-lg text-white">${candidate.symbol}</strong>
+                {showName && (
+                  <span className="text-xs sm:text-sm font-semibold text-slate-200 truncate max-w-[170px] sm:max-w-[280px]" title={assetName}>
+                    {assetName}
+                  </span>
+                )}
                 <span className="rounded-md border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-cyan-300">{candidate.timeframe.toUpperCase()}</span>
                 <span className="rounded-md border border-white/[0.07] bg-white/[0.03] px-1.5 py-0.5 text-[9px] uppercase text-slate-500">{candidate.marketClass}</span>
               </div>
@@ -1051,8 +1090,9 @@ const FlipCandidateCard: React.FC<{
 const ConfirmedFlipCard: React.FC<{
   candidate: FlipCandidateDashboardItem;
   rank: number;
+  knownAssets?: AssetScannerRow[];
   onOpen: () => void;
-}> = ({ candidate, rank, onOpen }) => {
+}> = ({ candidate, rank, knownAssets, onOpen }) => {
   const bullish = candidate.direction === 'BULLISH';
   const tone = bullish
     ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
@@ -1064,6 +1104,8 @@ const ConfirmedFlipCard: React.FC<{
     : 0;
   const moveFromFlipLabel = `${moveFromFlip >= 0 ? '+' : ''}${moveFromFlip.toFixed(2)}%`;
   const confirmedAtTimestamp = getFlipConfirmedAt(candidate);
+  const assetName = getAssetName(candidate.symbol, candidate.name, knownAssets);
+  const showName = assetName && assetName.toUpperCase() !== candidate.symbol.toUpperCase();
 
   return (
     <article className="rounded-2xl border border-white/[0.07] bg-background-card p-4 shadow-sm transition hover:border-emerald-500/20">
@@ -1073,10 +1115,15 @@ const ConfirmedFlipCard: React.FC<{
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <strong className="font-mono text-lg text-white">${candidate.symbol}</strong>
+              {showName && (
+                <span className="text-xs sm:text-sm font-semibold text-slate-200 truncate max-w-[170px] sm:max-w-[280px]" title={assetName}>
+                  {assetName}
+                </span>
+              )}
               <span className="rounded-md border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-cyan-300">{candidate.timeframe.toUpperCase()}</span>
               <span className="rounded-md border border-white/[0.07] bg-white/[0.03] px-1.5 py-0.5 text-[9px] uppercase text-slate-500">{candidate.marketClass}</span>
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500"><Clock3 className="h-3 w-3" /> Confirmat {formatRelativeAge(confirmedAtTimestamp)} · {formatDate(confirmedAtTimestamp)}</div>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500"><Clock3 className="h-3 w-3 shrink-0" /> Confirmat {formatRelativeAge(confirmedAtTimestamp)} · {formatDate(confirmedAtTimestamp)}</div>
           </div>
         </button>
         <div className="flex flex-col items-end gap-1">
@@ -1106,14 +1153,22 @@ const ConfirmedFlipCard: React.FC<{
   );
 };
 
-const ActiveAlertCard: React.FC<{ alert: ActiveAlertDashboardItem; removing: boolean; onRemove: () => void; onOpen: () => void }> = ({ alert, removing, onRemove, onOpen }) => {
+const ActiveAlertCard: React.FC<{ alert: ActiveAlertDashboardItem; removing: boolean; knownAssets?: AssetScannerRow[]; onRemove: () => void; onOpen: () => void }> = ({ alert, removing, knownAssets, onRemove, onOpen }) => {
   const meta = statusMeta[alert.status];
+  const assetName = getAssetName(alert.symbol, undefined, knownAssets);
+  const showName = assetName && assetName.toUpperCase() !== alert.symbol.toUpperCase();
+
   return (
     <article className="rounded-2xl border border-white/[0.07] bg-background-card p-4 shadow-sm transition hover:border-cyan-500/20">
       <div className="flex items-start justify-between gap-3">
         <button type="button" onClick={onOpen} className="min-w-0 text-left">
           <div className="flex flex-wrap items-center gap-2">
             <strong className="font-mono text-lg text-white">${alert.symbol}</strong>
+            {showName && (
+              <span className="text-xs sm:text-sm font-semibold text-slate-200 truncate max-w-[170px] sm:max-w-[280px]" title={assetName}>
+                {assetName}
+              </span>
+            )}
             <span className="rounded-md border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-cyan-300">{alert.timeframe.toUpperCase()}</span>
             <span className="rounded-md border border-white/[0.07] bg-white/[0.03] px-1.5 py-0.5 text-[9px] uppercase text-slate-500">{alert.marketClass}</span>
           </div>

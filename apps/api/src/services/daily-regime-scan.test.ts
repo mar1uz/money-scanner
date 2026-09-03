@@ -131,6 +131,7 @@ describe('Daily MoneyLine regime scan', () => {
     );
 
     assert.equal(result.symbol, 'ETH');
+    assert.equal(result.name, 'Ethereum');
     assert.equal(result.timeframe, '1w');
     assert.equal(result.direction, 'BULLISH');
     assert.equal(result.status, 'APPROACHING');

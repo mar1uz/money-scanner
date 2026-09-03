@@ -14,7 +14,8 @@ import {
   StrategyAlertSnapshot,
   TelegramFlipAlertPreferences,
   TelegramFlipAlertSubscription,
-  TelegramFlipTimeframe
+  TelegramFlipTimeframe,
+  TRADING_360_ASSETS
 } from '@money-scanner/shared';
 import { MarketDataService } from '@money-scanner/market-data';
 import {
@@ -112,6 +113,7 @@ export type FlipCandidateStatus = 'CONFIRMED' | 'AWAITING_CLOSE' | 'VERY_CLOSE' 
 export interface FlipCandidate {
   id: string;
   symbol: string;
+  name?: string;
   marketClass: AssetMarketClass;
   timeframe: Extract<Timeframe, '4h' | '8h' | '1d' | '1w'>;
   direction: FlipCandidateDirection;
@@ -1478,10 +1480,13 @@ export class AppState {
     const confirmedAt = confirmed
       ? Math.min(Date.now(), closedCandles[lastIndex].timestamp + FLIP_TIMEFRAME_DURATION_MS[timeframe])
       : undefined;
+    const assetInfo = TRADING_360_ASSETS.find(a => a.symbol.toUpperCase() === symbol.toUpperCase());
+    const name = assetInfo?.name;
 
     return {
       id: `${marketClass}:${symbol}:${timeframe}:${direction}`,
       symbol,
+      name,
       marketClass,
       timeframe,
       direction,
@@ -1666,8 +1671,11 @@ export class AppState {
         const confirmationPrice = candidate.confirmationPrice || candidate.currentPrice;
         const confirmedAt = candidate.confirmedAt
           || Math.min(Date.now(), candidate.candleTimestamp + FLIP_TIMEFRAME_DURATION_MS[candidate.timeframe]);
+        const assetLabel = candidate.name && candidate.name.toUpperCase() !== candidate.symbol.toUpperCase()
+          ? ` (${candidate.name})`
+          : '';
         lines.push(
-          `${candidate.direction === 'BULLISH' ? '🟢 ▲' : '🔴 ▼'} ${telegramAssetLink({ baseUrl: dashboardBaseUrl, symbol: candidate.symbol, timeframe: candidate.timeframe, marketClass: candidate.marketClass })} ${candidate.timeframe.toUpperCase()} · ${candidate.priorityScore.toFixed(0)}/100 · ${candidate.marketClass.toUpperCase()}`,
+          `${candidate.direction === 'BULLISH' ? '🟢 ▲' : '🔴 ▼'} ${telegramAssetLink({ baseUrl: dashboardBaseUrl, symbol: candidate.symbol, timeframe: candidate.timeframe, marketClass: candidate.marketClass })}${assetLabel} ${candidate.timeframe.toUpperCase()} · ${candidate.priorityScore.toFixed(0)}/100 · ${candidate.marketClass.toUpperCase()}`,
           `*Închidere flip:* ${formatAlertPrice(confirmationPrice)} → *Preț acum:* ${formatAlertPrice(candidate.currentPrice)} (*${formatFlipMove(confirmationPrice, candidate.currentPrice)}*)`,
           `*Confirmat:* ${formatFlipAge(confirmedAt)} · ${formatFlipDate(confirmedAt)}`,
           `ML1W ${candidate.weeklyTier} (${candidate.weeklyScore > 0 ? '+' : ''}${candidate.weeklyScore}) · RVOL ${candidate.rvol.toFixed(2)}x · SMA50 ${candidate.sma50Aligned ? 'aliniat' : 'neconfirmat'} · SMA200 ${candidate.sma200Aligned ? 'aliniat' : 'neconfirmat'}`
