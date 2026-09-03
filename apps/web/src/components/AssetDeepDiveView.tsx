@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AssetDetailResponse, Timeframe } from '../types.js';
+import { TRADING_360_ASSETS } from '@money-scanner/shared';
 import { fetchAssetDetail, fetchHistoricalCandles, triggerTestAlert } from '../services/api.js';
 import { InteractiveChart } from './InteractiveChart.js';
 import { CryptoBusinessQualityCard } from './CryptoBusinessQualityCard.js';
@@ -42,6 +43,67 @@ interface AssetDeepDiveViewProps {
 }
 
 type InfoTab = 'ai' | 'mtf' | 'social';
+
+const stockAssetsByMarketCap = TRADING_360_ASSETS
+  .filter(a => a.marketClass === 'stocks' && a.symbol !== 'DXY' && a.symbol !== 'VIX' && (a.marketCap || 0) > 0)
+  .sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0));
+
+const stockMarketCapRankMap = new Map<string, number>(
+  stockAssetsByMarketCap.map((asset, index) => [asset.symbol.toUpperCase(), index + 1])
+);
+
+const cryptoAssetsByMarketCap = TRADING_360_ASSETS
+  .filter(a => a.marketClass === 'crypto' && (a.marketCap || 0) > 0)
+  .sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0));
+
+const cryptoMarketCapRankMap = new Map<string, number>(
+  cryptoAssetsByMarketCap.map((asset, index) => [asset.symbol.toUpperCase(), index + 1])
+);
+
+export const getMarketCapRank = (
+  symbol: string,
+  marketClass?: string,
+  rawRank?: number,
+  marketCap?: number
+): number | null => {
+  const sym = symbol.replace(/^[$#]/, '').trim().toUpperCase();
+  const resolvedClass = marketClass || TRADING_360_ASSETS.find(a => a.symbol.toUpperCase() === sym)?.marketClass;
+
+  if (resolvedClass === 'stocks') {
+    const fromMap = stockMarketCapRankMap.get(sym);
+    if (fromMap !== undefined) return fromMap;
+    if (marketCap && marketCap > 0) {
+      const idx = stockAssetsByMarketCap.findIndex(s => (s.marketCap || 0) <= marketCap);
+      return idx === -1 ? stockAssetsByMarketCap.length + 1 : idx + 1;
+    }
+    if (rawRank && rawRank > 0 && rawRank < 999) return rawRank;
+    return null;
+  }
+
+  if (resolvedClass === 'crypto') {
+    if (rawRank && rawRank > 0 && rawRank < 999) return rawRank;
+    const fromMap = cryptoMarketCapRankMap.get(sym);
+    if (fromMap !== undefined) return fromMap;
+    return null;
+  }
+
+  if (rawRank && rawRank > 0 && rawRank < 999) return rawRank;
+  return null;
+};
+
+export const formatMarketCap = (value?: number | null): string => {
+  if (!value || !Number.isFinite(value) || value <= 0) return '—';
+  if (value >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
+  if (value >= 1e9) {
+    const b = value / 1e9;
+    return `$${b >= 100 ? b.toFixed(1) : b.toFixed(2)}B`;
+  }
+  if (value >= 1e6) {
+    const m = value / 1e6;
+    return `$${m >= 100 ? m.toFixed(0) : m.toFixed(1)}M`;
+  }
+  return `$${value.toLocaleString('en-US')}`;
+};
 
 export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   symbol,
@@ -231,6 +293,11 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   const socialItems = displayXPosts.slice(0, 4).map((p: any) => ({ ...p, _type: 'social' as const }));
   const unifiedFeed = [...newsItems, ...socialItems].slice(0, 6);
 
+  const catalogAsset = TRADING_360_ASSETS.find(a => a.symbol.toUpperCase() === symbol.toUpperCase());
+  const effectiveMarketCap = data?.info?.marketCap || catalogAsset?.marketCap || (data?.quote as any)?.marketCap || 0;
+  const rawRank = data?.info?.rank ?? catalogAsset?.rank;
+  const marketCapRank = getMarketCapRank(symbol, marketClass || data?.info?.marketClass, rawRank, effectiveMarketCap);
+
   return (
     <div className="space-y-0 animate-fade-in">
 
@@ -250,7 +317,15 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
               <ArrowLeft className="w-4 h-4" />
             </button>
 
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1 sm:flex-nowrap">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 sm:flex-nowrap">
+              {marketCapRank !== null && (
+                <span
+                  className="px-1.5 py-0.5 rounded-md border border-cyan-500/30 bg-cyan-500/10 font-mono text-[11px] font-bold text-cyan-300 shrink-0"
+                  title={`Locul #${marketCapRank} în clasamentul după Market Cap`}
+                >
+                  #{marketCapRank}
+                </span>
+              )}
               <span className="text-sm font-bold text-slate-100 font-mono shrink-0">
                 ${symbol}
               </span>
@@ -271,6 +346,12 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
                 }`}>
                   <span className="text-slate-400 font-normal">YTD:</span>
                   <span>{quote.changeYtd >= 0 ? `+${quote.changeYtd}%` : `${quote.changeYtd}%`}</span>
+                </span>
+              )}
+              {effectiveMarketCap > 0 && (
+                <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md border shrink-0 sm:hidden inline-flex items-center gap-1 border-white/[0.08] bg-white/[0.03] text-slate-300">
+                  <span className="text-slate-400 font-normal">MCap:</span>
+                  <span className="font-bold text-cyan-300">{formatMarketCap(effectiveMarketCap)}</span>
                 </span>
               )}
             </div>
@@ -308,6 +389,17 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Market Cap Badge (where the red arrow points in the screenshot!) */}
+            {effectiveMarketCap > 0 && (
+              <div
+                className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-semibold border border-white/[0.08] bg-white/[0.03] text-slate-300 shrink-0"
+                title={`Capitalizare de piață: $${effectiveMarketCap.toLocaleString('en-US')}`}
+              >
+                <span className="text-slate-500 font-normal text-[10px] uppercase">MCap:</span>
+                <span className="font-bold text-cyan-300">{formatMarketCap(effectiveMarketCap)}</span>
+              </div>
+            )}
           </div>
 
           {/* Right: Timeframe pills + Actions */}

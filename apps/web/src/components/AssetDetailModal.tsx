@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { AssetDetailResponse, Timeframe } from '../types.js';
+import { TRADING_360_ASSETS } from '@money-scanner/shared';
 import { fetchAssetDetail, triggerTestAlert } from '../services/api.js';
 import { InteractiveChart } from './InteractiveChart.js';
+import { formatMarketCap, getMarketCapRank } from './AssetDeepDiveView.js';
 import {
   X,
   Zap,
@@ -56,6 +58,11 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
   const quote = data?.quote;
   const explanation = data?.aiExplanation;
 
+  const catalogAsset = symbol ? TRADING_360_ASSETS.find(a => a.symbol.toUpperCase() === symbol.toUpperCase()) : null;
+  const effectiveMarketCap = data?.info?.marketCap || catalogAsset?.marketCap || (data?.quote as any)?.marketCap || 0;
+  const rawRank = data?.info?.rank ?? catalogAsset?.rank;
+  const marketCapRank = symbol ? getMarketCapRank(symbol, data?.info?.marketClass, rawRank, effectiveMarketCap) : null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md overflow-y-auto">
       <div className="relative w-full max-w-5xl bg-background-card border border-background-border rounded-2xl shadow-2xl overflow-hidden my-8 cyber-glass">
@@ -66,12 +73,22 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
               ${symbol}
             </div>
             <div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                 <h2 className="text-xl font-bold text-slate-100">{data?.info?.name || symbol}</h2>
                 <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">
                   {data?.info?.category || 'Layer 1'}
                 </span>
-                <span className="text-xs font-mono text-slate-500">Rank #{data?.info?.rank || 1}</span>
+                {marketCapRank !== null && (
+                  <span className="text-xs font-mono px-1.5 py-0.5 rounded border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 font-bold" title={`Locul #${marketCapRank} după Market Cap`}>
+                    Rank #{marketCapRank}
+                  </span>
+                )}
+                {effectiveMarketCap > 0 && (
+                  <span className="text-xs font-mono px-2 py-0.5 rounded border border-white/[0.08] bg-white/[0.03] text-slate-300 font-medium">
+                    <span className="text-slate-500 text-[10px] uppercase mr-1">MCap:</span>
+                    <strong className="text-cyan-300 font-bold">{formatMarketCap(effectiveMarketCap)}</strong>
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-3 text-sm font-mono mt-1">
                 <span className="font-bold text-slate-200">${quote?.price?.toLocaleString()}</span>
