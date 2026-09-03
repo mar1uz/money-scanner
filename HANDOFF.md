@@ -2620,6 +2620,48 @@ Traffic: 100%
 Public bundle: assets/index-8gg8krDi.js
 Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
+## 71. Market Class Filtering for Top 10 Aproape de Flip
+
+Implemented and deployed on 03 September 2026.
+
+### What changed
+
+1. **Market Class Filter Controls for Candidate Flips (`apps/web/src/components/AlertsCenterView.tsx`)**:
+   - Added market class filter buttons to the „Top 10 aproape de flip” control panel:
+     - `Toate` (`ALL`): displays both crypto and stock candidates approaching a flip.
+     - `Crypto` (`crypto`): filters strictly to candidates where `candidate.marketClass === 'crypto'`.
+     - `Stocks` (`stocks`): filters strictly to candidates where `candidate.marketClass === 'stocks'`.
+   - The filter combines seamlessly with direction (`ALL` / `BULLISH` / `BEARISH`), timeframe (`ALL` / `4h` / `8h` / `1d` / `1w`), and search query.
+
+2. **Cyber-Glass UI & Mobile Responsiveness (`apps/web/src/components/AlertsCenterView.tsx`)**:
+   - Positioned cleanly between direction and timeframe filter rows.
+   - Matches the confirmed flips styling with dedicated active tones: Cyan for Crypto (`bg-cyan-500/15 text-cyan-300`), Blue for Stocks (`bg-blue-500/15 text-blue-300`), Violet for Toate (`bg-violet-500/15 text-violet-200`).
+   - Mobile-responsive layout ensuring fluid wrapping on small screens.
+
+3. **Pure Filter Logic (`filterFlipCandidates`) & Automated Unit Tests**:
+   - Extracted `filterFlipCandidates` pure filtering helper with full multi-dimensional criteria handling.
+   - Added automated unit test suite (`apps/web/src/components/alerts-candidate-market-class.test.ts`) verifying:
+     - Crypto isolation (`marketClass === 'crypto'`)
+     - Stocks isolation (`marketClass === 'stocks'`)
+     - Unrestricted multi-class viewing (`ALL` / `Toate`)
+     - Direction combination (`stocks` + `BULLISH`)
+     - Timeframe combination (`crypto` + `1w`)
+     - Search text combination across asset classes
+     - Safety on undefined and empty candidate arrays
+   - Monorepo test suite expanded to 110 passing tests (100% pass rate).
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: a40fdeb
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Local tests: 110 passed, 0 failed (100% test pass rate)
+Cloud Build: 885c576c-a7db-4554-8d81-72a426515465 (SUCCESS)
+Cloud Run revision: market-scanner-360-00148-6l9
+Traffic: 100%
+Public bundle: assets/index-ClxS58Ss.js
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
 ```
 
 
