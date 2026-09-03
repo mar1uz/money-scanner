@@ -2577,3 +2577,49 @@ Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 ```
 
+## 70. Market Class Filtering for Confirmed Money Line Flips
+
+Implemented and deployed on 03 September 2026.
+
+### What changed
+
+1. **Market Class Filter Controls (`apps/web/src/components/AlertsCenterView.tsx`)**:
+   - Added market class filter buttons to the Confirmed Money Line Flips control panel:
+     - `Toate` (`ALL`): displays both crypto and stock confirmed flips without restriction.
+     - `Crypto` (`crypto`): filters strictly to candidates where `candidate.marketClass === 'crypto'`.
+     - `Stocks` (`stocks`): filters strictly to candidates where `candidate.marketClass === 'stocks'`.
+   - The filter combines seamlessly with direction (`ALL` / `BULLISH` / `BEARISH`), timeframe (`ALL` / `4h` / `8h` / `1d` / `1w`), and search query.
+
+2. **Cyber-Glass UI & Mobile Responsiveness (`apps/web/src/components/AlertsCenterView.tsx`)**:
+   - Filter pills positioned directly under the direction filter buttons in the control header.
+   - Cyber-glass pill styling with dedicated active tones: Cyan for Crypto (`bg-cyan-500/15 text-cyan-300`), Blue for Stocks (`bg-blue-500/15 text-blue-300`), Violet for Toate (`bg-violet-500/15 text-violet-200`).
+   - Mobile-responsive `flex flex-wrap gap-1` layout with `min-w-16 flex-1` ensuring clean 3-way distribution on desktop and fluid wrapping without overflow on small screens.
+
+3. **Isolated Pure Filter Logic (`filterConfirmedFlips`) & Automated Test Suite**:
+   - Extracted `filterConfirmedFlips` pure filtering helper with multi-dimensional criteria handling (marketClass, direction, timeframe, text search, deduplication per asset).
+   - Added automated unit test suite (`apps/web/src/components/alerts-confirmed-market-class.test.ts`) verifying:
+     - Crypto isolation (`marketClass === 'crypto'`)
+     - Stocks isolation (`marketClass === 'stocks'`)
+     - Unrestricted multi-class viewing (`ALL` / `Toate`)
+     - Direction combination (`BULLISH` / `BEARISH` across asset classes)
+     - Simultaneous multi-dimensional filtering (`BULLISH` + `1w` + `stocks`)
+     - Search text combination across asset classes
+     - Per-asset timeframe deduplication
+     - Empty inputs and unmatched filter graceful handling
+   - Monorepo test suite expanded from 93 to 102 passing tests (100% pass rate).
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: b7f2098
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Local tests: 102 passed, 0 failed (100% test pass rate)
+Cloud Build: b17787dd-5ed3-4b77-b09b-b24214895d94 (SUCCESS)
+Cloud Run revision: market-scanner-360-00147-4fd
+Traffic: 100%
+Public bundle: assets/index-8gg8krDi.js
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
+
+
