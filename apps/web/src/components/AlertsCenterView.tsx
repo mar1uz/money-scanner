@@ -100,6 +100,56 @@ const statusMeta: Record<AlertProgressStatus, { label: string; tone: string; bar
   ERROR: { label: 'Date indisponibile', tone: 'text-rose-300 bg-rose-500/10 border-rose-500/30', bar: 'bg-rose-400' }
 };
 
+export type ConfirmedMarketClassFilter = 'ALL' | 'crypto' | 'stocks';
+
+export interface FilterConfirmedFlipsOptions {
+  confirmedFilter?: 'ALL' | 'BULLISH' | 'BEARISH';
+  confirmedTimeframe?: 'ALL' | '4h' | '8h' | '1d' | '1w';
+  confirmedMarketClass?: ConfirmedMarketClassFilter;
+  confirmedSearch?: string;
+  knownAssets?: AssetScannerRow[];
+}
+
+export function filterConfirmedFlips(
+  confirmedFlips: FlipCandidateDashboardItem[] | undefined,
+  options: FilterConfirmedFlipsOptions = {}
+): FlipCandidateDashboardItem[] {
+  const {
+    confirmedFilter = 'ALL',
+    confirmedTimeframe = 'ALL',
+    confirmedMarketClass = 'ALL',
+    confirmedSearch = '',
+    knownAssets
+  } = options;
+
+  const query = confirmedSearch.replace(/^[$#]/, '').trim().toUpperCase();
+  const latestByAssetTimeframe = new Map<string, FlipCandidateDashboardItem>();
+  (confirmedFlips || [])
+    .slice()
+    .sort((left, right) => getFlipConfirmedAt(right) - getFlipConfirmedAt(left))
+    .forEach(candidate => {
+      const key = `${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}`;
+      if (!latestByAssetTimeframe.has(key)) latestByAssetTimeframe.set(key, candidate);
+    });
+  const seenAssets = new Set<string>();
+  return Array.from(latestByAssetTimeframe.values())
+    .filter(candidate => {
+      const name = getAssetName(candidate.symbol, candidate.name, knownAssets).toUpperCase();
+      return (confirmedFilter === 'ALL' || candidate.direction === confirmedFilter)
+        && (confirmedTimeframe === 'ALL' || candidate.timeframe === confirmedTimeframe)
+        && (confirmedMarketClass === 'ALL' || candidate.marketClass === confirmedMarketClass)
+        && (!query || candidate.symbol.toUpperCase().includes(query) || name.includes(query));
+    })
+    .sort((left, right) => getFlipConfirmedAt(right) - getFlipConfirmedAt(left)
+      || right.priorityScore - left.priorityScore)
+    .filter(candidate => {
+      const key = `${candidate.marketClass}:${candidate.symbol}`;
+      if (seenAssets.has(key)) return false;
+      seenAssets.add(key);
+      return true;
+    });
+}
+
 export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets, watchlist, onOpenAsset }) => {
   const [data, setData] = useState<AlertsDashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -119,6 +169,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
   const [candidateSearch, setCandidateSearch] = useState('');
   const [confirmedFilter, setConfirmedFilter] = useState<'ALL' | 'BULLISH' | 'BEARISH'>('ALL');
   const [confirmedTimeframe, setConfirmedTimeframe] = useState<'ALL' | '4h' | '8h' | '1d' | '1w'>('ALL');
+  const [confirmedMarketClass, setConfirmedMarketClass] = useState<ConfirmedMarketClassFilter>('ALL');
   const [confirmedSearch, setConfirmedSearch] = useState('');
   const restoredBrowserRules = useRef(false);
 
@@ -327,32 +378,14 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
     }).slice(0, 10);
   }, [candidateFilter, candidateSearch, candidateTimeframe, data?.flipCandidates, knownAssets]);
   const topConfirmedFlips = useMemo(() => {
-    const query = confirmedSearch.replace(/^[$#]/, '').trim().toUpperCase();
-    const latestByAssetTimeframe = new Map<string, FlipCandidateDashboardItem>();
-    (data?.confirmedFlips || [])
-      .slice()
-      .sort((left, right) => getFlipConfirmedAt(right) - getFlipConfirmedAt(left))
-      .forEach(candidate => {
-        const key = `${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}`;
-        if (!latestByAssetTimeframe.has(key)) latestByAssetTimeframe.set(key, candidate);
-      });
-    const seenAssets = new Set<string>();
-    return Array.from(latestByAssetTimeframe.values())
-      .filter(candidate => {
-        const name = getAssetName(candidate.symbol, candidate.name, knownAssets).toUpperCase();
-        return (confirmedFilter === 'ALL' || candidate.direction === confirmedFilter)
-          && (confirmedTimeframe === 'ALL' || candidate.timeframe === confirmedTimeframe)
-          && (!query || candidate.symbol.toUpperCase().includes(query) || name.includes(query));
-      })
-      .sort((left, right) => getFlipConfirmedAt(right) - getFlipConfirmedAt(left)
-        || right.priorityScore - left.priorityScore)
-      .filter(candidate => {
-        const key = `${candidate.marketClass}:${candidate.symbol}`;
-        if (seenAssets.has(key)) return false;
-        seenAssets.add(key);
-        return true;
-      });
-  }, [confirmedFilter, confirmedSearch, confirmedTimeframe, data?.confirmedFlips, knownAssets]);
+    return filterConfirmedFlips(data?.confirmedFlips, {
+      confirmedFilter,
+      confirmedTimeframe,
+      confirmedMarketClass,
+      confirmedSearch,
+      knownAssets
+    });
+  }, [confirmedFilter, confirmedMarketClass, confirmedSearch, confirmedTimeframe, data?.confirmedFlips, knownAssets]);
 
   const candidateFilterControls = (
     <div className="space-y-2">
@@ -409,6 +442,24 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                   : 'bg-violet-500/15 text-violet-200'
               : 'text-slate-500 hover:text-slate-300'}`}
           >{filter === 'ALL' ? 'TOATE' : filter}</button>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-1 rounded-lg border border-white/[0.06] bg-white/[0.025] p-1">
+        {(['ALL', 'crypto', 'stocks'] as const).map(marketClass => (
+          <button
+            key={marketClass}
+            type="button"
+            onClick={() => setConfirmedMarketClass(marketClass)}
+            className={`min-w-16 flex-1 rounded-md px-2.5 py-1.5 text-[10px] font-bold transition ${confirmedMarketClass === marketClass
+              ? marketClass === 'crypto'
+                ? 'bg-cyan-500/15 text-cyan-300'
+                : marketClass === 'stocks'
+                  ? 'bg-blue-500/15 text-blue-300'
+                  : 'bg-violet-500/15 text-violet-200'
+              : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            {marketClass === 'ALL' ? 'Toate' : marketClass === 'crypto' ? 'Crypto' : 'Stocks'}
+          </button>
         ))}
       </div>
       <div className="flex flex-wrap gap-1 rounded-lg border border-white/[0.06] bg-white/[0.025] p-1">
