@@ -2665,3 +2665,29 @@ Health: HTTP 200, status ok
 ```
 
 
+
+## 72. Crypto Bubble — 24h Gainers and Top 100 Ranking
+
+Implemented and deployed on 03 September 2026.
+
+- Crypto Bubble now requests the 24h timeframe and ranks the available source universe by signed percentage change before selecting the first 100 coins. The existing upstream universe is unchanged (normally 150 major coins by capitalization); its actual count is shown in the table description.
+- Bubble area has a readable baseline plus a component proportional to positive daily gain. Losses, zero and missing values retain the baseline size. Market cap does not influence bubble size. Layout expands to fit all 100 without overlap or per-coin shrinking.
+- Added the matching top 100 table underneath, descending by 24h change, with rank, coin, percentage, known catalog category, price and market cap. Missing/invalid percentages sort last. Both bubbles and coin buttons open asset analysis.
+- Responsive layout, explicit empty state and retained previous rows with an error message when refresh fails.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: ffb5631
+Local frontend production build: passed
+Frontend tests: 48 passed, 0 failed (including 6 new ranking/layout tests)
+Playwright component fixture: passed (100 bubbles/rows, descending sort, 24h request,
+  asset selection, desktop/mobile overflow, refresh failure and empty response)
+Visual checks: desktop bubbles, table, mobile
+Cloud Build: 92d37735-6ec3-44e4-8c9f-2069b284b17e (SUCCESS; full monorepo build)
+Cloud Run revision: market-scanner-360-00149-xwz
+Traffic: 100%
+Public bundle: assets/index-ZuFMPzUe.js (HTTP 200; updated UI strings verified)
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
