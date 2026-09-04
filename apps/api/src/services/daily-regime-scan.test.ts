@@ -266,6 +266,110 @@ describe('Daily MoneyLine regime scan', () => {
     assert.equal(deliveries.find(delivery => delivery.chatId === '-200')?.message.includes('$ETH'), false);
   });
 
+  it('publishes an OLD 1w flip from confirmedHistory once (deduped across sources)', async () => {
+    const state = new AppState();
+    const timestamp = Date.now();
+    const oldCandle = timestamp - 30 * 86_400_000;
+    const base: any = {
+      marketClass: 'crypto', direction: 'BULLISH', status: 'CONFIRMED', currentPrice: 100,
+      triggerPrice: 99, distancePercent: 0, distanceAtr: 0, priorityScore: 88, atr: 4,
+      rvol: 1.2, moneyLineTier: 'Bullish', moneyLineScore: 35, weeklyTier: 'Bullish',
+      weeklyScore: 35, sma50: 95, sma200: 90, weeklyAligned: true, sma50Aligned: true,
+      sma200Aligned: true, candleTimestamp: oldCandle, scannedAt: timestamp
+    };
+    (state as any).getTelegramFlipAlertDestinations = async () => [
+      { chatId: '100', chatType: 'private', enabled: true, addedByUserId: '100', updatedAt: timestamp }
+    ];
+    (state as any).getTelegramFlipAlertPreferences = async (chatId: string) => ({
+      chatId, enabled: true, timeframes: ['1w'], updatedAt: timestamp
+    });
+    let sends = 0;
+    let sentMessage = '';
+    (state.telegramBot as any).sendMarkdown = async (message: string) => {
+      sends += 1;
+      sentMessage = message;
+      return true;
+    };
+
+    // Same old 1w flip arriving from two sources must collapse to one line/entry.
+    const oldFlip = { ...base, id: 'eth-1w-old', symbol: 'ETH', timeframe: '1w' };
+    await (state as any).publishConfirmedFlipEvents(
+      [oldFlip, { ...oldFlip, id: 'eth-1w-old-dup' }],
+      'scheduled/full scan'
+    );
+
+    assert.equal(sends, 1);
+    assert.ok(sentMessage.includes('$ETH'));
+    assert.ok(sentMessage.includes('1W'));
+    assert.equal(state.alertHistory.filter((alert: any) => alert.symbol === 'ETH').length, 1);
+  });
+
+  it('does not resend an already-delivered 1w flip on the second call (idempotency)', async () => {
+    const state = new AppState();
+    const timestamp = Date.now();
+    const oldCandle = timestamp - 30 * 86_400_000;
+    const base: any = {
+      marketClass: 'crypto', direction: 'BULLISH', status: 'CONFIRMED', currentPrice: 100,
+      triggerPrice: 99, distancePercent: 0, distanceAtr: 0, priorityScore: 88, atr: 4,
+      rvol: 1.2, moneyLineTier: 'Bullish', moneyLineScore: 35, weeklyTier: 'Bullish',
+      weeklyScore: 35, sma50: 95, sma200: 90, weeklyAligned: true, sma50Aligned: true,
+      sma200Aligned: true, candleTimestamp: oldCandle, scannedAt: timestamp
+    };
+    (state as any).getTelegramFlipAlertDestinations = async () => [
+      { chatId: '100', chatType: 'private', enabled: true, addedByUserId: '100', updatedAt: timestamp }
+    ];
+    (state as any).getTelegramFlipAlertPreferences = async (chatId: string) => ({
+      chatId, enabled: true, timeframes: ['1w'], updatedAt: timestamp
+    });
+    let sends = 0;
+    (state.telegramBot as any).sendMarkdown = async () => {
+      sends += 1;
+      return true;
+    };
+
+    const oldFlip = { ...base, id: 'eth-1w-old', symbol: 'ETH', timeframe: '1w' };
+    await (state as any).publishConfirmedFlipEvents([oldFlip], 'scheduled/full scan');
+    assert.equal(sends, 1);
+    const historyLength = state.alertHistory.length;
+
+    await (state as any).publishConfirmedFlipEvents([oldFlip], 'scheduled/full scan');
+    assert.equal(sends, 1);
+    assert.equal(state.alertHistory.length, historyLength);
+  });
+
+  it('does NOT auto-publish non-1w history (call-site filter keeps 1d history out)', async () => {
+    const state = new AppState();
+    const timestamp = Date.now();
+    const oldCandle = timestamp - 30 * 86_400_000;
+    const base: any = {
+      marketClass: 'crypto', direction: 'BULLISH', status: 'CONFIRMED', currentPrice: 100,
+      triggerPrice: 99, distancePercent: 0, distanceAtr: 0, priorityScore: 88, atr: 4,
+      rvol: 1.2, moneyLineTier: 'Bullish', moneyLineScore: 35, weeklyTier: 'Bullish',
+      weeklyScore: 35, sma50: 95, sma200: 90, weeklyAligned: true, sma50Aligned: true,
+      sma200Aligned: true, candleTimestamp: oldCandle, scannedAt: timestamp
+    };
+    (state as any).getTelegramFlipAlertDestinations = async () => [
+      { chatId: '100', chatType: 'private', enabled: true, addedByUserId: '100', updatedAt: timestamp }
+    ];
+    (state as any).getTelegramFlipAlertPreferences = async (chatId: string) => ({
+      chatId, enabled: true, timeframes: ['1w', '1d'], updatedAt: timestamp
+    });
+    let sends = 0;
+    (state.telegramBot as any).sendMarkdown = async () => {
+      sends += 1;
+      return true;
+    };
+
+    // Same composition as both production call sites.
+    const newlyConfirmed: any[] = [];
+    const confirmedHistory: any[] = [{ ...base, id: 'btc-1d-old', symbol: 'BTC', timeframe: '1d' }];
+    const toPublish = [...newlyConfirmed, ...confirmedHistory.filter(c => c.timeframe === '1w')];
+    assert.deepEqual(toPublish, []);
+    await (state as any).publishConfirmedFlipEvents(toPublish, 'scheduled/full scan');
+    assert.equal(sends, 0);
+    assert.equal(state.alertHistory.length, 0);
+  });
+
   it('runs and briefly caches a live Telegram Money Line scan for the selected scope', async () => {
     const state = new AppState();
     (state.marketData as any).getTopCryptoAssets = async () => [

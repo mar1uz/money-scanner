@@ -951,7 +951,7 @@ export class AppState {
         });
       }
 
-      await this.publishConfirmedFlipEvents(newlyConfirmed, 'manual quick scan');
+      await this.publishConfirmedFlipEvents([...newlyConfirmed, ...confirmedHistory.filter(c => c.timeframe === '1w')], 'manual quick scan');
       this.mergeConfirmedFlips(confirmedHistory);
       this.flipCandidates = this.rankUpcomingCandidates([...candidates, ...this.flipCandidates]);
       await this.persistDailyRegimeState();
@@ -1043,7 +1043,7 @@ export class AppState {
       }
 
       this.flipCandidates = this.rankUpcomingCandidates(candidates);
-      await this.publishConfirmedFlipEvents(newlyConfirmed, 'scheduled/full scan');
+      await this.publishConfirmedFlipEvents([...newlyConfirmed, ...confirmedHistory.filter(c => c.timeframe === '1w')], 'scheduled/full scan');
       this.mergeConfirmedFlips(confirmedHistory);
 
       this.dailyRegimeScanStatus = {
@@ -1603,8 +1603,12 @@ export class AppState {
     return {
       upcoming: latestCandidates.filter(candidate => candidate.status !== 'CONFIRMED'),
       confirmedHistory,
-      // Only a flip on the latest closed candle is a new event eligible for
-      // Telegram delivery. Historical flips are dashboard context only.
+      // Newly confirmed flips on the latest closed candle are Telegram events.
+      // Exception for 1W: the latest recorded 1W flip per asset is also
+      // delivered (new or older, as shown on site). Other timeframes' history
+      // stays dashboard-only. Call sites append confirmedHistory 1W entries;
+      // the alertHistory filter in publishConfirmedFlipEvents keeps delivery
+      // one-time (backfill once, then new only).
       newlyConfirmed: latestCandidates.filter(candidate => candidate.status === 'CONFIRMED')
     };
   }
@@ -1648,7 +1652,17 @@ export class AppState {
     candidates: FlipCandidate[],
     source: 'scheduled/full scan' | 'manual quick scan'
   ) {
-    const fresh = candidates.filter(candidate => {
+    // Dedupe identical flips arriving from two sources so no duplicate lines
+    // are emitted within one publish batch.
+    const deduped = Array.from(
+      new Map(
+        candidates.map(candidate => [
+          `flip:${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}:${candidate.direction}:${candidate.candleTimestamp}`,
+          candidate
+        ])
+      ).values()
+    );
+    const fresh = deduped.filter(candidate => {
       const key = `flip:${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}:${candidate.direction}:${candidate.candleTimestamp}`;
       return !this.alertHistory.some(alert => alert.idempotencyKey === key);
     });
