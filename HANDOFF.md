@@ -2691,3 +2691,25 @@ Public bundle: assets/index-ZuFMPzUe.js (HTTP 200; updated UI strings verified)
 Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 ```
+
+## 73. Telegram Scan Results — Full Name + Type Next to Ticker
+
+Implemented and deployed on 04 September 2026.
+
+- Rezultatele scanarilor live Telegram (`/scan` semnale + flipuri) afiseaza acum pe langa ticker si denumirea completa plus tipul assetului, ex: `$NVDA (NVIDIA Corp) · STOCKS`, `$BTC (Bitcoin) · CRYPTO` — pentru identificare usoara.
+- Broadcast-ul de flipuri confirmate afisa deja `(Name)` + `MARKETCLASS`; a fost pastrat si aliniat ca format cu scanarile live.
+- Numele este propagat din catalog (`TRADING_360_ASSETS`, match pe symbol + marketClass cu fallback pe symbol) in `scanTelegramMoneyLine` (semnale) si `calculateFlipCandidate` (flipuri); tipurile `TelegramLiveScanInput` / `TelegramMoneyLineScanResult` accepta `name?`.
+- Daca numele lipseste din catalog, mesajul afiseaza doar ticker + tip, fara paranteze goale.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 4a5a8aa
+Local tests: 139 passed, 0 failed (inclusiv asertiile noi: (Ethereum), (NVIDIA Corp), CRYPTO, STOCKS)
+Local build: passed (packages/*, apps/api, apps/worker, apps/web; bundle assets/index-CkZ7gog6.js)
+Cloud Build: bae13dcf-e9c4-4f03-96aa-ff08758f4e0c (SUCCESS)
+Cloud Run revision: market-scanner-360-00153-td9
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
