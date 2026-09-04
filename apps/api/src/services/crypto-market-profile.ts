@@ -1,6 +1,8 @@
 // Aggregator market data is not exchange OHLCV. Never turn sampled prices or
 // rolling 24h volume into candles / Money Line signals.
 export type CryptoProvider = 'coingecko' | 'coinpaprika';
+import type { Timeframe, MoneyLineSignal } from '@money-scanner/shared';
+import { dexMarketData, type DexMarketDataService } from './dex-market-data.js';
 export interface CryptoReference { coinGeckoId?: string; coinPaprikaId?: string }
 export interface CryptoMarketProfile {
   id: string;
@@ -116,10 +118,20 @@ export class CryptoMarketProfiles {
 
 export const cryptoMarketProfiles = new CryptoMarketProfiles();
 
-export async function aggregatedCryptoDetail(symbol: string, timeframe: string, reference: CryptoReference, profiles = cryptoMarketProfiles) {
+export async function aggregatedCryptoDetail(
+  symbol: string,
+  timeframe: Timeframe,
+  reference: CryptoReference,
+  profiles = cryptoMarketProfiles,
+  dex: Pick<DexMarketDataService, 'load'> = dexMarketData,
+  calculateLatest?: (symbol: string, timeframe: Timeframe, candles: import('@money-scanner/shared').Candle[]) => MoneyLineSignal | null
+) {
   const profile = await profiles.resolve(symbol, reference);
-  const priceHistory = await profiles.prices(profile);
+  const [priceHistory, dexMarket] = await Promise.all([profiles.prices(profile), dex.load(profile, timeframe)]);
   const source = profile.provider === 'coingecko' ? 'CoinGecko' : 'CoinPaprika';
+  const candles = dexMarket?.candles || [];
+  const closedCandles = candles.filter(candle => candle.isClosed);
+  const activeSignal = calculateLatest && closedCandles.length >= 210 ? calculateLatest(symbol, timeframe, closedCandles) : null;
   return {
     info: {
       symbol: profile.symbol, name: profile.name, marketClass: 'crypto', quoteCurrency: 'USD',
@@ -128,8 +140,8 @@ export async function aggregatedCryptoDetail(symbol: string, timeframe: string, 
       coinPaprikaId: profile.provider === 'coinpaprika' ? profile.id : undefined
     },
     quote: { ...profile, source, isStale: Date.now() - profile.timestamp > 10 * 60_000 },
-    activeTimeframe: timeframe, activeSignal: null, multiTimeframe: null,
-    candles: [], priceHistory, news: [], xTrends: [], aiExplanation: null,
-    dataAvailability: 'aggregated-price-only', lastUpdated: profile.timestamp
+    activeTimeframe: timeframe, activeSignal, multiTimeframe: null,
+    candles, priceHistory, dexMarket, news: [], xTrends: [], aiExplanation: null,
+    dataAvailability: dexMarket ? 'dex-fallback' : 'aggregated-price-only', lastUpdated: profile.timestamp
   };
 }

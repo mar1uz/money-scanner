@@ -1,15 +1,49 @@
 import React from 'react';
 import { ArrowLeft, ExternalLink, RefreshCw, Info } from 'lucide-react';
 import type { AssetDetailResponse } from '../types.js';
+import type { Candle, Timeframe } from '../types.js';
 
 const money = (value: unknown) => typeof value === 'number' && Number.isFinite(value)
   ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumSignificantDigits: 7 }).format(value)
   : '—';
+const number = (value: unknown) => typeof value === 'number' && Number.isFinite(value)
+  ? new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(value) : '—';
+
+export const DexCandlestickChart: React.FC<{ candles: Candle[]; symbol: string }> = ({ candles, symbol }) => {
+  const visible = candles.filter(c => [c.open, c.high, c.low, c.close, c.timestamp].every(Number.isFinite)).slice(-180);
+  if (!visible.length) return null;
+  const min = Math.min(...visible.map(c => c.low));
+  const max = Math.max(...visible.map(c => c.high));
+  const range = max - min || Math.max(max * 0.01, 1e-12);
+  const y = (price: number) => 245 - ((price - min) / range) * 225;
+  const step = 800 / visible.length;
+  const width = Math.max(1.2, Math.min(7, step * 0.62));
+  return <>
+    <div className="mt-4 flex justify-between text-xs text-slate-400"><span>Min. {money(min)}</span><span>Max. {money(max)}</span></div>
+    <svg viewBox="0 0 800 260" className="mt-2 w-full" role="img" aria-label={`Grafic OHLCV DEX ${symbol}`}>
+      {[20, 76, 132, 188, 244].map(line => <line key={line} x1="0" x2="800" y1={line} y2={line} stroke="rgba(148,163,184,.12)" />)}
+      {visible.map((candle, index) => {
+        const x = (index + 0.5) * step;
+        const up = candle.close >= candle.open;
+        const color = up ? '#34d399' : '#fb7185';
+        const top = Math.min(y(candle.open), y(candle.close));
+        const bodyHeight = Math.max(1.5, Math.abs(y(candle.open) - y(candle.close)));
+        return <g key={candle.timestamp}>
+          <title>{`${new Date(candle.timestamp).toLocaleString('ro-RO')} · O ${candle.open} H ${candle.high} L ${candle.low} C ${candle.close} · Vol ${candle.volume}`}</title>
+          <line x1={x} x2={x} y1={y(candle.high)} y2={y(candle.low)} stroke={color} strokeWidth="1" />
+          <rect x={x - width / 2} y={top} width={width} height={bodyHeight} fill={color} rx="0.6" />
+        </g>;
+      })}
+    </svg>
+    <div className="flex justify-between text-xs text-slate-400"><span>{new Date(visible[0].timestamp).toLocaleDateString('ro-RO')}</span><span>{new Date(visible[visible.length - 1].timestamp).toLocaleString('ro-RO')}</span></div>
+  </>;
+};
 
 export const CryptoMarketOnlyView: React.FC<{
-  data: AssetDetailResponse; onBack: () => void; onRefresh: () => void; loading?: boolean;
-}> = ({ data, onBack, onRefresh, loading }) => {
+  data: AssetDetailResponse; timeframe: Timeframe; onBack: () => void; onRefresh: () => void; loading?: boolean;
+}> = ({ data, timeframe, onBack, onRefresh, loading }) => {
   const { info, quote } = data;
+  const dex = data.dexMarket;
   const sourceUrl = info.coinGeckoId
     ? `https://www.coingecko.com/en/coins/${encodeURIComponent(info.coinGeckoId)}`
     : `https://coinpaprika.com/coin/${encodeURIComponent(info.coinPaprikaId)}/`;
@@ -38,16 +72,32 @@ export const CryptoMarketOnlyView: React.FC<{
         {quote.isStale ? 'Date întârziate · ' : ''}Actualizare {quote.source}: {new Date(quote.timestamp).toLocaleString('ro-RO')}
       </p>
     </div>
+    {dex && <div className="rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/[0.04] p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold text-white">Piața DEX principală</h2><p className="mt-1 text-xs text-slate-400">Pereche selectată după lichiditatea USD raportată de DEX Screener.</p></div>
+        <a href={dex.dexUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-fuchsia-400/25 px-3 py-1.5 text-xs text-fuchsia-200">DEX Screener <ExternalLink className="h-3.5 w-3.5" /></a></div>
+      <dl className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {[['Lichiditate', money(dex.liquidityUsd)], ['Volum DEX 24h', money(dex.volume.h24)], ['FDV', money(dex.fdvUsd)], ['Tranzacții 24h', dex.transactions24h ? `${number(dex.transactions24h.buys)} buy / ${number(dex.transactions24h.sells)} sell` : '—'],
+          ['Rețea', dex.chainId], ['DEX', dex.dexId], ['Pereche', `${info.symbol}/${dex.quoteSymbol || '—'}`], ['Variație DEX 1h', dex.priceChange.h1 === null ? '—' : `${dex.priceChange.h1 >= 0 ? '+' : ''}${dex.priceChange.h1.toFixed(2)}%`]].map(([label, value]) =>
+          <div key={String(label)}><dt className="text-xs text-slate-400">{label}</dt><dd className="mt-1 break-words font-mono text-sm text-white">{value}</dd></div>)}
+      </dl>
+      <p className="mt-4 truncate font-mono text-[10px] text-slate-500" title={dex.contractAddress}>Contract: {dex.contractAddress}</p>
+    </div>}
     <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-5 sm:p-6">
-      <h2 className="font-semibold text-white">Istoric de preț · ultimele 30 de zile disponibile</h2>
-      <p className="mt-1 text-xs text-slate-400">Prețuri USD raportate de {quote.source}; puncte de preț, nu lumânări OHLCV.</p>
-      {prices.length > 1 ? <>
+      <h2 className="font-semibold text-white">{dex?.candles?.length ? `Grafic OHLCV DEX · ${timeframe.toUpperCase()}` : 'Istoric de preț · ultimele 30 de zile disponibile'}</h2>
+      <p className="mt-1 text-xs text-slate-400">{dex?.candles?.length
+        ? `Lumânări reale USD din pool-ul selectat de DEX Screener, furnizate de ${dex.candleSource}. Ultima lumânare poate fi încă deschisă.`
+        : `Prețuri USD raportate de ${quote.source}; puncte de preț, nu lumânări OHLCV.`}</p>
+      {dex?.candles?.length ? <DexCandlestickChart candles={dex.candles} symbol={info.symbol} /> : prices.length > 1 ? <>
         <div className="mt-4 flex justify-between text-xs text-slate-400"><span>Min. {money(low)}</span><span>Max. {money(high)}</span></div>
         <svg viewBox="0 0 800 260" className="mt-2 w-full" role="img" aria-label={`Istoric de preț ${info.name}`}><polyline points={points} fill="none" stroke="#22d3ee" strokeWidth="2.5" vectorEffect="non-scaling-stroke" /></svg>
         <div className="flex justify-between text-xs text-slate-400"><span>{new Date(start).toLocaleDateString('ro-RO')}</span><span>{new Date(end).toLocaleString('ro-RO')}</span></div>
       </> : <p className="py-10 text-sm text-slate-400">Istoricul de preț nu este disponibil momentan de la furnizor. Cotația de mai sus rămâne disponibilă.</p>}
     </div>
-    <div className="flex gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-100"><Info className="mt-0.5 h-5 w-5 shrink-0" /><p>Money Line indisponibil: nu avem lumânări OHLCV verificate pentru această monedă din sursele de tranzacționare integrate. Prezența în Bubbles nu presupune listare pe Binance. Nu calculăm semnale sau flipuri din simple puncte de preț.</p></div>
+    <div className={`flex gap-3 rounded-xl border p-4 text-sm ${data.activeSignal ? 'border-cyan-500/20 bg-cyan-500/5 text-cyan-100' : 'border-amber-500/20 bg-amber-500/5 text-amber-100'}`}><Info className="mt-0.5 h-5 w-5 shrink-0" /><p>{data.activeSignal
+      ? `Money Line ${timeframe.toUpperCase()} calculat din ${data.candles.filter(c => c.isClosed).length} lumânări DEX închise: ${data.activeSignal.tier}, scor ${data.activeSignal.score}.`
+      : dex?.candles?.length
+        ? `Graficul DEX este disponibil, dar Money Line necesită minimum 210 lumânări închise. Sunt disponibile ${data.candles.filter(c => c.isClosed).length} pentru ${timeframe.toUpperCase()}; nu afișăm un semnal incomplet.`
+        : 'Money Line indisponibil: nu avem lumânări OHLCV verificate. Nu calculăm semnale sau flipuri din simple puncte de preț.'}</p></div>
     <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-cyan-300">Deschide {info.name} pe {quote.source}<ExternalLink className="h-4 w-4" /></a>
   </section>;
 };

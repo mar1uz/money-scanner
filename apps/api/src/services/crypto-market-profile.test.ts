@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { CryptoMarketProfiles, aggregatedCryptoDetail, normalizeCryptoProfile, cryptoMarketProfiles } from './crypto-market-profile.js';
 import { scannerRouter } from '../routes/scanner-routes.js';
 import { AppState } from './app-state.js';
+import { dexMarketData } from './dex-market-data.js';
 
 const row = (overrides = {}) => ({
   id: 'pons', symbol: 'pons', name: 'Pons', current_price: 0.7,
@@ -11,6 +12,7 @@ const row = (overrides = {}) => ({
   last_updated: new Date().toISOString(), ...overrides
 });
 const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
+const noDex = { load: async () => null };
 
 test('provider data validation preserves missing metrics, rejects fabricated timestamps and invalid prices', () => {
   assert.equal(normalizeCryptoProfile(row({ current_price: null }), 'coingecko'), null);
@@ -30,7 +32,7 @@ test('a bubble-only PONS opens with its exact provider ID, price history and no 
       ? { prices: [[2000, 0.8], [1000, 0.7], [2000, 0.9], [3000, null]] }
       : [row()]);
   });
-  const result = await aggregatedCryptoDetail('PONS', '1w', { coinGeckoId: 'pons' }, profiles);
+  const result = await aggregatedCryptoDetail('PONS', '1w', { coinGeckoId: 'pons' }, profiles, noDex);
   assert.equal(result.info.name, 'Pons');
   assert.equal(result.info.coinGeckoId, 'pons');
   assert.equal(result.quote.price, 0.7);
@@ -47,7 +49,7 @@ test('a bubble-only PONS opens with its exact provider ID, price history and no 
 test('Bubbles cache supplies the real quote even when history is rate limited', async () => {
   const profiles = new CryptoMarketProfiles(async () => response({}, 429));
   profiles.remember([row()], 'coingecko');
-  const result = await aggregatedCryptoDetail('PONS', '1w', { coinGeckoId: 'pons' }, profiles);
+  const result = await aggregatedCryptoDetail('PONS', '1w', { coinGeckoId: 'pons' }, profiles, noDex);
   assert.equal(result.quote.price, 0.7);
   assert.deepEqual(result.priceHistory, []);
 });
@@ -56,7 +58,7 @@ test('cached quote keeps provider time and is explicitly stale', async () => {
   const profiles = new CryptoMarketProfiles(async () => response({}, 429));
   const timestamp = Date.now() - 15 * 60_000;
   profiles.remember([row({ last_updated: new Date(timestamp).toISOString() })], 'coingecko');
-  const result = await aggregatedCryptoDetail('PONS', '1w', { coinGeckoId: 'pons' }, profiles);
+  const result = await aggregatedCryptoDetail('PONS', '1w', { coinGeckoId: 'pons' }, profiles, noDex);
   assert.equal(result.quote.timestamp, timestamp);
   assert.equal(result.quote.isStale, true);
 });
@@ -68,7 +70,7 @@ test('CoinPaprika IDs are not passed to CoinGecko and absent metrics stay null',
     return response({ id: 'pons-pons', symbol: 'PONS', name: 'Pons', rank: 105,
       last_updated: new Date().toISOString(), quotes: { USD: { price: 0.7, volume_24h: 100, percent_change_24h: 20, market_cap: 500 } } });
   });
-  const result = await aggregatedCryptoDetail('PONS', '1w', { coinPaprikaId: 'pons-pons' }, profiles);
+  const result = await aggregatedCryptoDetail('PONS', '1w', { coinPaprikaId: 'pons-pons' }, profiles, noDex);
   assert.equal(result.info.coinPaprikaId, 'pons-pons');
   assert.equal(result.info.coinGeckoId, undefined);
   assert.equal(result.quote.high24h, null);
@@ -99,6 +101,7 @@ test('asset endpoint returns HTTP success for PONS without calling Binance candl
   const profile = normalizeCryptoProfile(row(), 'coingecko')!;
   t.mock.method(cryptoMarketProfiles, 'resolve', async () => profile);
   t.mock.method(cryptoMarketProfiles, 'prices', async () => [[1000, 0.7], [2000, 0.8]]);
+  t.mock.method(dexMarketData, 'load', async () => null);
   t.mock.method(AppState, 'getInstance', () => ({ marketData: {
     getTopCryptoAssets: async () => [],
     getPriceQuote: async () => { throw new Error('Binance Invalid symbol'); },
@@ -133,4 +136,26 @@ test('Bitcoin from Bubbles retains existing exchange candles and Money Line rout
   assert.equal(candleCalls, 6);
   assert.equal(body.info.name, 'Bitcoin');
   assert.equal(body.dataAvailability, undefined);
+});
+
+test('Money Line uses DEX OHLCV only after 210 verified closed candles', async () => {
+  const profiles = new CryptoMarketProfiles(async input => response(String(input).includes('market_chart') ? { prices: [] } : [row()]));
+  const candles = Array.from({ length: 211 }, (_, index) => ({ timestamp: index * 3_600_000, open: 1, high: 2, low: 0.5, close: 1.5, volume: 10, isClosed: index < 210 }));
+  let received = 0;
+  const result = await aggregatedCryptoDetail('PONS', '1h', { coinGeckoId: 'pons' }, profiles, {
+    load: async () => ({ candles, chainId: 'robinhood', dexId: 'uniswap', dexUrl: 'https://dexscreener.com/robinhood/pool', pairAddress: 'pool', contractAddress: 'token', quoteSymbol: 'WETH', priceUsd: 1, priceChange: {}, volume: {}, liquidityUsd: 1, fdvUsd: 1, marketCapUsd: 1, transactions24h: null, pairCreatedAt: null, candleSource: 'GeckoTerminal' } as any)
+  }, (_symbol, _timeframe, closed) => { received = closed.length; return { tier: 'Bullish', score: 55 } as any; });
+  assert.equal(received, 210);
+  assert.equal(result.activeSignal?.score, 55);
+  assert.equal(result.dataAvailability, 'dex-fallback');
+});
+
+test('Money Line stays absent below the closed-candle threshold', async () => {
+  const profiles = new CryptoMarketProfiles(async input => response(String(input).includes('market_chart') ? { prices: [] } : [row()]));
+  let called = false;
+  const result = await aggregatedCryptoDetail('PONS', '1d', { coinGeckoId: 'pons' }, profiles, {
+    load: async () => ({ candles: [{ timestamp: 1, open: 1, high: 2, low: 0.5, close: 1.5, volume: 10, isClosed: true }] } as any)
+  }, () => { called = true; return null; });
+  assert.equal(called, false);
+  assert.equal(result.activeSignal, null);
 });

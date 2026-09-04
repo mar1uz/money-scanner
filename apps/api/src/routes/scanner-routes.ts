@@ -247,7 +247,9 @@ scannerRouter.get('/search', async (req, res) => {
 
 scannerRouter.get('/scanner', async (req, res) => {
   try {
-    const timeframe = (req.query.timeframe as Timeframe) || '1w';
+    const requestedTimeframe = String(req.query.timeframe || '1w');
+    const timeframe: Timeframe = (['1h', '4h', '8h', '1d', '1w', '1m'] as string[]).includes(requestedTimeframe)
+      ? requestedTimeframe as Timeframe : '1w';
     const tier = req.query.tier as string;
     const narrative = req.query.narrative as string;
     const requestedMarketClass = String(req.query.marketClass || 'ALL');
@@ -362,7 +364,9 @@ scannerRouter.get('/assets/:symbol/candles', async (req, res) => {
 scannerRouter.get('/assets/:symbol', async (req, res) => {
   try {
     const symbol = req.params.symbol.toUpperCase();
-    const timeframe = (req.query.timeframe as Timeframe) || '1w';
+    const requestedTimeframe = String(req.query.timeframe || '1w');
+    const timeframe: Timeframe = (['1h', '4h', '8h', '1d', '1w', '1m'] as string[]).includes(requestedTimeframe)
+      ? requestedTimeframe as Timeframe : '1w';
     const requestedClassRaw = String(req.query.marketClass || '');
     const requestedMarketClass: AssetMarketClass | undefined = requestedClassRaw === 'crypto' || requestedClassRaw === 'stocks' || requestedClassRaw === 'metals'
       ? requestedClassRaw
@@ -374,6 +378,10 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       coinPaprikaId: typeof req.query.coinPaprikaId === 'string' ? req.query.coinPaprikaId : undefined
     };
     const isCryptoSpot = requestedMarketClass === 'crypto' && !symbol.includes('.') && !symbol.startsWith('TOTAL');
+    const loadAggregated = (reference = cryptoReference) => aggregatedCryptoDetail(
+      symbol, timeframe, reference, undefined, undefined,
+      (assetSymbol, assetTimeframe, candles) => appState.moneyLine.calculateLatest(assetSymbol, assetTimeframe, candles)
+    );
     // Verify the provider's name as well as its ticker before selecting an
     // exchange route. Most catalog entries predate exact CoinGecko IDs.
     if (isCryptoSpot && (cryptoReference.coinPaprikaId || cryptoReference.coinGeckoId)) {
@@ -383,7 +391,7 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       const matchesCatalog = catalog?.coinGeckoId && cryptoReference.coinGeckoId
         ? catalog.coinGeckoId === cryptoReference.coinGeckoId
         : names.some(name => name.trim().toLowerCase() === profile.name.trim().toLowerCase());
-      if (!matchesCatalog) return res.json(await aggregatedCryptoDetail(symbol, timeframe, cryptoReference));
+      if (!matchesCatalog) return res.json(await loadAggregated());
     }
 
     let assetInfo = TRADING_360_ASSETS.find(asset =>
@@ -460,7 +468,7 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       quote = await appState.marketData.getPriceQuote(symbol, resolvedMarketClass);
     } catch (error) {
       if (resolvedMarketClass !== 'crypto' || symbol.includes('.') || symbol.startsWith('TOTAL')) throw error;
-      return res.json(await aggregatedCryptoDetail(symbol, timeframe, {
+      return res.json(await loadAggregated({
         ...cryptoReference, coinGeckoId: cryptoReference.coinGeckoId || assetInfo.coinGeckoId
       }));
     }

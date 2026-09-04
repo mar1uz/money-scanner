@@ -288,8 +288,8 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
     );
   }
 
-  if (data?.dataAvailability === 'aggregated-price-only') {
-    return <CryptoMarketOnlyView data={data} onBack={onBack} onRefresh={loadData} loading={loading} />;
+  if (data?.dataAvailability === 'aggregated-price-only' || data?.dataAvailability === 'dex-fallback') {
+    return <CryptoMarketOnlyView data={data} timeframe={timeframe} onBack={onBack} onRefresh={loadData} loading={loading} />;
   }
 
   // Only provider-verified posts explicitly tagged with this asset are shown.
