@@ -200,19 +200,21 @@ describe('Telegram Bot & Alert Dispatcher', () => {
       mode: 'signals', timeframe: '4h', marketClass: 'crypto', scannedAssets: 3,
       totalAssets: 3, errors: 0, flips: [],
       signals: [
-        { signal: signal('BTC', 30), price: 1, marketClass: 'crypto' },
-        { signal: signal('ETH', 70), price: 1, marketClass: 'crypto' },
-        { signal: signal('SOL', -60), price: 1, marketClass: 'crypto' }
+        { signal: signal('BTC', 30), price: 1, marketClass: 'crypto', name: 'Bitcoin' },
+        { signal: signal('ETH', 70), price: 1, marketClass: 'crypto', name: 'Ethereum' },
+        { signal: signal('SOL', -60), price: 1, marketClass: 'crypto', name: 'Solana' }
       ]
     });
     assert.ok(signals.text.indexOf('$ETH') < signals.text.indexOf('$BTC'));
     assert.ok(signals.text.includes('SEMNAL MONEYLINE LIVE · 4H'));
+    assert.ok(signals.text.includes('(Ethereum)'));
+    assert.ok(signals.text.includes('CRYPTO'));
 
     const flips = bot.buildLiveScanResponse({
       mode: 'flips', timeframe: '1w', marketClass: 'ALL', scannedAssets: 3,
       totalAssets: 3, errors: 0, signals: [],
       flips: [{
-        symbol: 'ETH', timeframe: '1w', marketClass: 'crypto', direction: 'BULLISH',
+        symbol: 'NVDA', name: 'NVIDIA Corp', timeframe: '1w', marketClass: 'stocks', direction: 'BULLISH',
         currentPrice: 2500, confirmationPrice: 2400,
         confirmedAt: Date.now() - (3 * 86_400_000), priorityScore: 92, rvol: 1.5
       }]
@@ -221,5 +223,8 @@ describe('Telegram Bot & Alert Dispatcher', () => {
     assert.ok(flips.text.includes('BULL FLIP'));
     assert.ok(flips.text.includes('$2,400.00'));
     assert.ok(flips.text.includes('acum 3 zile'));
+    assert.ok(flips.text.includes('$NVDA'));
+    assert.ok(flips.text.includes('(NVIDIA Corp)'));
+    assert.ok(flips.text.includes('STOCKS'));
   });
 });

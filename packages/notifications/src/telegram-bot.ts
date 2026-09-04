@@ -40,9 +40,10 @@ export interface TelegramLiveScanInput {
   scannedAssets: number;
   totalAssets: number;
   errors: number;
-  signals: Array<{ signal: MoneyLineSignal; price: number; marketClass: AssetMarketClass }>;
+  signals: Array<{ signal: MoneyLineSignal; price: number; marketClass: AssetMarketClass; name?: string }>;
   flips: Array<{
     symbol: string;
+    name?: string;
     timeframe: TelegramFlipTimeframe;
     marketClass: AssetMarketClass;
     direction: 'BULLISH' | 'BEARISH';
@@ -79,6 +80,17 @@ const telegramFlipDate = (confirmedAt: number) => new Intl.DateTimeFormat('ro-RO
 const telegramFlipMove = (confirmationPrice: number, currentPrice: number) => {
   const move = confirmationPrice > 0 ? ((currentPrice - confirmationPrice) / confirmationPrice) * 100 : 0;
   return `${move >= 0 ? '+' : ''}${move.toFixed(2)}%`;
+};
+
+/** Sufix afisat langa ticker: (Nume Complet) · TIP pentru identificare usoara. */
+const telegramAssetLabel = (symbol: string, name?: string, marketClass?: AssetMarketClass) => {
+  const normalizedSymbol = symbol.replace(/^[$#]/, '').trim().toUpperCase();
+  const normalizedName = (name || '').trim();
+  const nameSuffix = normalizedName && normalizedName.toUpperCase() !== normalizedSymbol
+    ? ` (${normalizedName})`
+    : '';
+  const typeSuffix = marketClass ? ` · ${marketClass.toUpperCase()}` : '';
+  return `${nameSuffix}${typeSuffix}`;
 };
 
 export class TelegramBotHandler {
@@ -310,7 +322,7 @@ export class TelegramBotHandler {
             symbol: flip.symbol,
             timeframe: flip.timeframe,
             marketClass: flip.marketClass
-          })} · ${flip.direction === 'BULLISH' ? 'BULL FLIP' : 'BEAR FLIP'}`,
+          })}${telegramAssetLabel(flip.symbol, flip.name, flip.marketClass)} · ${flip.direction === 'BULLISH' ? 'BULL FLIP' : 'BEAR FLIP'}`,
           `*Închidere flip:* ${telegramPrice(confirmationPrice)} → *Preț acum:* ${telegramPrice(flip.currentPrice)} (*${telegramFlipMove(confirmationPrice, flip.currentPrice)}*)`,
           `${flip.confirmedAt ? `*Confirmat:* ${telegramFlipAge(flip.confirmedAt)} · ${telegramFlipDate(flip.confirmedAt)} · ` : ''}Scor tehnic ${flip.priorityScore.toFixed(0)}/100 · RVOL ${flip.rvol.toFixed(2)}x`
           );
@@ -334,7 +346,7 @@ export class TelegramBotHandler {
         symbol: row.signal.symbol,
         timeframe: row.signal.timeframe,
         marketClass: row.marketClass
-      })} · ${row.signal.tier} · *${row.signal.score > 0 ? '+' : ''}${row.signal.score}* · RVOL ${row.signal.rawIndicators.rvol.toFixed(2)}x`;
+      })}${telegramAssetLabel(row.signal.symbol, row.name, row.marketClass)} · ${row.signal.tier} · *${row.signal.score > 0 ? '+' : ''}${row.signal.score}* · RVOL ${row.signal.rawIndicators.rvol.toFixed(2)}x`;
     const lines = [
       `📡 *SEMNAL MONEYLINE LIVE · ${input.timeframe.toUpperCase()}*`,
       `_${scope} · ordonat după scor_`,

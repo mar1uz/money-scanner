@@ -103,6 +103,7 @@ export interface TelegramMoneyLineScanResult {
     signal: MoneyLineSignal;
     price: number;
     marketClass: AssetMarketClass;
+    name?: string;
   }>;
   flips: FlipCandidate[];
 }
@@ -492,7 +493,7 @@ export class AppState {
         const price = quoteByAsset.get(`${assetClass}:${asset.symbol}`) || closedTarget[closedTarget.length - 1].close;
 
         if (mode === 'signals') {
-          return { signal, price, marketClass: assetClass };
+          return { signal, price, marketClass: assetClass, name: asset.name };
         }
 
         const weeklyCandles = timeframe === '1w'
@@ -1482,7 +1483,10 @@ export class AppState {
     const confirmedAt = confirmed
       ? Math.min(Date.now(), closedCandles[lastIndex].timestamp + FLIP_TIMEFRAME_DURATION_MS[timeframe])
       : undefined;
-    const assetInfo = TRADING_360_ASSETS.find(a => a.symbol.toUpperCase() === symbol.toUpperCase());
+    const assetInfo = TRADING_360_ASSETS.find(a =>
+      a.symbol.toUpperCase() === symbol.toUpperCase()
+      && (!a.marketClass || a.marketClass === marketClass)
+    ) || TRADING_360_ASSETS.find(a => a.symbol.toUpperCase() === symbol.toUpperCase());
     const name = assetInfo?.name;
 
     return {
