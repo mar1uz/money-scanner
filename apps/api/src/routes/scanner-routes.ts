@@ -13,6 +13,7 @@ import {
   rankSymbolSearchCandidates
 } from '@money-scanner/shared';
 import { calculateMTFConfluence } from '@money-scanner/money-line';
+import { aggregatedCryptoDetail, cryptoMarketProfiles } from '../services/crypto-market-profile.js';
 
 export const scannerRouter = Router();
 
@@ -368,6 +369,23 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       : undefined;
     const appState = AppState.getInstance();
 
+    const cryptoReference = {
+      coinGeckoId: typeof req.query.coinGeckoId === 'string' ? req.query.coinGeckoId : undefined,
+      coinPaprikaId: typeof req.query.coinPaprikaId === 'string' ? req.query.coinPaprikaId : undefined
+    };
+    const isCryptoSpot = requestedMarketClass === 'crypto' && !symbol.includes('.') && !symbol.startsWith('TOTAL');
+    // Verify the provider's name as well as its ticker before selecting an
+    // exchange route. Most catalog entries predate exact CoinGecko IDs.
+    if (isCryptoSpot && (cryptoReference.coinPaprikaId || cryptoReference.coinGeckoId)) {
+      const profile = await cryptoMarketProfiles.resolve(symbol, cryptoReference);
+      const catalog = TRADING_360_ASSETS.find(asset => asset.marketClass === 'crypto' && asset.symbol === symbol);
+      const names = catalog ? [catalog.name, ...(catalog.aliases || []).filter(alias => alias.toUpperCase() !== symbol)] : [];
+      const matchesCatalog = catalog?.coinGeckoId && cryptoReference.coinGeckoId
+        ? catalog.coinGeckoId === cryptoReference.coinGeckoId
+        : names.some(name => name.trim().toLowerCase() === profile.name.trim().toLowerCase());
+      if (!matchesCatalog) return res.json(await aggregatedCryptoDetail(symbol, timeframe, cryptoReference));
+    }
+
     let assetInfo = TRADING_360_ASSETS.find(asset =>
       asset.symbol === symbol && (!requestedMarketClass || asset.marketClass === requestedMarketClass)
     );
@@ -437,6 +455,15 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
     }
 
     const resolvedMarketClass = requestedMarketClass || assetInfo.marketClass;
+    let quote;
+    try {
+      quote = await appState.marketData.getPriceQuote(symbol, resolvedMarketClass);
+    } catch (error) {
+      if (resolvedMarketClass !== 'crypto' || symbol.includes('.') || symbol.startsWith('TOTAL')) throw error;
+      return res.json(await aggregatedCryptoDetail(symbol, timeframe, {
+        ...cryptoReference, coinGeckoId: cryptoReference.coinGeckoId || assetInfo.coinGeckoId
+      }));
+    }
     const loadCandles = async (requestedTimeframe: Timeframe, limit: number) => {
       try {
         return await appState.marketData.getCandles(
@@ -496,12 +523,9 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
         )
       )
     );
-    const [quote, news] = await Promise.all([
-      appState.marketData.getPriceQuote(symbol, resolvedMarketClass),
-      process.env.NODE_ENV === 'test'
-        ? Promise.resolve(appState.news.getCachedNewsForAsset(assetInfo))
-        : appState.news.getNewsForAsset(assetInfo)
-    ]);
+    const news = process.env.NODE_ENV === 'test'
+      ? appState.news.getCachedNewsForAsset(assetInfo)
+      : await appState.news.getNewsForAsset(assetInfo);
     const xPosts = appState.social.getPostsForSymbol(symbol);
     const trendingTopics = appState.social.getTrendingTopics();
 

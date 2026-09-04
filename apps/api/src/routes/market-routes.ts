@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { AppState } from '../services/app-state.js';
 import { MONEY_LINE_VERSION } from '@money-scanner/shared';
+import { cryptoMarketProfiles } from '../services/crypto-market-profile.js';
 
 export const marketRouter = Router();
 
@@ -18,6 +19,8 @@ const formatCryptoBubbles = (coins: any[], timeframe: BubbleTimeframe) => {
 
   return coins.map((coin: any) => ({
     id: coin.id,
+    coinGeckoId: coin.id,
+    source: 'coingecko',
     symbol: String(coin.symbol || '').toUpperCase(),
     name: coin.name,
     image: coin.image,
@@ -41,6 +44,8 @@ const formatCoinPaprikaBubbles = (coins: any[], timeframe: BubbleTimeframe) => {
         : q.percent_change_24h;
     return {
       id: c.id,
+      coinPaprikaId: c.id,
+      source: 'coinpaprika',
       symbol: String(c.symbol || '').toUpperCase(),
       name: c.name,
       image: '',
@@ -79,6 +84,7 @@ marketRouter.get('/crypto/bubbles', async (req, res) => {
       }
     }
 
+    cryptoMarketProfiles.remember(cryptoBubblesCache.data, cryptoBubblesCache.source);
     const bubbles = cryptoBubblesCache.source === 'coinpaprika'
       ? formatCoinPaprikaBubbles(cryptoBubblesCache.data, timeframe)
       : formatCryptoBubbles(cryptoBubblesCache.data, timeframe);
@@ -103,6 +109,7 @@ marketRouter.get('/crypto/bubbles', async (req, res) => {
         .slice(0, 150)
         .map((r, i) => ({
           id: r.symbol.toLowerCase(),
+          source: 'scanner',
           symbol: r.symbol.toUpperCase(),
           name: r.name,
           image: '',

@@ -8,7 +8,7 @@ import {
 } from '../services/api.js';
 
 interface CryptoBubbleViewProps {
-  onSelectAsset: (symbol: string, coinGeckoId?: string) => void;
+  onSelectAsset: (symbol: string, coinGeckoId?: string, coinPaprikaId?: string) => void;
 }
 
 const categoryOf = (coin: CryptoBubbleAsset) => CRYPTO_SPOT_ASSETS.find(asset =>
@@ -124,7 +124,7 @@ export const CryptoBubbleView: React.FC<CryptoBubbleViewProps> = ({ onSelectAsse
                 <button
                   key={coin.id}
                   type="button"
-                  onClick={() => onSelectAsset(coin.symbol, coin.id)}
+                  onClick={() => onSelectAsset(coin.symbol, coin.coinGeckoId, coin.coinPaprikaId)}
                   style={{
                     width: size,
                     height: size,
@@ -186,7 +186,7 @@ export const CryptoBubbleView: React.FC<CryptoBubbleViewProps> = ({ onSelectAsse
                   <tr key={coin.id} className="transition-colors hover:bg-white/[0.04]">
                     <td className="px-3 py-3 font-mono text-xs text-slate-500 sm:px-5">{index + 1}</td>
                     <td className="px-3 py-3">
-                      <button type="button" onClick={() => onSelectAsset(coin.symbol, coin.id)} className="flex items-center gap-2.5 rounded-md text-left focus:outline-none focus:ring-2 focus:ring-fuchsia-300" aria-label={`Analizează ${coin.name}`}>
+                      <button type="button" onClick={() => onSelectAsset(coin.symbol, coin.coinGeckoId, coin.coinPaprikaId)} className="flex items-center gap-2.5 rounded-md text-left focus:outline-none focus:ring-2 focus:ring-fuchsia-300" aria-label={`Analizează ${coin.name}`}>
                         {coin.image && <img src={coin.image} alt="" className="hidden h-7 w-7 rounded-full sm:block" loading="lazy" />}
                         <span><span className="block font-mono font-bold text-slate-100">{coin.symbol}</span><span className="block max-w-[130px] truncate text-xs text-slate-500 sm:max-w-[220px]">{coin.name}</span></span>
                       </button>

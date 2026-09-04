@@ -53,7 +53,8 @@ const readMoneyLineDeepLink = () => {
     marketClass: VALID_MARKET_CLASSES.includes(rawMarketClass as typeof VALID_MARKET_CLASSES[number])
       ? rawMarketClass as typeof VALID_MARKET_CLASSES[number]
       : undefined,
-    coinGeckoId: params.get('coinGeckoId') || undefined
+    coinGeckoId: params.get('coinGeckoId') || undefined,
+    coinPaprikaId: params.get('coinPaprikaId') || undefined
   };
 };
 
@@ -89,6 +90,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
   const [selectedAssetSymbol, setSelectedAssetSymbol] = useState<string | null>(initialDeepLink.symbol);
   const [selectedAssetMarketClass, setSelectedAssetMarketClass] = useState<AssetScannerRow['marketClass']>(initialDeepLink.marketClass);
   const [selectedAssetCoinGeckoId, setSelectedAssetCoinGeckoId] = useState<string | undefined>(initialDeepLink.coinGeckoId);
+  const [selectedAssetCoinPaprikaId, setSelectedAssetCoinPaprikaId] = useState<string | undefined>(initialDeepLink.coinPaprikaId);
   const [selectedMarketCategory, setSelectedMarketCategory] = useState<'ALL' | 'crypto' | 'stocks' | 'metals'>('ALL');
   const [overview, setOverview] = useState<MarketOverviewSummary | null>(null);
   const [narratives, setNarratives] = useState<NarrativeSummary[]>([]);
@@ -158,14 +160,17 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
       else url.searchParams.delete('marketClass');
       if (selectedAssetCoinGeckoId) url.searchParams.set('coinGeckoId', selectedAssetCoinGeckoId);
       else url.searchParams.delete('coinGeckoId');
+      if (selectedAssetCoinPaprikaId) url.searchParams.set('coinPaprikaId', selectedAssetCoinPaprikaId);
+      else url.searchParams.delete('coinPaprikaId');
     } else {
       url.searchParams.delete('asset');
       url.searchParams.delete('timeframe');
       url.searchParams.delete('marketClass');
       url.searchParams.delete('coinGeckoId');
+      url.searchParams.delete('coinPaprikaId');
     }
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-  }, [selectedAssetSymbol, selectedAssetMarketClass, selectedAssetCoinGeckoId, timeframe]);
+  }, [selectedAssetSymbol, selectedAssetMarketClass, selectedAssetCoinGeckoId, selectedAssetCoinPaprikaId, timeframe]);
 
   const toggleWatchlist = (symbol: string) => {
     const sym = symbol.toUpperCase();
@@ -196,13 +201,15 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
     symbol: string,
     marketClass?: AssetScannerRow['marketClass'],
     selectedTimeframe?: Timeframe,
-    coinGeckoId?: string
+    coinGeckoId?: string,
+    coinPaprikaId?: string
   ) => {
     const normalizedSymbol = symbol.replace(/^[$#]/, '').trim().toUpperCase();
     const verifiedClass = marketClass || scannerRows.find(row => row.symbol.toUpperCase() === normalizedSymbol)?.marketClass;
     if (selectedTimeframe) setTimeframe(selectedTimeframe);
     setSelectedAssetMarketClass(verifiedClass);
     setSelectedAssetCoinGeckoId(coinGeckoId);
+    setSelectedAssetCoinPaprikaId(coinPaprikaId);
     setSelectedAssetSymbol(normalizedSymbol);
   };
 
@@ -284,12 +291,14 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
               symbol={selectedAssetSymbol}
               marketClass={selectedAssetMarketClass}
               coinGeckoId={selectedAssetCoinGeckoId}
+              coinPaprikaId={selectedAssetCoinPaprikaId}
               timeframe={timeframe}
               onTimeframeChange={setTimeframe}
               onBack={() => {
                 setSelectedAssetSymbol(null);
                 setSelectedAssetMarketClass(undefined);
                 setSelectedAssetCoinGeckoId(undefined);
+                setSelectedAssetCoinPaprikaId(undefined);
               }}
               watchlist={watchlist}
               onToggleWatchlist={toggleWatchlist}
@@ -382,7 +391,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
 
               {/* Top 100 cryptocurrencies, sized by market capitalization */}
               {activeTab === 'crypto_bubbles' && (
-                <CryptoBubbleView onSelectAsset={(symbol, coinGeckoId) => openAsset(symbol, 'crypto', undefined, coinGeckoId)} />
+                <CryptoBubbleView onSelectAsset={(symbol, coinGeckoId, coinPaprikaId) => openAsset(symbol, 'crypto', undefined, coinGeckoId, coinPaprikaId)} />
               )}
 
               {activeTab === 'crypto_heatmap' && (

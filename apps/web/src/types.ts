@@ -24,4 +24,6 @@ export interface AssetDetailResponse {
   xTrends: any[];
   aiExplanation: any;
   lastUpdated: number;
+  dataAvailability?: 'aggregated-price-only';
+  priceHistory?: number[][];
 }

@@ -6,6 +6,7 @@ import { InteractiveChart } from './InteractiveChart.js';
 import { CryptoBusinessQualityCard } from './CryptoBusinessQualityCard.js';
 import { StockBusinessQualityCard } from './StockBusinessQualityCard.js';
 import { AssetProfileOverviewCard } from './AssetProfileOverviewCard.js';
+import { CryptoMarketOnlyView } from './CryptoMarketOnlyView.js';
 import {
   ArrowLeft,
   Zap,
@@ -35,6 +36,7 @@ interface AssetDeepDiveViewProps {
   symbol: string;
   marketClass?: string;
   coinGeckoId?: string;
+  coinPaprikaId?: string;
   timeframe: Timeframe;
   onTimeframeChange: (tf: Timeframe) => void;
   onBack: () => void;
@@ -109,6 +111,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   symbol,
   marketClass,
   coinGeckoId,
+  coinPaprikaId,
   timeframe,
   onTimeframeChange,
   onBack,
@@ -124,20 +127,23 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   const [loadingOlderHistory, setLoadingOlderHistory] = useState(false);
   const [hasMoreHistory, setHasMoreHistory] = useState(true);
   const historyRequestActiveRef = useRef(false);
+  const detailRequestRef = useRef(0);
   const historyContextRef = useRef(`${symbol}:${timeframe}`);
   historyContextRef.current = `${symbol}:${timeframe}`;
 
   const loadData = () => {
+    const requestId = ++detailRequestRef.current;
     setLoading(true);
     setLoadError(null);
-    fetchAssetDetail(symbol, timeframe, marketClass)
-      .then(setData)
+    fetchAssetDetail(symbol, timeframe, marketClass, coinGeckoId, coinPaprikaId)
+      .then(result => { if (requestId === detailRequestRef.current) setData(result); })
       .catch(error => {
+        if (requestId !== detailRequestRef.current) return;
         console.error(error);
         setData(null);
         setLoadError('Instrumentul a fost găsit, dar datele de piață nu au putut fi încărcate momentan.');
       })
-      .finally(() => setLoading(false));
+      .finally(() => { if (requestId === detailRequestRef.current) setLoading(false); });
   };
 
   useEffect(() => {
@@ -147,7 +153,8 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
     historyRequestActiveRef.current = false;
     loadData();
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [symbol, timeframe, marketClass]);
+    return () => { detailRequestRef.current++; };
+  }, [symbol, timeframe, marketClass, coinGeckoId, coinPaprikaId]);
 
   const loadOlderHistory = useCallback(async () => {
     if (historyRequestActiveRef.current || loadingOlderHistory || !hasMoreHistory) return;
@@ -279,6 +286,10 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
         </div>
       </div>
     );
+  }
+
+  if (data?.dataAvailability === 'aggregated-price-only') {
+    return <CryptoMarketOnlyView data={data} onBack={onBack} onRefresh={loadData} loading={loading} />;
   }
 
   // Only provider-verified posts explicitly tagged with this asset are shown.

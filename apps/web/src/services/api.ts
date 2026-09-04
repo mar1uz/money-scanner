@@ -37,6 +37,9 @@ export type CryptoBubbleTimeframe = '1d' | '1w' | '1m';
 
 export interface CryptoBubbleAsset {
   id: string;
+  coinGeckoId?: string;
+  coinPaprikaId?: string;
+  source?: 'coingecko' | 'coinpaprika' | 'scanner';
   symbol: string;
   name: string;
   image: string;
@@ -90,10 +93,14 @@ export async function fetchNarratives(
 export async function fetchAssetDetail(
   symbol: string,
   timeframe: Timeframe = '1w',
-  marketClass?: string
+  marketClass?: string,
+  coinGeckoId?: string,
+  coinPaprikaId?: string
 ): Promise<AssetDetailResponse> {
   const params = new URLSearchParams({ timeframe });
   if (marketClass) params.set('marketClass', marketClass);
+  if (coinGeckoId) params.set('coinGeckoId', coinGeckoId);
+  if (coinPaprikaId) params.set('coinPaprikaId', coinPaprikaId);
   const res = await fetch(`${API_BASE}/assets/${symbol}?${params.toString()}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch asset detail for ${symbol}`);
   return res.json();
