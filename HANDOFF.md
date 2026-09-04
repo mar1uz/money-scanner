@@ -2735,3 +2735,31 @@ Traffic: 100%
 Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 ```
+
+## 75. Crypto Bubble — Deep-Dive pentru monede fără Binance (PONS)
+
+Implemented and deployed on 04 September 2026.
+
+- Cauza confirmată: Bubbles obținea PONS de la CoinGecko, dar deep-dive-ul încerca exclusiv perechea `PONSUSDT` la Binance; Binance răspunde `Invalid symbol`.
+- Bubbles propagă acum ID-ul și furnizorul exact (CoinGecko/CoinPaprika). API-ul validează ID + ticker + nume înainte de a deschide profilul, evitând coliziunile de ticker.
+- Pentru activele fără OHLCV pe exchange, pagina arată cotația, capitalizarea, volumul, high/low 24h și istoricul real de preț disponibil de la agregator. Nu fabrică lumânări, Money Line, flipuri sau recomandări AI.
+- Datele lipsă sunt afișate ca indisponibile, iar cache-ul păstrează timestampul furnizorului și marchează explicit datele stale.
+- Activele suportate pe exchange (testat BTC) păstrează traseul OHLCV și Money Line existent.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: e4f8876
+Local tests: 154 passed, 0 failed (12 tests noi API + UI)
+Local full monorepo build: passed
+Live provider test: PONS quote + 721 price points, 0 synthetic candles, null signal
+Cloud Build: f5fa8519-096e-40fb-867c-a0f78499cdc8 (SUCCESS)
+Cloud Run revision: market-scanner-360-00155-zmb
+Traffic: 100%
+Revision conditions: Ready=True, Active=True, ContainerHealthy=True
+Public bundle: assets/index-Cl6S9-q1.js
+Cloud Run health: HTTP 200, status ok
+Authenticated UI: Pons/PONS, CoinGecko #105, live quote + 30-day price history rendered
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Production domain: https://scanner.relayhub.no (DNS record currently absent; does not resolve publicly)
+```
