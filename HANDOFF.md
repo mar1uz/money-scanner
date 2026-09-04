@@ -2713,3 +2713,25 @@ Traffic: 100%
 Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 ```
+
+## 74. Telegram 1W — Trimite Ultimul Flip Inregistrat (Nou sau Vechi)
+
+Implemented and deployed on 04 September 2026 (via `/boost`: strategie → DeepCoder → verificare proprie).
+
+- Problema: botul trimitea doar flipurile NOU confirmate (flip exact pe ultima lumanare inchisa, o singura data fiecare); flipurile 1W mai vechi ajungeau doar in dashboard.
+- Acum ambele cai de broadcast (`manual quick scan` + `scheduled/full scan`) publica `[...newlyConfirmed, ...confirmedHistory.filter(1w)]`: ultimul flip 1W inregistrat per asset, nou sau vechi, ca pe site. Strict 1w — celelalte timeframe-uri raman neschimbate.
+- Anti-spam: filtrul `fresh` (idempotency key) garanteaza livrare o-singura-data — backfill o data la primul run, apoi doar noutati; plus dedup intra-batch in `publishConfirmedFlipEvents`.
+- Mesajele vechi sunt recognoscibile prin linia existenta `*Confirmat:* acum X zile`.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 3117416
+Local tests: 142 passed, 0 failed (49/49 apps/api, inclusiv 3 teste noi: backfill 1w o data, idempotenta, excludere non-1w)
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Cloud Build: a9d091b3-0385-41c3-8b2d-f5883b8f28eb (SUCCESS)
+Cloud Run revision: market-scanner-360-00154-jwj
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
