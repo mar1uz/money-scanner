@@ -389,4 +389,76 @@ describe('Daily MoneyLine regime scan', () => {
     assert.ok(sentMessages[1].includes('RETEST CONFIRMAT ÎN ZONA DE INTRARE'));
     assert.ok(sentMessages[1].includes('SETUP VALID'));
   });
+
+  it('detects 1W confirmed flips for younger assets with under 50 weekly candles ($MORPHO scenario)', () => {
+    const state = new AppState();
+    const now = Date.now();
+    // 48 weekly candles with pivot at 42 creating bullish flip at index 46
+    const series = Array.from({ length: 48 }, (_, index) => {
+      const close = index < 42 ? 100 - index * 0.5 : 79 + (index - 41) * 2;
+      return {
+        symbol: 'MORPHO',
+        timeframe: '1w' as const,
+        timestamp: now - (47 - index) * 7 * 86_400_000,
+        open: close,
+        high: close + 1,
+        low: close - 1,
+        close,
+        volume: 1_000,
+        isClosed: true,
+        source: 'fixture' as const
+      };
+    });
+
+    const result = (state as any).findMostRecentConfirmedFlip(
+      'MORPHO', 'crypto', '1w', series, 95, 'Bullish', 40
+    );
+
+    assert.ok(result);
+    assert.equal(result.symbol, 'MORPHO');
+    assert.equal(result.name, 'Morpho');
+    assert.equal(result.timeframe, '1w');
+    assert.equal(result.direction, 'BULLISH');
+    assert.equal(result.status, 'CONFIRMED');
+    assert.equal(result.confirmationPrice, series[46].close);
+    assert.equal(result.candleTimestamp, series[46].timestamp);
+    assert.equal(result.confirmedAt, series[46].timestamp + 7 * 24 * 60 * 60 * 1_000);
+  });
+
+  it('enforces timeframe-aware minimum candle thresholds (15 for 1W, 30 for other timeframes)', () => {
+    const state = new AppState();
+    const now = Date.now();
+
+    // 14 weekly candles must be rejected (< 15)
+    const series14w = Array.from({ length: 14 }, (_, index) => ({
+      symbol: 'TEST', timeframe: '1w' as const,
+      timestamp: now - (13 - index) * 7 * 86_400_000,
+      open: 100, high: 101, low: 99, close: 100, volume: 1000, isClosed: true, source: 'fixture' as const
+    }));
+    assert.equal((state as any).calculateFlipCandidate('TEST', 'crypto', '1w', series14w, 100, 'Bullish', 40), undefined);
+    assert.equal((state as any).findMostRecentConfirmedFlip('TEST', 'crypto', '1w', series14w, 100, 'Bullish', 40), undefined);
+
+    // 15 weekly candles with flip at index 14 must be accepted
+    const series15w = Array.from({ length: 15 }, (_, index) => {
+      const close = index < 8 ? 100 - index * 2 : 84 + (index - 7) * 2;
+      return {
+        symbol: 'TEST', timeframe: '1w' as const,
+        timestamp: now - (14 - index) * 7 * 86_400_000,
+        open: close, high: close + 1, low: close - 1, close, volume: 1000, isClosed: true, source: 'fixture' as const
+      };
+    });
+    const result15w = (state as any).findMostRecentConfirmedFlip('TEST', 'crypto', '1w', series15w, 100, 'Bullish', 40);
+    assert.ok(result15w);
+    assert.equal(result15w.status, 'CONFIRMED');
+    assert.equal(result15w.timeframe, '1w');
+
+    // 29 daily candles must be rejected (< 30)
+    const series29d = Array.from({ length: 29 }, (_, index) => ({
+      symbol: 'TEST', timeframe: '1d' as const,
+      timestamp: now - (28 - index) * 86_400_000,
+      open: 100, high: 101, low: 99, close: 100, volume: 1000, isClosed: true, source: 'fixture' as const
+    }));
+    assert.equal((state as any).calculateFlipCandidate('TEST', 'crypto', '1d', series29d, 100, 'Bullish', 40), undefined);
+    assert.equal((state as any).findMostRecentConfirmedFlip('TEST', 'crypto', '1d', series29d, 100, 'Bullish', 40), undefined);
+  });
 });

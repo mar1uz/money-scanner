@@ -449,7 +449,7 @@ export class AppState {
     marketClass: ScannerMarketClass
   ): Promise<TelegramMoneyLineScanResult> {
     const liveCrypto = marketClass === 'crypto' || marketClass === 'ALL'
-      ? await this.marketData.getTopCryptoAssets(50)
+      ? await this.marketData.getNarrativeBalancedCryptoAssets()
       : [];
     const catalogAssets = marketClass === 'ALL'
       ? [...getScannerAssets('stocks'), ...getScannerAssets('metals')]
@@ -484,7 +484,8 @@ export class AppState {
         const closedTarget = targetCandles
           .filter(candle => candle.isClosed !== false)
           .sort((left, right) => left.timestamp - right.timestamp);
-        if (closedTarget.length < 50) throw new Error(`Insufficient ${timeframe} candles for ${asset.symbol}`);
+        const minCandles = timeframe === '1w' ? 15 : 30;
+        if (closedTarget.length < minCandles) throw new Error(`Insufficient ${timeframe} candles for ${asset.symbol}`);
         const signal = this.moneyLine.calculateLatest(asset.symbol, timeframe, closedTarget);
         if (!signal) throw new Error(`No Money Line signal for ${asset.symbol}`);
         this.cachedSignals.set(`${asset.symbol}_${timeframe}`, signal);
@@ -1007,7 +1008,7 @@ export class AppState {
 
     try {
       const [liveCrypto, stocks, metals] = await Promise.all([
-        this.marketData.getTopCryptoAssets(50),
+        this.marketData.getNarrativeBalancedCryptoAssets(),
         Promise.resolve(getScannerAssets('stocks')),
         Promise.resolve(getScannerAssets('metals'))
       ]);
@@ -1426,7 +1427,8 @@ export class AppState {
     const closedCandles = candles
       .filter(candle => candle.isClosed !== false)
       .sort((left, right) => left.timestamp - right.timestamp);
-    if (closedCandles.length < 50 || !Number.isFinite(currentPrice) || currentPrice <= 0) return undefined;
+    const minCandles = timeframe === '1w' ? 15 : 30;
+    if (closedCandles.length < minCandles || !Number.isFinite(currentPrice) || currentPrice <= 0) return undefined;
 
     const cloud = calculateMoneyLineCloud(closedCandles, timeframe);
     const signal = this.moneyLine.calculateLatest(symbol, timeframe, closedCandles);
@@ -1526,11 +1528,12 @@ export class AppState {
     const closedCandles = candles
       .filter(candle => candle.isClosed !== false)
       .sort((left, right) => left.timestamp - right.timestamp);
-    if (closedCandles.length < 50) return undefined;
+    const minCandles = timeframe === '1w' ? 15 : 30;
+    if (closedCandles.length < minCandles) return undefined;
 
     const cloud = calculateMoneyLineCloud(closedCandles, timeframe);
     let flipIndex = -1;
-    for (let index = closedCandles.length - 1; index >= 49; index -= 1) {
+    for (let index = closedCandles.length - 1; index >= minCandles - 1; index -= 1) {
       if (cloud.buySignals[index] || cloud.sellSignals[index]) {
         flipIndex = index;
         break;
