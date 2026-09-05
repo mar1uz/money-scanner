@@ -2798,3 +2798,26 @@ Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Cloud Run health: HTTP 200, status ok
 ```
 
+## 77. Web — Selectia Filtrelor Supravietuieste la Back din Grafic (Keep-Alive Taburi)
+
+Implemented and deployed on 05 September 2026.
+
+- Problema (raport mobil): din Alerte → Confirmed Flips (ex. BULLISH + Crypto + 1W), la deschiderea unui asset si back, selectia se reseta pe default si pagina refetch-uia cu asteptare.
+- Cauza: `App.tsx` randa conditional `{selectedAssetSymbol ? <AssetDeepDiveView/> : <tab-uri/>}` — deschiderea graficului demonta tot arborele tab-urilor (inclusiv `AlertsCenterView` cu toate `useState`-urile de filtre).
+- Fix (`apps/web/src/App.tsx`, 8+/5-): view-urile de tab raman montate permanent, ascunse cu `hidden` cand e deschis un asset; `display: contents` pastreaza layout-ul identic cand sunt vizibile. La back: aceeasi selectie, acelasi scroll, datele deja incarcate — zero reset, zero asteptare. Refresh-ul auto de 60s continua in fundal.
+- Nota: testul `crypto-market-profile.test.ts` „Akedo 1w” pica identic si pe arborele curat (stricat pre-existent din `d4b8d6d`, zona api) — in afara scope-ului, neatins.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: c374438
+Local tests: 53/53 apps/web passed; build web passed (tsc + vite)
+Full monorepo: singurul fail e pre-existentul Akedo 1w (api, prezent si pe arbore curat)
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Cloud Build: cd30dd45-92e8-4249-ad5f-2094527372b7 (SUCCESS)
+Cloud Run revision: market-scanner-360-00158-wfk
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
+
