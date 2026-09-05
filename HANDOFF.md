@@ -2869,3 +2869,50 @@ Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 ```
 
+## 80. Telegram — Filtru Directie /scan + 9 Preseturi flips_* (Autocomplete)
+
+Implemented and deployed on 05 September 2026.
+
+- `/scan flips 1w crypto bullish` (si `bull`/`bear`/`bearish`, orice ordine): filtrare BULLISH/BEARISH/ALL; directia apare in header (`· BULLISH ·`) si in JSON `scan.direction`. In mod `signals` directia e respinsa ca format invalid.
+- 9 comenzi preset 1W pentru meniul autocomplete Telegram: `/flips`, `/flips_crypto`, `/flips_stocks`, `/flips_bull`, `/flips_bear`, `/flips_crypto_bull`, `/flips_crypto_bear`, `/flips_stocks_bull`, `/flips_stocks_bear` (acelasi pipeline + owner-check ca `/scan`; filtrare post-cache, cache-ul ramane comun).
+- `/help` documenteaza filtrul + preseturile; mesajul de format invalid listeaza exemple noi.
+- Actiune manuala ramasa (utilizator, in BotFather): `/setcommands` cu lista de mai jos ca sa apara autocomplete la `/`.
+
+BotFather `/setcommands` (de lipit):
+```text
+scan - Scanare live semnale/flipuri: /scan 4h, /scan flips 1w crypto bullish
+flips - Flipuri 1W confirmate, toate pietele
+flips_crypto - Flipuri 1W confirmate, doar crypto
+flips_stocks - Flipuri 1W confirmate, doar stocks
+flips_bull - Flipuri 1W confirmate, doar bullish
+flips_bear - Flipuri 1W confirmate, doar bearish
+flips_crypto_bull - Flipuri 1W crypto, doar bullish
+flips_crypto_bear - Flipuri 1W crypto, doar bearish
+flips_stocks_bull - Flipuri 1W stocks, doar bullish
+flips_stocks_bear - Flipuri 1W stocks, doar bearish
+status - Status detaliat pe un asset, ex. /status BTC
+trending - Top subiecte crypto pe X
+news - Stiri recente, ex. /news BTC
+brief - Briefing AI de piata
+alerts - Seteaza timeframe-urile alertelor de flip
+flipalerts - Flipuri doar pe timeframe ales, ex. /flipalerts 1w
+watch - Adauga asset la watchlist
+subscribe - Activeaza alertele in grupul curent
+unsubscribe - Opreste alertele in grupul curent
+help - Lista comenzi
+```
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: f1d7d4a
+Local tests: 9/9 notifications passed (preseturi + header directie); routes: directie + preseturi verzi
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Full monorepo: singurul fail e pre-existentul Akedo 1w (api, prezent si pe arbore curat)
+Cloud Build: 15243abe-56d0-44ef-a6f8-016e0df962f2 (SUCCESS)
+Cloud Run revision: market-scanner-360-00161-j98
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
+
