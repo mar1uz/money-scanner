@@ -286,7 +286,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
         {/* Main Content Area */}
         <main className="flex-1 px-4 lg:px-8 py-6 space-y-6 max-w-[1600px] w-full mx-auto animate-fade-in">
           {/* Full-Page Asset Deep-Dive View */}
-          {selectedAssetSymbol ? (
+          {selectedAssetSymbol && (
             <AssetDeepDiveView
               symbol={selectedAssetSymbol}
               marketClass={selectedAssetMarketClass}
@@ -303,8 +303,12 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
               watchlist={watchlist}
               onToggleWatchlist={toggleWatchlist}
             />
-          ) : (
-            <>
+          )}
+          {/* Tab views stay mounted (hidden) while an asset is open so filter
+              selection, scroll and loaded data survive back navigation instead
+              of resetting to defaults and refetching. `contents` keeps the
+              exact same layout as before when visible. */}
+          <div className={selectedAssetSymbol ? 'hidden' : 'contents'}>
               {/* Tab 1: Market Intelligence (Gauges + Narrative Bar + Scanner Table) */}
               {activeTab === 'market' && (
                 <div className="space-y-6">
@@ -424,8 +428,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
 
               {/* Tab 8: System Status & Telemetry */}
               {activeTab === 'status' && <SystemStatusView />}
-            </>
-          )}
+          </div>
         </main>
       </div>
 
