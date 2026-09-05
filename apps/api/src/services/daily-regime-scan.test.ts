@@ -405,6 +405,40 @@ describe('Daily MoneyLine regime scan', () => {
     assert.equal(candleRequests, 2);
   });
 
+  it('includes mid-cap assets outside Top 50 in the flip-scan universe (CAKE #90 regression)', async () => {
+    const state = new AppState();
+    // Flip scans must use the FULL pool method — the trimmed overview subset
+    // structurally excluded mid-caps like CAKE (#90, outside Top 50 and
+    // outside every narrative top-10).
+    (state.marketData as any).getNarrativeBalancedCryptoAssets = async () => {
+      throw new Error('flip scans must not use the trimmed universe');
+    };
+    (state.marketData as any).getFlipUniverseCryptoAssets = async () => [
+      { symbol: 'BTC', name: 'Bitcoin', marketClass: 'crypto' },
+      { symbol: 'CAKE', name: 'PancakeSwap', marketClass: 'crypto' }
+    ];
+    (state.marketData as any).getQuotesForAssets = async (assets: Array<{ symbol: string }>) =>
+      assets.map(asset => ({ symbol: asset.symbol, price: 100 }));
+    const now = Date.now();
+    const week = 7 * 86_400_000;
+    const series = Array.from({ length: 120 }, (_, index) => {
+      const close = index < 100 ? 100 - index * 0.2 : 80 + (index - 100) * 2;
+      return {
+        symbol: 'TEST', timeframe: '1w' as const, timestamp: now - (119 - index) * week,
+        open: close, high: close + 1, low: close - 1, close, volume: 1_000,
+        isClosed: true, source: 'fixture' as const
+      };
+    });
+    (state.marketData as any).getCandles = async () => series;
+
+    const result = await state.scanTelegramMoneyLine('flips', '1w', 'crypto');
+
+    assert.equal(result.totalAssets, 2);
+    assert.equal(result.scannedAssets, 2);
+    assert.equal(result.errors, 0);
+    assert.deepEqual(result.flips.map(flip => flip.symbol).sort(), ['BTC', 'CAKE']);
+  });
+
   it('finds the latest historical flip and records its candle-close age', () => {
     const state = new AppState();
     const now = Date.now();

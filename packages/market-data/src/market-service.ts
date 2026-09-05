@@ -208,6 +208,16 @@ export class MarketDataService {
     }
   }
 
+  /**
+   * Full flip-detection universe: every CoinGecko Top 150 coin with an active
+   * Binance USDT spot market (5 min cached upstream). Unlike the narrative-
+   * balanced overview subset, nothing in the Top 150 is structurally excluded,
+   * so mid-caps like CAKE (#90) take part in flip scans.
+   */
+  public async getFlipUniverseCryptoAssets(): Promise<AssetInfo[]> {
+    return this.getTopCryptoAssets(150);
+  }
+
   /** Top market-cap crypto assets that also have an active Binance USDT spot market. */
   public async getTopCryptoAssets(limit = 50): Promise<AssetInfo[]> {
     const poolLimit = Math.max(limit, 150);

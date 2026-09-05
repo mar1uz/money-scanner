@@ -449,8 +449,11 @@ export class AppState {
     timeframe: Timeframe,
     marketClass: ScannerMarketClass
   ): Promise<TelegramMoneyLineScanResult> {
+    // Flip scans run on the FULL Top 150 pool, not the narrative-balanced
+    // overview subset, so mid-caps outside Top 50 / narrative top-10
+    // (e.g. CAKE #90) are not structurally excluded from flip detection.
     const liveCrypto = marketClass === 'crypto' || marketClass === 'ALL'
-      ? await this.marketData.getNarrativeBalancedCryptoAssets()
+      ? await this.marketData.getFlipUniverseCryptoAssets()
       : [];
     const catalogAssets = marketClass === 'ALL'
       ? [...getScannerAssets('stocks'), ...getScannerAssets('metals')]
@@ -1008,8 +1011,10 @@ export class AppState {
     };
 
     try {
+      // Full Top 150 pool for flip detection (see executeTelegramMoneyLineScan):
+      // mid-caps like CAKE must reach confirmed-history, dashboard and Telegram.
       const [liveCrypto, stocks, metals] = await Promise.all([
-        this.marketData.getNarrativeBalancedCryptoAssets(),
+        this.marketData.getFlipUniverseCryptoAssets(),
         Promise.resolve(getScannerAssets('stocks')),
         Promise.resolve(getScannerAssets('metals'))
       ]);
