@@ -2821,3 +2821,29 @@ Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 ```
 
+## 78. Crypto Rank Global Live — Fix UNI #145 (era #28 pe CoinGecko)
+
+Implemented and deployed on 05 September 2026.
+
+- Problema: header-ul deep-dive arata UNI #145 in loc de #28.
+- Cauza (lant complet): ruta exchange `/assets/:symbol` intoarce `info = catalog TRADING_360_ASSETS`, unde UNI avea `rank: 145` hardcodat si stagnant; frontend-ul accepta orice rank <999 ca global. Bonus: `market-service.getTopCryptoAssets` fabrica rank `assets.length + 1` cand lipsea `market_cap_rank`.
+- Fix pe 3 niveluri, pentru toate asseturile crypto:
+  1. Backend `scanner-routes.ts`: rank-ul crypto din detail e suprascris cu live CoinGecko `market_cap_rank` (cache 5 min); cand live-ul lipseste devine 999 (necunoscut), niciodata valoarea stagnanta.
+  2. `market-service.ts`: fallback `assets.length + 1` → `999` (niciun rank precis fabricat).
+  3. Frontend (`AssetDeepDiveView` + `AssetDetailModal`): crypto afiseaza doar rank live backend; fara el badge-ul se ascunde in loc sa arate un numar gresit. Helper nou testabil `resolveRankInput` (catalog fallback doar pentru stocks, care n-au sursa globala live).
+- Stocks: neschimbat (fara sursa live globala; catalogul e singura referinta).
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 18b7dee
+Local tests: 55/55 apps/web passed (inclusiv regresiile UNI #145 + resolveRankInput); 9/9 market-data passed
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Full monorepo: singurul fail e pre-existentul Akedo 1w (api, prezent si pe arbore curat din d4b8d6d)
+Cloud Build: 6fb3970f-9762-4033-a77c-6adc94d8c159 (SUCCESS)
+Cloud Run revision: market-scanner-360-00159-qp7
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
+
