@@ -2916,3 +2916,25 @@ Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 ```
 
+## 81. Telegram — Lista Completa de Flipuri (fara "…si inca N")
+
+Implemented and deployed on 05 September 2026.
+
+- Problema: `/scan flips` arata 10 detaliate + "…si inca 208" — restul invizibile in Telegram.
+- Fix: `buildLiveScanFlipOverflow` (notifications) taie restul in chunk-uri compacte one-line (`$SYM (Nume) · TIP · BULL/BEAR · scor · vechime`), impartite dupa buget ~3500 chars (limita Telegram 4096, URL-urile variaza) cu headere `*Continuare 11–55 din 218:*`; ruta trimite fiecare chunk ca mesaj separat, secvential (opreste la primul fail). Broadcast-ul automat ramane la 10/mesaj (anti-spam pe alerte).
+- Clarificare din analiza screenshot-ului: cele 218 Telegram (TOATE pietele, ambele directii) vs 11 web (filtrat BULLISH+crypto+1W) — nu era "mai putin", ci sfera mai larga + trunchiere la afisare.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 7fde17d
+Local tests: 10/10 notifications passed (chunking: acoperire totala, headere, limita 4096, cazuri ≤10/signals goale)
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Full monorepo: singurul fail e pre-existentul Akedo 1w (api, prezent si pe arbore curat)
+Cloud Build: 9f79343a-1384-4f95-b36b-0e9b000b5630 (SUCCESS)
+Cloud Run revision: market-scanner-360-00162-qfn
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
+
