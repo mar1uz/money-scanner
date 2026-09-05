@@ -2847,3 +2847,25 @@ Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 ```
 
+## 79. Flip Scans — Univers Complet Top150 (CAKE #90 aparea nicaieri)
+
+Implemented and deployed on 05 September 2026.
+
+- Problema: CAKE (1W BULLISH in deep-dive) nu aparea in nicio scanare de flip 1W.
+- Cauza: CAKE nu exista in catalogul static, iar scanarile de flip (live `/scan` + programata → dashboard Confirmed + broadcast Telegram) foloseau subsetul narativ-echilibrat (Top50 + top-10/narativa). CAKE (#90, $554M, narativa default Infrastructure) nu intra pe nicio poarta → exclus structural din detectie.
+- Fix: metoda noua `getFlipUniverseCryptoAssets()` (pool complet CoinGecko Top150 ∩ Binance spot, cache 5 min), folosita in `executeTelegramMoneyLineScan` + `executeDailyRegimeScan`. Overview/semnale raman pe subsetul echilibrat. Cost: ~+40-60 asseturi crypto/scanare.
+- Test nou: asset tip CAKE (in afara Top50) apare in flipuri; fail daca calea narativ-echilibrata e apelata.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 0571f07
+Local tests: 74 apps/api (73 pass + pre-existentul Akedo 1w, prezent si pe arbore curat); test nou CAKE verde
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Cloud Build: f05fc454-ef2a-4ea5-bbc5-25ccf7d2a46a (SUCCESS)
+Cloud Run revision: market-scanner-360-00160-fx9
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
+
