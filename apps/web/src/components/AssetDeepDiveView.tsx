@@ -54,13 +54,23 @@ const stockMarketCapRankMap = new Map<string, number>(
   stockAssetsByMarketCap.map((asset, index) => [asset.symbol.toUpperCase(), index + 1])
 );
 
-const cryptoAssetsByMarketCap = TRADING_360_ASSETS
-  .filter(a => a.marketClass === 'crypto' && (a.marketCap || 0) > 0)
-  .sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0));
+// NOTE: no catalog fallback map for crypto. Static catalog ranks go stale
+// (catalog UNI said #145 vs live #28), so crypto shows only the live backend
+// rank (CoinGecko market_cap_rank) and hides the badge when unknown.
 
-const cryptoMarketCapRankMap = new Map<string, number>(
-  cryptoAssetsByMarketCap.map((asset, index) => [asset.symbol.toUpperCase(), index + 1])
-);
+/**
+ * Picks the rank value fed into getMarketCapRank. Catalog fallback applies to
+ * stocks only — crypto uses the live backend rank exclusively, so a stale
+ * catalog number (catalog UNI said #145 vs live #28) can never render.
+ */
+export const resolveRankInput = (
+  infoRank?: number | null,
+  catalogRank?: number | null,
+  marketClass?: string
+): number | undefined => {
+  if (marketClass === 'crypto') return infoRank ?? undefined;
+  return infoRank ?? catalogRank ?? undefined;
+};
 
 export const getMarketCapRank = (
   symbol: string,
@@ -83,9 +93,9 @@ export const getMarketCapRank = (
   }
 
   if (resolvedClass === 'crypto') {
+    // Live backend rank only (CoinGecko market_cap_rank). A stale catalog
+    // number must never render as global rank — hide the badge instead.
     if (rawRank && rawRank > 0 && rawRank < 999) return rawRank;
-    const fromMap = cryptoMarketCapRankMap.get(sym);
-    if (fromMap !== undefined) return fromMap;
     return null;
   }
 
@@ -306,8 +316,9 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
 
   const catalogAsset = TRADING_360_ASSETS.find(a => a.symbol.toUpperCase() === symbol.toUpperCase());
   const effectiveMarketCap = data?.info?.marketCap || catalogAsset?.marketCap || (data?.quote as any)?.marketCap || 0;
-  const rawRank = data?.info?.rank ?? catalogAsset?.rank;
-  const marketCapRank = getMarketCapRank(symbol, marketClass || data?.info?.marketClass, rawRank, effectiveMarketCap);
+  const infoClass = marketClass || data?.info?.marketClass;
+  const rawRank = resolveRankInput(data?.info?.rank, catalogAsset?.rank, infoClass);
+  const marketCapRank = getMarketCapRank(symbol, infoClass, rawRank, effectiveMarketCap);
 
   return (
     <div className="space-y-0 animate-fade-in">

@@ -3,7 +3,7 @@ import { AssetDetailResponse, Timeframe } from '../types.js';
 import { TRADING_360_ASSETS } from '@money-scanner/shared';
 import { fetchAssetDetail, triggerTestAlert } from '../services/api.js';
 import { InteractiveChart } from './InteractiveChart.js';
-import { formatMarketCap, getMarketCapRank } from './AssetDeepDiveView.js';
+import { formatMarketCap, getMarketCapRank, resolveRankInput } from './AssetDeepDiveView.js';
 import {
   X,
   Zap,
@@ -60,7 +60,8 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
 
   const catalogAsset = symbol ? TRADING_360_ASSETS.find(a => a.symbol.toUpperCase() === symbol.toUpperCase()) : null;
   const effectiveMarketCap = data?.info?.marketCap || catalogAsset?.marketCap || (data?.quote as any)?.marketCap || 0;
-  const rawRank = data?.info?.rank ?? catalogAsset?.rank;
+  // Catalog rank fallback applies to stocks only — crypto uses the live backend rank exclusively.
+  const rawRank = resolveRankInput(data?.info?.rank, catalogAsset?.rank, data?.info?.marketClass);
   const marketCapRank = symbol ? getMarketCapRank(symbol, data?.info?.marketClass, rawRank, effectiveMarketCap) : null;
 
   return (

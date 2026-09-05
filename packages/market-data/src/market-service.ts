@@ -254,7 +254,9 @@ export class MarketDataService {
           quoteCurrency: 'USDT',
           aliases: Array.from(new Set([...(existing?.aliases || []), String(row.id || ''), String(row.name || '')].filter(Boolean))),
           marketCap: row.market_cap,
-          rank: Number(row.market_cap_rank || assets.length + 1),
+          // Never fabricate a precise rank: unknown global rank stays 999
+          // (frontend hides it) instead of leaking a pool position as truth.
+          rank: Number(row.market_cap_rank || 999),
           decimals: existing?.decimals ?? ((row.current_price || 0) < 1 ? 6 : 2)
         }));
         if (assets.length >= poolLimit) break;

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { getMarketCapRank, formatMarketCap } from './AssetDeepDiveView.js';
+import { getMarketCapRank, formatMarketCap, resolveRankInput } from './AssetDeepDiveView.js';
 
 describe('AssetDeepDiveView — Market Cap Rank & Formatting', () => {
   it('formats market cap values accurately across scales', () => {
@@ -34,6 +34,26 @@ describe('AssetDeepDiveView — Market Cap Rank & Formatting', () => {
     assert.equal(getMarketCapRank('BTC', 'crypto', 1), 1);
     assert.equal(getMarketCapRank('ETH', 'crypto', 2), 2);
     assert.equal(getMarketCapRank('SOL', 'crypto', 5), 5);
+  });
+
+  it('never shows a stale catalog rank for crypto (UNI #145 regression)', () => {
+    // Live CoinGecko rank passes through untouched.
+    assert.equal(getMarketCapRank('UNI', 'crypto', 28), 28);
+    // Without a live backend rank there is no badge — a stale catalog number
+    // must never render as global rank.
+    assert.equal(getMarketCapRank('UNI', 'crypto', undefined), null);
+    assert.equal(getMarketCapRank('UNI', 'crypto', 999), null);
+  });
+
+  it('routes stale catalog ranks away from crypto but keeps them for stocks', () => {
+    // UNI: backend rank missing + stale catalog #145 → nothing fed in.
+    assert.equal(resolveRankInput(null, 145, 'crypto'), undefined);
+    assert.equal(resolveRankInput(undefined, 145, 'crypto'), undefined);
+    // Live rank always wins for crypto.
+    assert.equal(resolveRankInput(28, 145, 'crypto'), 28);
+    // Stocks keep the catalog fallback (no live global source).
+    assert.equal(resolveRankInput(null, 145, 'stocks'), 145);
+    assert.equal(resolveRankInput(5, 145, 'stocks'), 5);
   });
 
   it('estimates rank dynamically when marketCap is provided for unlisted stocks', () => {

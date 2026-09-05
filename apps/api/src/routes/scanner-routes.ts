@@ -463,6 +463,18 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
     }
 
     const resolvedMarketClass = requestedMarketClass || assetInfo.marketClass;
+    // Live CoinGecko global rank overrides stale hardcoded catalog ranks
+    // (catalog UNI said #145 while live rank is #28). Cached 5 min upstream.
+    // Unknown stays 999 so the frontend hides the badge instead of guessing.
+    if (assetInfo.marketClass === 'crypto' && !symbol.includes('.') && !symbol.startsWith('TOTAL')) {
+      try {
+        const liveRank = (await appState.marketData.getTopCryptoAssets(150))
+          .find(asset => asset.symbol === symbol)?.rank;
+        assetInfo = { ...assetInfo, rank: liveRank && liveRank > 0 && liveRank < 999 ? liveRank : 999 };
+      } catch {
+        assetInfo = { ...assetInfo, rank: 999 };
+      }
+    }
     let quote;
     try {
       quote = await appState.marketData.getPriceQuote(symbol, resolvedMarketClass);
