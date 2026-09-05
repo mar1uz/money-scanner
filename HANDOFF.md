@@ -2757,9 +2757,44 @@ Cloud Build: f5fa8519-096e-40fb-867c-a0f78499cdc8 (SUCCESS)
 Cloud Run revision: market-scanner-360-00155-zmb
 Traffic: 100%
 Revision conditions: Ready=True, Active=True, ContainerHealthy=True
-Public bundle: assets/index-Cl6S9-q1.js
-Cloud Run health: HTTP 200, status ok
-Authenticated UI: Pons/PONS, CoinGecko #105, live quote + 30-day price history rendered
+## 76. DEX OHLCV & Money Line Resolution for Tokens like Akedo ($AKE)
+
+Implemented and deployed on 05 September 2026.
+
+### What changed
+
+1. **On-Chain Token Name Matching in `selectExactMostLiquidPair` (`apps/api/src/services/dex-market-data.ts`)**:
+   - Fixed bug where verified DEX pools were discarded because on-chain contract bytecode names were set to the token's ticker (e.g. `name: "AKE"`, `symbol: "AKE"` on PancakeSwap V3 BSC pool `0x4D3bF29Ba30f8Bfe4624e7678709afA195689c5D`), while CoinGecko profile name was `"Akedo"`.
+   - `selectExactMostLiquidPair` now validates that `baseToken.name` matches either `profile.name` or `profile.symbol` alongside verified contract address, chain ID, pair address and URL validation. This successfully unlocks PancakeSwap V3's **$2.32M USD liquidity** and **$48M+ 24h volume** pool.
+
+2. **Timeframe-Aware Minimum Candle Threshold (`apps/api/src/services/crypto-market-profile.ts`)**:
+   - Replaced hardcoded `>= 210` closed candles threshold with timeframe-dependent gating: `timeframe === '1w' ? 15 : (timeframe === '1d' ? 30 : 210)`.
+   - On Weekly (`1w`), tokens with 15+ closed weekly candles (Akedo has 26 closed weekly candles from GeckoTerminal) now calculate a verified Money Line signal (`tier: 'Bullish'`, `score: +25.6`).
+
+3. **Enhanced DEX View UI (`apps/web/src/components/CryptoMarketOnlyView.tsx`)**:
+   - Added interactive timeframe pills (`1H`, `4H`, `8H`, `1D`, `1W`) allowing users to inspect different candle intervals for DEX assets.
+   - Added Money Line bias badge right next to the price (`[● Money Line: Bullish +25.6]`).
+   - Dynamic threshold messaging reflecting the exact minimum candles for the active timeframe.
+   - Wired `onTimeframeChange` through `AssetDeepDiveView.tsx`.
+
+4. **Automated Unit Tests**:
+   - `apps/api/src/services/dex-market-data.test.ts`: Added test verifying acceptance of on-chain token name matching profile symbol.
+   - `apps/api/src/services/crypto-market-profile.test.ts`: Added test verifying 1w Money Line calculation with 15+ closed candles.
+   - `apps/web/src/components/crypto-market-only.test.ts`: Updated 1w threshold test and added active Money Line signal badge test.
+   - Monorepo test suite passes with 137 passing tests (0 failures).
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: d4b8d6d
+Local tests: 137 passed, 0 failed (100% test pass rate)
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Cloud Build: 23dcdbea-7cc1-4eba-aaba-212bb6c0e623 (SUCCESS)
+Cloud Run revision: market-scanner-360-00157-fql
+Traffic: 100%
+Revision conditions: Ready=True, Active=True, ContainerHealthy=True
+Public bundle: assets/index-CNdYlZwI.js
 Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
-Production domain: https://scanner.relayhub.no (DNS record currently absent; does not resolve publicly)
+Cloud Run health: HTTP 200, status ok
 ```
+
