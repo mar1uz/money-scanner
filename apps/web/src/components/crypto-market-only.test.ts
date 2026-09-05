@@ -50,6 +50,40 @@ test('DEX fallback renders exact pool metrics, OHLCV candles and honest Money Li
   assert.match(html, /Grafic OHLCV DEX · 1W/);
   assert.match(html, /Grafic OHLCV DEX PONS/);
   assert.match(html, /10 buy \/ 11 sell/);
-  assert.match(html, /minimum 210 lumânări închise/);
+  assert.match(html, /minimum 15 lumânări închise/);
   assert.doesNotMatch(html, /Money Line 1W calculat/);
+});
+
+test('DEX fallback displays active Money Line signal badge and calculation summary', () => {
+  const candle = { timestamp: 1_700_000_000_000, open: 0.7, high: 0.8, low: 0.6, close: 0.75, volume: 100, isClosed: true };
+  const html = render({
+    ...data,
+    dataAvailability: 'dex-fallback',
+    candles: Array(26).fill(candle),
+    priceHistory: [],
+    activeSignal: {
+      symbol: 'AKE',
+      timeframe: '1w',
+      tier: 'Bullish',
+      previousTier: 'Bullish',
+      score: 25.6,
+      isTransition: false,
+      transitionTime: 1783900800000,
+      transitionPrice: 0.002,
+      roiPercent: 300,
+      rawIndicators: { ema20: 0.003, ema50: 0.008, ema200: 0.008, ema20Slope: 140, roc9: 2000, roc21: 3000, macd: { line: 0.003, signal: 0, histogram: 0, histogramSlope: 0 }, rsi14: 76, rsiRegime: 'Overbought', rvol: 2.4, volumeMA20: 40000000, atr14: 0.002, atrPercent: 27 },
+      contributions: { emaAlignmentScore: 0, emaSlopeScore: 100, rocScore: 100, macdScore: -50, rsiScore: 86, rvolScore: -68, volatilityRegimeScore: -60, mtfConfirmationScore: 0 },
+      candleTimestamp: 1787529600000,
+      calculationTimestamp: 1788625657270,
+      version: 'v1.0.0'
+    },
+    dexMarket: {
+      chainId: 'bsc', dexId: 'pancakeswap', dexUrl: 'https://dexscreener.com/bsc/pool', pairAddress: 'pool',
+      contractAddress: '0xtoken', quoteSymbol: 'WBNB', priceUsd: 0.019, priceChange: { m5: 1, h1: 2, h6: 3, h24: 4 },
+      volume: { m5: 5, h1: 6, h6: 7, h24: 8 }, liquidityUsd: 2_300_000, fdvUsd: 400_000_000, marketCapUsd: 400_000_000,
+      transactions24h: { buys: 100, sells: 110 }, pairCreatedAt: 1_699_000_000_000, candleSource: 'GeckoTerminal', candles: Array(26).fill(candle)
+    }
+  });
+  assert.match(html, /Money Line: Bullish \+25.6/);
+  assert.match(html, /Money Line 1W calculat din 26 lumânări DEX închise: Bullish, scor 25.6/);
 });

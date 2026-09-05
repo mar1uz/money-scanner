@@ -41,7 +41,8 @@ export const DexCandlestickChart: React.FC<{ candles: Candle[]; symbol: string }
 
 export const CryptoMarketOnlyView: React.FC<{
   data: AssetDetailResponse; timeframe: Timeframe; onBack: () => void; onRefresh: () => void; loading?: boolean;
-}> = ({ data, timeframe, onBack, onRefresh, loading }) => {
+  onTimeframeChange?: (tf: Timeframe) => void;
+}> = ({ data, timeframe, onBack, onRefresh, loading, onTimeframeChange }) => {
   const { info, quote } = data;
   const dex = data.dexMarket;
   const sourceUrl = info.coinGeckoId
@@ -54,16 +55,52 @@ export const CryptoMarketOnlyView: React.FC<{
   const end = prices[prices.length - 1]?.[0] || 0;
   const points = prices.map(([time, price]) => `${10 + (time - start) / (end - start || 1) * 780},${high === low ? 130 : 240 - (price - low) / (high - low) * 220}`).join(' ');
   const change = typeof quote.change24h === 'number' && Number.isFinite(quote.change24h) ? quote.change24h : null;
+  const minCandles = timeframe === '1w' ? 15 : (timeframe === '1d' ? 30 : 210);
+
   return <section className="space-y-5" aria-label={`Date de piață ${info.name}`}>
     <div className="flex flex-wrap items-center gap-3">
       <button onClick={onBack} className="rounded-xl border border-white/10 p-2.5 text-slate-300" aria-label="Înapoi"><ArrowLeft className="h-5 w-5" /></button>
       <div className="min-w-0 flex-1"><h1 className="text-xl font-bold text-white">{info.name} <span className="text-slate-400">${info.symbol}</span></h1>
         <p className="text-xs text-slate-400">Crypto · {quote.source}{info.rank > 0 ? ` · #${info.rank}` : ''}</p></div>
+      {onTimeframeChange && (
+        <div className="flex items-center rounded-lg border border-white/[0.06] bg-white/[0.03] p-0.5">
+          {(['1h', '4h', '8h', '1d', '1w'] as Timeframe[]).map((tf) => (
+            <button
+              key={tf}
+              type="button"
+              onClick={() => onTimeframeChange(tf)}
+              className={`px-2 py-1 text-[11px] font-mono rounded-md transition-all ${
+                timeframe === tf
+                  ? 'bg-cyan-500/15 text-cyan-300 font-bold'
+                  : 'text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              {tf.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      )}
       <button onClick={onRefresh} disabled={loading} className="rounded-xl border border-white/10 p-2.5 text-cyan-300" aria-label="Reîncarcă datele"><RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} /></button>
     </div>
     <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-5 sm:p-6">
-      <div className="flex flex-wrap items-baseline gap-3"><span className="text-3xl font-bold text-white">{money(quote.price)}</span>
-        <span className={change !== null && change >= 0 ? 'text-emerald-300' : 'text-rose-300'}>{change === null ? '—' : `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`} <span className="text-xs text-slate-400">24h</span></span></div>
+      <div className="flex flex-wrap items-baseline gap-3">
+        <span className="text-3xl font-bold text-white">{money(quote.price)}</span>
+        <span className={change !== null && change >= 0 ? 'text-emerald-300' : 'text-rose-300'}>
+          {change === null ? '—' : `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`} <span className="text-xs text-slate-400">24h</span>
+        </span>
+        {data.activeSignal && (
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-bold border ${
+            data.activeSignal.tier.toLowerCase().includes('bullish')
+              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+              : data.activeSignal.tier.toLowerCase().includes('bearish')
+                ? 'border-rose-500/30 bg-rose-500/10 text-rose-300'
+                : 'border-slate-500/30 bg-slate-500/10 text-slate-300'
+          }`}>
+            <span className="w-1.5 h-1.5 rounded-full bg-current" />
+            Money Line: {data.activeSignal.tier} {data.activeSignal.score > 0 ? `+${data.activeSignal.score.toFixed(1)}` : data.activeSignal.score.toFixed(1)}
+          </span>
+        )}
+      </div>
       <dl className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
         {[['Capitalizare', info.marketCap], ['Volum 24h (USD)', quote.volume24h], ['Maxim 24h', quote.high24h], ['Minim 24h', quote.low24h]].map(([label, value]) =>
           <div key={String(label)}><dt className="text-xs text-slate-400">{label}</dt><dd className="mt-1 break-words font-mono text-sm text-white">{money(value)}</dd></div>)}
@@ -96,7 +133,7 @@ export const CryptoMarketOnlyView: React.FC<{
     <div className={`flex gap-3 rounded-xl border p-4 text-sm ${data.activeSignal ? 'border-cyan-500/20 bg-cyan-500/5 text-cyan-100' : 'border-amber-500/20 bg-amber-500/5 text-amber-100'}`}><Info className="mt-0.5 h-5 w-5 shrink-0" /><p>{data.activeSignal
       ? `Money Line ${timeframe.toUpperCase()} calculat din ${data.candles.filter(c => c.isClosed).length} lumânări DEX închise: ${data.activeSignal.tier}, scor ${data.activeSignal.score}.`
       : dex?.candles?.length
-        ? `Graficul DEX este disponibil, dar Money Line necesită minimum 210 lumânări închise. Sunt disponibile ${data.candles.filter(c => c.isClosed).length} pentru ${timeframe.toUpperCase()}; nu afișăm un semnal incomplet.`
+        ? `Graficul DEX este disponibil, dar Money Line necesită minimum ${minCandles} lumânări închise. Sunt disponibile ${data.candles.filter(c => c.isClosed).length} pentru ${timeframe.toUpperCase()}; nu afișăm un semnal incomplet.`
         : 'Money Line indisponibil: nu avem lumânări OHLCV verificate. Nu calculăm semnale sau flipuri din simple puncte de preț.'}</p></div>
     <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-cyan-300">Deschide {info.name} pe {quote.source}<ExternalLink className="h-4 w-4" /></a>
   </section>;

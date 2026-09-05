@@ -159,3 +159,16 @@ test('Money Line stays absent below the closed-candle threshold', async () => {
   assert.equal(called, false);
   assert.equal(result.activeSignal, null);
 });
+
+test('Money Line calculates on 1w timeframe with 15+ verified closed candles (e.g. Akedo)', async () => {
+  const profiles = new CryptoMarketProfiles(async input => response(String(input).includes('market_chart') ? { prices: [] } : [row()]));
+  const candles = Array.from({ length: 27 }, (_, index) => ({ timestamp: index * 604_800_000, open: 1, high: 2, low: 0.5, close: 1.5, volume: 10, isClosed: index < 26 }));
+  let received = 0;
+  const result = await aggregatedCryptoDetail('AKE', '1w', { coinGeckoId: 'akedo' }, profiles, {
+    load: async () => ({ candles, chainId: 'bsc', dexId: 'pancakeswap', dexUrl: 'https://dexscreener.com/bsc/pool', pairAddress: 'pool', contractAddress: 'token', quoteSymbol: 'WBNB', priceUsd: 0.019, priceChange: {}, volume: {}, liquidityUsd: 2_000_000, fdvUsd: 1, marketCapUsd: 1, transactions24h: null, pairCreatedAt: null, candleSource: 'GeckoTerminal' } as any)
+  }, (_symbol, _timeframe, closed) => { received = closed.length; return { tier: 'Bullish', score: 25.6 } as any; });
+  assert.equal(received, 26);
+  assert.equal(result.activeSignal?.tier, 'Bullish');
+  assert.equal(result.activeSignal?.score, 25.6);
+  assert.equal(result.dataAvailability, 'dex-fallback');
+});

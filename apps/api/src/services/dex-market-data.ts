@@ -99,12 +99,16 @@ export function aggregateDexCandles(candles: Candle[], timeframe: Timeframe, now
 
 export function selectExactMostLiquidPair(rows: unknown, profile: CryptoMarketProfile, contractAddress: string): any | null {
   if (!Array.isArray(rows)) return null;
-  const exact = rows.filter((pair: any) =>
-    sameAddress(pair?.baseToken?.address, contractAddress)
-    && String(pair?.baseToken?.symbol || '').toUpperCase() === profile.symbol
-    && String(pair?.baseToken?.name || '').trim().toLowerCase() === profile.name.trim().toLowerCase()
-    && safeSegment(pair?.chainId) && safeSegment(pair?.pairAddress) && typeof pair?.url === 'string' && /^https:\/\/dexscreener\.com\//.test(pair.url)
-  );
+  const exact = rows.filter((pair: any) => {
+    const baseName = String(pair?.baseToken?.name || '').trim().toLowerCase();
+    const profileName = profile.name.trim().toLowerCase();
+    const profileSymbol = profile.symbol.trim().toLowerCase();
+    const nameMatches = baseName === profileName || baseName === profileSymbol;
+    return sameAddress(pair?.baseToken?.address, contractAddress)
+      && String(pair?.baseToken?.symbol || '').toUpperCase() === profile.symbol
+      && nameMatches
+      && safeSegment(pair?.chainId) && safeSegment(pair?.pairAddress) && typeof pair?.url === 'string' && /^https:\/\/dexscreener\.com\//.test(pair.url);
+  });
   return exact.sort((left: any, right: any) =>
     (positive(right?.liquidity?.usd) || 0) - (positive(left?.liquidity?.usd) || 0)
     || (positive(right?.volume?.h24) || 0) - (positive(left?.volume?.h24) || 0)

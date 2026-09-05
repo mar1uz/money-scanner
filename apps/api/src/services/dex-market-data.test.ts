@@ -26,6 +26,21 @@ test('selects only the exact base token and chooses highest real USD liquidity',
   assert.equal(selected.pairAddress, '0xrich');
 });
 
+test('accepts on-chain base token when contract name matches profile symbol (e.g. Akedo $AKE)', () => {
+  const akedoProfile: CryptoMarketProfile = {
+    id: 'akedo', provider: 'coingecko', symbol: 'AKE', name: 'Akedo', price: 0.019, change24h: 41,
+    marketCap: 435_000_000, rank: 117, high24h: 0.021, low24h: 0.012, volume24h: 123_000_000, timestamp: Date.now()
+  };
+  const akedoAddress = '0x2c3a8ee94ddd97244a93bc48298f97d2c412f7db';
+  const akedoPair = pair({
+    pairAddress: '0xpancake',
+    baseToken: { address: akedoAddress, symbol: 'AKE', name: 'AKE' },
+    liquidity: { usd: 2_300_000 }
+  });
+  const selected = selectExactMostLiquidPair([akedoPair], akedoProfile, akedoAddress);
+  assert.equal(selected?.pairAddress, '0xpancake');
+});
+
 test('rejects unsafe DEX URLs and malformed pair identifiers', () => {
   assert.equal(selectExactMostLiquidPair([pair({ url: 'https://evil.example/pool' })], profile, address), null);
   assert.equal(selectExactMostLiquidPair([pair({ pairAddress: '../pool' })], profile, address), null);
