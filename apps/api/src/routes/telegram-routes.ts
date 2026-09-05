@@ -20,30 +20,54 @@ export const parseTelegramScanArgs = (args: string[]): {
   mode: 'signals' | 'flips';
   timeframe: Timeframe;
   marketClass: 'ALL' | 'crypto' | 'stocks' | 'metals';
+  direction: 'ALL' | 'BULLISH' | 'BEARISH';
 } | undefined => {
   let mode: 'signals' | 'flips' = 'signals';
   let timeframe: Timeframe | undefined;
   let marketClass: 'ALL' | 'crypto' | 'stocks' | 'metals' | undefined;
+  let direction: 'ALL' | 'BULLISH' | 'BEARISH' | undefined;
   for (const rawValue of args) {
     let value = rawValue.trim().toLowerCase();
     if (value === 'weekly' || value === 'week') value = '1w';
     if (value === 'daily' || value === 'day') value = '1d';
     if (value === 'flip') value = 'flips';
+    if (value === 'bull') value = 'bullish';
+    if (value === 'bear') value = 'bearish';
     if (value === 'flips') {
       mode = 'flips';
     } else if (telegramScanTimeframes.has(value as Timeframe) && !timeframe) {
       timeframe = value as Timeframe;
     } else if ((value === 'crypto' || value === 'stocks' || value === 'metals' || value === 'all') && !marketClass) {
       marketClass = value === 'all' ? 'ALL' : value;
+    } else if ((value === 'bullish' || value === 'bearish') && !direction) {
+      direction = value === 'bullish' ? 'BULLISH' : 'BEARISH';
     } else {
       return undefined;
     }
   }
+  if (mode === 'signals' && direction && direction !== 'ALL') return undefined;
   return {
     mode,
     timeframe: timeframe || (mode === 'flips' ? '1w' : '1h'),
-    marketClass: marketClass || (mode === 'flips' ? 'ALL' : 'crypto')
+    marketClass: marketClass || (mode === 'flips' ? 'ALL' : 'crypto'),
+    direction: direction || 'ALL'
   };
+};
+
+/** Preseturi 1W pentru meniul autocomplete Telegram (/flips*). */
+export const FLIP_SCAN_PRESETS: Record<string, {
+  marketClass: 'ALL' | 'crypto' | 'stocks';
+  direction: 'ALL' | 'BULLISH' | 'BEARISH';
+}> = {
+  flips: { marketClass: 'ALL', direction: 'ALL' },
+  flips_crypto: { marketClass: 'crypto', direction: 'ALL' },
+  flips_stocks: { marketClass: 'stocks', direction: 'ALL' },
+  flips_bull: { marketClass: 'ALL', direction: 'BULLISH' },
+  flips_bear: { marketClass: 'ALL', direction: 'BEARISH' },
+  flips_crypto_bull: { marketClass: 'crypto', direction: 'BULLISH' },
+  flips_crypto_bear: { marketClass: 'crypto', direction: 'BEARISH' },
+  flips_stocks_bull: { marketClass: 'stocks', direction: 'BULLISH' },
+  flips_stocks_bear: { marketClass: 'stocks', direction: 'BEARISH' }
 };
 
 telegramRouter.post('/telegram/webhook', async (req, res) => {
@@ -106,7 +130,8 @@ telegramRouter.post('/telegram/webhook', async (req, res) => {
   }
   appState.telegramBot.registerChat(commandPayload.chatId);
 
-  if (commandPayload.command === 'scan') {
+  const flipPreset = FLIP_SCAN_PRESETS[commandPayload.command];
+  if (commandPayload.command === 'scan' || flipPreset) {
     if (!appState.telegramBot.isOwnerUser(commandPayload.userId)) {
       const delivered = await appState.telegramBot.sendMarkdown(
         '🔒 Doar proprietarul botului poate porni scanări live.',
@@ -114,22 +139,28 @@ telegramRouter.post('/telegram/webhook', async (req, res) => {
       );
       return res.json({ status: 'owner_required', delivered });
     }
-    const options = parseTelegramScanArgs(commandPayload.args);
+    const options = flipPreset
+      ? { mode: 'flips' as const, timeframe: '1w' as const, marketClass: flipPreset.marketClass, direction: flipPreset.direction }
+      : parseTelegramScanArgs(commandPayload.args);
     if (!options || (options.mode === 'flips' && options.timeframe === '1h')) {
       const delivered = await appState.telegramBot.sendMarkdown(
-        '⚠️ Format invalid. Exemple: `/scan 4h`, `/scan 1d crypto`, `/scan 1w stocks`, `/scan flips 1w`, `/scan flips 4h metals`.',
+        '⚠️ Format invalid. Exemple: `/scan 4h`, `/scan 1d crypto`, `/scan 1w stocks`, `/scan flips 1w`, `/scan flips 1w crypto bullish`, `/scan flips 1w stocks bearish` — sau preseturi: `/flips`, `/flips_crypto`, `/flips_stocks`, `/flips_crypto_bull`, `/flips_stocks_bear`.',
         commandPayload.chatId
       );
       return res.json({ status: 'invalid_scan_options', delivered });
     }
+    const directionLabel = options.mode === 'flips' && options.direction !== 'ALL' ? ` · ${options.direction}` : '';
 
     await appState.telegramBot.sendMarkdown(
-      `⏳ Pornesc scanarea live: *${options.mode === 'flips' ? 'FLIPURI' : 'SEMNALE'} · ${options.timeframe.toUpperCase()} · ${options.marketClass === 'ALL' ? 'TOATE PIEȚELE' : options.marketClass.toUpperCase()}*.`,
+      `⏳ Pornesc scanarea live: *${options.mode === 'flips' ? 'FLIPURI' : 'SEMNALE'} · ${options.timeframe.toUpperCase()} · ${options.marketClass === 'ALL' ? 'TOATE PIEȚELE' : options.marketClass.toUpperCase()}${directionLabel}*.`,
       commandPayload.chatId
     );
     try {
       const result = await appState.scanTelegramMoneyLine(options.mode, options.timeframe, options.marketClass);
-      const response = appState.telegramBot.buildLiveScanResponse(result);
+      const flips = options.mode === 'flips' && options.direction !== 'ALL'
+        ? result.flips.filter(flip => flip.direction === options.direction)
+        : result.flips;
+      const response = appState.telegramBot.buildLiveScanResponse({ ...result, flips, direction: options.direction });
       const delivered = await appState.telegramBot.sendMarkdown(response.text, commandPayload.chatId);
       return res.json({
         status: 'scan_complete',
@@ -138,10 +169,11 @@ telegramRouter.post('/telegram/webhook', async (req, res) => {
           mode: result.mode,
           timeframe: result.timeframe,
           marketClass: result.marketClass,
+          direction: options.direction,
           scannedAssets: result.scannedAssets,
           totalAssets: result.totalAssets,
           errors: result.errors,
-          matches: result.mode === 'flips' ? result.flips.length : result.signals.length
+          matches: result.mode === 'flips' ? flips.length : result.signals.length
         }
       });
     } catch (error) {

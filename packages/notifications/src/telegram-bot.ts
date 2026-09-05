@@ -37,6 +37,7 @@ export interface TelegramLiveScanInput {
   mode: 'signals' | 'flips';
   timeframe: Timeframe;
   marketClass: ScannerMarketClass;
+  direction?: 'ALL' | 'BULLISH' | 'BEARISH';
   scannedAssets: number;
   totalAssets: number;
   errors: number;
@@ -223,7 +224,9 @@ export class TelegramBotHandler {
     const args = parts.slice(1);
 
     const validCommands: TelegramCommandPayload['command'][] = [
-      'start', 'scan', 'status', 'trending', 'news', 'watch', 'unwatch', 'alerts', 'flipalerts', 'subscribe', 'unsubscribe', 'brief', 'help'
+      'start', 'scan', 'status', 'trending', 'news', 'watch', 'unwatch', 'alerts', 'flipalerts', 'subscribe', 'unsubscribe', 'brief', 'help',
+      'flips', 'flips_crypto', 'flips_stocks', 'flips_bull', 'flips_bear',
+      'flips_crypto_bull', 'flips_crypto_bear', 'flips_stocks_bull', 'flips_stocks_bear'
     ];
 
     if (!validCommands.includes(commandRaw as any)) {
@@ -299,6 +302,7 @@ export class TelegramBotHandler {
 
   public buildLiveScanResponse(input: TelegramLiveScanInput): TelegramMarkdownResponse {
     const scope = input.marketClass === 'ALL' ? 'TOATE PIEȚELE' : input.marketClass.toUpperCase();
+    const directionScope = input.direction && input.direction !== 'ALL' ? ` · ${input.direction}` : '';
     const footer = [
       ``,
       `_Scanate ${input.scannedAssets}/${input.totalAssets} asseturi${input.errors ? ` · ${input.errors} indisponibile` : ''}._`,
@@ -308,7 +312,7 @@ export class TelegramBotHandler {
     if (input.mode === 'flips') {
       const lines = [
         `🔄 *FLIPURI MONEYLINE CONFIRMATE · ${input.timeframe.toUpperCase()}*`,
-        `_${scope} · scanare live_`,
+        `_${scope}${directionScope} · scanare live_`,
         ``
       ];
       if (!input.flips.length) {
@@ -384,6 +388,9 @@ export class TelegramBotHandler {
             `*Available Commands:*`,
             `• \`/scan 4h\` — Scanează live semnalele pe timeframe-ul ales`,
             `• \`/scan flips 1w\` — Caută flipuri confirmate în toate piețele`,
+            `• \`/scan flips 1w crypto bullish\` — Flipuri doar bullish (sau bearish)`,
+            `• \`/flips\`, \`/flips_crypto\`, \`/flips_stocks\` — Preseturi flip 1W`,
+            `• \`/flips_crypto_bull\`, \`/flips_stocks_bear\` … — Preseturi pe direcție`,
             `• \`/status <symbol>\` — Deep status on a specific asset (e.g. \`/status BTC\`)`,
             `• \`/trending\` — View top rising crypto topics & cashtags on X`,
             `• \`/news <symbol>\` — Recent breaking news and catalyst analysis`,

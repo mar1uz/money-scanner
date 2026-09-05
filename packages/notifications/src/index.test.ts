@@ -137,6 +137,21 @@ describe('Telegram Bot & Alert Dispatcher', () => {
     assert.equal(bot.parseCallbackQuery({ callback_query: { data: 'other:1w' } }), null);
   });
 
+  it('parses flip preset commands for the Telegram autocomplete menu', () => {
+    const bot = new TelegramBotHandler({ webhookSecret: 'test-secret-123' });
+    for (const command of ['flips', 'flips_crypto', 'flips_stocks', 'flips_bull', 'flips_bear',
+      'flips_crypto_bull', 'flips_crypto_bear', 'flips_stocks_bull', 'flips_stocks_bear']) {
+      const parsed = bot.parseUpdate({
+        message: { message_id: 44, from: { id: 12345 }, chat: { id: 67890 }, text: `/${command}` }
+      });
+      assert.ok(parsed !== null, `/${command} should parse`);
+      assert.equal(parsed.command, command);
+    }
+    assert.equal(bot.parseUpdate({
+      message: { message_id: 45, from: { id: 12345 }, chat: { id: 67890 }, text: '/flips_unknown' }
+    }), null);
+  });
+
   it('renders the saved Weekly-only flip alert selection', () => {
     const bot = new TelegramBotHandler();
     const response = bot.buildFlipAlertSettingsResponse({
@@ -226,5 +241,17 @@ describe('Telegram Bot & Alert Dispatcher', () => {
     assert.ok(flips.text.includes('$NVDA'));
     assert.ok(flips.text.includes('(NVIDIA Corp)'));
     assert.ok(flips.text.includes('STOCKS'));
+
+    const bullOnly = bot.buildLiveScanResponse({
+      mode: 'flips', timeframe: '1w', marketClass: 'crypto', direction: 'BULLISH',
+      scannedAssets: 3, totalAssets: 3, errors: 0, signals: [],
+      flips: [{
+        symbol: 'BTC', name: 'Bitcoin', timeframe: '1w', marketClass: 'crypto', direction: 'BULLISH',
+        currentPrice: 100, confirmationPrice: 99,
+        confirmedAt: Date.now() - 86_400_000, priorityScore: 90, rvol: 1.2
+      }]
+    });
+    assert.ok(bullOnly.text.includes('· BULLISH ·'));
+    assert.ok(bullOnly.text.includes('(Bitcoin)'));
   });
 });

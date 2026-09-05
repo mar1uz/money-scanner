@@ -159,7 +159,10 @@ export interface AlertTradePlanSnapshot {
 }
 
 export interface TelegramCommandPayload {
-  command: 'start' | 'scan' | 'status' | 'trending' | 'news' | 'watch' | 'unwatch' | 'alerts' | 'flipalerts' | 'subscribe' | 'unsubscribe' | 'brief' | 'help';
+  command: 'start' | 'scan' | 'status' | 'trending' | 'news' | 'watch' | 'unwatch' | 'alerts' | 'flipalerts' | 'subscribe' | 'unsubscribe' | 'brief' | 'help'
+    | 'flips' | 'flips_crypto' | 'flips_stocks'
+    | 'flips_bull' | 'flips_bear'
+    | 'flips_crypto_bull' | 'flips_crypto_bear' | 'flips_stocks_bull' | 'flips_stocks_bear';
   args: string[];
   chatId: number;
   userId: number;
