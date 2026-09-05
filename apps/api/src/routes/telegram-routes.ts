@@ -162,6 +162,15 @@ telegramRouter.post('/telegram/webhook', async (req, res) => {
         : result.flips;
       const response = appState.telegramBot.buildLiveScanResponse({ ...result, flips, direction: options.direction });
       const delivered = await appState.telegramBot.sendMarkdown(response.text, commandPayload.chatId);
+      // Full list instead of truncating at 10: compact follow-up messages.
+      let overflowSent = 0;
+      if (options.mode === 'flips') {
+        const overflow = appState.telegramBot.buildLiveScanFlipOverflow({ ...result, flips, direction: options.direction });
+        for (const chunk of overflow) {
+          if (await appState.telegramBot.sendMarkdown(chunk, commandPayload.chatId)) overflowSent += 1;
+          else break;
+        }
+      }
       return res.json({
         status: 'scan_complete',
         delivered,
@@ -173,7 +182,8 @@ telegramRouter.post('/telegram/webhook', async (req, res) => {
           scannedAssets: result.scannedAssets,
           totalAssets: result.totalAssets,
           errors: result.errors,
-          matches: result.mode === 'flips' ? flips.length : result.signals.length
+          matches: result.mode === 'flips' ? flips.length : result.signals.length,
+          messages: 1 + overflowSent
         }
       });
     } catch (error) {

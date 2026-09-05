@@ -254,4 +254,54 @@ describe('Telegram Bot & Alert Dispatcher', () => {
     assert.ok(bullOnly.text.includes('· BULLISH ·'));
     assert.ok(bullOnly.text.includes('(Bitcoin)'));
   });
+
+  it('chunks flip overflow into compact follow-up messages covering the full list', () => {
+    const bot = new TelegramBotHandler({ dashboardBaseUrl: 'https://scanner.example' });
+    const makeFlips = (count: number) => Array.from({ length: count }, (_, index) => ({
+      symbol: `A${index}`,
+      name: `Asset ${index}`,
+      timeframe: '1w' as const,
+      marketClass: 'crypto' as const,
+      direction: (index % 2 === 0 ? 'BULLISH' : 'BEARISH') as 'BULLISH' | 'BEARISH',
+      currentPrice: 100,
+      priorityScore: 90,
+      rvol: 1.1,
+      confirmedAt: Date.now() - 86_400_000
+    }));
+    const input = (flips: ReturnType<typeof makeFlips>) => ({
+      mode: 'flips' as const,
+      timeframe: '1w' as const,
+      marketClass: 'ALL' as const,
+      scannedAssets: flips.length,
+      totalAssets: flips.length,
+      errors: 0,
+      signals: [] as never[],
+      flips
+    });
+
+    const main = bot.buildLiveScanResponse(input(makeFlips(25)));
+    assert.ok(main.text.includes('…și încă 15 flipuri mai jos'));
+
+    const chunks = bot.buildLiveScanFlipOverflow(input(makeFlips(25)));
+    assert.equal(chunks.length, 1);
+    assert.ok(chunks[0].startsWith('*Continuare 11–25 din 25:*'));
+    assert.ok(chunks[0].includes('$A10]('));
+    assert.ok(chunks[0].includes('(Asset 10)'));
+    assert.ok(chunks[0].includes('$A24]('));
+    assert.ok(!chunks[0].includes('$A0]('));
+    assert.ok(chunks[0].length <= 4096);
+
+    const many = bot.buildLiveScanFlipOverflow(input(makeFlips(60)));
+    assert.ok(many.length >= 2);
+    assert.ok(many[0].startsWith('*Continuare 11–'));
+    assert.ok(/Continuare \d+–60 din 60:\*/.test(many[many.length - 1]));
+    const joined = many.join('\n');
+    assert.ok(joined.includes('$A10]('));
+    assert.ok(joined.includes('$A59]('));
+    assert.ok(!joined.includes('$A0]('));
+    for (const chunk of many) assert.ok(chunk.length <= 4096);
+
+    assert.deepEqual(bot.buildLiveScanFlipOverflow(input(makeFlips(10))), []);
+    assert.deepEqual(bot.buildLiveScanFlipOverflow({ ...input(makeFlips(25)), mode: 'signals' }), []);
+  });
 });

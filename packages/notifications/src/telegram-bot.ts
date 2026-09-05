@@ -331,7 +331,7 @@ export class TelegramBotHandler {
           `${flip.confirmedAt ? `*Confirmat:* ${telegramFlipAge(flip.confirmedAt)} · ${telegramFlipDate(flip.confirmedAt)} · ` : ''}Scor tehnic ${flip.priorityScore.toFixed(0)}/100 · RVOL ${flip.rvol.toFixed(2)}x`
           );
         });
-        if (input.flips.length > 10) lines.push(`…și încă ${input.flips.length - 10} flipuri confirmate.`);
+        if (input.flips.length > 10) lines.push(`…și încă ${input.flips.length - 10} flipuri mai jos (format compact).`);
       }
       return { text: [...lines, ...footer].join('\n'), parse_mode: 'Markdown' };
     }
@@ -362,6 +362,48 @@ export class TelegramBotHandler {
       ...(bears.length ? bears.map(row => signalLine(row, '🔴')) : ['Niciun semnal sub −20.'])
     ];
     return { text: [...lines, ...footer].join('\n'), parse_mode: 'Markdown' };
+  }
+
+  /**
+   * Compact one-liner chunks for flips beyond the first 10 detailed ones,
+   * so a live scan can deliver the FULL list across several messages instead
+   * of truncating at "…și încă N". Chunks are split by character budget
+   * (~3500, Telegram hard limit is 4096) because link URLs vary in length.
+   * Returns [] when <= 10 flips.
+   */
+  public buildLiveScanFlipOverflow(
+    input: TelegramLiveScanInput,
+    detailedCount = 10,
+    maxChars = 3500
+  ): string[] {
+    if (input.mode !== 'flips' || input.flips.length <= detailedCount) return [];
+    const chunks: string[] = [];
+    let lines: string[] = [];
+    let used = 0;
+    let from = detailedCount + 1;
+    const flush = (to: number) => {
+      chunks.push([`*Continuare ${from}–${to} din ${input.flips.length}:*`, ``, ...lines].join('\n'));
+    };
+    input.flips.slice(detailedCount).forEach((flip, index) => {
+      const age = flip.confirmedAt ? ` · ${telegramFlipAge(flip.confirmedAt)}` : '';
+      const line = `${flip.direction === 'BULLISH' ? '🟢 ▲' : '🔴 ▼'} ${telegramAssetLink({
+        baseUrl: this.dashboardBaseUrl,
+        symbol: flip.symbol,
+        timeframe: flip.timeframe,
+        marketClass: flip.marketClass
+      })}${telegramAssetLabel(flip.symbol, flip.name, flip.marketClass)} · ${flip.direction === 'BULLISH' ? 'BULL' : 'BEAR'} · ${flip.priorityScore.toFixed(0)}/100${age}`;
+      // 80 chars reserved for the chunk header + newlines.
+      if (lines.length > 0 && used + 1 + line.length > maxChars - 80) {
+        flush(detailedCount + index);
+        from = detailedCount + index + 1;
+        lines = [];
+        used = 0;
+      }
+      lines.push(line);
+      used += line.length + 1;
+    });
+    if (lines.length > 0) flush(input.flips.length);
+    return chunks;
   }
 
   /**
