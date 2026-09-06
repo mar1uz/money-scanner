@@ -18,36 +18,44 @@ export type RadarSecurityInput = Pick<
   name?: string;
 };
 
-export function getRadarSecurityStatus(row: RadarSecurityInput): RadarSecurityStatus {
+function isValidPercentage(val: unknown): val is number {
+  return typeof val === 'number' && Number.isFinite(val) && val >= 0 && val <= 100;
+}
+
+export function getRadarSecurityStatus(row?: RadarSecurityInput | null): RadarSecurityStatus {
+  const r = row ?? ({} as RadarSecurityInput);
+
+  const hasHighRugScore =
+    typeof r.rugScore === 'number' && Number.isFinite(r.rugScore) && r.rugScore > 500;
+
   const isDanger = Boolean(
-    row.isHoneypot ||
-    row.insidersDetected ||
-    row.isBundled ||
-    (row.rugScore !== null && row.rugScore !== undefined && row.rugScore > 500)
+    r.isHoneypot ||
+    r.insidersDetected ||
+    r.isBundled ||
+    hasHighRugScore
   );
 
   if (isDanger) {
     const dangerReasons: string[] = [];
-    if (row.isHoneypot) dangerReasons.push('Contract Honeypot detectat');
-    if (row.insidersDetected && row.isBundled) dangerReasons.push('Lansare bundled și insideri');
-    else if (row.insidersDetected) dangerReasons.push('Rețele / clustere de insideri detectate');
-    else if (row.isBundled) dangerReasons.push('Lansare bundled suspectă');
-    if (row.rugScore !== null && row.rugScore !== undefined && row.rugScore > 500) {
-      dangerReasons.push(`Scor risc audit ridicat (${row.rugScore})`);
+    if (r.isHoneypot) dangerReasons.push('Contract Honeypot detectat');
+    if (r.insidersDetected && r.isBundled) dangerReasons.push('Lansare bundled și insideri');
+    else if (r.insidersDetected) dangerReasons.push('Rețele / clustere de insideri detectate');
+    else if (r.isBundled) dangerReasons.push('Lansare bundled suspectă');
+    if (hasHighRugScore) {
+      dangerReasons.push(`Scor risc audit ridicat (${r.rugScore})`);
     }
 
-    const badgeLabel = row.isHoneypot
+    const badgeLabel = r.isHoneypot
       ? '🚨 Honeypot'
-      : (row.insidersDetected || row.isBundled)
+      : (r.insidersDetected || r.isBundled)
       ? '🚨 Bundled/Insiders'
-      : row.rugScore !== null && row.rugScore !== undefined && row.rugScore > 500
-      ? `🚨 Risc: ${row.rugScore}`
+      : hasHighRugScore
+      ? `🚨 Risc: ${r.rugScore}`
       : '🚨 Risc securitate';
 
-    const holderText =
-      row.top10HoldersPct !== null && row.top10HoldersPct !== undefined
-        ? ` · Top 10 holderi: ${row.top10HoldersPct.toFixed(0)}%`
-        : '';
+    const holderText = isValidPercentage(r.top10HoldersPct)
+      ? ` · Top 10 holderi: ${r.top10HoldersPct.toFixed(0)}%`
+      : '';
 
     const reasonSummary = dangerReasons.length ? dangerReasons.join(', ') : 'Risc critic identificat';
     const title = `Pericol: ${reasonSummary}${holderText}`;
@@ -58,13 +66,13 @@ export function getRadarSecurityStatus(row: RadarSecurityInput): RadarSecuritySt
       badgeColorClass: 'bg-rose-500/20 text-rose-400 border border-rose-500/30',
       badgeLabel,
       title,
-      ariaLabel: row.name ? `Securitate ${row.name}: ${title}` : title,
+      ariaLabel: r.name ? `Securitate ${r.name}: ${title}` : title,
     };
   }
 
-  if (row.top10HoldersPct !== null && row.top10HoldersPct !== undefined) {
-    if (row.top10HoldersPct > 50) {
-      const pctStr = `${row.top10HoldersPct.toFixed(0)}%`;
+  if (isValidPercentage(r.top10HoldersPct)) {
+    const pctStr = `${r.top10HoldersPct.toFixed(0)}%`;
+    if (r.top10HoldersPct > 50) {
       const title = `Atenție: Top 10 holderi dețin ${pctStr} din cantitate (concentrare ridicată)`;
       return {
         level: 'warning',
@@ -72,11 +80,10 @@ export function getRadarSecurityStatus(row: RadarSecurityInput): RadarSecuritySt
         badgeColorClass: 'bg-amber-400/15 text-amber-300 border border-amber-400/30',
         badgeLabel: `⚠️ Top 10: ${pctStr}`,
         title,
-        ariaLabel: row.name ? `Securitate ${row.name}: ${title}` : title,
+        ariaLabel: r.name ? `Securitate ${r.name}: ${title}` : title,
       };
     }
 
-    const pctStr = `${row.top10HoldersPct.toFixed(0)}%`;
     const title = `Curat: Top 10 holderi dețin ${pctStr} din cantitate (securitate verificată)`;
     return {
       level: 'clean',
@@ -84,7 +91,7 @@ export function getRadarSecurityStatus(row: RadarSecurityInput): RadarSecuritySt
       badgeColorClass: 'bg-emerald-400/15 text-emerald-300 border border-emerald-400/30',
       badgeLabel: `🛡️ Top 10: ${pctStr}`,
       title,
-      ariaLabel: row.name ? `Securitate ${row.name}: ${title}` : title,
+      ariaLabel: r.name ? `Securitate ${r.name}: ${title}` : title,
     };
   }
 
@@ -95,6 +102,6 @@ export function getRadarSecurityStatus(row: RadarSecurityInput): RadarSecuritySt
     badgeColorClass: 'text-slate-500 text-xs',
     badgeLabel: '—',
     title,
-    ariaLabel: row.name ? `Securitate ${row.name}: ${title}` : title,
+    ariaLabel: r.name ? `Securitate ${r.name}: ${title}` : title,
   };
 }

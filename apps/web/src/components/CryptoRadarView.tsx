@@ -26,6 +26,7 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
   const [chain, setChain] = useState('all');
   const [section, setSection] = useState<'main' | 'microcaps'>('main');
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [activeSecurityTooltip, setActiveSecurityTooltip] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -55,6 +56,7 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
   const select = async (value: string) => {
     setSelection(value);
     setExpanded(null);
+    setActiveSecurityTooltip(null);
     if (value === 'latest') {
       setSnapshot(data?.latest || data?.collection || null);
       return;
@@ -134,6 +136,7 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
 
   const changeSort = (key: RadarSortKey) => {
     setExpanded(null);
+    setActiveSecurityTooltip(null);
     setSort(current => (current.key === key ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: 'asc' }));
   };
 
@@ -356,7 +359,7 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
         <div className="inline-flex rounded-xl p-1 bg-white/[.04] border border-white/10">
           <button
             type="button"
-            onClick={() => { setSection('main'); setExpanded(null); }}
+            onClick={() => { setSection('main'); setExpanded(null); setActiveSecurityTooltip(null); }}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${section === 'main' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow' : 'text-slate-400 hover:text-slate-200'}`}
           >
             🌟 Radar Principal (Cap ≥ $500k)
@@ -364,7 +367,7 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
           </button>
           <button
             type="button"
-            onClick={() => { setSection('microcaps'); setExpanded(null); }}
+            onClick={() => { setSection('microcaps'); setExpanded(null); setActiveSecurityTooltip(null); }}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${section === 'microcaps' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow' : 'text-slate-400 hover:text-slate-200'}`}
           >
             🔬 Microcaps Utilitare ($200k – $500k)
@@ -451,11 +454,15 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
                         </td>
                         <td className="px-3 py-3">
                           <div className="flex items-center gap-1.5">
-                            <span
-                              role="status"
+                            <button
+                              type="button"
                               aria-label={sec.ariaLabel}
                               title={sec.title}
-                              className={`w-2.5 h-2.5 rounded-full shrink-0 ring-2 ${sec.dotColorClass} inline-block cursor-help`}
+                              onClick={e => {
+                                e.stopPropagation();
+                                setActiveSecurityTooltip(current => (current === r.id ? null : r.id));
+                              }}
+                              className={`w-2.5 h-2.5 rounded-full shrink-0 ring-2 ${sec.dotColorClass} inline-block cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400`}
                             />
                             <a
                               href={radarTokenChartUrl(r)}
@@ -468,6 +475,31 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
                               {r.name} ↗
                             </a>
                           </div>
+                          {activeSecurityTooltip === r.id && (
+                            <div
+                              role="tooltip"
+                              onClick={e => e.stopPropagation()}
+                              className="mt-1.5 p-2 rounded-lg bg-slate-900/95 border border-white/15 shadow-xl max-w-xs whitespace-normal space-y-1 animate-fade-in"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] ${sec.level === 'danger' ? 'font-semibold' : 'font-medium'} ${sec.badgeColorClass}`}>
+                                  {sec.badgeLabel}
+                                </span>
+                                <button
+                                  type="button"
+                                  aria-label="Închide detaliu securitate"
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    setActiveSecurityTooltip(null);
+                                  }}
+                                  className="text-slate-400 hover:text-white text-xs px-1"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                              <p className="text-slate-200 text-xs leading-snug">{sec.title}</p>
+                            </div>
+                          )}
                         <span className="block text-xs text-slate-500 mt-1">
                           {r.symbol} · {r.chain} ·{' '}
                           <button

@@ -135,4 +135,31 @@ test('unknown / in progress: missing top10HoldersPct yields slate circle and das
   assert.equal(unAuditedUndefined.level, 'unknown');
   assert.match(unAuditedUndefined.dotColorClass, /bg-slate-500/);
   assert.equal(unAuditedUndefined.badgeLabel, '—');
+
+  // Robustness against null / undefined arguments
+  assert.equal(getRadarSecurityStatus(null).level, 'unknown');
+  assert.equal(getRadarSecurityStatus(undefined).level, 'unknown');
+
+  // Robustness against NaN, negative, Infinity, or > 100 corrupted percentages
+  assert.equal(getRadarSecurityStatus({ top10HoldersPct: NaN }).level, 'unknown');
+  assert.equal(getRadarSecurityStatus({ top10HoldersPct: -10 }).level, 'unknown');
+  assert.equal(getRadarSecurityStatus({ top10HoldersPct: Infinity }).level, 'unknown');
+  assert.equal(getRadarSecurityStatus({ top10HoldersPct: 150 }).level, 'unknown');
+});
+
+test('rugScore boundary: 500 is safe if other metrics clean, 501 triggers danger', () => {
+  const at500 = getRadarSecurityStatus({
+    top10HoldersPct: 30,
+    rugScore: 500,
+  });
+  assert.equal(at500.level, 'clean');
+  assert.match(at500.dotColorClass, /bg-emerald-400/);
+
+  const at501 = getRadarSecurityStatus({
+    top10HoldersPct: 30,
+    rugScore: 501,
+  });
+  assert.equal(at501.level, 'danger');
+  assert.match(at501.dotColorClass, /bg-rose-500/);
+  assert.equal(at501.badgeLabel, '🚨 Risc: 501');
 });
