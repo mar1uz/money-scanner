@@ -3268,7 +3268,7 @@ Implemented, verified, and deployed on 06 September 2026.
    - Full monorepo build succeeded.
 
 4. **Cloud Run Deployment**:
-   - Deployed via Cloud Build to Cloud Run revision `market-scanner-360-00172-2sq`.
+   - Deployed via Cloud Build to Cloud Run revision `market-scanner-360-00172-tml`.
    - Health check: HTTP 200 OK.
    - Live page verified: HTTP 200 OK.
 
@@ -3278,8 +3278,8 @@ Verification and deployment evidence:
 Source commit/image tag: a754806
 Local tests: 177 passed, 0 failed (100% test pass rate)
 Local build: passed (packages/*, apps/api, apps/worker, apps/web)
-Cloud Build: 50630718-4775-4720-a7d5-d01c7d2c3df4 (SUCCESS)
-Cloud Run revision: market-scanner-360-00172-2sq
+Cloud Build: d148352f-e63f-4ba0-b1c5-8ec78963cdf8 (SUCCESS)
+Cloud Run revision: market-scanner-360-00172-tml
 Traffic: 100%
 Revision conditions: Ready=True, ConfigurationsReady=True, RoutesReady=True
 Public bundle: assets/index-BFpxis4n.js, assets/index-D4bgzdec.css
