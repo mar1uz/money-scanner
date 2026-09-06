@@ -87,7 +87,27 @@ export function rankTokens(tokens: RadarToken[], posts: RadarPost[], trending: S
         social.confluenceBonus = confluenceBonus;
 
         const baseScore = Math.round(marketScore * .7 + (social.score || 0) * .3);
-        const totalScore = clamp(baseScore + confluenceBonus);
+
+        // Wallet safety & insider penalties
+        let safetyPenalty = 0;
+        if (t.top10HoldersPct !== null && t.top10HoldersPct !== undefined && t.top10HoldersPct > 50) {
+            const concentrationPenalty = Math.round(Math.min(25, (t.top10HoldersPct - 50) * 0.8));
+            safetyPenalty += concentrationPenalty;
+        }
+        if (t.insidersDetected || t.isBundled) {
+            safetyPenalty += 25;
+        }
+        if (t.isHoneypot) {
+            safetyPenalty += 50;
+        }
+        if ((t.sellTax !== null && t.sellTax !== undefined && t.sellTax > 10) || (t.buyTax !== null && t.buyTax !== undefined && t.buyTax > 10)) {
+            safetyPenalty += 15;
+        }
+        if (t.rugScore !== null && t.rugScore !== undefined && t.rugScore > 1000) {
+            safetyPenalty += 15;
+        }
+
+        const totalScore = clamp(baseScore + confluenceBonus - safetyPenalty);
 
         const reasons: string[] = [`Volum și lichiditate: pool principal`];
         if (confluenceBonus >= 4) {
@@ -99,6 +119,26 @@ export function rankTokens(tokens: RadarToken[], posts: RadarPost[], trending: S
         if (social.telegramCalls && social.telegramCalls > 0) {
             reasons.push(`📢 Alertat în ${social.telegramCalls} canal(e) Telegram alpha`);
         }
+        // Safety reason tags
+        if (t.top10HoldersPct !== null && t.top10HoldersPct !== undefined && t.top10HoldersPct > 50) {
+            reasons.push(`⚠️ Concentrare ridicată: top 10 holderi dețin ${t.top10HoldersPct.toFixed(1)}%`);
+        }
+        if (t.insidersDetected || t.isBundled) {
+            reasons.push(`🚨 Risc lansare bundled / insideri`);
+        }
+        if (t.isHoneypot) {
+            reasons.push(`🚨 Honeypot detectat: vânzarea este restricționată`);
+        }
+        if ((t.sellTax !== null && t.sellTax !== undefined && t.sellTax > 10) || (t.buyTax !== null && t.buyTax !== undefined && t.buyTax > 10)) {
+            reasons.push(`⚠️ Taxe ridicate la tranzacționare (Buy: ${t.buyTax || 0}%, Sell: ${t.sellTax || 0}%)`);
+        }
+        if (t.rugScore !== null && t.rugScore !== undefined && t.rugScore > 1000) {
+            reasons.push(`⚠️ Scor de risc RugCheck ridicat (${t.rugScore})`);
+        }
+        if (t.top10HoldersPct !== null && t.top10HoldersPct !== undefined && t.top10HoldersPct <= 50 && !t.insidersDetected && !t.isBundled && !t.isHoneypot) {
+            reasons.push(`🛡️ Verificare portofele: top 10 holderi ${t.top10HoldersPct.toFixed(1)}%, fără clustere de insideri`);
+        }
+
         reasons.push(social.score === null ? 'Surse sociale indisponibile' : `${social.authors} autori / ${social.channels} canale / ${social.mentions} mențiuni asociate${t.boostAmount ? ` / ${t.boostAmount} boosturi` : ''}`);
         reasons.push('Scor euristic; nu este un semnal de cumpărare');
         if (t.liquidity !== null && t.liquidity < 50000)
@@ -106,5 +146,99 @@ export function rankTokens(tokens: RadarToken[], posts: RadarPost[], trending: S
         if (t.volume24h && t.liquidity && t.volume24h / t.liquidity > 50)
             reasons.push('Rulaj/lichiditate ridicat — verificați volum artificial');
         return { ...t, rank: 0, rankChange: null, score: totalScore, marketScore, firstReportedAt: first?.firstReportedAt ?? null, firstPrice: first?.firstPrice ?? null, changeFirst: percent(t.price, first?.firstPrice), previousPrice: prev?.price ?? null, changePrevious: percent(t.price, prev?.price), social, reasons };
+    }).sort((a, b) => b.score - a.score || (b.volume24h || 0) - (a.volume24h || 0) || a.id.localeCompare(b.id)).map((r, i) => ({ ...r, rank: i + 1, rankChange: before.has(r.id) ? before.get(r.id)!.rank - i - 1 : null }));
+}
+
+/**
+ * Discovers and ranks promising microcap utility projects in the $200,000 - $500,000 market cap range.
+ * Scores fee generation, active utility, buybacks, and community hype while strictly penalizing bundled/insider risks.
+ */
+export function rankMicrocaps(tokens: RadarToken[], posts: RadarPost[], trending: Set<string>, socialAvailable: boolean, previous: RadarSnapshot | null, baselines: RadarBaseline[]): RadarRow[] {
+    const before = new Map((previous?.microcaps || []).map(r => [r.id, r])), baseline = new Map(baselines.map(b => [b.id, b]));
+    return tokens.filter(t => t.marketCap !== null && t.marketCap >= 200000 && t.marketCap < 500000 && t.price > 0).map(t => {
+        const social = socialEvidence(t, tokens, posts, trending, socialAvailable);
+        const prev = before.get(t.id), first = baseline.get(t.id);
+        social.changeMentions = prev && social.score !== null && prev.social.score !== null ? social.mentions - prev.social.mentions : null;
+
+        const turnover = t.volume24h && t.marketCap && t.marketCap > 0 ? t.volume24h / t.marketCap : 0;
+        const volumeScore = Math.min(25, Math.log10(1 + (t.volume24h || 0) / 500) * 8);
+        const turnoverBonus = Math.min(15, turnover * 10);
+        const liquidityScore = Math.min(20, Math.log10(1 + (t.liquidity || 0) / 1000) * 8);
+        const marketScore = Math.round(volumeScore + turnoverBonus + liquidityScore);
+
+        const utilityBonus = (t.utilityTags && t.utilityTags.length > 0 ? 15 : 0) + (t.hasBuyback ? 10 : 0);
+        const socialScore = Math.round((social.score || 0) * 0.25);
+        const boostScore = t.boostAmount ? Math.min(15, Math.round(Math.log10(1 + t.boostAmount) * 5)) : 0;
+
+        let safetyPenalty = 0;
+        if (t.top10HoldersPct !== null && t.top10HoldersPct !== undefined && t.top10HoldersPct > 50) {
+            safetyPenalty += Math.round(Math.min(30, (t.top10HoldersPct - 50) * 0.9));
+        }
+        if (t.insidersDetected || t.isBundled) {
+            safetyPenalty += 25;
+        }
+        if (t.isHoneypot) {
+            safetyPenalty += 50;
+        }
+        if ((t.sellTax !== null && t.sellTax !== undefined && t.sellTax > 10) || (t.buyTax !== null && t.buyTax !== undefined && t.buyTax > 10)) {
+            safetyPenalty += 20;
+        }
+        if (t.rugScore !== null && t.rugScore !== undefined && t.rugScore > 1000) {
+            safetyPenalty += 20;
+        }
+
+        const totalScore = clamp(marketScore + utilityBonus + socialScore + boostScore - safetyPenalty);
+
+        const fees = t.estimatedFees24h || Math.round((t.volume24h || 0) * 0.003);
+        const reasons: string[] = [
+            `💸 Generare comisioane: ~$${fees.toLocaleString()}/24h (rulaj ${(turnover * 100).toFixed(0)}% din cap)`
+        ];
+        if (t.utilityTags && t.utilityTags.length > 0) {
+            reasons.push(`⚙️ Utilitate activă: ${t.utilityTags.join(' · ')}`);
+        }
+        if (t.hasBuyback) {
+            reasons.push(`🔥 Mecanism buyback / deflație detectat`);
+        }
+        if (t.holderReward) {
+            reasons.push(`🎁 Beneficiu holderi: ${t.holderReward}`);
+        }
+        if (t.boostAmount && t.boostAmount > 0) {
+            reasons.push(`⚡ Promovat de comunitate: ${t.boostAmount} boosturi DEX Screener`);
+        }
+        if (social.telegramCalls && social.telegramCalls > 0) {
+            reasons.push(`📢 Alertat în ${social.telegramCalls} canal(e) Telegram alpha`);
+        }
+
+        // Wallet safety reason tags
+        if (t.top10HoldersPct !== null && t.top10HoldersPct !== undefined && t.top10HoldersPct > 50) {
+            reasons.push(`⚠️ Concentrare ridicată: top 10 holderi dețin ${t.top10HoldersPct.toFixed(1)}%`);
+        }
+        if (t.insidersDetected || t.isBundled) {
+            reasons.push(`🚨 Risc lansare bundled / insideri`);
+        }
+        if (t.isHoneypot) {
+            reasons.push(`🚨 Honeypot detectat: vânzarea este blocată sau restricționată`);
+        }
+        if (t.top10HoldersPct !== null && t.top10HoldersPct !== undefined && t.top10HoldersPct <= 50 && !t.insidersDetected && !t.isBundled && !t.isHoneypot) {
+            reasons.push(`🛡️ Verificare securitate: top 10 holderi ${t.top10HoldersPct.toFixed(1)}%, fără lansare bundled`);
+        }
+
+        reasons.push('Microcap utilitar ($200k-$500k) — profil de risc asimetric');
+
+        return {
+            ...t,
+            isMicrocap: true,
+            rank: 0,
+            rankChange: null,
+            score: totalScore,
+            marketScore,
+            firstReportedAt: first?.firstReportedAt ?? null,
+            firstPrice: first?.firstPrice ?? null,
+            changeFirst: percent(t.price, first?.firstPrice),
+            previousPrice: prev?.price ?? null,
+            changePrevious: percent(t.price, prev?.price),
+            social,
+            reasons
+        };
     }).sort((a, b) => b.score - a.score || (b.volume24h || 0) - (a.volume24h || 0) || a.id.localeCompare(b.id)).map((r, i) => ({ ...r, rank: i + 1, rankChange: before.has(r.id) ? before.get(r.id)!.rank - i - 1 : null }));
 }

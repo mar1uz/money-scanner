@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { RadarToken, RadarPost, RadarSnapshot } from '@money-scanner/shared';
-import { tokenId, rankTokens, socialEvidence, dedupePosts } from './radar/scoring.js';
-import { parseGeckoPools, parseDexPairs, parseDexBoosts } from './radar/market.js';
+import { tokenId, rankTokens, rankMicrocaps, socialEvidence, dedupePosts } from './radar/scoring.js';
+import { parseGeckoPools, parseDexPairs, parseDexBoosts, detectUtilitySignals } from './radar/market.js';
 import { parseTelegram, parseRss } from './radar/social.js';
 import { reportSlot, reportText, REPORT_INTERVAL } from './radar/service.js';
 const now = Date.now();
@@ -101,4 +101,72 @@ test('on-chain liquidity & volume correlated with community hype award confluenc
     assert.ok(ranked[0].reasons.some(r => r.includes('Confluență ridicată')));
     assert.ok(ranked[0].reasons.some(r => r.includes('boosturi DEX Screener')));
 });
+test('high holder concentration (>50%) penalizes score and appends explicit warning tag', () => {
+    const normalToken = token({ id: 'base:0xnormal', address: '0xnormal', top10HoldersPct: 28.5 });
+    const concentratedToken = token({ id: 'base:0xwhale', address: '0xwhale', top10HoldersPct: 78.4 });
+    const ranked = rankTokens([normalToken, concentratedToken], [], new Set(), true, null, []);
+    const normalRow = ranked.find(r => r.id === normalToken.id)!;
+    const whaleRow = ranked.find(r => r.id === concentratedToken.id)!;
+    assert.ok(normalRow.score > whaleRow.score);
+    assert.ok(whaleRow.reasons.some(r => r.includes('Concentrare ridicată: top 10 holderi dețin 78.4%')));
+    assert.ok(normalRow.reasons.some(r => r.includes('Verificare portofele')));
+});
+test('bundled launch / insider network detection penalizes score and appends alert tag', () => {
+    const cleanToken = token({ id: 'solana:clean111', chain: 'solana', address: 'clean111', insidersDetected: false, isBundled: false });
+    const bundledToken = token({ id: 'solana:bundle111', chain: 'solana', address: 'bundle111', insidersDetected: true, isBundled: true });
+    const ranked = rankTokens([cleanToken, bundledToken], [], new Set(), true, null, []);
+    const cleanRow = ranked.find(r => r.id === cleanToken.id)!;
+    const bundledRow = ranked.find(r => r.id === bundledToken.id)!;
+    assert.ok(cleanRow.score > bundledRow.score);
+    assert.ok(bundledRow.reasons.some(r => r.includes('Risc lansare bundled / insideri')));
+});
+test('honeypot detection applies heavy penalty and explicit warning', () => {
+    const honeypot = token({ id: 'base:0xtrap', address: '0xtrap', isHoneypot: true });
+    const ranked = rankTokens([honeypot], [], new Set(), true, null, []);
+    assert.equal(ranked.length, 1);
+    assert.ok(ranked[0].score <= 25);
+    assert.ok(ranked[0].reasons.some(r => r.includes('Honeypot detectat')));
+});
+test('detectUtilitySignals extracts bot, buyback, revshare and computes fee estimates', () => {
+    const botToken = token({ name: 'Sniper Bot Terminal', symbol: 'BOT', volume24h: 200000, marketCap: 300000 });
+    const botSignals = detectUtilitySignals(botToken, 'Advanced trading bot terminal with revenue sharing');
+    assert.ok(botSignals.utilityTags.includes('⚙️ Bot / Tool'));
+    assert.ok(botSignals.utilityTags.includes('💰 Fee Share / RevShare'));
+    assert.ok(botSignals.utilityTags.includes('📈 Rulaj ridicat (Comisioane)'));
+    assert.equal(botSignals.estimatedFees24h, 600); // 200,000 * 0.003
+    assert.ok(botSignals.holderReward !== null);
 
+    const buybackToken = token({ name: 'HyperBurn Protocol', symbol: 'BURN', volume24h: 50000, marketCap: 250000 });
+    const buybackSignals = detectUtilitySignals(buybackToken, 'Automatic buyback and burn from trading volume');
+    assert.ok(buybackSignals.utilityTags.includes('🔥 Buyback / Burn'));
+    assert.equal(buybackSignals.hasBuyback, true);
+    assert.ok(buybackSignals.holderReward?.includes('Buyback'));
+});
+test('rankMicrocaps filters $200k-$500k range, ranks by fees & utility, and applies safety checks', () => {
+    const microUtility = token({
+        id: 'solana:micro1', chain: 'solana', address: 'micro1', name: 'Alpha Bot', symbol: 'ABOT',
+        price: 0.35, marketCap: 350000, liquidity: 40000, volume24h: 120000,
+        utilityTags: ['⚙️ Bot / Tool'], estimatedFees24h: 360, hasBuyback: true,
+        top10HoldersPct: 32.0, insidersDetected: false, isBundled: false
+    });
+    const microRisky = token({
+        id: 'solana:micro2', chain: 'solana', address: 'micro2', name: 'Risky Bot', symbol: 'RBOT',
+        price: 0.35, marketCap: 350000, liquidity: 40000, volume24h: 120000,
+        utilityTags: ['⚙️ Bot / Tool'], estimatedFees24h: 360,
+        top10HoldersPct: 85.0, insidersDetected: true, isBundled: true
+    });
+    const tooSmall = token({ id: 'base:small', address: 'small', marketCap: 150000, price: 1 });
+    const tooBig = token({ id: 'base:big', address: 'big', marketCap: 600000, price: 1 });
+
+    const microcaps = rankMicrocaps([microUtility, microRisky, tooSmall, tooBig], [], new Set(), true, null, []);
+    assert.equal(microcaps.length, 2);
+    assert.equal(microcaps[0].id, microUtility.id);
+    assert.equal(microcaps[1].id, microRisky.id);
+    assert.ok(microcaps[0].score > microcaps[1].score);
+    assert.equal(microcaps[0].isMicrocap, true);
+    assert.ok(microcaps[0].reasons.some(r => r.includes('Generare comisioane')));
+    assert.ok(microcaps[0].reasons.some(r => r.includes('Utilitate activă')));
+    assert.ok(microcaps[0].reasons.some(r => r.includes('Mecanism buyback')));
+    assert.ok(microcaps[1].reasons.some(r => r.includes('Concentrare ridicată')));
+    assert.ok(microcaps[1].reasons.some(r => r.includes('Risc lansare bundled / insideri')));
+});

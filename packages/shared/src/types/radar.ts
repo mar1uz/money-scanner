@@ -29,6 +29,19 @@ export interface RadarToken {
     coinGeckoId: string | null;
     telegram: string | null;
     boostAmount?: number | null;
+    top10HoldersPct?: number | null;
+    isBundled?: boolean | null;
+    insidersDetected?: boolean | null;
+    rugScore?: number | null;
+    isHoneypot?: boolean | null;
+    buyTax?: number | null;
+    sellTax?: number | null;
+    securityRisks?: string[];
+    isMicrocap?: boolean;
+    utilityTags?: string[];
+    estimatedFees24h?: number | null;
+    hasBuyback?: boolean | null;
+    holderReward?: string | null;
 }
 export interface RadarPost {
     id: string;
@@ -86,8 +99,9 @@ export interface RadarSnapshot {
     id: string;
     generatedAt: number;
     methodology: 'radar-v1';
-    minMarketCap: 500000;
+    minMarketCap: number;
     rows: RadarRow[];
+    microcaps?: RadarRow[];
     exits: RadarExit[];
     sources: RadarSourceStatus[];
     discovered: number;

@@ -54,22 +54,106 @@ export function parseDexBoosts(body: any): DexBoost[] {
         }];
     });
 }
+export interface DexProfile {
+    chainId: RadarChain;
+    tokenAddress: string;
+    description?: string;
+    telegram: string | null;
+}
+export function parseDexProfiles(body: any): DexProfile[] {
+    if (!Array.isArray(body)) return [];
+    return body.flatMap((b: any) => {
+        const chainId = String(b.chainId || '').toLowerCase();
+        if (!CHAINS.includes(chainId as RadarChain) || !b.tokenAddress) return [];
+        const telegram = (b.links || []).find((s: any) =>
+            (s.type === 'telegram' || /t\.me\//i.test(s.url || '')) &&
+            /^https:\/\/t\.me\/[A-Za-z0-9_]{5,32}\/?$/i.test(s.url || '')
+        )?.url || null;
+        return [{
+            chainId: chainId as RadarChain,
+            tokenAddress: String(b.tokenAddress),
+            description: typeof b.description === 'string' ? b.description.slice(0, 300) : undefined,
+            telegram
+        }];
+    });
+}
+export function detectUtilitySignals(t: RadarToken, description = ''): {
+    utilityTags: string[];
+    estimatedFees24h: number | null;
+    hasBuyback: boolean;
+    holderReward: string | null;
+} {
+    const text = `${t.name} ${t.symbol} ${description}`.toLowerCase();
+    const tags: string[] = [];
+
+    if (/\b(bot|scanner|sniper|tool|terminal|suite)\b/i.test(text)) {
+        tags.push('⚙️ Bot / Tool');
+    }
+    if (/\b(buyback|buy-back|burn|deflation|buybacks)\b/i.test(text)) {
+        tags.push('🔥 Buyback / Burn');
+    }
+    if (/\b(fee|revenue|revshare|yield|dividend|rewards?|cashflow)\b/i.test(text)) {
+        tags.push('💰 Fee Share / RevShare');
+    }
+    if (/\b(ai|agent|neural|intelligence|intel)\b/i.test(text)) {
+        tags.push('🤖 AI / Agent');
+    }
+    if (/\b(swap|dex|amm|router|pool)\b/i.test(text)) {
+        tags.push('🔄 DEX / Swap');
+    }
+
+    const turnover = t.volume24h && t.marketCap && t.marketCap > 0 ? t.volume24h / t.marketCap : 0;
+    if (turnover >= 0.4) {
+        tags.push('📈 Rulaj ridicat (Comisioane)');
+    }
+
+    const estimatedFees24h = t.volume24h ? Math.round(t.volume24h * 0.003) : null;
+    const hasBuyback = /\b(buyback|buy-back|burn|deflation)\b/i.test(text);
+
+    let holderReward: string | null = null;
+    if (hasBuyback) {
+        holderReward = 'Buyback & ardere din comisioane de tranzacționare';
+    } else if (/\b(revshare|revenue|fee|yield)\b/i.test(text)) {
+        holderReward = 'Distribuție comisioane protocol / RevShare';
+    } else if (estimatedFees24h && estimatedFees24h > 100) {
+        holderReward = `Comisioane pool estimate: ~$${estimatedFees24h.toLocaleString()}/24h`;
+    }
+
+    return { utilityTags: tags, estimatedFees24h, hasBuyback, holderReward };
+}
 export async function collectMarket(tracked: RadarToken[]): Promise<{
     tokens: RadarToken[];
     sources: RadarSourceStatus[];
 }> {
     const candidates = new Map<string, RadarToken>(), sources: RadarSourceStatus[] = [];
-    const merge = (row: RadarToken) => {
+    const descriptionsByTokenId = new Map<string, string>();
+    const merge = (row: RadarToken, desc = '') => {
         const old = candidates.get(row.id);
+        const resolvedDesc = desc || descriptionsByTokenId.get(row.id) || '';
+        const signals = detectUtilitySignals(row, resolvedDesc);
+        row.utilityTags = signals.utilityTags;
+        row.estimatedFees24h = signals.estimatedFees24h;
+        row.hasBuyback = signals.hasBuyback;
+        row.holderReward = signals.holderReward;
         if (!old) {
             candidates.set(row.id, row);
             return;
         }
         const winner = (row.liquidity || 0) > (old.liquidity || 0) ? row : old;
         const boostAmount = Math.max(old.boostAmount || 0, row.boostAmount || 0) || null;
-        candidates.set(row.id, { ...winner, coinGeckoId: old.coinGeckoId || row.coinGeckoId, telegram: old.telegram || row.telegram,
+        const mergedUtilityTags = [...new Set([...(old.utilityTags || []), ...(row.utilityTags || [])])];
+        candidates.set(row.id, {
+            ...winner,
+            coinGeckoId: old.coinGeckoId || row.coinGeckoId,
+            telegram: old.telegram || row.telegram,
             boostAmount,
-            marketCap: old.marketCap && old.marketCap > 0 ? old.marketCap : row.marketCap, marketCapSource: old.marketCap && old.marketCap > 0 ? old.marketCapSource : row.marketCapSource });
+            marketCap: old.marketCap && old.marketCap > 0 ? old.marketCap : row.marketCap,
+            marketCapSource: old.marketCap && old.marketCap > 0 ? old.marketCapSource : row.marketCapSource,
+            utilityTags: mergedUtilityTags,
+            estimatedFees24h: winner.estimatedFees24h || old.estimatedFees24h || row.estimatedFees24h,
+            hasBuyback: winner.hasBuyback || old.hasBuyback || row.hasBuyback,
+            holderReward: winner.holderReward || old.holderReward || row.holderReward
+        });
     };
     const boostsByTokenId = new Map<string, DexBoost>();
     try {
@@ -106,6 +190,59 @@ export async function collectMarket(tracked: RadarToken[]): Promise<{
             detail: (e as Error).message
         });
     }
+
+    // Free token profiles with rich project descriptions
+    const profilesByTokenId = new Map<string, DexProfile>();
+    try {
+        const profilesRes = await fetchJson('https://api.dexscreener.com/token-profiles/latest/v1').catch(() => []);
+        const profiles = parseDexProfiles(profilesRes);
+        for (const p of profiles) {
+            const id = tokenId(p.chainId, p.tokenAddress);
+            profilesByTokenId.set(id, p);
+            if (p.description) descriptionsByTokenId.set(id, p.description);
+        }
+        sources.push({
+            id: 'dex:token-profiles',
+            kind: 'attention',
+            status: profilesByTokenId.size > 0 ? 'ok' : 'partial',
+            items: profilesByTokenId.size,
+            checkedAt: Date.now(),
+            detail: 'Profile DEX Screener cu descrieri utilitare și legături comunitare (zero cost)'
+        });
+    } catch (e) {
+        sources.push({
+            id: 'dex:token-profiles',
+            kind: 'attention',
+            status: 'unavailable',
+            items: 0,
+            checkedAt: Date.now(),
+            detail: (e as Error).message
+        });
+    }
+
+    // Discover active microcap utility candidates ($200k-$500k) via search
+    const utilityDiscoveredAddressesByChain = new Map<RadarChain, string[]>();
+    try {
+        const [botSearch, feeSearch] = await Promise.all([
+            fetchJson('https://api.dexscreener.com/latest/dex/search?q=bot').catch(() => ({ pairs: [] })),
+            fetchJson('https://api.dexscreener.com/latest/dex/search?q=fee').catch(() => ({ pairs: [] }))
+        ]);
+        const searchPairs = [...(botSearch.pairs || []), ...(feeSearch.pairs || [])];
+        for (const p of searchPairs) {
+            const chain = String(p.chainId || '').toLowerCase() as RadarChain;
+            if (CHAINS.includes(chain) && p.baseToken?.address && p.marketCap >= 180000 && p.marketCap <= 550000) {
+                const list = utilityDiscoveredAddressesByChain.get(chain) || [];
+                list.push(p.baseToken.address);
+                utilityDiscoveredAddressesByChain.set(chain, list);
+                if (p.info?.description) {
+                    descriptionsByTokenId.set(tokenId(chain, p.baseToken.address), String(p.info.description));
+                }
+            }
+        }
+    } catch {
+        // Non-critical auxiliary discovery
+    }
+
     for (const chain of CHAINS) {
         for (const path of ['trending_pools', 'new_pools']) {
             const id = `gecko:${chain}:${path}`;
@@ -120,6 +257,10 @@ export async function collectMarket(tracked: RadarToken[]): Promise<{
                         r.boostAmount = boost.totalAmount;
                         if (!r.telegram && boost.telegram) r.telegram = boost.telegram;
                     }
+                    const profile = profilesByTokenId.get(r.id);
+                    if (profile && !r.telegram && profile.telegram) {
+                        r.telegram = profile.telegram;
+                    }
                     merge(r);
                 });
                 sources.push({ id, kind: 'market', status: 'ok', items: rows.length, checkedAt: Date.now(), detail: 'Prima pagină; eșantion de pooluri, nu întreaga rețea' });
@@ -130,16 +271,22 @@ export async function collectMarket(tracked: RadarToken[]): Promise<{
             await new Promise(r => setTimeout(r, 2200));
         }
     }
-    // Explicit chain addresses, not ticker search. Refresh retained tokens and query community-boosted tokens.
+    // Explicit chain addresses, not ticker search. Refresh retained tokens, community-boosted tokens, and microcap utilities.
     for (const chain of CHAINS) {
         const boostedAddresses = Array.from(boostsByTokenId.values())
             .filter(b => b.chainId === chain)
             .map(b => b.tokenAddress);
+        const profileAddresses = Array.from(profilesByTokenId.values())
+            .filter(b => b.chainId === chain)
+            .map(b => b.tokenAddress);
+        const utilityAddresses = utilityDiscoveredAddressesByChain.get(chain) || [];
         const addresses = [...new Set([
             ...[...candidates.values()].filter(t => t.chain === chain).map(t => t.address),
             ...tracked.filter(t => t.chain === chain).map(t => t.address),
-            ...boostedAddresses
-        ])].slice(0, 150);
+            ...boostedAddresses,
+            ...profileAddresses,
+            ...utilityAddresses
+        ])].slice(0, 160);
         let count = 0, failures = 0;
         for (let i = 0; i < addresses.length; i += 30) {
             const chunk = addresses.slice(i, i + 30);
@@ -153,6 +300,10 @@ export async function collectMarket(tracked: RadarToken[]): Promise<{
                     if (boost) {
                         r.boostAmount = boost.totalAmount;
                         if (!r.telegram && boost.telegram) r.telegram = boost.telegram;
+                    }
+                    const profile = profilesByTokenId.get(r.id);
+                    if (profile && !r.telegram && profile.telegram) {
+                        r.telegram = profile.telegram;
                     }
                     merge(r);
                 });

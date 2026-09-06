@@ -11,13 +11,16 @@ export type RadarSortKey =
   | 'marketCap'
   | 'volume24h'
   | 'liquidity'
-  | 'score';
+  | 'score'
+  | 'top10HoldersPct'
+  | 'estimatedFees24h';
 
 export type RadarSortDirection = 'asc' | 'desc';
 
 const value = (row: RadarRow, key: RadarSortKey): string | number | null => {
   if (key === 'name') return `${row.name}\u0000${row.chain}`.toLocaleLowerCase('ro');
-  return row[key];
+  const val = row[key];
+  return (val !== undefined && val !== null) ? val : null;
 };
 
 export function sortRadarRows(rows: RadarRow[], key: RadarSortKey, direction: RadarSortDirection): RadarRow[] {

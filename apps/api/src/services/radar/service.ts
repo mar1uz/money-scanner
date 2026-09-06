@@ -2,7 +2,8 @@ import type { RadarSnapshot, RadarToken } from '@money-scanner/shared';
 import { radarTokenChartUrl } from '@money-scanner/shared';
 import { collectMarket } from './market.js';
 import { collectSocial } from './social.js';
-import { dedupePosts, rankTokens } from './scoring.js';
+import { dedupePosts, rankTokens, rankMicrocaps } from './scoring.js';
+import { enrichTokensWithSecurity } from './security.js';
 import { RadarStore } from './store.js';
 export const REPORT_INTERVAL = 12 * 60 * 60000;
 export const reportSlot = (now = Date.now()) => String(Math.floor(now / REPORT_INTERVAL) * REPORT_INTERVAL);
@@ -26,15 +27,22 @@ export async function runRadar(publish = false): Promise<RadarSnapshot> {
                 throw new Error('All market sources unavailable or empty; previous data preserved');
             const social = await collectSocial(market.tokens);
             const posts = dedupePosts([...social.posts, ...await store.posts()], now);
-            const candidates = market.tokens;
+
+            // Zero-cost wallet safety & insider protection audits (RugCheck + GoPlus)
+            const eligibleForAudit = market.tokens.filter(t => (t.marketCap !== null && t.marketCap >= 180000) || (t.boostAmount !== null && t.boostAmount !== undefined && t.boostAmount > 0));
+            const security = await enrichTokensWithSecurity(eligibleForAudit);
+            const securityMap = new Map(security.tokens.map(t => [t.id, t]));
+            const candidates = market.tokens.map(t => securityMap.get(t.id) || t);
+
             const baseline = await store.baselines(candidates.map(t => t.id));
-            const sources = [...market.sources, ...social.sources];
+            const sources = [...market.sources, ...social.sources, ...security.sources];
             const rows = rankTokens(candidates, posts.filter(p => p.timestamp >= now - REPORT_INTERVAL), social.trending, social.sources.some(s => s.kind === 'social' && s.status === 'ok'), previous, baseline).slice(0, 200);
+            const microcaps = rankMicrocaps(candidates, posts.filter(p => p.timestamp >= now - REPORT_INTERVAL), social.trending, social.sources.some(s => s.kind === 'social' && s.status === 'ok'), previous, baseline).slice(0, 100);
             const ids = new Set(rows.map(r => r.id)), byId = new Map(candidates.map(t => [t.id, t]));
-            collection = { id: String(Math.floor(now / (30 * 60000)) * 30 * 60000), kind: 'collection', generatedAt: now, methodology: 'radar-v1', minMarketCap: 500000, rows,
+            collection = { id: String(Math.floor(now / (30 * 60000)) * 30 * 60000), kind: 'collection', generatedAt: now, methodology: 'radar-v1', minMarketCap: 500000, rows, microcaps,
                 exits: (previous?.rows || []).filter(r => !ids.has(r.id)).map(r => ({ id: r.id, name: r.name, symbol: r.symbol, chain: r.chain, address: r.address, previousRank: r.rank, reason: byId.get(r.id)?.marketCap !== null && byId.get(r.id)?.marketCap !== undefined && byId.get(r.id)!.marketCap! < 500000 ? 'below_threshold' : 'unavailable_or_outside_sample' })),
-                sources, discovered: candidates.length, excluded: { belowCap: candidates.filter(t => t.marketCap !== null && t.marketCap < 500000).length, unknownCap: candidates.filter(t => t.marketCap === null).length }, previousReportAt: previous?.generatedAt || null,
-                coverage: 'Eșantion trending/new pools + tokenuri boostate comunitar + tokenuri urmărite. Valori din poolul principal; capitalizare raportată de furnizor, fără substituire FDV. Canale publice Telegram de alerte/alpha și boosturi DEX Screener. Scor euristic corelat on-chain + hype comunitar.' };
+                sources, discovered: candidates.length, excluded: { belowCap: candidates.filter(t => t.marketCap !== null && t.marketCap < 200000).length, unknownCap: candidates.filter(t => t.marketCap === null).length }, previousReportAt: previous?.generatedAt || null,
+                coverage: 'Eșantion trending/new pools + tokenuri boostate comunitar + tokenuri urmărite + microcaps utilitare ($200k-$500k). Valori din poolul principal; capitalizare raportată de furnizor, fără substituire FDV. Verificări securitate portofele & insideri prin RugCheck (Solana) și GoPlus (Base/Robinhood). Canale publice Telegram de alerte/alpha și boosturi DEX Screener.' };
             await store.saveCollection(collection, posts, lease);
         }
         if (!collection)
@@ -42,12 +50,20 @@ export async function runRadar(publish = false): Promise<RadarSnapshot> {
         if (!publish)
             return collection;
         // Comparisons must use the previous published report, not an intervening collection.
-        const baseline = await store.baselines(collection.rows.map(t => t.id));
+        const allRowIds = [...collection.rows, ...(collection.microcaps || [])].map(t => t.id);
+        const baseline = await store.baselines(allRowIds);
         const before = new Map(previous?.rows.map(r => [r.id, r]) || []), first = new Map(baseline.map(b => [b.id, b]));
-        const report: RadarSnapshot = { ...collection, id: slot, kind: 'report', generatedAt: Date.now(), previousReportAt: previous?.generatedAt || null, rows: collection.rows.map(r => {
+        const beforeMicro = new Map((previous?.microcaps || []).map(r => [r.id, r]));
+        const report: RadarSnapshot = { ...collection, id: slot, kind: 'report', generatedAt: Date.now(), previousReportAt: previous?.generatedAt || null,
+            rows: collection.rows.map(r => {
                 const old = before.get(r.id), b = first.get(r.id);
                 return { ...r, previousPrice: old?.price ?? null, changePrevious: old ? (r.price / old.price - 1) * 100 : null, rankChange: old ? old.rank - r.rank : null, firstPrice: b?.firstPrice ?? null, firstReportedAt: b?.firstReportedAt ?? null, changeFirst: b ? (r.price / b.firstPrice - 1) * 100 : null };
-            }) };
+            }),
+            microcaps: (collection.microcaps || []).map(r => {
+                const old = beforeMicro.get(r.id), b = first.get(r.id);
+                return { ...r, previousPrice: old?.price ?? null, changePrevious: old ? (r.price / old.price - 1) * 100 : null, rankChange: old ? old.rank - r.rank : null, firstPrice: b?.firstPrice ?? null, firstReportedAt: b?.firstReportedAt ?? null, changeFirst: b ? (r.price / b.firstPrice - 1) * 100 : null };
+            })
+        };
         const saved = await store.saveReport(report, lease);
         await deliverReport(store, saved);
         return saved;
@@ -66,6 +82,14 @@ export function reportText(report: RadarSnapshot, format: 'plain' | 'html' = 'pl
         const name = format === 'html' ? `<a href="${escapeHtml(radarTokenChartUrl(row))}">${safe(row.name)} (${safe(row.symbol)})</a>` : `${row.name} (${row.symbol})`;
         const boostTag = row.boostAmount ? ` · ⚡ ${row.boostAmount}` : '';
         lines.push(`${row.rank}. ${name} · ${safe(row.chain)}`, `$${money(row.price)} · cap $${money(row.marketCap!)} · scor ${row.score}${boostTag}`, `De la primul raport: ${row.changeFirst === null ? '—' : row.changeFirst.toFixed(2) + '%'} · precedent: ${row.changePrevious === null ? 'NOU' : row.changePrevious.toFixed(2) + '%'} · loc: ${row.rankChange === null ? 'NOU' : row.rankChange > 0 ? '↑' + row.rankChange : row.rankChange < 0 ? '↓' + Math.abs(row.rankChange) : '='}`, `Contract: ${safe(row.address)}`, '');
+    }
+    if (report.microcaps && report.microcaps.length > 0) {
+        lines.push(`🔬 Microcaps Utilitare ($200k–$500k): ${report.microcaps.length} proiecte cu generare comisioane/buybacks:`);
+        for (const m of report.microcaps.slice(0, 3)) {
+            const name = format === 'html' ? `<a href="${escapeHtml(radarTokenChartUrl(m))}">${safe(m.name)} (${safe(m.symbol)})</a>` : `${m.name} (${m.symbol})`;
+            lines.push(`• ${name} · cap $${money(m.marketCap!)} · comisioane est. ~$${(m.estimatedFees24h || 0).toLocaleString()}/24h · scor ${m.score}`);
+        }
+        lines.push('');
     }
     lines.push(`Istoric complet și surse: ${safe((process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app').replace(/\/$/, '') + '/?tab=crypto_radar')}`, `${report.exits.length} monede ieșite din clasament; păstrate în istoric.`);
     return lines.join('\n');

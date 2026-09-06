@@ -31,3 +31,15 @@ test('missing values remain at the end in either direction and ties retain repor
   assert.deepEqual(sortRadarRows(rows, 'priceChange24h', 'asc').map(item => item.rank), [1, 2, 3]);
   assert.deepEqual(sortRadarRows(rows, 'priceChange24h', 'desc').map(item => item.rank), [1, 2, 3]);
 });
+
+test('supports sorting by top10HoldersPct and estimatedFees24h with null handling', () => {
+  const rows = [
+    row(1, { top10HoldersPct: 60, estimatedFees24h: 1000 }),
+    row(2, { top10HoldersPct: 20, estimatedFees24h: 5000 }),
+    row(3, { top10HoldersPct: null, estimatedFees24h: null })
+  ];
+  assert.deepEqual(sortRadarRows(rows, 'top10HoldersPct', 'asc').map(item => item.rank), [2, 1, 3]);
+  assert.deepEqual(sortRadarRows(rows, 'top10HoldersPct', 'desc').map(item => item.rank), [1, 2, 3]);
+  assert.deepEqual(sortRadarRows(rows, 'estimatedFees24h', 'asc').map(item => item.rank), [1, 2, 3]);
+  assert.deepEqual(sortRadarRows(rows, 'estimatedFees24h', 'desc').map(item => item.rank), [2, 1, 3]);
+});

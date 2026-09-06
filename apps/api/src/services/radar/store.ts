@@ -37,7 +37,7 @@ export class RadarStore {
             if (existing.exists)
                 return existing.data() as RadarSnapshot;
             const normalized = clean(snapshot) as RadarSnapshot;
-            for (const row of normalized.rows) {
+            for (const row of [...normalized.rows, ...(normalized.microcaps || [])]) {
                 if (row.firstPrice === null) {
                     row.firstPrice = row.price;
                     row.firstReportedAt = normalized.generatedAt;
