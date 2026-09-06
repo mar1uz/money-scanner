@@ -18,11 +18,11 @@ interface Payload {
   telegramConfigured: boolean;
 }
 
-const usd = (n: number | null) => (n === null ? '—' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumSignificantDigits: 6 }).format(n));
-const compact = (n: number | null) => (n === null ? '—' : new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(n));
-const date = (n: number | null) => (n ? new Date(n).toLocaleString('ro-RO') : '—');
-const change = (n: number | null) => (n === null ? '—' : `${n > 0 ? '+' : ''}${n.toFixed(2)}%`);
-const color = (n: number | null) => (n === null ? 'text-slate-500' : n >= 0 ? 'text-emerald-400' : 'text-rose-400');
+const usd = (n: number | null | undefined) => (n == null || !Number.isFinite(n) ? '—' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumSignificantDigits: 6 }).format(n));
+const compact = (n: number | null | undefined) => (n == null || !Number.isFinite(n) ? '—' : new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(n));
+const date = (n: number | null | undefined) => (n ? new Date(n).toLocaleString('ro-RO') : '—');
+const change = (n: number | null | undefined) => (n == null || !Number.isFinite(n) ? '—' : `${n > 0 ? '+' : ''}${n.toFixed(2)}%`);
+const color = (n: number | null | undefined) => (n == null || !Number.isFinite(n) ? 'text-slate-500' : n >= 0 ? 'text-emerald-400' : 'text-rose-400');
 
 export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => {
   const [data, setData] = useState<Payload | null>(null);
@@ -385,7 +385,7 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
       {/* Network Filter Cards */}
       <div className="grid sm:grid-cols-3 gap-3">
         {['solana', 'base', 'robinhood'].map(c => {
-          const sources = snapshot?.sources.filter(s => s.kind === 'market' && s.id.includes(`:${c}`)) || [];
+          const sources = snapshot?.sources?.filter(s => s.kind === 'market' && s.id.includes(`:${c}`)) || [];
           const ok = sources.some(s => s.status === 'ok' && s.items > 0);
           const currentSectionRows = section === 'main' ? (snapshot?.rows || []) : (snapshot?.microcaps || []);
           return (
@@ -462,7 +462,7 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
                 Scor: 70% activitate de piață + 30% dovezi sociale (inclusiv boosturi comunitare DEX Screener și canale Telegram alpha) + bonus de confluență on-chain/social - penalizări securitate portofele. Mențiuni din ultimele 12 ore. Lipsurile nu sunt înlocuite cu engagement inventat. Nu este un indicator de profit validat.
               </p>
               <p>
-                {snapshot.discovered} tokenuri observate · {snapshot.excluded.belowCap} sub pragul minim de $200k · {snapshot.excluded.unknownCap} fără capitalizare disponibilă. Comparat cu raportul din {date(snapshot.previousReportAt)}.
+                {snapshot.discovered} tokenuri observate · {snapshot.excluded?.belowCap ?? 0} sub pragul minim de $200k · {snapshot.excluded?.unknownCap ?? 0} fără capitalizare disponibilă. Comparat cu raportul din {date(snapshot.previousReportAt)}.
               </p>
             </div>
           )}
@@ -678,7 +678,7 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
             </div>
           </details>
 
-          {!!snapshot.exits.length && (
+          {!!snapshot.exits?.length && (
             <details className="rounded-xl border border-white/10 p-4 text-sm">
               <summary className="cursor-pointer text-slate-200">
                 Ieșite din clasament ({snapshot.exits.length}) — istoricul este păstrat

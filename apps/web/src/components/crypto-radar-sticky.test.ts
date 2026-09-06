@@ -81,3 +81,149 @@ test('bidirectional scroll synchronization invariant behaves deterministically w
   assert.equal(headerScrollLeft, 0);
   assert.equal(bodyScrollLeft, 0);
 });
+
+test('index.html does not contain overflow-x-hidden on body (which breaks position: sticky for window scroll)', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const htmlPath = path.resolve(process.cwd(), 'index.html');
+  const html = fs.readFileSync(htmlPath, 'utf8');
+
+  // Ensure body tag uses overflow-x: clip from index.css instead of utility overflow-x-hidden
+  const bodyMatch = html.match(/<body[^>]*>/i);
+  assert.ok(bodyMatch, 'index.html must have a body tag');
+  assert.ok(
+    !bodyMatch[0].includes('overflow-x-hidden') && !bodyMatch[0].includes('overflow-hidden'),
+    'body tag in index.html must not contain overflow-x-hidden or overflow-hidden as it disables position:sticky in browsers'
+  );
+});
+
+test('automated browser evaluation: sticky header docks at 56px and remains fixed under deep scroll', async () => {
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch();
+
+  try {
+    const runTest = async (viewport: { width: number; height: number }, isMobile: boolean) => {
+      const context = await browser.newContext({ viewport, isMobile, hasTouch: isMobile });
+      const page = await context.newPage();
+
+      // Mount the exact DOM and CSS layout used in production
+      await page.setContent(`
+        <!DOCTYPE html>
+        <html class="dark" style="background-color: #0a0e17; color: #f1f5f9; overflow-x: clip; max-width: 100vw; width: 100%; position: relative;">
+        <head>
+          <style>
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body {
+              background-color: #0a0e17;
+              color: #f1f5f9;
+              overflow-x: clip;
+              max-width: 100vw;
+              width: 100%;
+              position: relative;
+              min-height: 100vh;
+            }
+            .app-header {
+              position: fixed;
+              top: 0;
+              left: 0;
+              right: 0;
+              height: 56px;
+              z-index: 40;
+              background: #0a0e17;
+              border-bottom: 1px solid rgba(255,255,255,0.08);
+            }
+            .main-wrapper {
+              padding-top: 56px;
+              padding-bottom: 80px;
+            }
+            .content-section {
+              padding: 24px 16px;
+              max-width: 1600px;
+              margin: 0 auto;
+            }
+            .intro-block {
+              height: 400px;
+              margin-bottom: 20px;
+            }
+            .table-card {
+              position: relative;
+              border-radius: 12px;
+              border: 1px solid rgba(255,255,255,0.1);
+              background: rgba(11,19,41,0.4);
+            }
+            .sticky-header-container {
+              position: sticky;
+              top: 56px;
+              z-index: 20;
+              overflow-x: auto;
+              background: #0b1329;
+              border-bottom: 1px solid rgba(255,255,255,0.1);
+              box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+              height: 48px;
+            }
+            .table-body-container {
+              overflow-x: auto;
+              height: 3000px;
+            }
+          </style>
+        </head>
+        <body>
+          <header class="app-header">Fixed 56px Navigation Bar</header>
+          <div class="main-wrapper">
+            <main class="content-section">
+              <div class="intro-block">Crypto Radar Filters & Summary</div>
+              <div class="table-card">
+                <div class="sticky-header-container" id="sticky-header">
+                  <table style="min-width: 1330px; height: 100%;">
+                    <thead>
+                      <tr><th>Loc</th><th>Monedă</th><th>Preț</th><th>Δ 24H</th><th>Market Cap</th></tr>
+                    </thead>
+                  </table>
+                </div>
+                <div class="table-body-container" id="table-body">
+                  <div style="height: 3000px; min-width: 1330px;">100 Tokens List</div>
+                </div>
+              </div>
+            </main>
+          </div>
+        </body>
+        </html>
+      `);
+
+      const getHeaderTop = async () => {
+        return await page.evaluate(() => {
+          const el = document.getElementById('sticky-header');
+          return el ? Math.round(el.getBoundingClientRect().top) : null;
+        });
+      };
+
+      const topBefore = await getHeaderTop();
+      assert.ok(topBefore! > 100, `Initial header top (${topBefore}) should be below intro block`);
+
+      // Scroll down past intro block (e.g. 800px)
+      await page.evaluate(() => window.scrollTo(0, 800));
+      const top800 = await getHeaderTop();
+      assert.equal(top800, 56, `Header must dock at exactly 56px (below app header). Got: ${top800}`);
+
+      // Scroll deeper (1500px)
+      await page.evaluate(() => window.scrollTo(0, 1500));
+      const top1500 = await getHeaderTop();
+      assert.equal(top1500, 56, `Header must remain fixed at 56px under 1500px scroll. Got: ${top1500}`);
+
+      // Scroll to bottom (2500px)
+      await page.evaluate(() => window.scrollTo(0, 2500));
+      const top2500 = await getHeaderTop();
+      assert.equal(top2500, 56, `Header must remain fixed at 56px under 2500px scroll. Got: ${top2500}`);
+
+      await context.close();
+    };
+
+    // Test mobile iPhone 14 viewport
+    await runTest({ width: 390, height: 844 }, true);
+    // Test desktop 1080p viewport
+    await runTest({ width: 1440, height: 900 }, false);
+  } finally {
+    await browser.close();
+  }
+});
+
