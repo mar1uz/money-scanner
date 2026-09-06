@@ -3040,3 +3040,45 @@ Public bundle: assets/index-S7gvJY8t.js
 Public URL: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=crypto_radar
 Cloud Run health: HTTP 200, status ok
 ```
+
+## 85. Zero-cost crypto community promotion discovery & on-chain correlation scoring (2026-09-06)
+
+User requested a zero-cost solution (no paid X API or subscription fees) to discover what the crypto community is actively promoting / what is hot & newly launched, integrating this into the application to correlate with blockchain scanning and award higher scores to projects with both strong on-chain metrics and high community hype (high pump probability).
+
+- **Zero-Cost Discovery 1 — DEX Screener Community Token Boosts**:
+  - `https://api.dexscreener.com/token-boosts/top/v1` and `latest/v1`: 100% free public JSON endpoints requiring zero API keys.
+  - Returns tokens where the community is spending real capital (SOL/ETH/USD) to boost/promote.
+  - Extracted contract address, supported chain (`solana`, `base`, `robinhood`), total boost count (`boostAmount`), description, and official project links (Telegram, X/Twitter).
+  - Automatically queries boosted contract addresses against DEX Screener token endpoints so community-promoted tokens get complete verified on-chain metrics (price, liquidity, 24h volume, 1h velocity, transactions).
+- **Zero-Cost Discovery 2 — Public Telegram Alpha & Call Channels**:
+  - `https://t.me/s/{channel}`: 100% free public web preview scraping without Telegram Bot API costs or phone login.
+  - Replaced generic macro news outlets (`cointelegraph,watcherguru`) with 8 dedicated crypto alpha, trending, and call channels: `dexscreener_trending`, `dexscreener_alerts`, `solanatrending`, `solanaalpha`, `solanacalls`, `soltrend`, `solcalls`, `solana_gems`.
+  - Automatically detects calls, cashtags (`$TICKER`), and contract mentions, isolating dedicated alert calls (`telegramCalls`).
+  - Project-specific Telegram channels dynamically collected from pair metadata and boosts.
+- **On-Chain & Social Correlation / Confluence Scoring (`scoring.ts`)**:
+  - Market score (on-chain): Liquidity (max 30) + 24h volume (max 30) + Unique buyers participation (max 20) + 1h volume acceleration (max 20).
+  - Social score: Multi-platform authors + Telegram channels + DEX Screener community boost score (`Math.log10(1 + boostAmount) * 8.5`) + Alpha channel call bonuses.
+  - **Confluence Bonus**: When strong on-chain metrics (marketScore ≥ 35, liquidity ≥ $50k) converge with community hype (socialScore ≥ 15, boostAmount ≥ 10, or telegramCalls ≥ 1), a pump-potential confluence bonus of up to +15 points is awarded.
+  - Contextual reason tags added: `🚀 Confluență ridicată (+X pct): volum/lichiditate on-chain corelate cu promovare comunitară activă`, `⚡ Promovat de comunitate: X boosturi DEX Screener`, `📢 Alertat în Y canal(e) Telegram alpha`.
+- **UI Enhancements (`CryptoRadarView.tsx`)**:
+  - Token score cell displays an amber `⚡ <boosts>` badge when community boosts are active.
+  - Details panel displays confluence bonus breakdown, Telegram alpha alerts, and DEX Screener boost count.
+- **Verification**:
+  - 104 API unit tests passing (including 4 new tests covering `parseDexBoosts`, community boost scoring, Telegram alpha calls, and confluence bonus ranking).
+  - 57 Web unit tests passing. Total 161 tests passing across monorepo (100% pass rate).
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 240b4f3
+Local tests: 161 passed, 0 failed (100% test pass rate)
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Cloud Build: ec2557e9-ae72-4019-b6b4-40a0dd2ecb20 (SUCCESS)
+Cloud Run revision: market-scanner-360-00167-pcd
+Traffic: 100%
+Revision conditions: Ready=True, Active=True, ContainerHealthy=True
+Public bundle: assets/index-BgniUTJ8.js
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=crypto_radar
+Cloud Run health: HTTP 200, status ok
+```
+
