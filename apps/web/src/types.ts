@@ -4,6 +4,7 @@ import type { Candle } from '@money-scanner/shared';
 
 export type AppTab = 
   | 'market'
+  | 'crypto_radar'
   | 'crypto_bubbles'
   | 'crypto_heatmap'
   | 'usa_status'

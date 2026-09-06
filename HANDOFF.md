@@ -2938,3 +2938,27 @@ Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health: HTTP 200, status ok
 ```
 
+
+## 82. Crypto Radar — modular multichain research (2026-09-06, checkpoint 1)
+
+User requested integration of the earlier Solana bot research requirements into this hosted app, incremental deploys, free social sources, mandatory Solana/Base/Robinhood, and comprehensive handoff for continuation after AI quota resets.
+
+Detailed implementation plan: `docs/crypto-radar/IMPLEMENTATION.md`.
+
+Implemented modules:
+- `packages/shared/src/types/radar.ts`: shared contracts.
+- `apps/api/src/services/radar/{scoring,market,social,store,service}.ts`: pure ranking, adapters, persistence, scheduler orchestration and Telegram report delivery.
+- `apps/api/src/routes/radar-routes.ts`: authenticated reads, administrator+CSRF manual scan, dedicated scheduler-token endpoint.
+- `apps/web/src/components/CryptoRadarView.tsx`: chain filters, price/cap/volume/liquidity, first-report baseline, previous-report/rank changes, sources, original evidence links, dropped tokens, historical reports. Deep link `/?tab=crypto_radar`.
+
+Market discovery samples GeckoTerminal trending/new pool first pages, then DEX Screener exact-address batch enrichment and retention of previously followed tokens. Required chains are independently queried. Never sums duplicate pools or substitutes FDV for capitalization. Uses provider-reported `market_cap_usd`/`marketCap`, not an independent circulating supply audit. Strict Solana case-sensitive identities; EVM addresses normalize case, with chain as part of the key.
+
+Social registry: up to 16 public Telegram channels (curated + metadata-linked candidate channels), three Bluesky queries, four Mastodon hashtags, five RSS feeds and CoinGecko search interest. Optional Farcaster Snapchain HTTPS connector is implemented but not enabled without a configured endpoint. Fomo/Reddit/Discord integrations are not claimed. Telegram channel count is distinct from human author count; RSS is editorial and cannot boost community score. No fabricated engagement. Contract/name+chain/cashtag+chain matching with collision checks; ambiguous matches are visible but not scored. Public content is data, never instructions. Copied text and URLs are deduplicated.
+
+Storage: named Firestore database `money-scanner-360`; collections `radar-state`, `radar-social-window`, `radar-tokens`, `radar-reports`, `radar-delivery`. Distributed 8-minute lease and fencing on save; fixed 12h UTC report IDs; first reported prices persist per token; immutable report history. Rolling raw social window is capped at 1,500 items/24h in 15 documents; scoring uses 12h. Top 200 eligible rows retained per snapshot. UI lists latest 30 reports; older reports are not deleted. On complete provider failure, old snapshot remains available. No LLM calls in Radar.
+
+Notification semantics: sends only to existing configured Telegram destination. Report delivery states `sending`, `sent`, `uncertain`; uncertain outcome is not blindly retried, avoiding duplicate reports. No hard exactly-once guarantee for external Telegram delivery. Check delivery status and actual chat before any retry. Existing daily technical scan remains untouched.
+
+Verification before first deploy: complete monorepo build passed; 197 tests passed (19 new Radar tests). Fixed pre-existing Akedo weekly test fixture: it requested AKE but supplied PONS metadata; production crypto identity validation unchanged. Live local adapter test: 94 observed tokens, eligible Solana 14 / Base 16 / Robinhood 17 at that instant; a Gecko new-pools request returned 429 and was surfaced. These are transient test observations, not coverage guarantees. 79 deduplicated recent social/editorial items observed; public Bluesky search returned 403. Channels lacking public archives are now marked unavailable, not observed-zero communities.
+
+Deployment / scheduler activation: pending checkpoint verification below. Do not assume schedules exist until recorded as verified. Existing production jobs are once daily (08:00 Europe/Bucharest technical scan, 07:00 Europe/Oslo AI warmup), not 12-hour Radar jobs.

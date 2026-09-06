@@ -27,6 +27,7 @@ import { BacktestView } from './components/BacktestView.js';
 import { SystemStatusView } from './components/SystemStatusView.js';
 import { AlertsCenterView } from './components/AlertsCenterView.js';
 import { USAStatusView } from './components/USAStatusView.js';
+import { CryptoRadarView } from './components/CryptoRadarView.js';
 import { CryptoBubbleView } from './components/CryptoBubbleView.js';
 import { CryptoHeatMapView } from './components/CryptoHeatMapView.js';
 import { AuthGate } from './components/AuthGate.js';
@@ -60,7 +61,7 @@ const readMoneyLineDeepLink = () => {
 
 const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) => {
   const initialDeepLink = useRef(readMoneyLineDeepLink()).current;
-  const [activeTab, setActiveTab] = useState<AppTab>('market');
+  const [activeTab, setActiveTab] = useState<AppTab>(new URLSearchParams(window.location.search).get('tab') === 'crypto_radar' ? 'crypto_radar' : 'market');
   const [timeframe, setTimeframe] = useState<Timeframe>(initialDeepLink.timeframe || '1w');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
@@ -394,6 +395,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
               )}
 
               {/* Top 100 cryptocurrencies, sized by market capitalization */}
+              {activeTab === 'crypto_radar' && <CryptoRadarView isAdmin={user.role === 'Administrator'} />}
               {activeTab === 'crypto_bubbles' && (
                 <CryptoBubbleView onSelectAsset={(symbol, coinGeckoId, coinPaprikaId) => openAsset(symbol, 'crypto', undefined, coinGeckoId, coinPaprikaId)} />
               )}

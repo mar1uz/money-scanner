@@ -1,4 +1,5 @@
 import express from 'express';
+import { radarRouter } from './routes/radar-routes.js';
 import cors from 'cors';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -35,7 +36,8 @@ export function createServer() {
   // safe verification mechanisms and must remain reachable for operations.
   app.use('/api', (req, res, next) => {
     if (
-      req.path === '/health'
+      req.path === '/radar/scheduled'
+      || req.path === '/health'
       || req.path === '/telegram/webhook'
       || req.path === '/alerts/daily-regime-scan'
       || req.path === '/ai/daily-warmup'
@@ -47,6 +49,7 @@ export function createServer() {
   });
 
   // Mount protected API routers under /api
+  app.use('/api', radarRouter);
   app.use('/api', marketRouter);
   app.use('/api', scannerRouter);
   app.use('/api', socialNewsRouter);
