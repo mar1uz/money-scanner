@@ -28,6 +28,7 @@ export interface RadarToken {
     observedAt: number;
     coinGeckoId: string | null;
     telegram: string | null;
+    boostAmount?: number | null;
 }
 export interface RadarPost {
     id: string;
@@ -49,6 +50,9 @@ export interface RadarSocialEvidence {
     score: number | null;
     changeMentions: number | null;
     searchTrending: boolean;
+    boostAmount?: number | null;
+    telegramCalls?: number;
+    confluenceBonus?: number;
     examples: {
         source: string;
         url: string;

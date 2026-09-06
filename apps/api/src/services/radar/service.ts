@@ -34,7 +34,7 @@ export async function runRadar(publish = false): Promise<RadarSnapshot> {
             collection = { id: String(Math.floor(now / (30 * 60000)) * 30 * 60000), kind: 'collection', generatedAt: now, methodology: 'radar-v1', minMarketCap: 500000, rows,
                 exits: (previous?.rows || []).filter(r => !ids.has(r.id)).map(r => ({ id: r.id, name: r.name, symbol: r.symbol, chain: r.chain, address: r.address, previousRank: r.rank, reason: byId.get(r.id)?.marketCap !== null && byId.get(r.id)?.marketCap !== undefined && byId.get(r.id)!.marketCap! < 500000 ? 'below_threshold' : 'unavailable_or_outside_sample' })),
                 sources, discovered: candidates.length, excluded: { belowCap: candidates.filter(t => t.marketCap !== null && t.marketCap < 500000).length, unknownCap: candidates.filter(t => t.marketCap === null).length }, previousReportAt: previous?.generatedAt || null,
-                coverage: 'Eșantion trending/new pools + tokenuri urmărite. Valori din poolul principal; capitalizare raportată de furnizor, fără substituire FDV. Datele sociale nu reprezintă întreaga comunitate. Scor v1 euristic, fără AI.' };
+                coverage: 'Eșantion trending/new pools + tokenuri boostate comunitar + tokenuri urmărite. Valori din poolul principal; capitalizare raportată de furnizor, fără substituire FDV. Canale publice Telegram de alerte/alpha și boosturi DEX Screener. Scor euristic corelat on-chain + hype comunitar.' };
             await store.saveCollection(collection, posts, lease);
         }
         if (!collection)
@@ -64,7 +64,8 @@ export function reportText(report: RadarSnapshot, format: 'plain' | 'html' = 'pl
     const lines = [`Crypto Radar · ${new Date(report.generatedAt).toISOString()}`, `Solana / Base / Robinhood · market cap ≥ $500,000`, `Clasament: ${report.rows.length} monede · scor euristic v1`, `${unavailable.length} surse indisponibile/parțiale/neconfigurate; vezi acoperirea în aplicație.`, ''];
     for (const row of report.rows.slice(0, 10)) {
         const name = format === 'html' ? `<a href="${escapeHtml(radarTokenChartUrl(row))}">${safe(row.name)} (${safe(row.symbol)})</a>` : `${row.name} (${row.symbol})`;
-        lines.push(`${row.rank}. ${name} · ${safe(row.chain)}`, `$${money(row.price)} · cap $${money(row.marketCap!)} · scor ${row.score}`, `De la primul raport: ${row.changeFirst === null ? '—' : row.changeFirst.toFixed(2) + '%'} · precedent: ${row.changePrevious === null ? 'NOU' : row.changePrevious.toFixed(2) + '%'} · loc: ${row.rankChange === null ? 'NOU' : row.rankChange > 0 ? '↑' + row.rankChange : row.rankChange < 0 ? '↓' + Math.abs(row.rankChange) : '='}`, `Contract: ${safe(row.address)}`, '');
+        const boostTag = row.boostAmount ? ` · ⚡ ${row.boostAmount}` : '';
+        lines.push(`${row.rank}. ${name} · ${safe(row.chain)}`, `$${money(row.price)} · cap $${money(row.marketCap!)} · scor ${row.score}${boostTag}`, `De la primul raport: ${row.changeFirst === null ? '—' : row.changeFirst.toFixed(2) + '%'} · precedent: ${row.changePrevious === null ? 'NOU' : row.changePrevious.toFixed(2) + '%'} · loc: ${row.rankChange === null ? 'NOU' : row.rankChange > 0 ? '↑' + row.rankChange : row.rankChange < 0 ? '↓' + Math.abs(row.rankChange) : '='}`, `Contract: ${safe(row.address)}`, '');
     }
     lines.push(`Istoric complet și surse: ${safe((process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app').replace(/\/$/, '') + '/?tab=crypto_radar')}`, `${report.exits.length} monede ieșite din clasament; păstrate în istoric.`);
     return lines.join('\n');

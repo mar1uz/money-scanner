@@ -34,7 +34,8 @@ export async function collectSocial(tokens: RadarToken[]): Promise<{
         kind: RadarSourceStatus['kind'];
         run: () => Promise<RadarPost[]>;
     }[] = [];
-    const channels = [...new Set((process.env.RADAR_TELEGRAM_CHANNELS || 'cointelegraph,watcherguru,solana').split(',').map(x => x.trim()).concat(tokens.filter(t => t.marketCap !== null && t.marketCap >= 500000).sort((a, b) => (b.volume24h || 0) - (a.volume24h || 0)).flatMap(t => t.telegram ? [t.telegram.split('/')[3]] : [])))].filter(x => /^[A-Za-z0-9_]{5,32}$/.test(x)).slice(0, 16);
+    const defaultAlphaChannels = 'dexscreener_trending,dexscreener_alerts,solanatrending,solanaalpha,solanacalls,soltrend,solcalls,solana_gems';
+    const channels = [...new Set((process.env.RADAR_TELEGRAM_CHANNELS || defaultAlphaChannels).split(',').map(x => x.trim()).concat(tokens.filter(t => t.marketCap !== null && t.marketCap >= 500000).sort((a, b) => (b.volume24h || 0) - (a.volume24h || 0)).flatMap(t => t.telegram ? [t.telegram.split('/')[3]] : [])))].filter(x => /^[A-Za-z0-9_]{5,32}$/.test(x)).slice(0, 24);
     for (const channel of channels)
         tasks.push({ id: `telegram:${channel}`, kind: 'social', run: async () => { const html = await getText(`https://t.me/s/${channel}`); if (!html.includes('tgme_widget_message_wrap'))
                 throw new Error('Arhivă publică de mesaje indisponibilă'); return parseTelegram(channel, html); } });

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { RadarToken, RadarPost, RadarSnapshot } from '@money-scanner/shared';
 import { tokenId, rankTokens, socialEvidence, dedupePosts } from './radar/scoring.js';
-import { parseGeckoPools, parseDexPairs } from './radar/market.js';
+import { parseGeckoPools, parseDexPairs, parseDexBoosts } from './radar/market.js';
 import { parseTelegram, parseRss } from './radar/social.js';
 import { reportSlot, reportText, REPORT_INTERVAL } from './radar/service.js';
 const now = Date.now();
@@ -49,3 +49,56 @@ test('distributed lease excludes concurrent runs and owner release does not rele
 test('expired workers cannot persist a report', async () => { const { store, docs } = fakeStore(); const lease = await store.acquire(); docs.get('radar-state/lease').expiresAt = 0; await assert.rejects(store.saveReport({ id: '1788652800000' } as RadarSnapshot, lease!), /expired/); assert.equal(docs.has('radar-reports/1788652800000'), false); });
 test('report is immutable per slot; baseline and delivery claims are persisted only once', async () => { const { store, docs } = fakeStore(); const lease = await store.acquire(); const snapshot = { id: '1788652800000', generatedAt: now, rows: rank([token()]) } as RadarSnapshot; const saved = await store.saveReport(snapshot, lease!); assert.equal(saved.rows[0].firstPrice, 1); const repeated = await store.saveReport({ ...snapshot, rows: rank([token({ price: 4 })]) }, lease!); assert.equal(repeated.rows[0].price, 1); assert.equal(docs.get(`radar-tokens/${encodeURIComponent(token().id)}`).firstPrice, 1); assert.equal(await store.claimDelivery(snapshot.id), true); assert.equal(await store.claimDelivery(snapshot.id), false); });
 test('generic chain names are not treated as token mentions', () => { const t = token({ name: 'Solana', symbol: 'SOL' }); assert.equal(socialEvidence(t, [t], [post({ text: 'Solana and Base are two popular blockchains' })], new Set(), true).mentions, 0); });
+test('parseDexBoosts filters supported chains and extracts contract, boost amount, and telegram link', () => {
+    const raw = [
+        { chainId: 'solana', tokenAddress: 'sol111', totalAmount: 250, links: [{ type: 'telegram', url: 'https://t.me/solalpha' }] },
+        { chainId: 'base', tokenAddress: '0xbase', amount: 50 },
+        { chainId: 'bsc', tokenAddress: '0xbsc', totalAmount: 100 },
+        { chainId: 'ethereum', tokenAddress: '0xeth', totalAmount: 500 }
+    ];
+    const parsed = parseDexBoosts(raw);
+    assert.equal(parsed.length, 2);
+    assert.equal(parsed[0].chainId, 'solana');
+    assert.equal(parsed[0].tokenAddress, 'sol111');
+    assert.equal(parsed[0].totalAmount, 250);
+    assert.equal(parsed[0].telegram, 'https://t.me/solalpha');
+    assert.equal(parsed[1].chainId, 'base');
+    assert.equal(parsed[1].totalAmount, 50);
+});
+test('community boosts elevate social score and are visible in evidence', () => {
+    const normalToken = token();
+    const boostedToken = token({ boostAmount: 300 });
+    const evidenceNormal = socialEvidence(normalToken, [normalToken], [], new Set(), true);
+    const evidenceBoosted = socialEvidence(boostedToken, [boostedToken], [], new Set(), true);
+    assert.equal(evidenceNormal.score, 0);
+    assert.ok(evidenceBoosted.score !== null && evidenceBoosted.score >= 20);
+    assert.equal(evidenceBoosted.boostAmount, 300);
+});
+test('Telegram alpha channels are identified as dedicated calls', () => {
+    const t = token();
+    const callPost = post({
+        source: 'Telegram',
+        author: 'dexscreener_trending',
+        text: `Token $ALPHA is trending on Base: ${t.address}`
+    });
+    const evidence = socialEvidence(t, [t], [callPost], new Set(), true);
+    assert.equal(evidence.channels, 1);
+    assert.equal(evidence.telegramCalls, 1);
+    assert.ok(evidence.score !== null && evidence.score >= 5);
+});
+test('on-chain liquidity & volume correlated with community hype award confluence bonus and higher rank', () => {
+    const quietToken = token({ id: 'base:0xquiet', address: '0xquiet', symbol: 'QUIET', name: 'Quiet Token', liquidity: 150000, volume24h: 200000, buyers24h: 150 });
+    const hypedToken = token({ id: 'base:0xhyped', address: '0xhyped', symbol: 'HYPED', name: 'Hyped Token', liquidity: 150000, volume24h: 200000, buyers24h: 150, boostAmount: 150 });
+    const callPost = post({
+        source: 'Telegram',
+        author: 'solanatrending',
+        text: `Trending Base token $HYPED contract ${hypedToken.address}`
+    });
+    const ranked = rankTokens([quietToken, hypedToken], [callPost], new Set(), true, null, []);
+    assert.equal(ranked[0].id, hypedToken.id);
+    assert.ok(ranked[0].score > ranked[1].score);
+    assert.ok(ranked[0].social.confluenceBonus && ranked[0].social.confluenceBonus > 0);
+    assert.ok(ranked[0].reasons.some(r => r.includes('Confluență ridicată')));
+    assert.ok(ranked[0].reasons.some(r => r.includes('boosturi DEX Screener')));
+});
+

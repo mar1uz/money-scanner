@@ -54,8 +54,14 @@ export function socialEvidence(token: RadarToken, all: RadarToken[], posts: Rada
     const authors = new Set(social.filter(x => x.post.source !== 'Telegram').map(x => `${x.post.source}:${x.post.author}`)).size;
     const channels = new Set(social.filter(x => x.post.source === 'Telegram').map(x => x.post.author)).size;
     const platforms = new Set(social.map(x => x.post.source)).size;
-    const score = available ? Math.round(clamp(Math.min(authors, 15) * 4 + Math.min(channels, 5) * 3 + Math.min(platforms, 3) * 5 + Math.min(social.length, 20) / 2)) : null;
-    return { mentions: social.length, authors, channels, platforms, editorialMentions: strong.length - social.length, weakMentions: weak, score, changeMentions: null, searchTrending: !!token.coinGeckoId && trending.has(token.coinGeckoId), examples: strong.slice(0, 3).map(x => ({ source: x.post.source, url: x.post.url, text: x.post.text.slice(0, 180), match: x.match })) };
+    const ALPHA_CHANNELS = new Set(['dexscreener_trending', 'dexscreener_alerts', 'solanatrending', 'solanaalpha', 'solanacalls', 'soltrend', 'solcalls', 'solana_gems', 'solanadegens']);
+    const telegramCalls = social.filter(x => x.post.source === 'Telegram' && ALPHA_CHANNELS.has(x.post.author.toLowerCase())).length;
+    const boostAmount = token.boostAmount || null;
+    const boostScore = boostAmount && boostAmount > 0 ? Math.min(25, Math.round(Math.log10(1 + boostAmount) * 8.5)) : 0;
+    const alphaCallBonus = Math.min(15, telegramCalls * 5);
+    const baseScore = Math.min(authors, 15) * 4 + Math.min(channels, 5) * 3 + Math.min(platforms, 3) * 5 + Math.min(social.length, 20) / 2;
+    const score = available ? Math.round(clamp(baseScore + boostScore + alphaCallBonus)) : null;
+    return { mentions: social.length, authors, channels, platforms, editorialMentions: strong.length - social.length, weakMentions: weak, score, changeMentions: null, searchTrending: !!token.coinGeckoId && trending.has(token.coinGeckoId), boostAmount, telegramCalls, confluenceBonus: 0, examples: strong.slice(0, 3).map(x => ({ source: x.post.source, url: x.post.url, text: x.post.text.slice(0, 180), match: x.match })) };
 }
 export function rankTokens(tokens: RadarToken[], posts: RadarPost[], trending: Set<string>, socialAvailable: boolean, previous: RadarSnapshot | null, baselines: RadarBaseline[]): RadarRow[] {
     const before = new Map(previous?.rows.map(r => [r.id, r]) || []), baseline = new Map(baselines.map(b => [b.id, b]));
@@ -69,11 +75,36 @@ export function rankTokens(tokens: RadarToken[], posts: RadarPost[], trending: S
         const participation = t.buyers24h !== null ? Math.min(20, Math.log10(1 + t.buyers24h) * 7) : 0;
         const acceleration = t.volume24h && t.volume1h !== null ? Math.min(20, Math.max(0, t.volume1h / (t.volume24h / 24) - 1) * 5) : 0;
         const marketScore = Math.round(liquidity + activity + participation + acceleration);
-        const reasons = [`Volum și lichiditate: pool principal`, social.score === null ? 'Surse sociale indisponibile' : `${social.authors} autori / ${social.channels} canale / ${social.mentions} mențiuni asociate`, 'Scor euristic; nu este un semnal de cumpărare'];
+
+        let confluenceBonus = 0;
+        const hasStrongOnChain = marketScore >= 35 && (t.liquidity || 0) >= 50000;
+        const hasCommunityHype = (social.score || 0) >= 15 || (t.boostAmount || 0) >= 10 || (social.telegramCalls || 0) >= 1;
+        if (hasStrongOnChain && hasCommunityHype) {
+            const onChainFactor = Math.min(1, marketScore / 65);
+            const socialFactor = Math.min(1, ((social.score || 0) + (t.boostAmount ? 15 : 0) + (social.telegramCalls ? 10 : 0)) / 45);
+            confluenceBonus = Math.round(15 * onChainFactor * socialFactor);
+        }
+        social.confluenceBonus = confluenceBonus;
+
+        const baseScore = Math.round(marketScore * .7 + (social.score || 0) * .3);
+        const totalScore = clamp(baseScore + confluenceBonus);
+
+        const reasons: string[] = [`Volum și lichiditate: pool principal`];
+        if (confluenceBonus >= 4) {
+            reasons.push(`🚀 Confluență ridicată (+${confluenceBonus} pct): volum/lichiditate on-chain corelate cu promovare comunitară activă`);
+        }
+        if (t.boostAmount && t.boostAmount > 0) {
+            reasons.push(`⚡ Promovat de comunitate: ${t.boostAmount} boosturi DEX Screener`);
+        }
+        if (social.telegramCalls && social.telegramCalls > 0) {
+            reasons.push(`📢 Alertat în ${social.telegramCalls} canal(e) Telegram alpha`);
+        }
+        reasons.push(social.score === null ? 'Surse sociale indisponibile' : `${social.authors} autori / ${social.channels} canale / ${social.mentions} mențiuni asociate${t.boostAmount ? ` / ${t.boostAmount} boosturi` : ''}`);
+        reasons.push('Scor euristic; nu este un semnal de cumpărare');
         if (t.liquidity !== null && t.liquidity < 50000)
             reasons.push('Lichiditate redusă');
         if (t.volume24h && t.liquidity && t.volume24h / t.liquidity > 50)
             reasons.push('Rulaj/lichiditate ridicat — verificați volum artificial');
-        return { ...t, rank: 0, rankChange: null, score: Math.round(marketScore * .7 + (social.score || 0) * .3), marketScore, firstReportedAt: first?.firstReportedAt ?? null, firstPrice: first?.firstPrice ?? null, changeFirst: percent(t.price, first?.firstPrice), previousPrice: prev?.price ?? null, changePrevious: percent(t.price, prev?.price), social, reasons };
+        return { ...t, rank: 0, rankChange: null, score: totalScore, marketScore, firstReportedAt: first?.firstReportedAt ?? null, firstPrice: first?.firstPrice ?? null, changeFirst: percent(t.price, first?.firstPrice), previousPrice: prev?.price ?? null, changePrevious: percent(t.price, prev?.price), social, reasons };
     }).sort((a, b) => b.score - a.score || (b.volume24h || 0) - (a.volume24h || 0) || a.id.localeCompare(b.id)).map((r, i) => ({ ...r, rank: i + 1, rankChange: before.has(r.id) ? before.get(r.id)!.rank - i - 1 : null }));
 }
