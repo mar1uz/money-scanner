@@ -3328,8 +3328,24 @@ Implemented, verified with automated Playwright multi-engine browser evaluation,
 
 4. **Production Build & Deployment**:
    - Full monorepo build succeeded (`npm run build`).
-   - Deployed via Cloud Build to Cloud Run.
-   - Verified `/api/health` (HTTP 200) and live URL.
+   - Deployed via Cloud Build to Cloud Run revision `market-scanner-360-00176-7ff`.
+   - Verified `/api/health` (HTTP 200, status ok) and live URL.
+   - Verified live production CSS bundle (`assets/index-EAZOOdS9.css`) has 0 instances of `overflow-x: clip` and retains active `.radar-sticky-header`.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 74ee80b
+Local tests: 183 passed, 0 failed (100% test pass rate)
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Cloud Build: 9ad49069-d98c-4e10-9b55-afc7927e8655 (SUCCESS)
+Cloud Run revision: market-scanner-360-00176-7ff
+Traffic: 100%
+Revision conditions: Ready=True, ConfigurationsReady=True, RoutesReady=True
+Public bundle: assets/index-P7pXXqq0.js, assets/index-EAZOOdS9.css
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=crypto_radar
+Cloud Run health: HTTP 200, status ok
+```
 
 
 
