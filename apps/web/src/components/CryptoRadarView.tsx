@@ -342,20 +342,28 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
   const microCount = (snapshot?.microcaps || []).filter(r => chain === 'all' || r.chain === chain).length;
 
   return (
-    <section className="space-y-5 pb-16">
-      <div className="flex flex-wrap justify-between gap-4">
+    <section className="space-y-2.5 sm:space-y-4 pb-16">
+      <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
         <div>
-          <p className="text-cyan-400 text-xs tracking-widest uppercase">Comunitate + activitate on-chain + audit portofele</p>
-          <h1 className="text-2xl font-semibold text-white mt-1">Crypto Radar</h1>
-          <p className="text-sm text-slate-400 mt-2">Solana · Base · Robinhood — radar principal și microcaps utilitare cu verificare anti-rug</p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-white via-slate-200 to-cyan-300 bg-clip-text text-transparent">
+              Crypto Radar
+            </h1>
+            <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+              360° Live
+            </span>
+          </div>
+          <p className="text-xs text-slate-400 mt-0.5 hidden sm:block">
+            Solana · Base · Robinhood — radar principal și microcaps utilitare cu verificare anti-rug
+          </p>
         </div>
-        <div className="flex items-start gap-2">
-          <button onClick={load} disabled={loading} className="px-3 py-2 rounded-lg border border-white/10 text-sm text-slate-300">
+        <div className="flex items-center gap-2">
+          <button onClick={load} disabled={loading} className="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg border border-white/10 text-xs sm:text-sm text-slate-300 hover:bg-white/5 transition-colors">
             {loading ? 'Se încarcă…' : 'Actualizează'}
           </button>
           {isAdmin && (
-            <button onClick={scan} disabled={scanning} className="px-3 py-2 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-sm disabled:opacity-50">
-              {scanning ? 'Scanare în curs…' : 'Scanează acum'}
+            <button onClick={scan} disabled={scanning} className="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-xs sm:text-sm disabled:opacity-50 hover:bg-cyan-500/25 transition-colors">
+              {scanning ? 'Scanare…' : '⚡ Scanează'}
             </button>
           )}
         </div>
@@ -373,13 +381,13 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
             <button
               key={c}
               onClick={() => setChain(chain === c ? 'all' : c)}
-              className={`p-2 sm:p-3 rounded-xl border text-left transition-all ${chain === c ? 'border-cyan-400/60 bg-cyan-400/10 shadow-sm' : 'border-white/10 bg-white/[.025] hover:bg-white/[.05]'}`}
+              className={`p-2 sm:p-2.5 rounded-xl border text-left transition-all ${chain === c ? 'border-cyan-400/60 bg-cyan-400/10 shadow-sm' : 'border-white/10 bg-white/[.025] hover:bg-white/[.05]'}`}
             >
               <div className="flex items-center justify-between gap-1">
-                <span className="capitalize font-semibold text-xs sm:text-sm text-slate-200 truncate">{c === 'robinhood' ? 'Robinhood' : c}</span>
+                <span className="capitalize font-semibold text-xs text-slate-200 truncate">{c === 'robinhood' ? 'Robinhood' : c}</span>
                 <span className={`w-2 h-2 rounded-full shrink-0 ${ok ? 'bg-emerald-400' : 'bg-amber-400'}`} title={ok ? 'Date disponibile' : 'Date lipsă'} />
               </div>
-              <p className="mt-1 text-base sm:text-xl text-white font-mono font-bold leading-tight">
+              <p className="mt-0.5 text-base sm:text-lg text-white font-mono font-bold leading-tight">
                 {currentSectionRows.filter(r => r.chain === c).length || 0}
                 <span className="text-[10px] text-slate-500 font-sans font-normal ml-1 hidden xs:inline">monede</span>
               </p>
@@ -389,12 +397,12 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
       </div>
 
       {/* Section Switcher & Report Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">
-        <div className="inline-flex rounded-xl p-0.5 sm:p-1 bg-white/[.04] border border-white/10 w-full sm:w-auto">
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+        <div className="inline-flex rounded-xl p-0.5 bg-white/[.04] border border-white/10">
           <button
             type="button"
             onClick={() => switchSection('main')}
-            className={`flex-1 sm:flex-none px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${section === 'main' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow' : 'text-slate-400 hover:text-slate-200'}`}
+            className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${section === 'main' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow' : 'text-slate-400 hover:text-slate-200'}`}
           >
             🌟 Principal (≥ $500k)
             <span className="ml-1.5 px-1.5 py-0.5 rounded text-[11px] bg-white/10">{mainCount}</span>
@@ -402,51 +410,46 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
           <button
             type="button"
             onClick={() => switchSection('microcaps')}
-            className={`flex-1 sm:flex-none px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${section === 'microcaps' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow' : 'text-slate-400 hover:text-slate-200'}`}
+            className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${section === 'microcaps' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow' : 'text-slate-400 hover:text-slate-200'}`}
           >
             🔬 Microcaps ($200k–$500k)
             <span className="ml-1.5 px-1.5 py-0.5 rounded text-[11px] bg-white/10">{microCount}</span>
           </button>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 text-xs sm:text-sm w-full sm:w-auto">
-          <select aria-label="Selectează raportul" value={selection} onChange={e => select(e.target.value)} className="bg-slate-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-200">
+        <div className="flex items-center gap-2 text-xs">
+          <select aria-label="Selectează raportul" value={selection} onChange={e => select(e.target.value)} className="bg-slate-900 border border-white/10 rounded-lg px-2 py-1 text-xs text-slate-200">
             <option value="latest">Ultimul raport</option>
             <option value="collection">Ultima colectare</option>
             {data?.history.map(h => (
               <option key={h.id} value={h.id}>{date(h.generatedAt)} · {h.count} monede</option>
             ))}
           </select>
-          <button onClick={() => setChain('all')} className="text-cyan-300 text-xs hover:underline">Toate rețelele</button>
-          <span className="text-slate-500 text-[11px] truncate max-w-[200px]">{snapshot ? `${snapshot.kind === 'report' ? 'Raport' : 'Colectare'}: ${date(snapshot.generatedAt)}` : 'Nicio scanare salvată încă'}</span>
+          <button onClick={() => setChain('all')} className="text-cyan-300 text-xs hover:underline whitespace-nowrap">Toate rețelele</button>
         </div>
       </div>
 
       {snapshot && (
         <>
           {section === 'microcaps' ? (
-            <div className="p-3 sm:p-4 rounded-xl border border-cyan-500/30 bg-cyan-500/5 text-xs text-slate-300 space-y-1">
+            <div className="p-2.5 sm:p-3 rounded-xl border border-cyan-500/30 bg-cyan-500/5 text-xs text-slate-300 space-y-1">
               <p className="font-semibold text-cyan-300 flex items-center gap-1.5">
-                <span>🔬 Secțiune Separată: Microcaps Utilitare ($200.000 – $500.000 Market Cap)</span>
+                <span>🔬 Microcaps Utilitare ($200k – $500k)</span>
               </p>
-              <p className="text-slate-400">
-                Proiecte timpurii mai riscante, dar cu utilitate reală (bots, AI agents, platforme DEX, instrumente on-chain), generare de comisioane prin tranzacționare (trading fees) sau mecanisme de buyback / deflație care recompensează deținătorii.
-              </p>
-              <p className="text-slate-400">
-                Toate proiectele sunt verificate împotriva clusterelor de insideri prin RugCheck (Solana) și GoPlus Security (Base / Robinhood), incluzând detectare lansări bundled, concentrare portofele top 10 și contracte honeypot.
+              <p className="text-slate-400 text-[11px]">
+                Trading fees, buyback/deflație, audit insideri RugCheck (Solana) și GoPlus (Base/Robinhood).
               </p>
             </div>
           ) : (
-            <div className="text-xs text-slate-400 space-y-1.5">
-              <p className="text-slate-300 font-medium">
-                {snapshot.discovered} tokenuri observate · {snapshot.excluded?.belowCap ?? 0} sub pragul minim de $200k · {snapshot.excluded?.unknownCap ?? 0} fără capitalizare disponibilă. Comparat cu raportul din {date(snapshot.previousReportAt)}.
-              </p>
-              <details className="rounded-xl border border-white/10 bg-white/[.02] p-3 text-xs text-slate-400">
-                <summary className="cursor-pointer text-cyan-300 font-medium select-none flex items-center justify-between">
-                  <span>Metodologie scor, selecție & acoperire</span>
-                  <span className="text-slate-500 text-[10px]">Apasă pentru detalii</span>
+            <div className="flex flex-wrap items-center justify-between gap-1.5 text-[11px] text-slate-400">
+              <span className="text-slate-300">
+                {snapshot.discovered} tokenuri observate · {snapshot.excluded?.belowCap ?? 0} sub $200k · Comparat cu {date(snapshot.previousReportAt)}
+              </span>
+              <details className="inline-block">
+                <summary className="cursor-pointer text-cyan-300 hover:underline select-none text-xs">
+                  Metodologie & acoperire ▾
                 </summary>
-                <div className="mt-2 space-y-1 pt-2 border-t border-white/5">
+                <div className="mt-2 p-3 rounded-xl border border-white/10 bg-white/[.02] text-xs text-slate-400 space-y-1">
                   <p>{snapshot.coverage}</p>
                   <p>
                     Scor: 70% activitate de piață + 30% dovezi sociale (inclusiv boosturi comunitare DEX Screener și canale Telegram alpha) + bonus de confluență on-chain/social - penalizări securitate portofele. Mențiuni din ultimele 12 ore. Lipsurile nu sunt înlocuite cu engagement inventat. Nu este un indicator de profit validat.

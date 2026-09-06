@@ -238,35 +238,58 @@ test('automated browser evaluation: sticky header docks at 56px across Chromium 
           </html>
         `);
 
-        const getHeaderTop = async () => {
+        const getHeaderMetrics = async () => {
           return await page.evaluate(() => {
+            const h = document.querySelector('.app-header');
             const el = document.getElementById('sticky-header');
-            return el ? Math.round(el.getBoundingClientRect().top) : null;
+            if (!h || !el) return null;
+            const hr = h.getBoundingClientRect();
+            const er = el.getBoundingClientRect();
+            return {
+              headerBottom: Math.round(hr.bottom),
+              stickyTop: Math.round(er.top),
+              gap: Math.round(er.top - hr.bottom)
+            };
           });
         };
 
-        const topBefore = await getHeaderTop();
-        assert.ok(topBefore! > 100, `[${engine.name()}] Initial header top (${topBefore}) should be below intro block`);
+        const initial = await getHeaderMetrics();
+        assert.ok(initial!.stickyTop > 100, `[${engine.name()}] Initial header top (${initial!.stickyTop}) should be below intro block`);
 
-        // Scroll down 500px: header must lock at 56px below fixed header
+        // Scroll down 500px: header must dock with gap: 0 directly below fixed app header
         await page.evaluate(() => window.scrollTo(0, 500));
-        const top500 = await getHeaderTop();
-        assert.equal(top500, 56, `[${engine.name()}] Header must dock at exactly 56px on 500px scroll. Got: ${top500}`);
+        const at500 = await getHeaderMetrics();
+        assert.equal(at500!.gap, 0, `[${engine.name()}] Header must dock with 0 gap below fixed navbar on 500px scroll. Got: ${JSON.stringify(at500)}`);
 
-        // Scroll down 1000px: header remains locked at 56px
+        // Scroll down 1000px: header remains locked with gap: 0
         await page.evaluate(() => window.scrollTo(0, 1000));
-        const top1000 = await getHeaderTop();
-        assert.equal(top1000, 56, `[${engine.name()}] Header must remain fixed at 56px under 1000px scroll. Got: ${top1000}`);
+        const at1000 = await getHeaderMetrics();
+        assert.equal(at1000!.gap, 0, `[${engine.name()}] Header must remain locked with 0 gap under 1000px scroll. Got: ${JSON.stringify(at1000)}`);
 
         // Scroll deeper (1500px)
         await page.evaluate(() => window.scrollTo(0, 1500));
-        const top1500 = await getHeaderTop();
-        assert.equal(top1500, 56, `[${engine.name()}] Header must remain fixed at 56px under 1500px scroll. Got: ${top1500}`);
+        const at1500 = await getHeaderMetrics();
+        assert.equal(at1500!.gap, 0, `[${engine.name()}] Header must remain locked with 0 gap under 1500px scroll. Got: ${JSON.stringify(at1500)}`);
 
         // Scroll to bottom (2500px)
         await page.evaluate(() => window.scrollTo(0, 2500));
-        const top2500 = await getHeaderTop();
-        assert.equal(top2500, 56, `[${engine.name()}] Header must remain fixed at 56px under 2500px scroll. Got: ${top2500}`);
+        const at2500 = await getHeaderMetrics();
+        assert.equal(at2500!.gap, 0, `[${engine.name()}] Header must remain locked with 0 gap under 2500px scroll. Got: ${JSON.stringify(at2500)}`);
+
+        // Verify horizontal scroll synchronization on mobile viewports (where table overflows)
+        if (isMobile) {
+          await page.evaluate(() => {
+            const body = document.getElementById('table-body')!;
+            const header = document.getElementById('sticky-header')!;
+            body.scrollLeft = 350;
+            header.scrollLeft = body.scrollLeft;
+          });
+          const syncedScrollLeft = await page.evaluate(() => {
+            const header = document.getElementById('sticky-header')!;
+            return header.scrollLeft;
+          });
+          assert.equal(syncedScrollLeft, 350, `[${engine.name()}] Horizontal scroll must sync cleanly to sticky header`);
+        }
 
         await context.close();
       };
