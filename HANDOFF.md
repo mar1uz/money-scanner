@@ -3024,5 +3024,19 @@ User requested every table header to sort ascending/descending, a 24-hour asset 
 - `apps/web/src/components/crypto-radar-sort.ts`: immutable deterministic sorting for all 11 visible columns. Missing values remain last in both directions; ties use the immutable report rank. `Monedă / rețea` sorts by localized name then chain; `Scor / social` sorts by the Radar score.
 - `CryptoRadarView.tsx`: each `<th>` contains a minimum 44px sort button, direction indicator (`↕`, `↑`, `↓`), keyboard focus styling, contextual Romanian `aria-label`, and standards-based `aria-sort`. Selecting a different column starts ascending; repeated presses toggle direction. Expanding details is closed on sort so evidence cannot appear under a moved row.
 - New `Δ 24H` column uses the already persisted/provider-reported `priceChange24h`. Positive/zero values are green, negative red, and unavailable data shows `—`; it does not infer change from Radar report baselines.
-- Expanded detail rows updated from 10 to 11 columns. Chain filters, report history, external token links, saved order/ranks and collection/report data remain unchanged.
-- Tests cover every visible sort key in both directions, null placement, deterministic ties and no mutation of stored report rows. Web suite 57/57 and complete monorepo build passed. Deployment evidence follows below.
+- Tests cover every visible sort key in both directions, null placement, deterministic ties and no mutation of stored report rows. Web suite 57/57 and complete monorepo build passed.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 482df40
+Local tests: 157 passed, 0 failed (100% test pass rate)
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Cloud Build: 0f88d4b1-0b13-465a-b9f5-cb0bc30fc11e (SUCCESS)
+Cloud Run revision: market-scanner-360-00166-s4g
+Traffic: 100%
+Revision conditions: Ready=True, Active=True, ContainerHealthy=True
+Public bundle: assets/index-S7gvJY8t.js
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=crypto_radar
+Cloud Run health: HTTP 200, status ok
+```
