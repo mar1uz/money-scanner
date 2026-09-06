@@ -210,32 +210,38 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
           </p>
           <p>
             Rețele / Clustere de insideri:{' '}
-            {r.insidersDetected ? (
+            {r.insidersDetected === true ? (
               <strong className="text-rose-400">🚨 DETECTAT (Clustere suspecte de tranzacții sau rețele asociate)</strong>
-            ) : (
+            ) : r.insidersDetected === false ? (
               <strong className="text-emerald-400">🛡️ Fără clustere de insideri detectate</strong>
+            ) : (
+              <strong className="text-slate-400">În curs de colectare</strong>
             )}
           </p>
           <p>
             Lansare Bundled:{' '}
-            {r.isBundled ? (
+            {r.isBundled === true ? (
               <strong className="text-rose-400">🚨 Lansare suspectă bundled detectată</strong>
-            ) : (
+            ) : r.isBundled === false ? (
               <strong className="text-emerald-400">🛡️ Fără indicii de lansare bundled</strong>
+            ) : (
+              <strong className="text-slate-400">În curs de colectare</strong>
             )}
           </p>
           <p>
             Contract Honeypot:{' '}
-            {r.isHoneypot ? (
+            {r.isHoneypot === true ? (
               <strong className="text-rose-400">🚨 ATENȚIE: Contract Honeypot detectat (vânzare restricționată)</strong>
-            ) : (
+            ) : r.isHoneypot === false ? (
               <strong className="text-emerald-400">🛡️ Curat (vânzare confirmată)</strong>
+            ) : (
+              <strong className="text-slate-400">În curs de colectare</strong>
             )}
           </p>
           <p>
             Taxe tranzacționare:{' '}
             <span>
-              Buy: {r.buyTax || 0}% · Sell: {r.sellTax || 0}%
+              Buy: {r.buyTax !== null && r.buyTax !== undefined ? `${r.buyTax}%` : '—'} · Sell: {r.sellTax !== null && r.sellTax !== undefined ? `${r.sellTax}%` : '—'}
             </span>
           </p>
           {r.rugScore !== null && r.rugScore !== undefined && (

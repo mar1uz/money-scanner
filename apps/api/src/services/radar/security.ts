@@ -49,18 +49,25 @@ export async function auditSolanaToken(address: string): Promise<TokenSecurityDa
             top10HoldersPct = Math.round(sum * 100) / 100;
         }
 
-        // Insider clustering & networks
-        const graphInsiders = typeof body.graphInsidersDetected === 'number'
-            ? body.graphInsidersDetected > 0
-            : Boolean(body.graphInsidersDetected);
-        const hasInsiderHolders = Array.isArray(body.topHolders) && body.topHolders.some((h: any) => h.insider === true);
-        const hasInsiderNetworks = Array.isArray(body.insiderNetworks) && body.insiderNetworks.length > 0;
-        const insidersDetected = graphInsiders || hasInsiderHolders || hasInsiderNetworks;
-
-        // Bundled launch detection
         const risks = Array.isArray(body.risks) ? body.risks : [];
+
+        // Insider detection:
+        // 1. Explicit insider in top holders
+        const hasInsiderHolders = Array.isArray(body.topHolders) && body.topHolders.some((h: any) => h.insider === true);
+        // 2. Explicit insider or cluster risk flagged by RugCheck in risks array
+        const hasInsiderRisk = risks.some((r: any) => /insider|cluster|coordinated/i.test(r.name || '') || /insider|cluster|coordinated/i.test(r.description || ''));
+        // 3. Coordinated small insider network cluster holding suspicious supply
+        const hasConcentratedNetwork = Array.isArray(body.insiderNetworks) && body.insiderNetworks.some((n: any) => {
+            const accounts = n.activeAccounts || n.size || 0;
+            return accounts >= 2 && accounts <= 50 && /bundle|insider|cluster/i.test(n.id || '');
+        });
+
+        const insidersDetected = hasInsiderHolders || hasInsiderRisk || hasConcentratedNetwork;
+
+        // Bundled launch detection:
+        // Flagged if RugCheck identifies bundled launch risks or bundle networks
         const isBundled = risks.some((r: any) => /bundle/i.test(r.name || '') || /bundle/i.test(r.description || '')) ||
-            (Array.isArray(body.insiderNetworks) && body.insiderNetworks.some((n: any) => (n.activeAccounts || 0) > 8 && /bundle|cluster/i.test(n.id || '')));
+            (Array.isArray(body.insiderNetworks) && body.insiderNetworks.some((n: any) => /bundle/i.test(n.id || '')));
 
         // Risk score
         const rugScore = typeof body.score === 'number' ? body.score : null;
@@ -120,46 +127,59 @@ export async function auditEvmTokens(chain: 'base' | 'robinhood', addresses: str
 
     if (uncachedAddresses.length === 0) return results;
 
-    // GoPlus supports up to 25 addresses per call
-    const CHUNK_SIZE = 25;
-    for (let i = 0; i < uncachedAddresses.length; i += CHUNK_SIZE) {
-        const chunk = uncachedAddresses.slice(i, i + CHUNK_SIZE);
-        try {
-            const url = `https://api.gopluslabs.io/api/v1/token_security/${chainId}?contract_addresses=${chunk.map(a => a.toLowerCase()).join(',')}`;
-            const res = await fetchJsonWithTimeout(url);
-            const dataMap = res?.result || {};
-
-            for (const addr of chunk) {
-                const normAddr = addr.toLowerCase();
-                const item = dataMap[normAddr];
-                if (!item) continue;
+    // GoPlus token_security endpoint parses only one contract address per request.
+    // Query individual addresses concurrently in bounded batches.
+    const CONCURRENCY = 6;
+    for (let i = 0; i < uncachedAddresses.length; i += CONCURRENCY) {
+        const batch = uncachedAddresses.slice(i, i + CONCURRENCY);
+        await Promise.all(batch.map(async (addr) => {
+            const normAddr = addr.toLowerCase();
+            try {
+                const url = `https://api.gopluslabs.io/api/v1/token_security/${chainId}?contract_addresses=${normAddr}`;
+                const res = await fetchJsonWithTimeout(url, 6000);
+                const item = res?.result?.[normAddr];
+                if (!item) return;
 
                 const isHoneypot = item.is_honeypot === '1' || item.is_honeypot === 1 || item.cannot_sell_all === '1';
-                const buyTax = item.buy_tax !== null && item.buy_tax !== undefined ? Math.round(parseFloat(item.buy_tax) * 10000) / 100 : 0;
-                const sellTax = item.sell_tax !== null && item.sell_tax !== undefined ? Math.round(parseFloat(item.sell_tax) * 10000) / 100 : 0;
+                const buyTax = item.buy_tax !== null && item.buy_tax !== undefined && item.buy_tax !== '' ? Math.round(parseFloat(item.buy_tax) * 10000) / 100 : 0;
+                const sellTax = item.sell_tax !== null && item.sell_tax !== undefined && item.sell_tax !== '' ? Math.round(parseFloat(item.sell_tax) * 10000) / 100 : 0;
 
-                // Wallet vs pool contract distinction
-                const dexPools = new Set((item.dex || []).map((p: any) => String(p.pair || '').toLowerCase()));
+                // True Wallet vs Pool / Contract distinction
+                // Extract all pool pairs and UniswapV4 pool managers
+                const dexPools = new Set(
+                    (item.dex || [])
+                        .flatMap((p: any) => [String(p.pair || '').toLowerCase(), String(p.pool_manager || '').toLowerCase()])
+                        .filter(Boolean)
+                );
                 const burnAddrs = new Set([
                     '0x000000000000000000000000000000000000dead',
                     '0x0000000000000000000000000000000000000000'
                 ]);
 
                 const holders = Array.isArray(item.holders) ? item.holders : [];
+                // GoPlus flags is_contract: 1 for smart contracts (pools, staking vaults, routers, bridges)
+                // and is_contract: 0 for individual user wallets (EOAs).
                 const walletHolders = holders.filter((h: any) => {
                     const hAddr = String(h.address || '').toLowerCase();
-                    return !dexPools.has(hAddr) && !burnAddrs.has(hAddr);
+                    const isContract = h.is_contract === 1 || h.is_contract === '1';
+                    const isPoolOrBurn = dexPools.has(hAddr) || burnAddrs.has(hAddr) || /burn|dead|null|pool|pair|liquidity|router|bridge/i.test(h.tag || '');
+                    return !isContract && !isPoolOrBurn;
                 });
 
-                const targetHolders = walletHolders.length > 0 ? walletHolders : holders;
-                const top10HoldersPct = targetHolders.length > 0
-                    ? Math.round(targetHolders.slice(0, 10).reduce((acc: number, h: any) => acc + (parseFloat(h.percent || '0') * 100), 0) * 100) / 100
-                    : null;
+                let top10HoldersPct: number | null = null;
+                if (walletHolders.length > 0) {
+                    const sum = walletHolders.slice(0, 10).reduce((acc: number, h: any) => acc + (parseFloat(h.percent || '0') * 100), 0);
+                    top10HoldersPct = Math.round(sum * 100) / 100;
+                } else if (holders.length > 0) {
+                    // All top holders are DEX pools, burn addresses, or contracts; individual wallet concentration is minimal
+                    top10HoldersPct = 0;
+                }
 
                 const creatorPercent = parseFloat(item.creator_percent || '0') * 100;
+                const ownerPercent = parseFloat(item.owner_percent || '0') * 100;
                 const top3WalletPct = walletHolders.slice(0, 3).reduce((acc: number, h: any) => acc + (parseFloat(h.percent || '0') * 100), 0);
 
-                const insidersDetected = creatorPercent > 25 || item.is_airdrop_scam === '1' || top3WalletPct > 50;
+                const insidersDetected = creatorPercent > 25 || ownerPercent > 25 || item.is_airdrop_scam === '1' || top3WalletPct > 50;
                 const isBundled = item.is_airdrop_scam === '1' || (walletHolders.length > 0 && walletHolders.slice(0, 5).reduce((acc: number, h: any) => acc + (parseFloat(h.percent || '0') * 100), 0) > 75);
 
                 // Compute standardized risk score for EVM
@@ -181,9 +201,13 @@ export async function auditEvmTokens(chain: 'base' | 'robinhood', addresses: str
                     rugScore += 200;
                     securityRisks.push(`Creatorul deține ${creatorPercent.toFixed(1)}%`);
                 }
+                if (ownerPercent > 20) {
+                    rugScore += 200;
+                    securityRisks.push(`Proprietarul deține ${ownerPercent.toFixed(1)}%`);
+                }
                 if (top10HoldersPct !== null && top10HoldersPct > 50) {
                     rugScore += 200;
-                    securityRisks.push(`Top 10 holderi dețin ${top10HoldersPct.toFixed(1)}%`);
+                    securityRisks.push(`Top 10 portofele dețin ${top10HoldersPct.toFixed(1)}%`);
                 }
                 if (item.can_take_back_ownership === '1') {
                     rugScore += 200;
@@ -211,10 +235,10 @@ export async function auditEvmTokens(chain: 'base' | 'robinhood', addresses: str
 
                 results.set(normAddr, data);
                 securityCache.set(`${chain}:${normAddr}`, { data, timestamp: Date.now() });
+            } catch {
+                // Failure on individual address handled gracefully
             }
-        } catch {
-            // Failure on a chunk gracefully handled
-        }
+        }));
     }
 
     return results;
@@ -228,23 +252,36 @@ export async function enrichTokensWithSecurity(tokens: RadarToken[]): Promise<{
     sources: RadarSourceStatus[];
 }> {
     const sources: RadarSourceStatus[] = [];
-    const solanaTokens = tokens.filter(t => t.chain === 'solana');
-    const baseTokens = tokens.filter(t => t.chain === 'base');
-    const robinhoodTokens = tokens.filter(t => t.chain === 'robinhood');
+
+    // Prioritize candidates by market activity so top volume & liquidity tokens are audited first
+    const prioritize = (list: RadarToken[]) => [...list].sort((a, b) => {
+        const aScore = (a.volume24h || 0) + (a.liquidity || 0) + (a.boostAmount ? 50000 : 0);
+        const bScore = (b.volume24h || 0) + (b.liquidity || 0) + (b.boostAmount ? 50000 : 0);
+        return bScore - aScore;
+    });
+
+    const solanaTokens = prioritize(tokens.filter(t => t.chain === 'solana'));
+    const baseTokens = prioritize(tokens.filter(t => t.chain === 'base'));
+    const robinhoodTokens = prioritize(tokens.filter(t => t.chain === 'robinhood'));
 
     const enrichedMap = new Map<string, TokenSecurityData>();
 
-    // 1. Solana Security via RugCheck API
+    // 1. Solana Security via RugCheck API (batches of 4 concurrent calls)
     let solanaSuccessCount = 0;
-    const solanaCandidates = solanaTokens.slice(0, 40); // limit to prioritized tokens per run
-    for (const t of solanaCandidates) {
-        const audit = await auditSolanaToken(t.address);
-        if (audit) {
-            enrichedMap.set(t.id, audit);
-            solanaSuccessCount++;
+    const solanaCandidates = solanaTokens.slice(0, 40);
+    const SOL_BATCH = 4;
+    for (let i = 0; i < solanaCandidates.length; i += SOL_BATCH) {
+        const batch = solanaCandidates.slice(i, i + SOL_BATCH);
+        await Promise.all(batch.map(async t => {
+            const audit = await auditSolanaToken(t.address);
+            if (audit) {
+                enrichedMap.set(t.id, audit);
+                solanaSuccessCount++;
+            }
+        }));
+        if (i + SOL_BATCH < solanaCandidates.length) {
+            await new Promise(r => setTimeout(r, 100));
         }
-        // Polite delay between individual Solana RugCheck calls
-        await new Promise(r => setTimeout(r, 120));
     }
     sources.push({
         id: 'rugcheck:solana',
@@ -281,7 +318,7 @@ export async function enrichTokensWithSecurity(tokens: RadarToken[]): Promise<{
     sources.push({
         id: 'goplus:robinhood',
         kind: 'editorial',
-        status: robinhoodCandidates.length === 0 ? 'ok' : 'ok',
+        status: robinhoodCandidates.length === 0 ? 'ok' : (robinhoodResults.size > 0 ? 'ok' : 'partial'),
         items: robinhoodResults.size,
         checkedAt: Date.now(),
         detail: `GoPlus Security: verificări securitate Robinhood Chain (${robinhoodResults.size}/${robinhoodCandidates.length} verificate)`

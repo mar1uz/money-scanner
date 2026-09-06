@@ -223,14 +223,16 @@ export async function collectMarket(tracked: RadarToken[]): Promise<{
     // Discover active microcap utility candidates ($200k-$500k) via search
     const utilityDiscoveredAddressesByChain = new Map<RadarChain, string[]>();
     try {
-        const [botSearch, feeSearch] = await Promise.all([
+        const [botSearch, feeSearch, toolSearch] = await Promise.all([
             fetchJson('https://api.dexscreener.com/latest/dex/search?q=bot').catch(() => ({ pairs: [] })),
-            fetchJson('https://api.dexscreener.com/latest/dex/search?q=fee').catch(() => ({ pairs: [] }))
+            fetchJson('https://api.dexscreener.com/latest/dex/search?q=fee').catch(() => ({ pairs: [] })),
+            fetchJson('https://api.dexscreener.com/latest/dex/search?q=tool').catch(() => ({ pairs: [] }))
         ]);
-        const searchPairs = [...(botSearch.pairs || []), ...(feeSearch.pairs || [])];
+        const searchPairs = [...(botSearch.pairs || []), ...(feeSearch.pairs || []), ...(toolSearch.pairs || [])];
         for (const p of searchPairs) {
             const chain = String(p.chainId || '').toLowerCase() as RadarChain;
-            if (CHAINS.includes(chain) && p.baseToken?.address && p.marketCap >= 180000 && p.marketCap <= 550000) {
+            const cap = typeof p.marketCap === 'number' ? p.marketCap : (typeof p.fdv === 'number' ? p.fdv : 0);
+            if (CHAINS.includes(chain) && p.baseToken?.address && cap >= 180000 && cap <= 550000) {
                 const list = utilityDiscoveredAddressesByChain.get(chain) || [];
                 list.push(p.baseToken.address);
                 utilityDiscoveredAddressesByChain.set(chain, list);

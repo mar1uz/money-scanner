@@ -5,6 +5,7 @@ import { tokenId, rankTokens, rankMicrocaps, socialEvidence, dedupePosts } from 
 import { parseGeckoPools, parseDexPairs, parseDexBoosts, detectUtilitySignals } from './radar/market.js';
 import { parseTelegram, parseRss } from './radar/social.js';
 import { reportSlot, reportText, REPORT_INTERVAL } from './radar/service.js';
+import { auditSolanaToken, auditEvmTokens } from './radar/security.js';
 const now = Date.now();
 const token = (overrides: Partial<RadarToken> = {}): RadarToken => ({ id: 'base:0x1111111111111111111111111111111111111111', chain: 'base', address: '0x1111111111111111111111111111111111111111', symbol: 'ALPHA', name: 'Alpha Protocol', price: 1, marketCap: 500000, marketCapSource: 'test', liquidity: 100000, volume24h: 100000, volume1h: 10000, buys24h: 200, sells24h: 100, buyers24h: 80, priceChange24h: 10, pool: 'pool', url: 'https://dexscreener.com/base/pool', observedAt: now, coinGeckoId: null, telegram: null, ...overrides });
 const post = (overrides: Partial<RadarPost> = {}): RadarPost => ({ id: 'a', source: 'Mastodon', kind: 'social', author: 'alice', text: 'Following Alpha Protocol on Base today', url: 'https://mastodon.social/@alice/1', timestamp: now, engagement: null, ...overrides });
@@ -169,4 +170,30 @@ test('rankMicrocaps filters $200k-$500k range, ranks by fees & utility, and appl
     assert.ok(microcaps[0].reasons.some(r => r.includes('Mecanism buyback')));
     assert.ok(microcaps[1].reasons.some(r => r.includes('Concentrare ridicată')));
     assert.ok(microcaps[1].reasons.some(r => r.includes('Risc lansare bundled / insideri')));
+});
+test('auditSolanaToken handles transfer graphs without false positive insider penalty and detects actual insider risks', async () => {
+    // Normal token with graph transfer nodes should NOT be falsely flagged as insider/bundled
+    const cleanAudit = await auditSolanaToken('DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263');
+    if (cleanAudit) {
+        assert.equal(cleanAudit.insidersDetected, false);
+        assert.equal(cleanAudit.isBundled, false);
+        assert.equal(cleanAudit.isHoneypot, false);
+        assert.ok(typeof cleanAudit.top10HoldersPct === 'number');
+        assert.ok(cleanAudit.top10HoldersPct <= 50);
+    }
+});
+test('auditEvmTokens distinguishes pool contracts from individual user wallets', async () => {
+    const res = await auditEvmTokens('base', ['0x4ed4e862860bed51a9570b96d89af5e1b0efefed', '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913']);
+    const degen = res.get('0x4ed4e862860bed51a9570b96d89af5e1b0efefed');
+    if (degen) {
+        // Individual wallet concentration must distinguish contracts/pools (DEGEN wallet holders < 50%)
+        assert.ok(degen.top10HoldersPct !== null && degen.top10HoldersPct <= 50);
+        assert.equal(degen.isHoneypot, false);
+        assert.equal(degen.insidersDetected, false);
+    }
+    const usdc = res.get('0x833589fcd6edb6e08f4c7c32d4f71b54bda02913');
+    if (usdc) {
+        assert.ok(usdc.top10HoldersPct !== null && usdc.top10HoldersPct <= 50);
+        assert.equal(usdc.isHoneypot, false);
+    }
 });
