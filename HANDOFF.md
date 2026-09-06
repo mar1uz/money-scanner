@@ -3294,18 +3294,18 @@ Cloud Run health: HTTP 200, status ok
 
 ## 90. Resolution of Viewport Sticky Table Header Failure on Mobile and Desktop for Crypto Radar
 
-Implemented, verified with automated Playwright multi-engine browser evaluation, and deployed on 06 September 2026.
+Implemented, adversarially audited, verified with automated Playwright multi-engine browser evaluation on both Chromium and WebKit (mobile & desktop), and deployed on 06 September 2026.
 
-### Root Cause Investigation
+### Root Cause Investigation & Adversarial Audit
 
 1. **User Report & Visual Evidence (`media_1788704442992.png`)**:
-   - The user provided mobile screenshot showing the Crypto Radar table on an Android device: 4 long paragraphs of methodology text occupied the entire screen under the fixed header, pushing the table header down into the lower third of the screen, with only 4 rows visible.
+   - The user provided a mobile screenshot showing the Crypto Radar table on an Android device: 4 long paragraphs of methodology text occupied the entire screen under the fixed header, pushing the table header down into the lower third of the screen, with only 4 rows visible.
    - When the user attempted to scroll vertically, the table header did not stay fixed on the screen ("capul de tabel din poză nu este Fixat pe ecran cum te am rugat să îl faci").
 
-2. **Underlying CSS & DOM Causes**:
-   - **`overflow-x: clip` on `#root` and `html, body`**: Under CSS specifications and mobile browser implementations (Chromium Android & WebKit iOS), applying `overflow-x: clip` to `#root` establishes an overflow clipping boundary on a non-scrolling ancestor element (`#root` has `scrollTop = 0` while `window` scrolls). Descendant elements with `position: sticky; top: 56px;` evaluated their sticky boundary against `#root` rather than the scrolling viewport window, causing sticky positioning to fail.
-   - **`-webkit-overflow-scrolling: touch` compositor decoupling**: In mobile WebKit, `-webkit-overflow-scrolling: touch` creates an asynchronous compositor layer that decouples sticky coordinate computation from viewport scroll events.
-   - **Excessive Top DOM Mass (1126px Initial Offset)**: On mobile viewports, the 3 network filter cards were rendered in a stacked vertical column (`grid sm:grid-cols-3` -> 3 cards * 80px = 240px) plus 20 lines of dense methodology text (`snapshot.coverage` and calculation rules). This pushed the table header's initial position to 1126px below the top of the viewport. Even when scrolling 500px, the header was still 582px down the screen, visually failing to stick near the top.
+2. **Underlying CSS & DOM Causes Uncovered During Adversarial Review**:
+   - **Initial Offset Exceeding 556px (`y: 673px`)**: In the prior attempt, the vertical DOM mass above the table header totaled 673px. Because `673 - 500 = 173px`, when scrolling down 500px on mobile, the header was still 173px down the screen and had NOT reached the 56px navbar docking position. The prior attempt's test passed only because it used a synthetic mock intro block hardcoded to 350px, masking the live app failure.
+   - **`overflow-x: clip` on `#root` and `html, body`**: Applying `overflow-x: clip` to non-scrolling ancestor elements (`#root` has `scrollTop = 0` while `window` scrolls) created an overflow clipping boundary that prevented descendant `position: sticky; top: 56px;` elements from docking against the window viewport.
+   - **`-webkit-overflow-scrolling: touch` compositor decoupling**: In mobile WebKit, `-webkit-overflow-scrolling: touch` created an asynchronous compositor layer decoupling sticky coordinate calculations from viewport scroll events.
 
 ### What Changed
 
@@ -3314,35 +3314,40 @@ Implemented, verified with automated Playwright multi-engine browser evaluation,
    - Removed `-webkit-overflow-scrolling: touch;` from `html, body` and `.radar-sticky-header`.
    - The sticky container now evaluates its docking coordinate directly against the viewport window across all mobile (Android Chrome, iOS Safari) and desktop browsers.
 
-2. **Streamlined Mobile Layout & Compact Methodology Drawer (`CryptoRadarView.tsx`)**:
-   - Converted network filter cards to `grid grid-cols-3 gap-2` with compact status dots, keeping all 3 networks visible in a single 50px row instead of a 240px vertical stack on mobile.
-   - Relocated the 20-line methodology explanation into a sleek collapsible `<details>` drawer ("Metodologie scor, selecție & acoperire"), keeping key summary statistics (`191 tokenuri observate · 94 sub pragul minim...`) visible directly above the table.
-   - Reduced initial table header offset from 1126px to ~640px, ensuring the table is immediately reachable and docks cleanly under the 56px navbar.
+2. **Streamlined Mobile Controls & Compact Header Layout (`CryptoRadarView.tsx`)**:
+   - Re-engineered the top title banner into a single clean line with an inline `360° Live` badge, compacting mobile vertical height from 170px down to ~38px.
+   - Converted network filter cards to `grid grid-cols-3 gap-2` with compact status dots, keeping all 3 networks visible in a single row.
+   - Streamlined section switcher and report controls into a compact row (`pt-0.5`).
+   - Compacted summary text and wrapped detailed methodology in an inline collapsible drawer ("Metodologie & acoperire ▾").
+   - Reduced `<section>` spacing from `space-y-5` to `space-y-2.5 sm:space-y-4`.
+   - Result: Initial table header offset on mobile reduced from 673px to 448px (Chromium) / 441px (WebKit). Because 448px <= 556px, scrolling down 500px now docks the header cleanly at `top: 56px` with `gap: 0` below the fixed app navbar!
 
 3. **Automated Playwright Multi-Engine Verification (`crypto-radar-sticky.test.ts`)**:
    - Added automated static regression test asserting that `@layer base` in `index.css` never contains `overflow-x: clip` or `overflow-x: hidden`.
    - Verified automated Playwright test across both Chromium and WebKit with mobile (iPhone 14, 390x844) and desktop (1440x900) viewports:
-     - Header docks precisely at 56px below fixed navbar (`gap: 0`).
-     - Stays locked at `top: 56px` at 500px, 1000px, 1500px, and 2500px scroll depths.
+     - Header docks precisely with `gap: 0` below the fixed navbar.
+     - Stays locked at `top: 56px` (or `top: 51px` in WebKit mobile matching `header.bottom: 51px`) at 500px, 1000px, 1500px, and 2500px scroll depths.
+     - Verified bidirectional horizontal scroll synchronization on mobile viewports.
    - Monorepo test suite: 111 API tests + 72 Web tests = 183 passed, 0 failed (100% pass rate).
 
 4. **Production Build & Deployment**:
    - Full monorepo build succeeded (`npm run build`).
-   - Deployed via Cloud Build to Cloud Run revision `market-scanner-360-00176-7ff`.
+   - Deployed via Cloud Build `31d0a9d4-7bb5-4860-a730-7f3dc158e1ac` to Cloud Run revision `market-scanner-360-00177-5k8`.
    - Verified `/api/health` (HTTP 200, status ok) and live URL.
-   - Verified live production CSS bundle (`assets/index-EAZOOdS9.css`) has 0 instances of `overflow-x: clip` and retains active `.radar-sticky-header`.
+   - Verified live production CSS bundle (`assets/index-CvTjS5VH.css`) has 0 instances of `overflow-x: clip` and retains active `.radar-sticky-header`.
+   - Verified live production JS bundle (`assets/index-D1xVwz9H.js`).
 
 Verification and deployment evidence:
 
 ```text
-Source commit/image tag: 74ee80b
+Source commit/image tag: 8c0c6dc
 Local tests: 183 passed, 0 failed (100% test pass rate)
 Local build: passed (packages/*, apps/api, apps/worker, apps/web)
-Cloud Build: 9ad49069-d98c-4e10-9b55-afc7927e8655 (SUCCESS)
-Cloud Run revision: market-scanner-360-00176-7ff
+Cloud Build: 31d0a9d4-7bb5-4860-a730-7f3dc158e1ac (SUCCESS)
+Cloud Run revision: market-scanner-360-00177-5k8
 Traffic: 100%
 Revision conditions: Ready=True, ConfigurationsReady=True, RoutesReady=True
-Public bundle: assets/index-P7pXXqq0.js, assets/index-EAZOOdS9.css
+Public bundle: assets/index-D1xVwz9H.js, assets/index-CvTjS5VH.css
 Public URL: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=crypto_radar
 Cloud Run health: HTTP 200, status ok
 ```
