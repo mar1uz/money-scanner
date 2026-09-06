@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { RadarSnapshot, RadarReportSummary, RadarRow } from '@money-scanner/shared';
 import { radarTokenChartUrl } from '@money-scanner/shared';
 import { requestCsrfToken } from '../services/firebase-auth.js';
@@ -32,6 +32,12 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
   const [scanning, setScanning] = useState(false);
   const [sort, setSort] = useState<{ key: RadarSortKey; direction: RadarSortDirection }>({ key: 'rank', direction: 'asc' });
 
+  const stickyHeaderRef = useRef<HTMLDivElement>(null);
+  const headerInnerRef = useRef<HTMLDivElement>(null);
+  const bodyScrollRef = useRef<HTMLDivElement>(null);
+  const touchStartXRef = useRef<number | null>(null);
+  const scrollStartLeftRef = useRef<number>(0);
+
   const load = async () => {
     setLoading(true);
     try {
@@ -53,10 +59,77 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
     load();
   }, []);
 
+  useEffect(() => {
+    const bodyEl = bodyScrollRef.current;
+    if (!bodyEl) return;
+    const syncScroll = () => {
+      if (headerInnerRef.current && bodyScrollRef.current) {
+        headerInnerRef.current.style.transform = `translateX(-${bodyScrollRef.current.scrollLeft}px)`;
+      }
+    };
+    bodyEl.addEventListener('scroll', syncScroll, { passive: true });
+    window.addEventListener('resize', syncScroll, { passive: true });
+    return () => {
+      bodyEl.removeEventListener('scroll', syncScroll);
+      window.removeEventListener('resize', syncScroll);
+    };
+  }, []);
+
+  const handleBodyScroll = () => {
+    if (bodyScrollRef.current && headerInnerRef.current) {
+      headerInnerRef.current.style.transform = `translateX(-${bodyScrollRef.current.scrollLeft}px)`;
+    }
+  };
+
+  const handleHeaderWheel = (e: React.WheelEvent) => {
+    if (bodyScrollRef.current) {
+      const delta = e.deltaX || (e.shiftKey ? e.deltaY : 0);
+      if (delta) {
+        bodyScrollRef.current.scrollLeft += delta;
+      }
+    }
+  };
+
+  const handleHeaderTouchStart = (e: React.TouchEvent) => {
+    if (e.touches[0]) {
+      touchStartXRef.current = e.touches[0].clientX;
+      scrollStartLeftRef.current = bodyScrollRef.current?.scrollLeft || 0;
+    }
+  };
+
+  const handleHeaderTouchMove = (e: React.TouchEvent) => {
+    if (touchStartXRef.current !== null && bodyScrollRef.current && e.touches[0]) {
+      const diff = touchStartXRef.current - e.touches[0].clientX;
+      bodyScrollRef.current.scrollLeft = scrollStartLeftRef.current + diff;
+    }
+  };
+
+  const handleHeaderTouchEnd = () => {
+    touchStartXRef.current = null;
+  };
+
+  const switchSection = (newSection: 'main' | 'microcaps') => {
+    setSection(newSection);
+    setExpanded(null);
+    setActiveSecurityTooltip(null);
+    if (bodyScrollRef.current) {
+      bodyScrollRef.current.scrollLeft = 0;
+    }
+    if (headerInnerRef.current) {
+      headerInnerRef.current.style.transform = 'translateX(0px)';
+    }
+  };
+
   const select = async (value: string) => {
     setSelection(value);
     setExpanded(null);
     setActiveSecurityTooltip(null);
+    if (bodyScrollRef.current) {
+      bodyScrollRef.current.scrollLeft = 0;
+    }
+    if (headerInnerRef.current) {
+      headerInnerRef.current.style.transform = 'translateX(0px)';
+    }
     if (value === 'latest') {
       setSnapshot(data?.latest || data?.collection || null);
       return;
@@ -104,35 +177,36 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
     [rawRows, chain, sort]
   );
 
-  const mainHeaders: { key: RadarSortKey; label: string }[] = [
-    { key: 'rank', label: 'Loc' },
-    { key: 'name', label: 'Monedă / rețea' },
-    { key: 'price', label: 'Preț USD' },
-    { key: 'priceChange24h', label: 'Δ 24H' },
-    { key: 'firstPrice', label: 'Primul raport' },
-    { key: 'changeFirst', label: 'Δ inițial' },
-    { key: 'changePrevious', label: 'Δ precedent' },
-    { key: 'marketCap', label: 'Market cap' },
-    { key: 'volume24h', label: 'Volum 24h' },
-    { key: 'liquidity', label: 'Lichiditate' },
-    { key: 'top10HoldersPct', label: 'Securitate / Hold.' },
-    { key: 'score', label: 'Scor / social' }
+  const mainHeaders: { key: RadarSortKey; label: string; width: number }[] = [
+    { key: 'rank', label: 'Loc', width: 60 },
+    { key: 'name', label: 'Monedă / rețea', width: 200 },
+    { key: 'price', label: 'Preț USD', width: 100 },
+    { key: 'priceChange24h', label: 'Δ 24H', width: 90 },
+    { key: 'firstPrice', label: 'Primul raport', width: 110 },
+    { key: 'changeFirst', label: 'Δ inițial', width: 90 },
+    { key: 'changePrevious', label: 'Δ precedent', width: 105 },
+    { key: 'marketCap', label: 'Market cap', width: 105 },
+    { key: 'volume24h', label: 'Volum 24h', width: 105 },
+    { key: 'liquidity', label: 'Lichiditate', width: 105 },
+    { key: 'top10HoldersPct', label: 'Securitate / Hold.', width: 135 },
+    { key: 'score', label: 'Scor / social', width: 125 }
   ];
 
-  const microHeaders: { key: RadarSortKey; label: string }[] = [
-    { key: 'rank', label: 'Loc' },
-    { key: 'name', label: 'Monedă / rețea' },
-    { key: 'price', label: 'Preț USD' },
-    { key: 'priceChange24h', label: 'Δ 24H' },
-    { key: 'marketCap', label: 'Market cap' },
-    { key: 'volume24h', label: 'Volum 24h' },
-    { key: 'estimatedFees24h', label: 'Comisioane 24h' },
-    { key: 'liquidity', label: 'Lichiditate' },
-    { key: 'top10HoldersPct', label: 'Securitate / Hold.' },
-    { key: 'score', label: 'Scor / utilitate' }
+  const microHeaders: { key: RadarSortKey; label: string; width: number }[] = [
+    { key: 'rank', label: 'Loc', width: 60 },
+    { key: 'name', label: 'Monedă / rețea', width: 200 },
+    { key: 'price', label: 'Preț USD', width: 100 },
+    { key: 'priceChange24h', label: 'Δ 24H', width: 90 },
+    { key: 'marketCap', label: 'Market cap', width: 105 },
+    { key: 'volume24h', label: 'Volum 24h', width: 105 },
+    { key: 'estimatedFees24h', label: 'Comisioane 24h', width: 120 },
+    { key: 'liquidity', label: 'Lichiditate', width: 105 },
+    { key: 'top10HoldersPct', label: 'Securitate / Hold.', width: 135 },
+    { key: 'score', label: 'Scor / utilitate', width: 145 }
   ];
 
   const headers = section === 'main' ? mainHeaders : microHeaders;
+  const tableMinWidth = useMemo(() => headers.reduce((sum, h) => sum + h.width, 0), [headers]);
 
   const changeSort = (key: RadarSortKey) => {
     setExpanded(null);
@@ -359,7 +433,7 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
         <div className="inline-flex rounded-xl p-1 bg-white/[.04] border border-white/10">
           <button
             type="button"
-            onClick={() => { setSection('main'); setExpanded(null); setActiveSecurityTooltip(null); }}
+            onClick={() => switchSection('main')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${section === 'main' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow' : 'text-slate-400 hover:text-slate-200'}`}
           >
             🌟 Radar Principal (Cap ≥ $500k)
@@ -367,7 +441,7 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
           </button>
           <button
             type="button"
-            onClick={() => { setSection('microcaps'); setExpanded(null); setActiveSecurityTooltip(null); }}
+            onClick={() => switchSection('microcaps')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${section === 'microcaps' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow' : 'text-slate-400 hover:text-slate-200'}`}
           >
             🔬 Microcaps Utilitare ($200k – $500k)
@@ -417,30 +491,68 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
 
           <p className="text-xs text-slate-400">Apasă pe numele monedei pentru graficul DEX Screener într-o filă nouă. Butonul Detalii arată dovezile scanării și auditul de securitate.</p>
 
-          <div className="overflow-x-auto rounded-xl border border-white/10">
-            <table className="w-full text-sm whitespace-nowrap">
-              <thead className="text-[11px] uppercase text-slate-500 bg-white/[.03]">
-                <tr>
-                  {headers.map(h => {
-                    const active = sort.key === h.key;
-                    const next = active && sort.direction === 'asc' ? 'descrescător' : 'crescător';
-                    return (
-                      <th scope="col" aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'} className="p-0 text-left" key={h.key}>
-                        <button
-                          type="button"
-                          onClick={() => changeSort(h.key)}
-                          aria-label={`Sortează după ${h.label}, ${next}`}
-                          className={`w-full min-h-11 px-3 py-3 text-left hover:bg-white/[.05] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-400 ${active ? 'text-cyan-300' : 'text-slate-500'}`}
-                        >
-                          <span>{h.label}</span>
-                          <span aria-hidden="true" className="ml-1">{active ? (sort.direction === 'asc' ? '↑' : '↓') : '↕'}</span>
-                        </button>
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
-              <tbody>
+          <div className="relative rounded-xl border border-white/10 bg-[#0b1329]/40">
+            {/* Sticky Table Header (docks at top-[56px] below the 56px app header, fully opaque background, synchronized horizontal scroll) */}
+            <div
+              ref={stickyHeaderRef}
+              className="sticky top-[56px] z-20 overflow-hidden bg-[#0b1329] border-b border-white/10 rounded-t-xl shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
+              onWheel={handleHeaderWheel}
+              onTouchStart={handleHeaderTouchStart}
+              onTouchMove={handleHeaderTouchMove}
+              onTouchEnd={handleHeaderTouchEnd}
+            >
+              <div ref={headerInnerRef} className="will-change-transform">
+                <table aria-label="Crypto Radar - Cap tabel" className="w-full text-sm whitespace-nowrap table-fixed" style={{ minWidth: tableMinWidth }}>
+                  <colgroup>
+                    {headers.map(h => (
+                      <col key={h.key} style={{ width: `${h.width}px` }} />
+                    ))}
+                  </colgroup>
+                  <thead className="text-[11px] uppercase text-slate-400 bg-white/[.04]">
+                    <tr>
+                      {headers.map(h => {
+                        const active = sort.key === h.key;
+                        const next = active && sort.direction === 'asc' ? 'descrescător' : 'crescător';
+                        return (
+                          <th scope="col" aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'} className="p-0 text-left" key={h.key}>
+                            <button
+                              type="button"
+                              onClick={() => changeSort(h.key)}
+                              aria-label={`Sortează după ${h.label}, ${next}`}
+                              className={`w-full min-h-11 px-3 py-3 text-left hover:bg-white/[.05] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-400 transition-colors ${active ? 'text-cyan-300' : 'text-slate-400'}`}
+                            >
+                              <span>{h.label}</span>
+                              <span aria-hidden="true" className="ml-1">{active ? (sort.direction === 'asc' ? '↑' : '↓') : '↕'}</span>
+                            </button>
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                </table>
+              </div>
+            </div>
+
+            {/* Scrollable Table Body */}
+            <div
+              ref={bodyScrollRef}
+              onScroll={handleBodyScroll}
+              className="overflow-x-auto rounded-b-xl custom-scrollbar"
+            >
+              <table aria-label="Crypto Radar - Date tokenuri" className="w-full text-sm whitespace-nowrap table-fixed" style={{ minWidth: tableMinWidth }}>
+                <colgroup>
+                  {headers.map(h => (
+                    <col key={h.key} style={{ width: `${h.width}px` }} />
+                  ))}
+                </colgroup>
+                <thead className="sr-only">
+                  <tr>
+                    {headers.map(h => (
+                      <th key={h.key} scope="col">{h.label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
                 {rows.map(r => {
                   const sec = getRadarSecurityStatus(r);
                   return (
@@ -571,6 +683,7 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
                 Nicio monedă eligibilă în această secțiune ({section === 'main' ? '≥ $500k' : '$200k – $500k'}). Verifică starea surselor mai jos.
               </p>
             )}
+            </div>
           </div>
 
           <details className="rounded-xl border border-white/10 p-4 text-sm">
