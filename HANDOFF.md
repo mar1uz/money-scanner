@@ -2968,4 +2968,38 @@ Deployment / scheduler activation: pending checkpoint verification below. Do not
 - Revision `market-scanner-360-00163-pls`, 100% traffic; `/api/health` 200.
 - Anonymous `/api/radar` and unsigned POST `/api/radar/scheduled` both 401.
 - Authenticated scheduler-token cloud collection returned 200 and persisted 48 eligible tokens: Solana 15 / Base 16 / Robinhood 17. Browser authenticated page loaded correctly. Raw data is a changing sample, not an exhaustive chain scan.
-- Checkpoint 2 adds distributed persistence/delivery tests, rejects generic chain names as token-name evidence, keyboard-accessible token details, social count delta display, and a credential-safe scheduler setup script. API tests now 99, monorepo total 201 before the final first-report freshness adjustment.
+- Checkpoint 2 adds distributed persistence/delivery tests, rejects generic chain names as token-name evidence, keyboard-accessible token details, social count delta display, and a credential-safe scheduler setup script. API tests now 99, monorepo total 201; final focused Radar suite 23/23 passed.
+
+### Checkpoint 2 — deployed, initial report delivered, schedules enabled
+
+Verified 2026-09-06. This supersedes the pending activation note above.
+
+- Source commit `28c1427`; Cloud Build `17bca130-98f9-4737-babd-f02ef6ce5ddc`: SUCCESS.
+- Cloud Run revision `market-scanner-360-00164-ln4`, 100% traffic. Monorepo build and 201 tests passed; final API build and focused 23 Radar tests passed.
+- Production: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=crypto_radar . Authenticated Chrome verified chain filtering, report table, first-report prices, expandable original social evidence and delivery status.
+- First immutable report `1788652800000` generated 2026-09-06 04:55:30 UTC (06:55:30 Oslo): 48 eligible tokens, Solana 15 / Base 16 / Robinhood 17. Uses the collection from 04:42 UTC; quote observation time is visible in each token's details. Publications reuse a collection younger than 25 minutes.
+- Telegram API confirmed delivery (`radar-delivery/1788652800000`: `sent`), also visible in the UI. Telegram includes top 10 plus a link to the full ranking/history. First-price baselines persisted for all 48 tokens.
+- Repeated authenticated publish returned the identical report and left the delivery timestamps unchanged. Health 200; anonymous radar read and unsigned scheduler request 401.
+- `money-scanner-radar-collect`: ENABLED, `*/30 * * * *`, UTC, POST `{publish:false}`.
+- `money-scanner-radar-report`: ENABLED, `5 0,12 * * *`, UTC, POST `{publish:true}`. Normal reports at 00:05 and 12:05 UTC; presently 02:05 and 14:05 Oslo. Initial manual report is an extra bootstrap publication, not the start of a drifting 12-hour timer.
+- Both jobs target `/api/radar/scheduled` with the existing protected scheduler token. Independent daily regime scan and AI warmup remain enabled with their previous schedules.
+- Manual Cloud Scheduler executions verified in its logs: report finished 04:56:18 UTC HTTP 200; collection finished 04:56:41 UTC HTTP 200. The report execution reused the existing immutable slot.
+- Setup/reconcile command: `node scripts/configure-radar-scheduler.mjs --apply`; omit `--apply` for safe dry-run. Script reuses the existing scheduler header in memory and never prints credentials. Do not dump full scheduler/service configuration into logs or docs.
+- Sanitized cloud evidence is in `docs/crypto-radar/checkpoint2-evidence.json`; no credentials or raw social content included.
+
+### Continuation / cost-efficient module workflow
+
+Read this section, `docs/crypto-radar/IMPLEMENTATION.md` and only the files of the next module. The normal Radar pipeline consumes zero LLM tokens; cloud hosting/storage/scheduler usage still incurs the account's usual infrastructure costs. Work can stop between checkpoints without stopping scheduled Radar operation.
+
+Priority order for future implementation:
+1. Source-specific coverage and growth: track successful collection windows per platform/token, separate missing observations from zero, add account/broadcast quality evidence. Acceptance: a platform outage cannot masquerade as declining community interest; raw mention volume alone is not organic growth.
+2. Discovery coverage: persisted fair per-chain pagination and hard request budgets. Acceptance: more old and new candidates without exceeding quotas or losing existing tracked-token refreshes.
+3. Wallet/holder cohorts: verify a free per-chain indexer/RPC route before implementing holder concentration and repeat-wallet flows. Current aggregate buys/sells are **not** wallet-network analysis.
+4. Optional Farcaster/Telegram community expansion: verify actual accessible endpoints and authorized channels. Fomo has no confirmed connector in this app; Bluesky currently returns 403; do not treat configured adapters as working sources.
+5. Forward performance evaluation across all report cohorts, including dropped tokens, before claiming an investment edge.
+
+For a delegated implementation, give one agent one bounded module, its file ownership, acceptance checks, and this handoff section; use a less costly implementation model for mechanical adapter/UI changes, retaining architectural and security review before deployment. Avoid multiple agents exploring the entire repo. No additional agent tasks were created for this checkpoint.
+
+Do not reset `radar-tokens` or edit old `radar-reports` to change scoring. Version methodology for future score changes. Each module: focused tests + required build, deployment, authenticated smoke check, update this handoff with exact revision and limitations.
+
+Operational recovery: inspect only selected scheduler status fields and Radar source health. A source 403/429 is surfaced and isolated. If Telegram delivery is `uncertain` or stuck `sending`, verify the actual chat before any manual retry; do not delete delivery claims blindly. To roll back before Radar existed, first pause both `money-scanner-radar-*` jobs, then route traffic to the chosen verified old revision. Current prior Radar revision is `market-scanner-360-00163-pls`; pre-Radar revision is `market-scanner-360-00162-qfn`. Do not delete Firestore report history during rollback.

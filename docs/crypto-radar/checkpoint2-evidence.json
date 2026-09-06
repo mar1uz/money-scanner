@@ -1,0 +1,235 @@
+{
+  "checkedAt": "2026-09-06T04:55:33.016Z",
+  "buildId": "17bca130-98f9-4737-babd-f02ef6ce5ddc",
+  "revision": "market-scanner-360-00164-ln4",
+  "reportId": "1788652800000",
+  "generatedAt": 1788670530423,
+  "count": 48,
+  "chains": {
+    "solana": 15,
+    "base": 16,
+    "robinhood": 17
+  },
+  "delivery": {
+    "status": "sent",
+    "updatedAt": "1788670531096",
+    "startedAt": "1788670530937"
+  },
+  "immutableRetry": true,
+  "health": 200,
+  "anonymousRead": 401,
+  "unsignedSchedule": 401,
+  "sources": [
+    {
+      "id": "gecko:solana:trending_pools",
+      "status": "ok",
+      "items": 20
+    },
+    {
+      "id": "gecko:solana:new_pools",
+      "status": "ok",
+      "items": 20
+    },
+    {
+      "id": "gecko:base:trending_pools",
+      "status": "ok",
+      "items": 20
+    },
+    {
+      "id": "gecko:base:new_pools",
+      "status": "ok",
+      "items": 20
+    },
+    {
+      "id": "gecko:robinhood:trending_pools",
+      "status": "ok",
+      "items": 20
+    },
+    {
+      "id": "gecko:robinhood:new_pools",
+      "status": "unavailable",
+      "items": 0
+    },
+    {
+      "id": "dex:solana",
+      "status": "ok",
+      "items": 35
+    },
+    {
+      "id": "dex:base",
+      "status": "ok",
+      "items": 35
+    },
+    {
+      "id": "dex:robinhood",
+      "status": "ok",
+      "items": 19
+    },
+    {
+      "id": "farcaster",
+      "status": "not_configured",
+      "items": 0
+    },
+    {
+      "id": "telegram:fungalstate",
+      "status": "unavailable",
+      "items": 0
+    },
+    {
+      "id": "telegram:solana",
+      "status": "unavailable",
+      "items": 0
+    },
+    {
+      "id": "telegram:cointelegraph",
+      "status": "ok",
+      "items": 13
+    },
+    {
+      "id": "telegram:watcherguru",
+      "status": "ok",
+      "items": 3
+    },
+    {
+      "id": "telegram:robincoinrbh",
+      "status": "unavailable",
+      "items": 0
+    },
+    {
+      "id": "telegram:StonkFunXyz",
+      "status": "ok",
+      "items": 0
+    },
+    {
+      "id": "telegram:Stonks_Exchange",
+      "status": "ok",
+      "items": 0
+    },
+    {
+      "id": "telegram:catecoin_telegram",
+      "status": "ok",
+      "items": 0
+    },
+    {
+      "id": "telegram:velvetcapital",
+      "status": "unavailable",
+      "items": 0
+    },
+    {
+      "id": "telegram:cashcat_robinhood",
+      "status": "ok",
+      "items": 0
+    },
+    {
+      "id": "telegram:trollsolog",
+      "status": "ok",
+      "items": 0
+    },
+    {
+      "id": "telegram:CHUMPCOIN21B",
+      "status": "ok",
+      "items": 0
+    },
+    {
+      "id": "telegram:basecatonbase",
+      "status": "unavailable",
+      "items": 0
+    },
+    {
+      "id": "telegram:artificialneko_community",
+      "status": "unavailable",
+      "items": 0
+    },
+    {
+      "id": "telegram:Baldonbase",
+      "status": "ok",
+      "items": 0
+    },
+    {
+      "id": "telegram:basestonk",
+      "status": "ok",
+      "items": 0
+    },
+    {
+      "id": "bluesky:solana",
+      "status": "unavailable",
+      "items": 0
+    },
+    {
+      "id": "bluesky:base crypto",
+      "status": "unavailable",
+      "items": 0
+    },
+    {
+      "id": "bluesky:robinhood chain",
+      "status": "unavailable",
+      "items": 0
+    },
+    {
+      "id": "mastodon:crypto",
+      "status": "ok",
+      "items": 34
+    },
+    {
+      "id": "mastodon:solana",
+      "status": "ok",
+      "items": 6
+    },
+    {
+      "id": "mastodon:defi",
+      "status": "ok",
+      "items": 9
+    },
+    {
+      "id": "rss:CoinDesk",
+      "status": "ok",
+      "items": 5
+    },
+    {
+      "id": "mastodon:base",
+      "status": "ok",
+      "items": 1
+    },
+    {
+      "id": "rss:Cointelegraph",
+      "status": "ok",
+      "items": 3
+    },
+    {
+      "id": "rss:The Block",
+      "status": "ok",
+      "items": 2
+    },
+    {
+      "id": "rss:Decrypt",
+      "status": "ok",
+      "items": 4
+    },
+    {
+      "id": "rss:Blockworks",
+      "status": "ok",
+      "items": 0
+    },
+    {
+      "id": "coingecko:search-interest",
+      "status": "ok",
+      "items": 15
+    }
+  ],
+  "scheduler": {
+    "collect": {
+      "state": "ENABLED",
+      "schedule": "*/30 * * * *",
+      "timeZone": "UTC",
+      "verifiedHttpStatus": 200,
+      "verifiedAt": "2026-09-06T04:56:41Z"
+    },
+    "report": {
+      "state": "ENABLED",
+      "schedule": "5 0,12 * * *",
+      "timeZone": "UTC",
+      "verifiedHttpStatus": 200,
+      "verifiedAt": "2026-09-06T04:56:18Z"
+    }
+  }
+}

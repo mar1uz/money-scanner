@@ -38,3 +38,11 @@ No reliable public Farcaster endpoint or Fomo feed API has been confirmed. Do no
 - Forward evaluation: preserve all first-report cohorts and measure subsequent returns, drawdowns and false positives, including dropped/unavailable tokens. Only after sufficient history discuss predictive value.
 
 These extensions must not reset v1 first-report prices or overwrite historical reports. Use a new methodology version when scoring changes after first publication. Deployment of each module requires focused tests, a recorded cloud revision and live smoke evidence.
+
+## Checkpoint 2 operational status
+- Commit `28c1427`, Cloud Build `17bca130-98f9-4737-babd-f02ef6ce5ddc` SUCCESS, revision `market-scanner-360-00164-ln4`, 100% traffic.
+- Build passed, 201 monorepo tests passed; final focused Radar suite 23/23 passed.
+- First report `1788652800000`: 48 eligible tokens, all three chains; first prices persisted and Telegram delivery confirmed. Retrying returned an identical report and did not change delivery timestamps.
+- Collection every 30 minutes; publication 00:05 / 12:05 UTC. Both independent Cloud Scheduler jobs enabled; existing daily jobs preserved.
+- Report currently contains top 10 in Telegram and the complete ranking in the authenticated dashboard. A publication may reuse a collection younger than 25 minutes; quote observation dates remain visible. Initial report bootstrapped at 04:55 UTC, next regular slot at 12:05 UTC.
+- Source health, report table, chain filter and original evidence details verified in authenticated production Chrome. Detailed operations, recovery and next module acceptance criteria: HANDOFF.md section 82.
