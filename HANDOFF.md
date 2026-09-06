@@ -3197,44 +3197,43 @@ Cloud Run health: HTTP 200, status ok
 
 ## 88. Mobile Crypto Radar Security & Holder Status Indicator
 
-Implemented and deployed on 06 September 2026.
+Implemented, adversarially audited, and deployed on 06 September 2026.
 
 ### What changed
 
 1. **Security & Holders Status Indicator on Mobile (`CryptoRadarView.tsx`, `crypto-radar-security.ts`)**:
-   - **Problem**: On mobile screens, users only saw the initial columns (`Loc`, `Monedă / rețea`, `Preț`) without horizontal scrolling. To see whether a token was safe, had high holder concentration, or posed insider/honeypot risks, users had to scroll all the way to the right to see the `Securitate / Hold.` badge.
+   - **Problem**: On mobile viewports, users only see the initial columns (`Loc`, `Monedă / rețea`, `Preț`) without horizontal scrolling. To see whether a token was safe, had high holder concentration, or posed insider/honeypot risks, users previously had to scroll horizontally across 10 columns to reach `Securitate / Hold.`.
    - **Solution**: Added a colored status circle (`w-2.5 h-2.5 rounded-full shrink-0 ring-2`) inline right next to each token's name (`Monedă ↗`) in the permanently visible token column on both the primary radar table (`Radar Principal`, Cap ≥ $500k) and the microcaps table (`Microcaps Utilitare`, $200k – $500k).
    - **Color & State Matching**:
      - 🟢 **Emerald/Green (`bg-emerald-400 ring-emerald-400/30`)**: Clean security audit (`top10HoldersPct <= 50%`, no insider clustering, no bundled launch, not a honeypot, low rug score).
      - 🟡 **Amber/Yellow (`bg-amber-400 ring-amber-400/30`)**: High holder concentration warning (`top10HoldersPct > 50%`, no danger flags).
      - 🔴 **Rose/Red (`bg-rose-500 ring-rose-500/30`)**: Security danger flags (honeypot contract, bundled launch, insider networks detected, or rugScore > 500).
      - ⚪ **Slate/Gray (`bg-slate-500 ring-slate-500/30`)**: Audit in progress / un-audited (`top10HoldersPct === null`).
-   - **Accessibility & Interactivity**: Added descriptive Romanian tooltips (`title`) and `aria-label` attribute on the status circle (`Securitate {Token}: {Status}`) enabling users to view the exact security status and holder percentage on hover, tap, or screen reader navigation.
+   - **Interactive Mobile Tap Tooltip Card**: Status circle is rendered as a keyboard-accessible `<button type="button">` with `aria-label`, native `title`, and `onClick` with `e.stopPropagation()`. Tapping the circle on mobile toggles an inline security status pill right under the token name (preventing parent row click expansion), complete with a dismiss button `✕`.
 
-2. **Unified Security Status Module & Unit Testing (`crypto-radar-security.ts`, `crypto-radar-security.test.ts`)**:
-   - Extracted security classification into a standalone utility function `getRadarSecurityStatus(row)` shared by both the token column indicator and the `Securitate / Hold.` table badge, guaranteeing 100% visual consistency.
-   - Added unit test suite covering all 4 security levels, boundary conditions (0%, 50%, 50.1%), priority overriding (danger flags taking precedence over holder percentages), and un-audited token fallbacks.
+2. **Adversarial Bug Fixes in Security Status Evaluation (`crypto-radar-security.ts`, `crypto-radar-security.test.ts`)**:
+   - **Bug fixed (NaN / Negative / Infinity / Out-of-bounds bypass)**: Evaluated `row.top10HoldersPct !== null` without finite-number checks, causing `NaN%`, `-5%`, or corrupted data to fall through to `clean` (emerald). Added `isValidPercentage` validating `Number.isFinite(val) && val >= 0 && val <= 100`.
+   - **Null / Undefined row safety**: Passing null/undefined row crashed with `Cannot read properties of null`. Fixed with nullish fallback `row ?? {}`.
+   - **RugScore Boundary Check**: Verified boundary conditions: `rugScore === 500` remains clean if other metrics are safe; `rugScore > 500` (e.g. 501) triggers danger.
+   - **Unit Tests**: Added 5 new edge-case tests in `crypto-radar-security.test.ts` (174 total tests in monorepo).
 
 3. **Verification & Cloud Run Deployment**:
-   - Full monorepo test suite passed (111 API tests + 62 Web tests = 173 passed, 0 failed).
+   - Full monorepo test suite passed (111 API tests + 63 Web tests = 174 passed, 0 failed).
    - Local production build completed successfully.
-   - Cloud Build deployed to Cloud Run revision `market-scanner-360-00170-87p`.
+   - Cloud Build deployed to Cloud Run revision `market-scanner-360-00171-ltl`.
    - Verified live endpoint `/api/health` (HTTP 200) and live page at `https://market-scanner-360-384051756749.europe-west3.run.app/?tab=crypto_radar`.
 
 Verification and deployment evidence:
 
 ```text
-Source commit/image tag: ec4a18b
-Local tests: 173 passed, 0 failed (100% test pass rate)
+Source commit/image tag: c024f6c
+Local tests: 174 passed, 0 failed (100% test pass rate)
 Local build: passed (packages/*, apps/api, apps/worker, apps/web)
-Cloud Build: d6d4c4f4-0941-4c9f-8955-c878a10d7b5d (SUCCESS)
-Cloud Run revision: market-scanner-360-00170-87p
+Cloud Build: f05e2d42-ec1e-44a9-b5e5-61c234671bac (SUCCESS)
+Cloud Run revision: market-scanner-360-00171-ltl
 Traffic: 100%
 Revision conditions: Ready=True, ConfigurationsReady=True, RoutesReady=True
-Public bundle: assets/index-BpRxJV0b.js, assets/index-CMqoyvsj.css
+Public bundle: assets/index-BEemp_VZ.js, assets/index-AdlyYXIG.css
 Public URL: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=crypto_radar
 Cloud Run health: HTTP 200, status ok
 ```
-
-
-
