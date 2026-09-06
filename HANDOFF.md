@@ -3145,4 +3145,54 @@ Public URL: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=cr
 Cloud Run health: HTTP 200, status ok
 ```
 
+## 87. Adversarial Audit, RugCheck False Positive Elimination & EVM Batch Audit Fixes
+
+Implemented and deployed on 06 September 2026.
+
+### What changed
+
+1. **Elimination of 100% False-Positive `insidersDetected` Flag on Solana (`security.ts`)**:
+   - **Root Cause**: The prior attempt checked `body.graphInsidersDetected > 0` and `body.insiderNetworks.length > 0`. Because RugCheck generates transfer network graphs with active node counts for every active token (e.g. BONK has 22,167 nodes, USELESS has 1,053 nodes), 100% of Solana tokens were falsely marked with `insidersDetected = true`, penalized 25 points, tagged with `🚨 Risc lansare bundled / insideri`, and barred from ever receiving positive verification.
+   - **Fix**: Replaced naive counter check with rigorous multi-signal evaluation:
+     - Direct insider flag on top holders (`h.insider === true`).
+     - Explicit insider/cluster risks flagged by RugCheck in `risks` array (`/insider|cluster|coordinated/i`).
+     - Coordinated small clusters holding high supply shares (`accounts >= 2 && accounts <= 50 && /bundle|insider|cluster/i.test(n.id)`).
+   - Clean tokens (BONK, USELESS, etc.) now correctly resolve `insidersDetected: false` and receive `🛡️ Verificare portofele: top 10 holderi X%, fără clustere de insideri`.
+
+2. **Fix GoPlus EVM Single-Address Endpoint Truncation (`security.ts`)**:
+   - **Root Cause**: GoPlus `/api/v1/token_security/{chainId}` endpoint silently ignores all but the first address when passed comma-separated `contract_addresses`. The prior attempt chunked by 25 addresses per query, causing 24 out of 25 addresses (96%) on Base and Robinhood to be dropped and un-audited.
+   - **Fix**: Refactored `auditEvmTokens` to query individual addresses concurrently in bounded batches of 6 with 6-second timeout. Audits 100% of candidate addresses reliably without silent truncation.
+
+3. **EVM Wallet vs Pool / Contract Distinction (`security.ts`)**:
+   - **Root Cause**: Prior attempt only checked `p.pair` in `data.dex`. Uniswap V4 on Base uses `pool_manager` addresses, and GoPlus explicitly supplies `is_contract: 1` on each holder. Contracts were being treated as personal wallets, falsely reporting DEGEN as having 61.4% top 10 holder concentration.
+   - **Fix**: Extracted both `pair` and `pool_manager` from `data.dex`, mapped `is_contract: 1` as smart contracts (pools, staking, vaults, bridges), and filtered out burn/dead tags. DEGEN true top 10 individual wallet concentration correctly computed at 21.83%.
+
+4. **Candidate Prioritization & Microcap Search Expansion (`security.ts`, `market.ts`)**:
+   - Prioritized candidate tokens by market activity (`volume24h + liquidity + boostAmount`) descending before slicing audit limits, ensuring the most important tokens are never left un-audited.
+   - Added `tool` query and `p.fdv` fallback support in `market.ts` microcap utility discovery.
+
+5. **Truthful UI Representation for Un-audited Tokens (`CryptoRadarView.tsx`)**:
+   - Guarded against false reassurance: if a token has not yet been audited (`null`/`undefined`), displays `În curs de colectare` / `—` rather than falsely claiming `🛡️ Curat` or `🛡️ Fără clustere`.
+
+6. **Unit Tests & Full Monorepo Build**:
+   - Added tests in `apps/api/src/services/radar.test.ts`:
+     - `auditSolanaToken handles transfer graphs without false positive insider penalty and detects actual insider risks`
+     - `auditEvmTokens distinguishes pool contracts from individual user wallets`
+   - Total test suite: 111 API tests + 58 Web tests = 169 passed, 0 failed (100% test pass rate).
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 902b7d0
+Local tests: 169 passed, 0 failed (100% test pass rate)
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Cloud Build: f3205be8-3c64-41d6-9fe9-4969874caaec (SUCCESS)
+Cloud Run revision: market-scanner-360-00169-vpw
+Traffic: 100%
+Revision conditions: Ready=True, ConfigurationsReady=True, RoutesReady=True
+Public bundle: assets/index-DdhHIHSo.js, assets/index-CQGpHe1s.css
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=crypto_radar
+Cloud Run health: HTTP 200, status ok
+```
+
 
