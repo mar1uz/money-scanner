@@ -3016,3 +3016,13 @@ User requested investigation of Fomo as a data source and clickable scanned toke
 - Complete monorepo build passed; 204 tests passed, including chain/contract link identity and Telegram HTML escaping.
 - Commit `d0fd727`; Cloud Build `fd2a68db-8c10-4993-8193-cc152ba0ac49`: SUCCESS; revision `market-scanner-360-00165-hvh`, 100% traffic.
 - Authenticated production UI verified after reload: all 48 saved report rows render token names as links and distinct accessible Details buttons. Clicking TROLL opened a new Chrome tab titled `TROLL ... TROLL / SOL on Solana / PumpSwap - DEX Screener` at the exact contract route. The Money Scanner source tab remained open. Service health HTTP 200.
+
+## 84. Crypto Radar sortable columns and 24h change (2026-09-06)
+
+User requested every table header to sort ascending/descending, a 24-hour asset price-change column, mobile usability matching the supplied screenshot, and deployment.
+
+- `apps/web/src/components/crypto-radar-sort.ts`: immutable deterministic sorting for all 11 visible columns. Missing values remain last in both directions; ties use the immutable report rank. `Monedă / rețea` sorts by localized name then chain; `Scor / social` sorts by the Radar score.
+- `CryptoRadarView.tsx`: each `<th>` contains a minimum 44px sort button, direction indicator (`↕`, `↑`, `↓`), keyboard focus styling, contextual Romanian `aria-label`, and standards-based `aria-sort`. Selecting a different column starts ascending; repeated presses toggle direction. Expanding details is closed on sort so evidence cannot appear under a moved row.
+- New `Δ 24H` column uses the already persisted/provider-reported `priceChange24h`. Positive/zero values are green, negative red, and unavailable data shows `—`; it does not infer change from Radar report baselines.
+- Expanded detail rows updated from 10 to 11 columns. Chain filters, report history, external token links, saved order/ranks and collection/report data remain unchanged.
+- Tests cover every visible sort key in both directions, null placement, deterministic ties and no mutation of stored report rows. Web suite 57/57 and complete monorepo build passed. Deployment evidence follows below.
