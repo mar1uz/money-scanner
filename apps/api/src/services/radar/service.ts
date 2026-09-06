@@ -1,4 +1,5 @@
 import type { RadarSnapshot, RadarToken } from '@money-scanner/shared';
+import { radarTokenChartUrl } from '@money-scanner/shared';
 import { collectMarket } from './market.js';
 import { collectSocial } from './social.js';
 import { dedupePosts, rankTokens } from './scoring.js';
@@ -56,12 +57,16 @@ export async function runRadar(publish = false): Promise<RadarSnapshot> {
     }
 }
 const money = (n: number) => n.toLocaleString('en-US', { maximumSignificantDigits: 6 });
-export function reportText(report: RadarSnapshot): string {
+const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+export function reportText(report: RadarSnapshot, format: 'plain' | 'html' = 'plain'): string {
+    const safe = (s: string) => format === 'html' ? escapeHtml(s) : s;
     const unavailable = report.sources.filter(s => s.status !== 'ok');
     const lines = [`Crypto Radar · ${new Date(report.generatedAt).toISOString()}`, `Solana / Base / Robinhood · market cap ≥ $500,000`, `Clasament: ${report.rows.length} monede · scor euristic v1`, `${unavailable.length} surse indisponibile/parțiale/neconfigurate; vezi acoperirea în aplicație.`, ''];
-    for (const row of report.rows.slice(0, 10))
-        lines.push(`${row.rank}. ${row.name} (${row.symbol}) · ${row.chain}`, `$${money(row.price)} · cap $${money(row.marketCap!)} · scor ${row.score}`, `De la primul raport: ${row.changeFirst === null ? '—' : row.changeFirst.toFixed(2) + '%'} · precedent: ${row.changePrevious === null ? 'NOU' : row.changePrevious.toFixed(2) + '%'} · loc: ${row.rankChange === null ? 'NOU' : row.rankChange > 0 ? '↑' + row.rankChange : row.rankChange < 0 ? '↓' + Math.abs(row.rankChange) : '='}`, `Contract: ${row.address}`, '');
-    lines.push(`Istoric complet și surse: ${(process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app').replace(/\/$/, '')}/?tab=crypto_radar`, `${report.exits.length} monede ieșite din clasament; păstrate în istoric.`);
+    for (const row of report.rows.slice(0, 10)) {
+        const name = format === 'html' ? `<a href="${escapeHtml(radarTokenChartUrl(row))}">${safe(row.name)} (${safe(row.symbol)})</a>` : `${row.name} (${row.symbol})`;
+        lines.push(`${row.rank}. ${name} · ${safe(row.chain)}`, `$${money(row.price)} · cap $${money(row.marketCap!)} · scor ${row.score}`, `De la primul raport: ${row.changeFirst === null ? '—' : row.changeFirst.toFixed(2) + '%'} · precedent: ${row.changePrevious === null ? 'NOU' : row.changePrevious.toFixed(2) + '%'} · loc: ${row.rankChange === null ? 'NOU' : row.rankChange > 0 ? '↑' + row.rankChange : row.rankChange < 0 ? '↓' + Math.abs(row.rankChange) : '='}`, `Contract: ${safe(row.address)}`, '');
+    }
+    lines.push(`Istoric complet și surse: ${safe((process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app').replace(/\/$/, '') + '/?tab=crypto_radar')}`, `${report.exits.length} monede ieșite din clasament; păstrate în istoric.`);
     return lines.join('\n');
 }
 async function deliverReport(store: RadarStore, report: RadarSnapshot) {
@@ -70,7 +75,7 @@ async function deliverReport(store: RadarStore, report: RadarSnapshot) {
         return; // Dashboard report remains available; status says not configured.
     if (!await store.claimDelivery(report.id))
         return;
-    const text = reportText(report);
+    const text = reportText(report, 'html');
     const chunks: string[] = [];
     let chunk = '';
     for (const line of text.split('\n')) {
@@ -84,7 +89,7 @@ async function deliverReport(store: RadarStore, report: RadarSnapshot) {
         chunks.push(chunk);
     try {
         for (const part of chunks) {
-            const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: chat, text: part, disable_web_page_preview: true }), signal: AbortSignal.timeout(15000) });
+            const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: chat, text: part, parse_mode: 'HTML', disable_web_page_preview: true }), signal: AbortSignal.timeout(15000) });
             const body = await response.json() as any;
             if (!response.ok || !body.ok)
                 throw new Error(`Telegram HTTP ${response.status}`);

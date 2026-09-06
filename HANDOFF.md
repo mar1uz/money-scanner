@@ -3003,3 +3003,14 @@ For a delegated implementation, give one agent one bounded module, its file owne
 Do not reset `radar-tokens` or edit old `radar-reports` to change scoring. Version methodology for future score changes. Each module: focused tests + required build, deployment, authenticated smoke check, update this handoff with exact revision and limitations.
 
 Operational recovery: inspect only selected scheduler status fields and Radar source health. A source 403/429 is surfaced and isolated. If Telegram delivery is `uncertain` or stuck `sending`, verify the actual chat before any manual retry; do not delete delivery claims blindly. To roll back before Radar existed, first pause both `money-scanner-radar-*` jobs, then route traffic to the chosen verified old revision. Current prior Radar revision is `market-scanner-360-00163-pls`; pre-Radar revision is `market-scanner-360-00162-qfn`. Do not delete Firestore report history during rollback.
+
+## 83. Radar token chart links and Fomo investigation (2026-09-06)
+
+User requested investigation of Fomo as a data source and clickable scanned token names, preferring Fomo charts where verified, otherwise DEX Screener.
+
+- Research and exact source links: `docs/crypto-radar/FOMO.md`. Fomo has relevant social features, but no public developer feed was confirmed. Public browser token-route test redirected to homepage; direct unauthenticated fetch returned 403. Terms restrict automated extraction. No Fomo collector or unverified token links enabled.
+- Shared `packages/shared/src/links/radar-token.ts` builds DEX Screener links by chain + exact contract. Case-sensitive Solana addresses retained; URL segments encoded.
+- `CryptoRadarView.tsx`: token names now external chart links in current/historical tables and exited-token lists. Separate accessible Details button retains expansion; clicking names does not toggle the row. Original scanned pool stays linked in expanded details alongside DEX Screener token page.
+- `service.ts`: future Telegram reports use HTML token-name links, escaping token-supplied text and URL content. Existing immutable report/delivery history and scheduler timing unchanged; old sent Telegram messages are not resent or edited.
+- Live external page checks: TROLL/Solana, The Stonks Exchange/Base and MUSHROOM/Robinhood matched exact contracts and chain on DEX Screener.
+- Complete monorepo build passed; 204 tests passed, including chain/contract link identity and Telegram HTML escaping. Deployment verification follows below.

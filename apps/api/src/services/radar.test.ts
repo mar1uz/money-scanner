@@ -25,6 +25,14 @@ test('ranking tie-breaks deterministically and report slots are fixed 12h UTC', 
 test('Telegram parser retains missing engagement as null and real date', () => { const p = parseTelegram('alpha', '<div class="tgme_widget_message_wrap"><div data-post="alpha/1"><div class="tgme_widget_message_text js-message_text">Alpha community update</div><time datetime="2026-09-06T12:00:00Z"></time></div>'); assert.equal(p[0].engagement, null); assert.equal(p[0].timestamp, Date.parse('2026-09-06T12:00:00Z')); });
 test('RSS is editorial and only valid dated HTTPS items accepted', () => { const p = parseRss('<item><title>Base Alpha Protocol launches</title><link>https://example.org/story</link><pubDate>Sun, 06 Sep 2026 12:00:00 GMT</pubDate></item>', 'Example'); assert.equal(p[0].kind, 'editorial'); assert.equal(parseRss('<item><title>fake</title></item>', 'Example').length, 0); });
 test('report includes full name, chain, contract and initial comparison', () => { const snapshot = { rows: rank([token()]), sources: [], exits: [], generatedAt: now } as unknown as RadarSnapshot; const text = reportText(snapshot); assert.ok(text.includes('Alpha Protocol (ALPHA)')); assert.ok(text.includes(token().address)); assert.ok(text.includes('De la primul raport')); });
+test('Telegram HTML links token names by contract and escapes token-supplied markup', () => {
+    const snapshot = { rows: rank([token({ name: 'Alpha <b> & "Beta"', symbol: 'A&B' })]), sources: [], exits: [], generatedAt: now } as unknown as RadarSnapshot;
+    const html = reportText(snapshot, 'html');
+    assert.ok(html.includes(`<a href="https://dexscreener.com/base/${token().address}">Alpha &lt;b&gt; &amp; &quot;Beta&quot; (A&amp;B)</a>`));
+    assert.equal(html.includes('<b>'), false);
+    assert.equal((html.match(/<a href=/g) || []).length, 1);
+    assert.ok(reportText(snapshot).includes('Alpha <b> & "Beta" (A&B)'));
+});
 import { RadarStore } from './radar/store.js';
 function fakeStore() {
     const docs = new Map<string, any>();
