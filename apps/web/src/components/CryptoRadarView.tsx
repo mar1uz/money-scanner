@@ -3,6 +3,7 @@ import type { RadarSnapshot, RadarReportSummary, RadarRow } from '@money-scanner
 import { radarTokenChartUrl } from '@money-scanner/shared';
 import { requestCsrfToken } from '../services/firebase-auth.js';
 import { sortRadarRows, type RadarSortDirection, type RadarSortKey } from './crypto-radar-sort.js';
+import { getRadarSecurityStatus } from './crypto-radar-security.js';
 
 interface Payload {
   latest: RadarSnapshot | null;
@@ -137,35 +138,18 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
   };
 
   const renderSecurityBadge = (r: RadarRow) => {
-    if (r.isHoneypot) {
-      return (
-        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-500/20 text-rose-400 border border-rose-500/30" title="Contract Honeypot detectat!">
-          🚨 Honeypot
-        </span>
-      );
+    const sec = getRadarSecurityStatus(r);
+    if (sec.level === 'unknown') {
+      return <span className="text-slate-500 text-xs" title={sec.title}>—</span>;
     }
-    if (r.insidersDetected || r.isBundled) {
-      return (
-        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-500/20 text-rose-400 border border-rose-500/30" title="Risc lansare bundled / insider clustering detectat">
-          🚨 Bundled/Insiders
-        </span>
-      );
-    }
-    if (r.top10HoldersPct !== null && r.top10HoldersPct !== undefined) {
-      if (r.top10HoldersPct > 50) {
-        return (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-400/15 text-amber-300 border border-amber-400/30" title={`Top 10 holderi dețin ${r.top10HoldersPct}% din cantitate`}>
-            ⚠️ Top 10: {r.top10HoldersPct.toFixed(0)}%
-          </span>
-        );
-      }
-      return (
-        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-400/15 text-emerald-300 border border-emerald-400/30" title={`Top 10 holderi dețin ${r.top10HoldersPct}% din cantitate`}>
-          🛡️ Top 10: {r.top10HoldersPct.toFixed(0)}%
-        </span>
-      );
-    }
-    return <span className="text-slate-500 text-xs">—</span>;
+    return (
+      <span
+        className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] ${sec.level === 'danger' ? 'font-semibold' : 'font-medium'} ${sec.badgeColorClass}`}
+        title={sec.title}
+      >
+        {sec.badgeLabel}
+      </span>
+    );
   };
 
   const renderUtilityBadges = (r: RadarRow) => {
@@ -454,26 +438,36 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
                 </tr>
               </thead>
               <tbody>
-                {rows.map(r => (
-                  <React.Fragment key={r.id}>
-                    <tr onClick={() => setExpanded(expanded === r.id ? null : r.id)} className="border-t border-white/[.05] hover:bg-white/[.04] cursor-pointer">
-                      <td className="px-3 py-3">
-                        <span className="font-semibold text-white">{r.rank}</span>
-                        <span className="block text-xs text-cyan-400">
-                          {r.rankChange === null ? 'NOU' : r.rankChange > 0 ? `↑${r.rankChange}` : r.rankChange < 0 ? `↓${-r.rankChange}` : '='}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3">
-                        <a
-                          href={radarTokenChartUrl(r)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={e => e.stopPropagation()}
-                          title={`Vezi ${r.name} pe DEX Screener (${r.chain})`}
-                          className="text-white font-medium underline decoration-cyan-400/40 underline-offset-4 hover:text-cyan-300"
-                        >
-                          {r.name} ↗
-                        </a>
+                {rows.map(r => {
+                  const sec = getRadarSecurityStatus(r);
+                  return (
+                    <React.Fragment key={r.id}>
+                      <tr onClick={() => setExpanded(expanded === r.id ? null : r.id)} className="border-t border-white/[.05] hover:bg-white/[.04] cursor-pointer">
+                        <td className="px-3 py-3">
+                          <span className="font-semibold text-white">{r.rank}</span>
+                          <span className="block text-xs text-cyan-400">
+                            {r.rankChange === null ? 'NOU' : r.rankChange > 0 ? `↑${r.rankChange}` : r.rankChange < 0 ? `↓${-r.rankChange}` : '='}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              role="status"
+                              aria-label={sec.ariaLabel}
+                              title={sec.title}
+                              className={`w-2.5 h-2.5 rounded-full shrink-0 ring-2 ${sec.dotColorClass} inline-block cursor-help`}
+                            />
+                            <a
+                              href={radarTokenChartUrl(r)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={e => e.stopPropagation()}
+                              title={`Vezi ${r.name} pe DEX Screener (${r.chain})`}
+                              className="text-white font-medium underline decoration-cyan-400/40 underline-offset-4 hover:text-cyan-300"
+                            >
+                              {r.name} ↗
+                            </a>
+                          </div>
                         <span className="block text-xs text-slate-500 mt-1">
                           {r.symbol} · {r.chain} ·{' '}
                           <button
@@ -536,7 +530,8 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
                       </tr>
                     )}
                   </React.Fragment>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
             {!rows.length && (
