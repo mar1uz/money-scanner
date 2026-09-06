@@ -253,7 +253,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
             setSelectedAssetCoinGeckoId(undefined);
             setActiveTab('alerts');
           }}
-          isStale={overview?.providerStatus.staleAssetsCount ? overview.providerStatus.staleAssetsCount > 0 : false}
+          isStale={overview?.providerStatus?.staleAssetsCount ? overview.providerStatus.staleAssetsCount > 0 : false}
           allAssets={scannerRows}
           onSelectAsset={(sym) => {
             openAsset(sym);

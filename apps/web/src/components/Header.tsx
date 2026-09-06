@@ -455,9 +455,9 @@ export const Header: React.FC<HeaderProps> = ({
             {currentUser.avatarUrl ? (
               <img src={currentUser.avatarUrl} alt="" className="h-5 w-5 rounded-full border border-cyan-400/30" referrerPolicy="no-referrer" />
             ) : (
-              <span className="grid h-5 w-5 place-items-center rounded-full bg-cyan-500/15 text-[9px] font-bold text-cyan-300">{currentUser.name.slice(0, 1).toUpperCase()}</span>
+              <span className="grid h-5 w-5 place-items-center rounded-full bg-cyan-500/15 text-[9px] font-bold text-cyan-300">{(currentUser.name || currentUser.email || 'U').slice(0, 1).toUpperCase()}</span>
             )}
-            <span className="max-w-[105px] truncate text-[10px] font-mono">{currentUser.name}</span>
+            <span className="max-w-[105px] truncate text-[10px] font-mono">{currentUser.name || currentUser.email}</span>
             <LogOut className="h-3.5 w-3.5" />
           </button>
         )}

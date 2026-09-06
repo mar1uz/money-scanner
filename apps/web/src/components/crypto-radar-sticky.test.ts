@@ -97,133 +97,172 @@ test('index.html does not contain overflow-x-hidden on body (which breaks positi
   );
 });
 
-test('automated browser evaluation: sticky header docks at 56px and remains fixed under deep scroll', async () => {
-  const { chromium } = await import('playwright');
-  const browser = await chromium.launch();
+test('index.css defines .radar-sticky-header with -webkit-sticky, sticky top 56px, and touch-action pan-x pan-y', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const cssPath = path.resolve(process.cwd(), 'src/index.css');
+  const css = fs.readFileSync(cssPath, 'utf8');
 
-  try {
-    const runTest = async (viewport: { width: number; height: number }, isMobile: boolean) => {
-      const context = await browser.newContext({ viewport, isMobile, hasTouch: isMobile });
-      const page = await context.newPage();
+  assert.ok(css.includes('.radar-sticky-header'), 'index.css must define .radar-sticky-header');
+  assert.ok(css.includes('position: -webkit-sticky'), '.radar-sticky-header must define -webkit-sticky for iOS Safari WebKit');
+  assert.ok(css.includes('position: sticky'), '.radar-sticky-header must define standard position: sticky');
+  assert.ok(css.includes('touch-action: pan-x pan-y'), '.radar-sticky-header must enable 2D touch panning on mobile');
+});
 
-      // Mount the exact DOM and CSS layout used in production
-      await page.setContent(`
-        <!DOCTYPE html>
-        <html class="dark" style="background-color: #0a0e17; color: #f1f5f9; overflow-x: clip; max-width: 100vw; width: 100%; position: relative;">
-        <head>
-          <style>
-            * { box-sizing: border-box; margin: 0; padding: 0; }
-            body {
-              background-color: #0a0e17;
-              color: #f1f5f9;
-              overflow-x: clip;
-              max-width: 100vw;
-              width: 100%;
-              position: relative;
-              min-height: 100vh;
-            }
-            .app-header {
-              position: fixed;
-              top: 0;
-              left: 0;
-              right: 0;
-              height: 56px;
-              z-index: 40;
-              background: #0a0e17;
-              border-bottom: 1px solid rgba(255,255,255,0.08);
-            }
-            .main-wrapper {
-              padding-top: 56px;
-              padding-bottom: 80px;
-            }
-            .content-section {
-              padding: 24px 16px;
-              max-width: 1600px;
-              margin: 0 auto;
-            }
-            .intro-block {
-              height: 400px;
-              margin-bottom: 20px;
-            }
-            .table-card {
-              position: relative;
-              border-radius: 12px;
-              border: 1px solid rgba(255,255,255,0.1);
-              background: rgba(11,19,41,0.4);
-            }
-            .sticky-header-container {
-              position: sticky;
-              top: 56px;
-              z-index: 20;
-              overflow-x: auto;
-              background: #0b1329;
-              border-bottom: 1px solid rgba(255,255,255,0.1);
-              box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-              height: 48px;
-            }
-            .table-body-container {
-              overflow-x: auto;
-              height: 3000px;
-            }
-          </style>
-        </head>
-        <body>
-          <header class="app-header">Fixed 56px Navigation Bar</header>
-          <div class="main-wrapper">
-            <main class="content-section">
-              <div class="intro-block">Crypto Radar Filters & Summary</div>
-              <div class="table-card">
-                <div class="sticky-header-container" id="sticky-header">
-                  <table style="min-width: 1330px; height: 100%;">
-                    <thead>
-                      <tr><th>Loc</th><th>Monedă</th><th>Preț</th><th>Δ 24H</th><th>Market Cap</th></tr>
-                    </thead>
-                  </table>
-                </div>
-                <div class="table-body-container" id="table-body">
-                  <div style="height: 3000px; min-width: 1330px;">100 Tokens List</div>
-                </div>
+test('CryptoRadarView applies radar-sticky-header and touch-pan utilities', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const viewPath = path.resolve(process.cwd(), 'src/components/CryptoRadarView.tsx');
+  const viewCode = fs.readFileSync(viewPath, 'utf8');
+
+  assert.ok(viewCode.includes('radar-sticky-header'), 'CryptoRadarView must apply .radar-sticky-header class to sticky container');
+  assert.ok(viewCode.includes('touch-pan-x touch-pan-y'), 'CryptoRadarView must apply touch-pan utilities for smooth mobile horizontal scrolling');
+});
+
+test('automated browser evaluation: sticky header docks at 56px across Chromium and WebKit on mobile and desktop', async () => {
+  const { chromium, webkit } = await import('playwright');
+
+  for (const engine of [chromium, webkit]) {
+    const browser = await engine.launch();
+
+    try {
+      const runTest = async (viewport: { width: number; height: number }, isMobile: boolean) => {
+        const context = await browser.newContext({ viewport, isMobile, hasTouch: isMobile });
+        const page = await context.newPage();
+
+        // Mount the exact DOM and CSS layout used in production
+        await page.setContent(`
+          <!DOCTYPE html>
+          <html class="dark" style="background-color: #0a0e17; color: #f1f5f9; overflow-x: clip; max-width: 100vw; width: 100%; position: relative;">
+          <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+            <style>
+              * { box-sizing: border-box; margin: 0; padding: 0; }
+              html, body {
+                background-color: #0a0e17;
+                color: #f1f5f9;
+                overflow-x: clip;
+                max-width: 100vw;
+                width: 100%;
+                position: relative;
+                min-height: 100vh;
+                touch-action: pan-y pinch-zoom;
+                -webkit-overflow-scrolling: touch;
+              }
+              #root {
+                overflow-x: clip;
+                max-width: 100vw;
+                width: 100%;
+              }
+              .app-header {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 56px;
+                z-index: 40;
+                background: #0a0e17;
+                border-bottom: 1px solid rgba(255,255,255,0.08);
+              }
+              .main-wrapper {
+                padding-top: 56px;
+                padding-bottom: 80px;
+              }
+              .content-section {
+                padding: 24px 16px;
+                max-width: 1600px;
+                margin: 0 auto;
+              }
+              .intro-block {
+                height: 400px;
+                margin-bottom: 20px;
+              }
+              .table-card {
+                position: relative;
+                border-radius: 12px;
+                border: 1px solid rgba(255,255,255,0.1);
+                background: rgba(11,19,41,0.4);
+              }
+              .radar-sticky-header {
+                position: -webkit-sticky;
+                position: sticky;
+                top: 56px;
+                z-index: 25;
+                overflow-x: auto;
+                background: #0b1329;
+                border-bottom: 1px solid rgba(255,255,255,0.1);
+                box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+                height: 48px;
+                touch-action: pan-x pan-y;
+              }
+              .table-body-container {
+                overflow-x: auto;
+                height: 3000px;
+                touch-action: pan-x pan-y;
+              }
+            </style>
+          </head>
+          <body>
+            <div id="root">
+              <header class="app-header">Fixed 56px Navigation Bar</header>
+              <div class="main-wrapper">
+                <main class="content-section">
+                  <div class="intro-block">Crypto Radar Filters & Summary</div>
+                  <div class="table-card">
+                    <div class="radar-sticky-header" id="sticky-header">
+                      <table style="min-width: 1330px; height: 100%;">
+                        <thead>
+                          <tr><th>Loc</th><th>Monedă</th><th>Preț</th><th>Δ 24H</th><th>Market Cap</th></tr>
+                        </thead>
+                      </table>
+                    </div>
+                    <div class="table-body-container" id="table-body">
+                      <div style="height: 3000px; min-width: 1330px;">100 Tokens List</div>
+                    </div>
+                  </div>
+                </main>
               </div>
-            </main>
-          </div>
-        </body>
-        </html>
-      `);
+            </div>
+          </body>
+          </html>
+        `);
 
-      const getHeaderTop = async () => {
-        return await page.evaluate(() => {
-          const el = document.getElementById('sticky-header');
-          return el ? Math.round(el.getBoundingClientRect().top) : null;
-        });
+        const getHeaderTop = async () => {
+          return await page.evaluate(() => {
+            const el = document.getElementById('sticky-header');
+            return el ? Math.round(el.getBoundingClientRect().top) : null;
+          });
+        };
+
+        const topBefore = await getHeaderTop();
+        assert.ok(topBefore! > 100, `[${engine.name()}] Initial header top (${topBefore}) should be below intro block`);
+
+        // Scroll down past intro block (e.g. 800px)
+        await page.evaluate(() => window.scrollTo(0, 800));
+        const top800 = await getHeaderTop();
+        assert.equal(top800, 56, `[${engine.name()}] Header must dock at exactly 56px (below app header). Got: ${top800}`);
+
+        // Scroll deeper (1500px)
+        await page.evaluate(() => window.scrollTo(0, 1500));
+        const top1500 = await getHeaderTop();
+        assert.equal(top1500, 56, `[${engine.name()}] Header must remain fixed at 56px under 1500px scroll. Got: ${top1500}`);
+
+        // Scroll to bottom (2500px)
+        await page.evaluate(() => window.scrollTo(0, 2500));
+        const top2500 = await getHeaderTop();
+        assert.equal(top2500, 56, `[${engine.name()}] Header must remain fixed at 56px under 2500px scroll. Got: ${top2500}`);
+
+        await context.close();
       };
 
-      const topBefore = await getHeaderTop();
-      assert.ok(topBefore! > 100, `Initial header top (${topBefore}) should be below intro block`);
-
-      // Scroll down past intro block (e.g. 800px)
-      await page.evaluate(() => window.scrollTo(0, 800));
-      const top800 = await getHeaderTop();
-      assert.equal(top800, 56, `Header must dock at exactly 56px (below app header). Got: ${top800}`);
-
-      // Scroll deeper (1500px)
-      await page.evaluate(() => window.scrollTo(0, 1500));
-      const top1500 = await getHeaderTop();
-      assert.equal(top1500, 56, `Header must remain fixed at 56px under 1500px scroll. Got: ${top1500}`);
-
-      // Scroll to bottom (2500px)
-      await page.evaluate(() => window.scrollTo(0, 2500));
-      const top2500 = await getHeaderTop();
-      assert.equal(top2500, 56, `Header must remain fixed at 56px under 2500px scroll. Got: ${top2500}`);
-
-      await context.close();
-    };
-
-    // Test mobile iPhone 14 viewport
-    await runTest({ width: 390, height: 844 }, true);
-    // Test desktop 1080p viewport
-    await runTest({ width: 1440, height: 900 }, false);
-  } finally {
-    await browser.close();
+      // Test mobile iPhone 14 viewport
+      await runTest({ width: 390, height: 844 }, true);
+      // Test desktop 1080p viewport
+      await runTest({ width: 1440, height: 900 }, false);
+    } finally {
+      await browser.close();
+    }
   }
 });
+
 

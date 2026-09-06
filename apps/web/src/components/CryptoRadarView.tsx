@@ -94,25 +94,6 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
     };
   }, [snapshot, section]);
 
-  const handleHeaderScroll = () => {
-    if (isSyncingRef.current) return;
-    if (!stickyHeaderRef.current || !bodyScrollRef.current) return;
-    isSyncingRef.current = true;
-    bodyScrollRef.current.scrollLeft = stickyHeaderRef.current.scrollLeft;
-    requestAnimationFrame(() => {
-      isSyncingRef.current = false;
-    });
-  };
-
-  const handleBodyScroll = () => {
-    if (isSyncingRef.current) return;
-    if (!stickyHeaderRef.current || !bodyScrollRef.current) return;
-    isSyncingRef.current = true;
-    stickyHeaderRef.current.scrollLeft = bodyScrollRef.current.scrollLeft;
-    requestAnimationFrame(() => {
-      isSyncingRef.current = false;
-    });
-  };
 
   const switchSection = (newSection: 'main' | 'microcaps') => {
     setSection(newSection);
@@ -473,8 +454,7 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
             {/* Sticky Table Header (docks at top-[56px] below the 56px app header, fully opaque background, synchronized native horizontal scroll) */}
             <div
               ref={stickyHeaderRef}
-              onScroll={handleHeaderScroll}
-              className="sticky top-[56px] z-20 overflow-x-auto no-scrollbar bg-[#0b1329] border-b border-white/10 rounded-t-xl shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
+              className="radar-sticky-header sticky top-[56px] z-25 overflow-x-auto no-scrollbar bg-[#0b1329] border-b border-white/10 rounded-t-xl shadow-[0_4px_12px_rgba(0,0,0,0.5)] touch-pan-x touch-pan-y"
             >
               <table aria-label="Crypto Radar - Cap tabel" className="w-full text-sm whitespace-nowrap table-fixed" style={{ minWidth: tableMinWidth }}>
                 <colgroup>
@@ -509,8 +489,7 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
             {/* Scrollable Table Body */}
             <div
               ref={bodyScrollRef}
-              onScroll={handleBodyScroll}
-              className="overflow-x-auto rounded-b-xl custom-scrollbar"
+              className="overflow-x-auto rounded-b-xl custom-scrollbar touch-pan-x touch-pan-y"
             >
               <table aria-label="Crypto Radar - Date tokenuri" className="w-full text-sm whitespace-nowrap table-fixed" style={{ minWidth: tableMinWidth }}>
                 <colgroup>
