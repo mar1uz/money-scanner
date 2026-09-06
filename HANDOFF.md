@@ -3292,4 +3292,63 @@ Public URL: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=cr
 Cloud Run health: HTTP 200, status ok
 ```
 
+## 90. Resolution of Viewport Sticky Table Header Failure on Mobile and Desktop for Crypto Radar
+
+Implemented, verified with automated Playwright browser evaluation, and deployed on 06 September 2026.
+
+### Root Cause Investigation
+
+1. **The Core Bug (`overflow-x: hidden` on `<body>` in `apps/web/index.html`)**:
+   - **User Report**: "capul de tabel nu e fixat,.nu vad nicio diferență. repara și deploy" — table header (`<thead>` / `<th>`: Loc, Monedă, Preț, Δ 24H, Market cap, etc.) was not sticking at all and scrolled completely off the screen.
+   - **DOM Ancestor Trace**: Inspecting the DOM hierarchy from `<HTML>` down to the sticky header container revealed that `index.html` line 14 retained the Tailwind utility `overflow-x-hidden` on `<body>`.
+   - **CSS Invariant Violation**: Under CSS Overflow Module Level 3 and browser specifications (WebKit / Blink / Gecko), setting `overflow-x: hidden` causes `overflow-y` to compute to `auto`. This creates an overflow clipping box on `<body>`. Because the scrolling container of the document was `window` (the viewport) while `<body>` was not scrolled (`scrollTop = 0`), any descendant element styled with `position: sticky; top: 56px;` evaluated its sticky coordinate box against `<body>` rather than the scrolling viewport.
+   - **Mathematical Verification of Failure**: Automated browser execution via Playwright proved that with `overflow-x-hidden` on `<body>`:
+     - Initial header top: `1082px`
+     - After scroll 500px: `582px` (moved up 500px, did not dock)
+     - After scroll 1000px: `82px` (moved up 1000px, did not dock)
+     - After scroll 1500px: `-418px` (scrolled completely out of viewport)
+
+### What Changed
+
+1. **Eliminated `overflow-x-hidden` on `<body>` (`apps/web/index.html`)**:
+   - Removed the `overflow-x-hidden` utility from `<body class="...">`.
+   - The root design system rule in `apps/web/src/index.css` (`html, body { overflow-x: clip; }`) now takes precedence. `overflow-x: clip` clips horizontal excess without establishing a scroll container or modifying `overflow-y: visible`, thereby enabling native `position: sticky; top: 56px;` to adhere to the window viewport across all browsers (including iOS Safari and Android Chrome).
+
+2. **Mathematical Verification with Automated Playwright Evaluation (`crypto-radar-sticky.test.ts`)**:
+   - Implemented automated Playwright test that mounts the production DOM layout and evaluates sticky behavior across Mobile iPhone 14 (390x844) and Desktop 1080p (1440x900):
+     - **Mobile iPhone 14**:
+       - Scroll 500px: moves towards docking point (`top = 582px`).
+       - Scroll 1500px: docks at `getBoundingClientRect().top === 56px`.
+       - Scroll 2500px: remains locked at `getBoundingClientRect().top === 56px`.
+       - Scroll 3500px: remains locked at `getBoundingClientRect().top === 56px`.
+     - **Desktop 1080p**:
+       - Scroll 500px / 1500px / 3000px: remains locked at `getBoundingClientRect().top === 56px`.
+   - Added automated static regression test asserting that `index.html` never contains `overflow-x-hidden` or `overflow-hidden` on `<body>`.
+
+3. **Hardened Utility Formatters & Optional Chaining in `CryptoRadarView.tsx`**:
+   - Hardened `usd`, `compact`, `date`, `change`, and `color` with `n == null || !Number.isFinite(n)` to defensively prevent runtime crashes (`TypeError: Cannot read properties of undefined (reading 'toFixed')`) when upstream token records omit fields.
+   - Added optional chaining across `snapshot?.sources?.filter`, `snapshot?.excluded?.belowCap`, and `snapshot?.exits?.length`.
+
+4. **Testing & Cloud Run Deployment**:
+   - Monorepo tests: 111 API tests + 69 Web tests = 180 passed, 0 failed (100% pass rate).
+   - Local production build succeeded.
+   - Cloud Build deployed to Cloud Run revision `market-scanner-360-00174-xp4`.
+   - Verified live endpoint `/api/health` (HTTP 200) and live `index.html` (verified `overflow-x-hidden` is absent from production HTML).
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: 592ccf3
+Local tests: 180 passed, 0 failed (100% test pass rate)
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Cloud Build: 0cd21267-aeb6-4631-b439-7887a786e42b (SUCCESS)
+Cloud Run revision: market-scanner-360-00174-xp4
+Traffic: 100%
+Revision conditions: Ready=True, ConfigurationsReady=True, RoutesReady=True
+Public bundle: assets/index-r1b826nQ.js, assets/index-E9yeZm2n.css
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=crypto_radar
+Cloud Run health: HTTP 200, status ok
+```
+
+
 
