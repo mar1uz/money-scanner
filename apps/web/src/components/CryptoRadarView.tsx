@@ -4,6 +4,11 @@ import { radarTokenChartUrl } from '@money-scanner/shared';
 import { requestCsrfToken } from '../services/firebase-auth.js';
 import { sortRadarRows, type RadarSortDirection, type RadarSortKey } from './crypto-radar-sort.js';
 import { getRadarSecurityStatus } from './crypto-radar-security.js';
+import {
+  RADAR_MAIN_HEADERS,
+  RADAR_MICRO_HEADERS,
+  getRadarTableMinWidth
+} from './crypto-radar-headers.js';
 
 interface Payload {
   latest: RadarSnapshot | null;
@@ -33,10 +38,8 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
   const [sort, setSort] = useState<{ key: RadarSortKey; direction: RadarSortDirection }>({ key: 'rank', direction: 'asc' });
 
   const stickyHeaderRef = useRef<HTMLDivElement>(null);
-  const headerInnerRef = useRef<HTMLDivElement>(null);
   const bodyScrollRef = useRef<HTMLDivElement>(null);
-  const touchStartXRef = useRef<number | null>(null);
-  const scrollStartLeftRef = useRef<number>(0);
+  const isSyncingRef = useRef(false);
 
   const load = async () => {
     setLoading(true);
@@ -60,52 +63,55 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
   }, []);
 
   useEffect(() => {
+    const hdrEl = stickyHeaderRef.current;
     const bodyEl = bodyScrollRef.current;
-    if (!bodyEl) return;
-    const syncScroll = () => {
-      if (headerInnerRef.current && bodyScrollRef.current) {
-        headerInnerRef.current.style.transform = `translateX(-${bodyScrollRef.current.scrollLeft}px)`;
-      }
+    if (!hdrEl || !bodyEl) return;
+
+    const onHdrScroll = () => {
+      if (isSyncingRef.current) return;
+      isSyncingRef.current = true;
+      bodyEl.scrollLeft = hdrEl.scrollLeft;
+      requestAnimationFrame(() => {
+        isSyncingRef.current = false;
+      });
     };
-    bodyEl.addEventListener('scroll', syncScroll, { passive: true });
-    window.addEventListener('resize', syncScroll, { passive: true });
+
+    const onBodyScroll = () => {
+      if (isSyncingRef.current) return;
+      isSyncingRef.current = true;
+      hdrEl.scrollLeft = bodyEl.scrollLeft;
+      requestAnimationFrame(() => {
+        isSyncingRef.current = false;
+      });
+    };
+
+    hdrEl.addEventListener('scroll', onHdrScroll, { passive: true });
+    bodyEl.addEventListener('scroll', onBodyScroll, { passive: true });
+
     return () => {
-      bodyEl.removeEventListener('scroll', syncScroll);
-      window.removeEventListener('resize', syncScroll);
+      hdrEl.removeEventListener('scroll', onHdrScroll);
+      bodyEl.removeEventListener('scroll', onBodyScroll);
     };
-  }, []);
+  }, [snapshot, section]);
+
+  const handleHeaderScroll = () => {
+    if (isSyncingRef.current) return;
+    if (!stickyHeaderRef.current || !bodyScrollRef.current) return;
+    isSyncingRef.current = true;
+    bodyScrollRef.current.scrollLeft = stickyHeaderRef.current.scrollLeft;
+    requestAnimationFrame(() => {
+      isSyncingRef.current = false;
+    });
+  };
 
   const handleBodyScroll = () => {
-    if (bodyScrollRef.current && headerInnerRef.current) {
-      headerInnerRef.current.style.transform = `translateX(-${bodyScrollRef.current.scrollLeft}px)`;
-    }
-  };
-
-  const handleHeaderWheel = (e: React.WheelEvent) => {
-    if (bodyScrollRef.current) {
-      const delta = e.deltaX || (e.shiftKey ? e.deltaY : 0);
-      if (delta) {
-        bodyScrollRef.current.scrollLeft += delta;
-      }
-    }
-  };
-
-  const handleHeaderTouchStart = (e: React.TouchEvent) => {
-    if (e.touches[0]) {
-      touchStartXRef.current = e.touches[0].clientX;
-      scrollStartLeftRef.current = bodyScrollRef.current?.scrollLeft || 0;
-    }
-  };
-
-  const handleHeaderTouchMove = (e: React.TouchEvent) => {
-    if (touchStartXRef.current !== null && bodyScrollRef.current && e.touches[0]) {
-      const diff = touchStartXRef.current - e.touches[0].clientX;
-      bodyScrollRef.current.scrollLeft = scrollStartLeftRef.current + diff;
-    }
-  };
-
-  const handleHeaderTouchEnd = () => {
-    touchStartXRef.current = null;
+    if (isSyncingRef.current) return;
+    if (!stickyHeaderRef.current || !bodyScrollRef.current) return;
+    isSyncingRef.current = true;
+    stickyHeaderRef.current.scrollLeft = bodyScrollRef.current.scrollLeft;
+    requestAnimationFrame(() => {
+      isSyncingRef.current = false;
+    });
   };
 
   const switchSection = (newSection: 'main' | 'microcaps') => {
@@ -115,8 +121,8 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
     if (bodyScrollRef.current) {
       bodyScrollRef.current.scrollLeft = 0;
     }
-    if (headerInnerRef.current) {
-      headerInnerRef.current.style.transform = 'translateX(0px)';
+    if (stickyHeaderRef.current) {
+      stickyHeaderRef.current.scrollLeft = 0;
     }
   };
 
@@ -127,8 +133,8 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
     if (bodyScrollRef.current) {
       bodyScrollRef.current.scrollLeft = 0;
     }
-    if (headerInnerRef.current) {
-      headerInnerRef.current.style.transform = 'translateX(0px)';
+    if (stickyHeaderRef.current) {
+      stickyHeaderRef.current.scrollLeft = 0;
     }
     if (value === 'latest') {
       setSnapshot(data?.latest || data?.collection || null);
@@ -177,36 +183,8 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
     [rawRows, chain, sort]
   );
 
-  const mainHeaders: { key: RadarSortKey; label: string; width: number }[] = [
-    { key: 'rank', label: 'Loc', width: 60 },
-    { key: 'name', label: 'Monedă / rețea', width: 200 },
-    { key: 'price', label: 'Preț USD', width: 100 },
-    { key: 'priceChange24h', label: 'Δ 24H', width: 90 },
-    { key: 'firstPrice', label: 'Primul raport', width: 110 },
-    { key: 'changeFirst', label: 'Δ inițial', width: 90 },
-    { key: 'changePrevious', label: 'Δ precedent', width: 105 },
-    { key: 'marketCap', label: 'Market cap', width: 105 },
-    { key: 'volume24h', label: 'Volum 24h', width: 105 },
-    { key: 'liquidity', label: 'Lichiditate', width: 105 },
-    { key: 'top10HoldersPct', label: 'Securitate / Hold.', width: 135 },
-    { key: 'score', label: 'Scor / social', width: 125 }
-  ];
-
-  const microHeaders: { key: RadarSortKey; label: string; width: number }[] = [
-    { key: 'rank', label: 'Loc', width: 60 },
-    { key: 'name', label: 'Monedă / rețea', width: 200 },
-    { key: 'price', label: 'Preț USD', width: 100 },
-    { key: 'priceChange24h', label: 'Δ 24H', width: 90 },
-    { key: 'marketCap', label: 'Market cap', width: 105 },
-    { key: 'volume24h', label: 'Volum 24h', width: 105 },
-    { key: 'estimatedFees24h', label: 'Comisioane 24h', width: 120 },
-    { key: 'liquidity', label: 'Lichiditate', width: 105 },
-    { key: 'top10HoldersPct', label: 'Securitate / Hold.', width: 135 },
-    { key: 'score', label: 'Scor / utilitate', width: 145 }
-  ];
-
-  const headers = section === 'main' ? mainHeaders : microHeaders;
-  const tableMinWidth = useMemo(() => headers.reduce((sum, h) => sum + h.width, 0), [headers]);
+  const headers = section === 'main' ? RADAR_MAIN_HEADERS : RADAR_MICRO_HEADERS;
+  const tableMinWidth = useMemo(() => getRadarTableMinWidth(headers), [headers]);
 
   const changeSort = (key: RadarSortKey) => {
     setExpanded(null);
@@ -492,45 +470,40 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
           <p className="text-xs text-slate-400">Apasă pe numele monedei pentru graficul DEX Screener într-o filă nouă. Butonul Detalii arată dovezile scanării și auditul de securitate.</p>
 
           <div className="relative rounded-xl border border-white/10 bg-[#0b1329]/40">
-            {/* Sticky Table Header (docks at top-[56px] below the 56px app header, fully opaque background, synchronized horizontal scroll) */}
+            {/* Sticky Table Header (docks at top-[56px] below the 56px app header, fully opaque background, synchronized native horizontal scroll) */}
             <div
               ref={stickyHeaderRef}
-              className="sticky top-[56px] z-20 overflow-hidden bg-[#0b1329] border-b border-white/10 rounded-t-xl shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
-              onWheel={handleHeaderWheel}
-              onTouchStart={handleHeaderTouchStart}
-              onTouchMove={handleHeaderTouchMove}
-              onTouchEnd={handleHeaderTouchEnd}
+              onScroll={handleHeaderScroll}
+              className="sticky top-[56px] z-20 overflow-x-auto no-scrollbar bg-[#0b1329] border-b border-white/10 rounded-t-xl shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
             >
-              <div ref={headerInnerRef} className="will-change-transform">
-                <table aria-label="Crypto Radar - Cap tabel" className="w-full text-sm whitespace-nowrap table-fixed" style={{ minWidth: tableMinWidth }}>
-                  <colgroup>
-                    {headers.map(h => (
-                      <col key={h.key} style={{ width: `${h.width}px` }} />
-                    ))}
-                  </colgroup>
-                  <thead className="text-[11px] uppercase text-slate-400 bg-white/[.04]">
-                    <tr>
-                      {headers.map(h => {
-                        const active = sort.key === h.key;
-                        const next = active && sort.direction === 'asc' ? 'descrescător' : 'crescător';
-                        return (
-                          <th scope="col" aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'} className="p-0 text-left" key={h.key}>
-                            <button
-                              type="button"
-                              onClick={() => changeSort(h.key)}
-                              aria-label={`Sortează după ${h.label}, ${next}`}
-                              className={`w-full min-h-11 px-3 py-3 text-left hover:bg-white/[.05] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-400 transition-colors ${active ? 'text-cyan-300' : 'text-slate-400'}`}
-                            >
-                              <span>{h.label}</span>
-                              <span aria-hidden="true" className="ml-1">{active ? (sort.direction === 'asc' ? '↑' : '↓') : '↕'}</span>
-                            </button>
-                          </th>
-                        );
-                      })}
-                    </tr>
-                  </thead>
-                </table>
-              </div>
+              <table aria-label="Crypto Radar - Cap tabel" className="w-full text-sm whitespace-nowrap table-fixed" style={{ minWidth: tableMinWidth }}>
+                <colgroup>
+                  {headers.map(h => (
+                    <col key={h.key} style={{ width: `${h.width}px` }} />
+                  ))}
+                </colgroup>
+                <thead className="text-[11px] uppercase text-slate-400 bg-white/[.04]">
+                  <tr>
+                    {headers.map(h => {
+                      const active = sort.key === h.key;
+                      const next = active && sort.direction === 'asc' ? 'descrescător' : 'crescător';
+                      return (
+                        <th scope="col" aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'} className="p-0 text-left" key={h.key}>
+                          <button
+                            type="button"
+                            onClick={() => changeSort(h.key)}
+                            aria-label={`Sortează după ${h.label}, ${next}`}
+                            className={`w-full min-h-11 px-3 py-3 text-left hover:bg-white/[.05] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-400 transition-colors ${active ? 'text-cyan-300' : 'text-slate-400'}`}
+                          >
+                            <span>{h.label}</span>
+                            <span aria-hidden="true" className="ml-1">{active ? (sort.direction === 'asc' ? '↑' : '↓') : '↕'}</span>
+                          </button>
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+              </table>
             </div>
 
             {/* Scrollable Table Body */}
