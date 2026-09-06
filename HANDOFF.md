@@ -2962,3 +2962,10 @@ Notification semantics: sends only to existing configured Telegram destination. 
 Verification before first deploy: complete monorepo build passed; 197 tests passed (19 new Radar tests). Fixed pre-existing Akedo weekly test fixture: it requested AKE but supplied PONS metadata; production crypto identity validation unchanged. Live local adapter test: 94 observed tokens, eligible Solana 14 / Base 16 / Robinhood 17 at that instant; a Gecko new-pools request returned 429 and was surfaced. These are transient test observations, not coverage guarantees. 79 deduplicated recent social/editorial items observed; public Bluesky search returned 403. Channels lacking public archives are now marked unavailable, not observed-zero communities.
 
 Deployment / scheduler activation: pending checkpoint verification below. Do not assume schedules exist until recorded as verified. Existing production jobs are once daily (08:00 Europe/Bucharest technical scan, 07:00 Europe/Oslo AI warmup), not 12-hour Radar jobs.
+
+### Checkpoint 1 deployment verified
+- Commit `cde1734`; Cloud Build `7f1d468f-2b7d-49b5-8437-092fded42ff4`: SUCCESS.
+- Revision `market-scanner-360-00163-pls`, 100% traffic; `/api/health` 200.
+- Anonymous `/api/radar` and unsigned POST `/api/radar/scheduled` both 401.
+- Authenticated scheduler-token cloud collection returned 200 and persisted 48 eligible tokens: Solana 15 / Base 16 / Robinhood 17. Browser authenticated page loaded correctly. Raw data is a changing sample, not an exhaustive chain scan.
+- Checkpoint 2 adds distributed persistence/delivery tests, rejects generic chain names as token-name evidence, keyboard-accessible token details, social count delta display, and a credential-safe scheduler setup script. API tests now 99, monorepo total 201 before the final first-report freshness adjustment.

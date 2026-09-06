@@ -23,3 +23,18 @@ No LLM in normal scan/ranking/report pipeline. Bounded batches, one pool per tok
 ## Operational cautions
 Current production daily technical scan is 08:00 Europe/Bucharest, not every 12 hours. Preserve it. New Radar schedules are independent in UTC (fixed 12-hour intervals through DST).
 No reliable public Farcaster endpoint or Fomo feed API has been confirmed. Do not invent access. No credentials in source, logs or handoff.
+
+## Checkpoint 1 live evidence
+- Commit cde1734; build 7f1d468f-2b7d-49b5-8437-092fded42ff4 SUCCESS; revision market-scanner-360-00163-pls (100% traffic).
+- Cloud scan HTTP 200 persisted 48 eligible tokens: Solana 15, Base 16, Robinhood 17. Health HTTP 200; anonymous radar read and unsigned scheduler POST both HTTP 401.
+- Actual source limits: Robinhood new-pools endpoint returned 429; trending + DEX enrichment worked. Bluesky search 403, Farcaster no configured endpoint; several Telegram groups lack public message archives. All shown honestly in source health.
+- UI verified in authenticated Chrome: Crypto Radar page, three chain cards, collection/report selector, manual scan controls, and source statuses. Data reload and final report verification continue in checkpoint 2.
+
+## Next modules after this working foundation
+- Increase discovery breadth fairly by chain using persisted pagination cursors and call budgets; compare against token universe coverage rather than equating trending pages with full-chain indexing.
+- Add holder history / wallet cohort flows using verified per-chain indexers or RPC data; do not infer wallet networks from aggregate buy/sell counts.
+- Add an accessible Farcaster Snapchain source (operator endpoint required), and richer Telegram community access where permitted. Fomo needs an official access agreement/API; no undocumented feed assumption.
+- Store source-specific completeness and account-age/engagement history; separate organic growth from broadcast campaigns. Current authors/channels and heuristic scores are not a validated edge.
+- Forward evaluation: preserve all first-report cohorts and measure subsequent returns, drawdowns and false positives, including dropped/unavailable tokens. Only after sufficient history discuss predictive value.
+
+These extensions must not reset v1 first-report prices or overwrite historical reports. Use a new methodology version when scoring changes after first publication. Deployment of each module requires focused tests, a recorded cloud revision and live smoke evidence.
