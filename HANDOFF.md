@@ -3237,3 +3237,53 @@ Public bundle: assets/index-BEemp_VZ.js, assets/index-AdlyYXIG.css
 Public URL: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=crypto_radar
 Cloud Run health: HTTP 200, status ok
 ```
+
+## 89. Sticky Viewport Table Header with Synchronized 2D Scrolling for Crypto Radar
+
+Implemented, verified, and deployed on 06 September 2026.
+
+### What changed
+
+1. **Sticky Viewport Header Docking (`CryptoRadarView.tsx`)**:
+   - **Problem**: When users scrolled down the Crypto Radar view on mobile or desktop through 100+ tokens, the table header (`<thead>` / `<th>`) scrolled completely out of view, making it impossible to identify columns (such as Price, 24h %, First Report, Market Cap, Volume, Liquidity, Security, Score). Applying naive CSS `sticky top-0` inside a single table wrapper failed because `overflow-x: auto` establishes a scroll context that prevents sticky elements from adhering to the window viewport.
+   - **Solution**: Implemented a dedicated sticky header container with `sticky top-[56px] z-20` docked cleanly right beneath the application's fixed 56px navigation bar.
+   - **Opaque Backdrop & Elevation**: Styled with solid `bg-[#0b1329] border-b border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.5)]` so tokens scrolling underneath do not show through.
+   - **Dual-Table Architecture with Synchronized 2D Scrolling**:
+     - Separated the header into a sticky wrapper (`overflow-hidden`) and the body into an independent horizontal scroll container (`overflow-x-auto`).
+     - Wired high-performance passive `scroll`, `wheel`, and `touch` listeners that synchronize horizontal scroll position between the header inner track and the table body with sub-pixel precision (`transform: translateX(-scrollLeft)`).
+     - Users can horizontally swipe or scroll either the table rows OR the sticky header itself.
+     - Added `<colgroup>` with explicit proportional column widths (`tableMinWidth` 1330px for Radar Principal, 1165px for Microcaps Utilitare) and `table-layout: fixed`, guaranteeing identical column alignment across all devices and zoom levels.
+     - Sighted and assistive accessibility: Provided `aria-label="Crypto Radar - Cap tabel"` on the header table and `aria-label="Crypto Radar - Date tokenuri"` with a hidden `<thead className="sr-only">` on the body table for complete screen-reader compatibility.
+
+2. **Section Switcher & Reset Handling (`CryptoRadarView.tsx`)**:
+   - Created `switchSection` helper that resets horizontal scroll position to 0 and collapses active tooltips and expanded details rows when switching between `Radar Principal` and `Microcaps Utilitare`.
+   - Also integrated scroll reset into report selection (`select`).
+
+3. **Unit Tests & Full Monorepo Build**:
+   - Added unit test suite `apps/web/src/components/crypto-radar-sticky.test.ts`:
+     - Verifies unique column keys and positive widths across both tables.
+     - Verifies minimum width invariants (1330px for main, 1165px for microcaps) ensuring no column truncation on mobile.
+     - Verifies microcaps utility columns (including `estimatedFees24h`).
+   - Monorepo tests: 111 API tests + 66 Web tests = 177 passed, 0 failed (100% pass rate).
+   - Full monorepo build succeeded.
+
+4. **Cloud Run Deployment**:
+   - Deployed via Cloud Build to Cloud Run revision `market-scanner-360-00172-2sq`.
+   - Health check: HTTP 200 OK.
+   - Live page verified: HTTP 200 OK.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: a754806
+Local tests: 177 passed, 0 failed (100% test pass rate)
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Cloud Build: 50630718-4775-4720-a7d5-d01c7d2c3df4 (SUCCESS)
+Cloud Run revision: market-scanner-360-00172-2sq
+Traffic: 100%
+Revision conditions: Ready=True, ConfigurationsReady=True, RoutesReady=True
+Public bundle: assets/index-BFpxis4n.js, assets/index-D4bgzdec.css
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=crypto_radar
+Cloud Run health: HTTP 200, status ok
+```
+
