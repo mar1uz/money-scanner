@@ -431,6 +431,7 @@ export class TelegramBotHandler {
             `• \`/scan 4h\` — Scanează live semnalele pe timeframe-ul ales`,
             `• \`/scan flips 1w\` — Caută flipuri confirmate în toate piețele`,
             `• \`/scan flips 1w crypto bullish\` — Flipuri doar bullish (sau bearish)`,
+            `• \`/scan radar\` — Rezumat determinist Radar (PORT/movers/microcaps+semafor), fara AI`,
             `• \`/flips\`, \`/flips_crypto\`, \`/flips_stocks\` — Preseturi flip 1W`,
             `• \`/flips_crypto_bull\`, \`/flips_stocks_bear\` … — Preseturi pe direcție`,
             `• \`/status <symbol>\` — Deep status on a specific asset (e.g. \`/status BTC\`)`,

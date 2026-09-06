@@ -3352,5 +3352,48 @@ Public URL: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=cr
 Cloud Run health: HTTP 200, status ok
 ```
 
+## 91. Deterministic RADAR-SCAN digest (script, no AI) — 2026-09-06
+
+Cerinta userului: acelasi schelet de rezumat ca digestul AI (PORT / MISCARI / MICROCAPS + semafor),
+dar generat 100% determinist, fara AI, cu limite declarate (fara X trending, fara confluente).
+Folosit via `/scan radar` pe botul Hermes (Telegram).
+
+1. **Implementare in aplicatie** (sursa de adevar pentru format):
+   - `packages/notifications/src/radar-digest.ts` — `buildRadarDigest()` pur: snapshot + cotatie PORT
+     + harta security + boosts optionale → Markdown Telegram. Fara adrese vizibile (doar in URL-uri),
+     MISCARI = |changeFirst| > 10% (max 6, desc), MICROCAPS max 5, boosturi max 3.
+   - Helpers: `summarizeRugCheck()` (RugCheck risks → semafor), `summarizeGoPlus()` (token_security → semafor),
+     `fmtPrice` / `fmtMoney`. Exportate din `packages/notifications/src/index.ts`.
+   - `packages/notifications/src/radar-digest.test.ts` — 3 teste (filtre/limite, zero adrese vizibile,
+     security, formatare). Rulare: `node@22 ../../node_modules/.bin/tsx --test src/radar-digest.test.ts`
+     (3 pass), `tsc --noEmit` curat. NOTA: node-ul brew de sistem (v25) e stricat (dyld simdjson) —
+     pentru comenzi node in repo se foloseste `/opt/homebrew/opt/node@22/bin/`.
+   - Keyword map RugCheck include `rugged|rug history` → 🔴 rug (caz real: AICOIN, "Creator history of
+     rugged tokens"). Lipsa verificarii = mereu 🟡, niciodata verde din oficiu.
+2. **Oglinda Python pentru Hermes**: `~/.hermes/scripts/scan-radar.py` — citeste acelasi Firestore
+   (`radar-state/report`), cotatie PORT din DexScreener API, RugCheck per token Solana, GoPlus batch (.io)
+   pentru Base, top 3 boosts. Testat live, output validat (fara adrese vizibile).
+3. **Skill Hermes `scan`**: `/scan radar` → ruleaza scriptul si returneaza stdout EXACT, fara AI.
+   `/scan` simplu → analiza AI ca pana acum.
+4. Pas urmator (nefacut): cablarea `buildRadarDigest()` in worker/API (ex endpoint `/radar/digest`)
+   si in `TelegramBotHandler.handleCommand` (botul propriu al aplicatiei), ca scriptul Hermes sa consume
+   API-ul in loc sa dubleze logica.
+
+## 92. `/scan radar` pe botul aplicatiei (@Crypto_mac_alert_bot) — 2026-09-06
+
+Eroarea userului "Format invalid..." la `/scan radar` venea din `parseTelegramScanArgs` (telegram-routes.ts),
+care nu accepta `radar` ca argument. Rezolvare (aceeasi seara):
+- `apps/api/src/services/radar-digest-service.ts` (nou) — `fetchRadarDigestText()`: snapshot via RadarStore,
+  cotatie PORT (DexScreener), security (RugCheck Solana + GoPlus batch Base), top 3 boosts → `buildRadarDigest()`.
+  Fiecare sursa in try/catch propriu; fetch injectabil pentru teste.
+- `apps/api/src/services/radar-digest-service.test.ts` (nou) — 2 teste cu fetch stub (digest + snapshot lipsa).
+- `telegram-routes.ts` — ramura `/scan radar` (dupa verificarea owner): mesaj ⏳, digest, statusuri
+  `radar_digest_complete` / `radar_digest_failed`. Mesajul "Format invalid" mentioneaza acum si `/scan radar`.
+- `telegram-bot.ts` help — linie `/scan radar`.
+- Verificat: tsc curat (api + notifications), teste 7/7 api (2 noi + 5 rute), 13/13 notifications.
+- Deploy: Cloud Build din root (`gcloud builds submit --config cloudbuild.yaml .`), proiect
+  gen-lang-client-0610749770 → Cloud Run `market-scanner-360` (europe-west3). Dupa deploy, `/scan radar`
+  functioneaza pe @Crypto_mac_alert_bot.
+
 
 

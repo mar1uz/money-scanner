@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { AppState } from '../services/app-state.js';
+import { fetchRadarDigestText } from '../services/radar-digest-service.js';
 import { AssetMarketClass, MoneyLineSignal, TelegramFlipTimeframe, Timeframe } from '@money-scanner/shared';
 import { AuthenticatedRequest, validateCsrfToken } from '../middleware/auth.js';
 import { validateScheduledRequestToken } from '../services/scheduler-auth.js';
@@ -143,8 +144,26 @@ telegramRouter.post('/telegram/webhook', async (req, res) => {
       ? { mode: 'flips' as const, timeframe: '1w' as const, marketClass: flipPreset.marketClass, direction: flipPreset.direction }
       : parseTelegramScanArgs(commandPayload.args);
     if (!options || (options.mode === 'flips' && options.timeframe === '1h')) {
+      if (commandPayload.command === 'scan' && (commandPayload.args[0] || '').toLowerCase() === 'radar') {
+        await appState.telegramBot.sendMarkdown(
+          '⏳ Construiesc rezumatul Radar (determinist, fara AI)…',
+          commandPayload.chatId
+        );
+        try {
+          const digest = await fetchRadarDigestText();
+          const delivered = await appState.telegramBot.sendMarkdown(digest, commandPayload.chatId);
+          return res.json({ status: 'radar_digest_complete', delivered });
+        } catch (error) {
+          console.error('Telegram radar digest failed:', error instanceof Error ? error.message : error);
+          const delivered = await appState.telegramBot.sendMarkdown(
+            '⚠️ Rezumatul Radar nu a putut fi construit momentan. Încearcă din nou.',
+            commandPayload.chatId
+          );
+          return res.json({ status: 'radar_digest_failed', delivered });
+        }
+      }
       const delivered = await appState.telegramBot.sendMarkdown(
-        '⚠️ Format invalid. Exemple: `/scan 4h`, `/scan 1d crypto`, `/scan 1w stocks`, `/scan flips 1w`, `/scan flips 1w crypto bullish`, `/scan flips 1w stocks bearish` — sau preseturi: `/flips`, `/flips_crypto`, `/flips_stocks`, `/flips_crypto_bull`, `/flips_stocks_bear`.',
+        '⚠️ Format invalid. Exemple: `/scan 4h`, `/scan 1d crypto`, `/scan 1w stocks`, `/scan flips 1w`, `/scan flips 1w crypto bullish`, `/scan flips 1w stocks bearish`, `/scan radar` (rezumat determinist Radar PORT/movers/microcaps+semafor) — sau preseturi: `/flips`, `/flips_crypto`, `/flips_stocks`, `/flips_crypto_bull`, `/flips_stocks_bear`.',
         commandPayload.chatId
       );
       return res.json({ status: 'invalid_scan_options', delivered });
