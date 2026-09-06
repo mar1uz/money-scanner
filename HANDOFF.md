@@ -3013,4 +3013,6 @@ User requested investigation of Fomo as a data source and clickable scanned toke
 - `CryptoRadarView.tsx`: token names now external chart links in current/historical tables and exited-token lists. Separate accessible Details button retains expansion; clicking names does not toggle the row. Original scanned pool stays linked in expanded details alongside DEX Screener token page.
 - `service.ts`: future Telegram reports use HTML token-name links, escaping token-supplied text and URL content. Existing immutable report/delivery history and scheduler timing unchanged; old sent Telegram messages are not resent or edited.
 - Live external page checks: TROLL/Solana, The Stonks Exchange/Base and MUSHROOM/Robinhood matched exact contracts and chain on DEX Screener.
-- Complete monorepo build passed; 204 tests passed, including chain/contract link identity and Telegram HTML escaping. Deployment verification follows below.
+- Complete monorepo build passed; 204 tests passed, including chain/contract link identity and Telegram HTML escaping.
+- Commit `d0fd727`; Cloud Build `fd2a68db-8c10-4993-8193-cc152ba0ac49`: SUCCESS; revision `market-scanner-360-00165-hvh`, 100% traffic.
+- Authenticated production UI verified after reload: all 48 saved report rows render token names as links and distinct accessible Details buttons. Clicking TROLL opened a new Chrome tab titled `TROLL ... TROLL / SOL on Solana / PumpSwap - DEX Screener` at the exact contract route. The Money Scanner source tab remained open. Service health HTTP 200.
