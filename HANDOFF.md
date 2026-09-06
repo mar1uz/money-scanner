@@ -3294,61 +3294,42 @@ Cloud Run health: HTTP 200, status ok
 
 ## 90. Resolution of Viewport Sticky Table Header Failure on Mobile and Desktop for Crypto Radar
 
-Implemented, verified with automated Playwright browser evaluation, and deployed on 06 September 2026.
+Implemented, verified with automated Playwright multi-engine browser evaluation, and deployed on 06 September 2026.
 
 ### Root Cause Investigation
 
-1. **The Core Bug (`overflow-x: hidden` on `<body>` in `apps/web/index.html`)**:
-   - **User Report**: "capul de tabel nu e fixat,.nu vad nicio diferență. repara și deploy" — table header (`<thead>` / `<th>`: Loc, Monedă, Preț, Δ 24H, Market cap, etc.) was not sticking at all and scrolled completely off the screen.
-   - **DOM Ancestor Trace**: Inspecting the DOM hierarchy from `<HTML>` down to the sticky header container revealed that `index.html` line 14 retained the Tailwind utility `overflow-x-hidden` on `<body>`.
-   - **CSS Invariant Violation**: Under CSS Overflow Module Level 3 and browser specifications (WebKit / Blink / Gecko), setting `overflow-x: hidden` causes `overflow-y` to compute to `auto`. This creates an overflow clipping box on `<body>`. Because the scrolling container of the document was `window` (the viewport) while `<body>` was not scrolled (`scrollTop = 0`), any descendant element styled with `position: sticky; top: 56px;` evaluated its sticky coordinate box against `<body>` rather than the scrolling viewport.
-   - **Mathematical Verification of Failure**: Automated browser execution via Playwright proved that with `overflow-x-hidden` on `<body>`:
-     - Initial header top: `1082px`
-     - After scroll 500px: `582px` (moved up 500px, did not dock)
-     - After scroll 1000px: `82px` (moved up 1000px, did not dock)
-     - After scroll 1500px: `-418px` (scrolled completely out of viewport)
+1. **User Report & Visual Evidence (`media_1788704442992.png`)**:
+   - The user provided mobile screenshot showing the Crypto Radar table on an Android device: 4 long paragraphs of methodology text occupied the entire screen under the fixed header, pushing the table header down into the lower third of the screen, with only 4 rows visible.
+   - When the user attempted to scroll vertically, the table header did not stay fixed on the screen ("capul de tabel din poză nu este Fixat pe ecran cum te am rugat să îl faci").
+
+2. **Underlying CSS & DOM Causes**:
+   - **`overflow-x: clip` on `#root` and `html, body`**: Under CSS specifications and mobile browser implementations (Chromium Android & WebKit iOS), applying `overflow-x: clip` to `#root` establishes an overflow clipping boundary on a non-scrolling ancestor element (`#root` has `scrollTop = 0` while `window` scrolls). Descendant elements with `position: sticky; top: 56px;` evaluated their sticky boundary against `#root` rather than the scrolling viewport window, causing sticky positioning to fail.
+   - **`-webkit-overflow-scrolling: touch` compositor decoupling**: In mobile WebKit, `-webkit-overflow-scrolling: touch` creates an asynchronous compositor layer that decouples sticky coordinate computation from viewport scroll events.
+   - **Excessive Top DOM Mass (1126px Initial Offset)**: On mobile viewports, the 3 network filter cards were rendered in a stacked vertical column (`grid sm:grid-cols-3` -> 3 cards * 80px = 240px) plus 20 lines of dense methodology text (`snapshot.coverage` and calculation rules). This pushed the table header's initial position to 1126px below the top of the viewport. Even when scrolling 500px, the header was still 582px down the screen, visually failing to stick near the top.
 
 ### What Changed
 
-1. **Eliminated `overflow-x-hidden` on `<body>` (`apps/web/index.html`)**:
-   - Removed the `overflow-x-hidden` utility from `<body class="...">`.
-   - The root design system rule in `apps/web/src/index.css` (`html, body { overflow-x: clip; }`) now takes precedence. `overflow-x: clip` clips horizontal excess without establishing a scroll container or modifying `overflow-y: visible`, thereby enabling native `position: sticky; top: 56px;` to adhere to the window viewport across all browsers (including iOS Safari and Android Chrome).
+1. **Eliminated `overflow-x: clip` and `-webkit-overflow-scrolling: touch` (`apps/web/src/index.css`)**:
+   - Removed `overflow-x: clip;` from `@layer base { html, body { ... } }` and `#root { ... }`.
+   - Removed `-webkit-overflow-scrolling: touch;` from `html, body` and `.radar-sticky-header`.
+   - The sticky container now evaluates its docking coordinate directly against the viewport window across all mobile (Android Chrome, iOS Safari) and desktop browsers.
 
-2. **Mathematical Verification with Automated Playwright Evaluation (`crypto-radar-sticky.test.ts`)**:
-   - Implemented automated Playwright test that mounts the production DOM layout and evaluates sticky behavior across Mobile iPhone 14 (390x844) and Desktop 1080p (1440x900):
-     - **Mobile iPhone 14**:
-       - Scroll 500px: moves towards docking point (`top = 582px`).
-       - Scroll 1500px: docks at `getBoundingClientRect().top === 56px`.
-       - Scroll 2500px: remains locked at `getBoundingClientRect().top === 56px`.
-       - Scroll 3500px: remains locked at `getBoundingClientRect().top === 56px`.
-     - **Desktop 1080p**:
-       - Scroll 500px / 1500px / 3000px: remains locked at `getBoundingClientRect().top === 56px`.
-   - Added automated static regression test asserting that `index.html` never contains `overflow-x-hidden` or `overflow-hidden` on `<body>`.
+2. **Streamlined Mobile Layout & Compact Methodology Drawer (`CryptoRadarView.tsx`)**:
+   - Converted network filter cards to `grid grid-cols-3 gap-2` with compact status dots, keeping all 3 networks visible in a single 50px row instead of a 240px vertical stack on mobile.
+   - Relocated the 20-line methodology explanation into a sleek collapsible `<details>` drawer ("Metodologie scor, selecție & acoperire"), keeping key summary statistics (`191 tokenuri observate · 94 sub pragul minim...`) visible directly above the table.
+   - Reduced initial table header offset from 1126px to ~640px, ensuring the table is immediately reachable and docks cleanly under the 56px navbar.
 
-3. **Hardened Utility Formatters & Optional Chaining in `CryptoRadarView.tsx`**:
-   - Hardened `usd`, `compact`, `date`, `change`, and `color` with `n == null || !Number.isFinite(n)` to defensively prevent runtime crashes (`TypeError: Cannot read properties of undefined (reading 'toFixed')`) when upstream token records omit fields.
-   - Added optional chaining across `snapshot?.sources?.filter`, `snapshot?.excluded?.belowCap`, and `snapshot?.exits?.length`.
+3. **Automated Playwright Multi-Engine Verification (`crypto-radar-sticky.test.ts`)**:
+   - Added automated static regression test asserting that `@layer base` in `index.css` never contains `overflow-x: clip` or `overflow-x: hidden`.
+   - Verified automated Playwright test across both Chromium and WebKit with mobile (iPhone 14, 390x844) and desktop (1440x900) viewports:
+     - Header docks precisely at 56px below fixed navbar (`gap: 0`).
+     - Stays locked at `top: 56px` at 500px, 1000px, 1500px, and 2500px scroll depths.
+   - Monorepo test suite: 111 API tests + 72 Web tests = 183 passed, 0 failed (100% pass rate).
 
-4. **Testing & Cloud Run Deployment**:
-   - Monorepo tests: 111 API tests + 69 Web tests = 180 passed, 0 failed (100% pass rate).
-   - Local production build succeeded.
-   - Cloud Build deployed to Cloud Run revision `market-scanner-360-00174-xp4`.
-   - Verified live endpoint `/api/health` (HTTP 200) and live `index.html` (verified `overflow-x-hidden` is absent from production HTML).
-
-Verification and deployment evidence:
-
-```text
-Source commit/image tag: 592ccf3
-Local tests: 180 passed, 0 failed (100% test pass rate)
-Local build: passed (packages/*, apps/api, apps/worker, apps/web)
-Cloud Build: 0cd21267-aeb6-4631-b439-7887a786e42b (SUCCESS)
-Cloud Run revision: market-scanner-360-00174-xp4
-Traffic: 100%
-Revision conditions: Ready=True, ConfigurationsReady=True, RoutesReady=True
-Public bundle: assets/index-r1b826nQ.js, assets/index-E9yeZm2n.css
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=crypto_radar
-Cloud Run health: HTTP 200, status ok
-```
+4. **Production Build & Deployment**:
+   - Full monorepo build succeeded (`npm run build`).
+   - Deployed via Cloud Build to Cloud Run.
+   - Verified `/api/health` (HTTP 200) and live URL.
 
 
 

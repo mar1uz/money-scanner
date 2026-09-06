@@ -88,12 +88,26 @@ test('index.html does not contain overflow-x-hidden on body (which breaks positi
   const htmlPath = path.resolve(process.cwd(), 'index.html');
   const html = fs.readFileSync(htmlPath, 'utf8');
 
-  // Ensure body tag uses overflow-x: clip from index.css instead of utility overflow-x-hidden
+  // Ensure body tag does not contain overflow-x-hidden or overflow-hidden
   const bodyMatch = html.match(/<body[^>]*>/i);
   assert.ok(bodyMatch, 'index.html must have a body tag');
   assert.ok(
     !bodyMatch[0].includes('overflow-x-hidden') && !bodyMatch[0].includes('overflow-hidden'),
     'body tag in index.html must not contain overflow-x-hidden or overflow-hidden as it disables position:sticky in browsers'
+  );
+});
+
+test('index.css @layer base does not contain overflow-x: clip or overflow-x: hidden (which disables position: sticky)', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const cssPath = path.resolve(process.cwd(), 'src/index.css');
+  const css = fs.readFileSync(cssPath, 'utf8');
+
+  const baseMatch = css.match(/@layer base\s*\{([\s\S]*?)\n\}/);
+  assert.ok(baseMatch, 'index.css must define @layer base');
+  assert.ok(
+    !baseMatch[1].includes('overflow-x: clip') && !baseMatch[1].includes('overflow-x: hidden') && !baseMatch[1].includes('overflow: clip'),
+    '@layer base in index.css must not contain overflow-x: clip or overflow-x: hidden as it disables position:sticky in mobile WebKit/Chromium'
   );
 });
 
@@ -133,7 +147,7 @@ test('automated browser evaluation: sticky header docks at 56px across Chromium 
         // Mount the exact DOM and CSS layout used in production
         await page.setContent(`
           <!DOCTYPE html>
-          <html class="dark" style="background-color: #0a0e17; color: #f1f5f9; overflow-x: clip; max-width: 100vw; width: 100%; position: relative;">
+          <html class="dark" style="background-color: #0a0e17; color: #f1f5f9; max-width: 100vw; width: 100%; position: relative;">
           <head>
             <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
             <style>
@@ -141,16 +155,13 @@ test('automated browser evaluation: sticky header docks at 56px across Chromium 
               html, body {
                 background-color: #0a0e17;
                 color: #f1f5f9;
-                overflow-x: clip;
                 max-width: 100vw;
                 width: 100%;
                 position: relative;
                 min-height: 100vh;
                 touch-action: pan-y pinch-zoom;
-                -webkit-overflow-scrolling: touch;
               }
               #root {
-                overflow-x: clip;
                 max-width: 100vw;
                 width: 100%;
               }
@@ -174,7 +185,7 @@ test('automated browser evaluation: sticky header docks at 56px across Chromium 
                 margin: 0 auto;
               }
               .intro-block {
-                height: 400px;
+                height: 350px;
                 margin-bottom: 20px;
               }
               .table-card {
@@ -237,10 +248,15 @@ test('automated browser evaluation: sticky header docks at 56px across Chromium 
         const topBefore = await getHeaderTop();
         assert.ok(topBefore! > 100, `[${engine.name()}] Initial header top (${topBefore}) should be below intro block`);
 
-        // Scroll down past intro block (e.g. 800px)
-        await page.evaluate(() => window.scrollTo(0, 800));
-        const top800 = await getHeaderTop();
-        assert.equal(top800, 56, `[${engine.name()}] Header must dock at exactly 56px (below app header). Got: ${top800}`);
+        // Scroll down 500px: header must lock at 56px below fixed header
+        await page.evaluate(() => window.scrollTo(0, 500));
+        const top500 = await getHeaderTop();
+        assert.equal(top500, 56, `[${engine.name()}] Header must dock at exactly 56px on 500px scroll. Got: ${top500}`);
+
+        // Scroll down 1000px: header remains locked at 56px
+        await page.evaluate(() => window.scrollTo(0, 1000));
+        const top1000 = await getHeaderTop();
+        assert.equal(top1000, 56, `[${engine.name()}] Header must remain fixed at 56px under 1000px scroll. Got: ${top1000}`);
 
         // Scroll deeper (1500px)
         await page.evaluate(() => window.scrollTo(0, 1500));
