@@ -3082,3 +3082,67 @@ Public URL: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=cr
 Cloud Run health: HTTP 200, status ok
 ```
 
+## 86. Zero-cost wallet safety audits, insider/bundled protection & microcap utilities section (2026-09-06)
+
+User requested:
+1. Zero-cost wallet safety verification (anti-rug, anti-honeypot, insider/bundled protection) across Solana (RugCheck API) and EVM chains Base & Robinhood Chain (GoPlus Security API).
+2. Penalties in scoring for tokens with high holder concentration (>50%), bundled launches or insider clustering, with explicit reason tags in Romanian.
+3. A dedicated separate section in the Radar tab for Microcap Utilities in the $200,000 – $500,000 market cap range, focusing on active trading fee generation, buybacks/deflation, and holder value, complete with full token safety verification.
+4. Production build, 100% test pass rate, Cloud Run deployment, health check, and adherence to Golden Directives.
+
+- **Part 1 — Zero-Cost Security Verification (`apps/api/src/services/radar/security.ts`)**:
+  - **Solana / RugCheck API (`https://api.rugcheck.xyz/v1/tokens/{address}/report`)**:
+    - Extracted top 10 holders percentage (`top10HoldersPct`).
+    - Evaluated insider clustering and networks via `graphInsidersDetected` node count and `insiderNetworks`.
+    - Detected bundled launches (`isBundled`) from risk heuristics and multi-wallet transfer clusters.
+    - Parsed RugCheck risk score (`rugScore`), honeypot/freeze authority checks, and transfer fees.
+  - **Base & Robinhood / GoPlus Security API (`https://api.gopluslabs.io/api/v1/token_security/{chainId}`)**:
+    - Filtered out liquidity pool contracts (using `data.dex` pair registry) and burn addresses to compute pure wallet holder concentration (`wallet vs pool contract distinction`).
+    - Checked honeypot mechanics (`is_honeypot`, `cannot_sell_all`), buy taxes, sell taxes, and computed standardized risk scores.
+  - **Audit Enrichment**:
+    - Automatically audits candidate tokens with concurrency controls and memory caching.
+    - Reports transparency statuses: `rugcheck:solana`, `goplus:base`, and `goplus:robinhood`.
+  - **Scoring Penalties & Romanian Tags (`scoring.ts`)**:
+    - Penalty applied when `top10HoldersPct > 50%` with tag `⚠️ Concentrare ridicată: top 10 holderi dețin X%`.
+    - Penalty (-25 pts) for bundled launches / insider networks with tag `🚨 Risc lansare bundled / insideri`.
+    - Penalty (-50 pts) for honeypots with tag `🚨 Honeypot detectat: vânzarea este restricționată`.
+    - Verified clean tokens receive `🛡️ Verificare portofele: top 10 holderi X%, fără clustere de insideri`.
+
+- **Part 2 — Microcaps Utilitare ($200k – $500k Market Cap) Section**:
+  - **Discovery (`market.ts`)**:
+    - Added `token-profiles/latest/v1` parser to extract rich project descriptions and socials at zero cost.
+    - Discovered utility and fee-generating tokens on Solana, Base, and Robinhood via targeted search and pooled turnover.
+    - Implemented `detectUtilitySignals` to categorize bots, tools, buybacks, revshare, and DEX utility.
+  - **Microcaps Scoring (`scoring.ts` -> `rankMicrocaps`)**:
+    - Dedicated ranking for tokens in $200,000 to $500,000 range.
+    - Evaluates 24h trading volume turnover and estimated LP/protocol fees generated (`estimatedFees24h`).
+    - Awards utility and buyback bonuses while strictly enforcing wallet safety penalties.
+  - **UI Implementation (`CryptoRadarView.tsx` & `crypto-radar-sort.ts`)**:
+    - Sleek segmented tab switcher between `🌟 Radar Principal (Cap ≥ $500k)` and `🔬 Microcaps Utilitare ($200k – $500k)`.
+    - Microcaps table features dedicated columns: Preț, Δ 24H, Market cap, Volum 24h, Comisioane 24h (`~$X`), Lichiditate, Securitate & Holderi (`🛡️ Top 10: X%`, `🚨 Bundled/Insiders`), Utilitate & Buyback badges (`⚙️ Bot`, `🔥 Buyback`), and Scor.
+    - Expanded details reveal two-zone audit: wallet concentration (wallet vs DEX pool), insider networks, bundled status, honeypot/tax checks, estimated 24h fee cashflow, and direct DEX Screener & RugCheck links.
+    - Added sorting support for `top10HoldersPct` and `estimatedFees24h`.
+
+- **Part 3 — Verification & Deployment**:
+  - 109 API tests and 58 Web tests passing (167 total, 100% pass rate).
+  - TypeScript compilation and Vite build succeeded.
+  - Cloud Build `23efa1b6-f911-4f46-9fbe-3220bedd2c63` succeeded.
+  - Cloud Run revision `market-scanner-360-00168-gsn` serving 100% traffic.
+  - Live `/api/health` confirmed `{"status":"ok", ...}` with HTTP 200.
+
+Verification and deployment evidence:
+
+```text
+Source commit/image tag: f8c04a1
+Local tests: 167 passed, 0 failed (100% test pass rate)
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Cloud Build: 23efa1b6-f911-4f46-9fbe-3220bedd2c63 (SUCCESS)
+Cloud Run revision: market-scanner-360-00168-gsn
+Traffic: 100%
+Revision conditions: Ready=True, ConfigurationsReady=True, RoutesReady=True
+Public bundle: assets/index-Cs4gE2ZX.js, assets/index-CQGpHe1s.css
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=crypto_radar
+Cloud Run health: HTTP 200, status ok
+```
+
+
