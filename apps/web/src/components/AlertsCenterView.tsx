@@ -13,14 +13,13 @@ import {
   ScanSearch,
   Send,
   ShieldAlert,
-  Sparkles,
   Target,
   Trash2,
   TrendingUp,
   Zap
 } from 'lucide-react';
 import { AssetScannerRow, Timeframe } from '../types.js';
-import { StrategyAlertSnapshot, TRADING_360_ASSETS } from '@money-scanner/shared';
+import { TRADING_360_ASSETS } from '@money-scanner/shared';
 import {
   ActiveAlertDashboardItem,
   AlertsDashboardResponse,
@@ -28,6 +27,7 @@ import {
   clearAlerts,
   fetchAlertsDashboard,
   FlipCandidateDashboardItem,
+  FlipScanCoverageItem,
   ManualAlertScanScope,
   runManualAlertScan,
   setBullishAlert
@@ -100,6 +100,16 @@ const statusMeta: Record<AlertProgressStatus, { label: string; tone: string; bar
   ERROR: { label: 'Date indisponibile', tone: 'text-rose-300 bg-rose-500/10 border-rose-500/30', bar: 'bg-rose-400' }
 };
 
+export const UPCOMING_FLIP_DISPLAY_LIMIT = 20;
+
+const coverageStatusMeta: Record<FlipScanCoverageItem['status'], { label: string; tone: string }> = {
+  CONFIRMED: { label: 'Confirmat', tone: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/25' },
+  CANDIDATE: { label: 'Candidat', tone: 'text-cyan-300 bg-cyan-500/10 border-cyan-500/25' },
+  NO_SETUP: { label: 'Fără setup', tone: 'text-slate-400 bg-white/[0.04] border-white/[0.08]' },
+  INSUFFICIENT_DATA: { label: 'Date insuficiente', tone: 'text-amber-300 bg-amber-500/10 border-amber-500/25' },
+  ERROR: { label: 'Eroare', tone: 'text-rose-300 bg-rose-500/10 border-rose-500/25' }
+};
+
 export type ConfirmedMarketClassFilter = 'ALL' | 'crypto' | 'stocks';
 export type CandidateMarketClassFilter = 'ALL' | 'crypto' | 'stocks';
 
@@ -109,6 +119,7 @@ export interface FilterFlipCandidatesOptions {
   candidateMarketClass?: CandidateMarketClassFilter;
   candidateSearch?: string;
   knownAssets?: AssetScannerRow[];
+  limit?: number;
 }
 
 export function filterFlipCandidates(
@@ -120,7 +131,8 @@ export function filterFlipCandidates(
     candidateTimeframe = 'ALL',
     candidateMarketClass = 'ALL',
     candidateSearch = '',
-    knownAssets
+    knownAssets,
+    limit = UPCOMING_FLIP_DISPLAY_LIMIT
   } = options;
 
   const query = candidateSearch.replace(/^[$#]/, '').trim().toUpperCase();
@@ -132,7 +144,7 @@ export function filterFlipCandidates(
       && (!query || candidate.symbol.toUpperCase().includes(query) || name.includes(query));
   });
 
-  if (query || candidateTimeframe !== 'ALL') return filtered.slice(0, 10);
+  if (query || candidateTimeframe !== 'ALL') return filtered.slice(0, limit);
 
   const seenAssets = new Set<string>();
   return filtered.filter(candidate => {
@@ -140,7 +152,7 @@ export function filterFlipCandidates(
     if (seenAssets.has(key)) return false;
     seenAssets.add(key);
     return true;
-  }).slice(0, 10);
+  }).slice(0, limit);
 }
 
 export interface FilterConfirmedFlipsOptions {
@@ -200,15 +212,16 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
   const [removingId, setRemovingId] = useState('');
   const [clearingTarget, setClearingTarget] = useState<'active' | 'history' | 'all' | null>(null);
   const [preparingId, setPreparingId] = useState('');
-  const [activeTab, setActiveTab] = useState<'ALL' | 'CONFIRMED' | 'STRATEGIES' | 'FLIPS' | 'WATCHED'>('ALL');
+  const [activeTab, setActiveTab] = useState<'ALL' | 'CONFIRMED' | 'FLIPS' | 'WATCHED'>('ALL');
   const [confirmedOpen, setConfirmedOpen] = useState(true);
-  const [strategiesOpen, setStrategiesOpen] = useState(true);
   const [candidatesOpen, setCandidatesOpen] = useState(true);
   const [activeAlertsOpen, setActiveAlertsOpen] = useState(true);
   const [candidateFilter, setCandidateFilter] = useState<'ALL' | 'BULLISH' | 'BEARISH'>('ALL');
   const [candidateTimeframe, setCandidateTimeframe] = useState<'ALL' | '4h' | '8h' | '1d' | '1w'>('ALL');
   const [candidateMarketClass, setCandidateMarketClass] = useState<CandidateMarketClassFilter>('ALL');
   const [candidateSearch, setCandidateSearch] = useState('');
+  const [showAllCandidates, setShowAllCandidates] = useState(false);
+  const [coverageSearch, setCoverageSearch] = useState('');
   const [confirmedFilter, setConfirmedFilter] = useState<'ALL' | 'BULLISH' | 'BEARISH'>('ALL');
   const [confirmedTimeframe, setConfirmedTimeframe] = useState<'ALL' | '4h' | '8h' | '1d' | '1w'>('ALL');
   const [confirmedMarketClass, setConfirmedMarketClass] = useState<ConfirmedMarketClassFilter>('ALL');
@@ -294,9 +307,8 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
     const active = data?.activeAlerts || [];
     return {
       active: active.length,
-      close: Math.min(10, new Set((data?.flipCandidates || []).map(candidate => `${candidate.marketClass}:${candidate.symbol}`)).size),
+      close: Math.min(UPCOMING_FLIP_DISPLAY_LIMIT, new Set((data?.flipCandidates || []).map(candidate => `${candidate.marketClass}:${candidate.symbol}`)).size),
       confirmed: data?.confirmedFlips?.length || 0,
-      strategies: data?.strategySetups?.length || 0
     };
   }, [data]);
 
@@ -375,11 +387,9 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
     try {
       const result = await runManualAlertScan(scope, watchlistPayload);
       if (result.lastError) throw new Error(result.lastError);
-      const scanTypeLabel = scope === 'strategies'
-        ? 'Scanarea strategiei validate (Donchian 55)'
-        : scope === 'quick'
-          ? 'Scanarea rapidă (Watchlist)'
-          : 'Scanarea de flips (4H/8H/1D/1W)';
+      const scanTypeLabel = scope === 'quick'
+        ? 'Scanarea rapidă (Watchlist)'
+        : 'Scanarea de flips (4H/8H/1D/1W)';
       setScanMessage(
         `${scanTypeLabel} s-a încheiat cu succes: `
         + `${result.scannedAssets}/${result.totalAssets} active verificate, ${result.matches} setupuri/semnale găsite, ${result.errors} erori.`
@@ -401,15 +411,28 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
   const scanProgress = activeManualScanStatus?.totalAssets
     ? Math.min(100, Math.round((activeManualScanStatus.scannedAssets / activeManualScanStatus.totalAssets) * 100))
     : 0;
+  const candidateOptions = useMemo(() => ({
+    candidateFilter,
+    candidateTimeframe,
+    candidateMarketClass,
+    candidateSearch,
+    knownAssets
+  }), [candidateFilter, candidateMarketClass, candidateSearch, candidateTimeframe, knownAssets]);
+  const allMatchingCandidates = useMemo(() => {
+    return filterFlipCandidates(data?.flipCandidates, { ...candidateOptions, limit: Number.POSITIVE_INFINITY });
+  }, [candidateOptions, data?.flipCandidates]);
   const visibleCandidates = useMemo(() => {
     return filterFlipCandidates(data?.flipCandidates, {
-      candidateFilter,
-      candidateTimeframe,
-      candidateMarketClass,
-      candidateSearch,
-      knownAssets
+      ...candidateOptions,
+      limit: showAllCandidates ? Number.POSITIVE_INFINITY : UPCOMING_FLIP_DISPLAY_LIMIT
     });
-  }, [candidateFilter, candidateMarketClass, candidateSearch, candidateTimeframe, data?.flipCandidates, knownAssets]);
+  }, [candidateOptions, data?.flipCandidates, showAllCandidates]);
+  const visibleCoverage = useMemo(() => {
+    const query = coverageSearch.trim().toUpperCase();
+    return (data?.scanCoverage || []).filter(item => !query
+      || item.symbol.toUpperCase().includes(query)
+      || (item.name || '').toUpperCase().includes(query));
+  }, [coverageSearch, data?.scanCoverage]);
   const topConfirmedFlips = useMemo(() => {
     return filterConfirmedFlips(data?.confirmedFlips, {
       confirmedFilter,
@@ -419,6 +442,11 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
       knownAssets
     });
   }, [confirmedFilter, confirmedMarketClass, confirmedSearch, confirmedTimeframe, data?.confirmedFlips, knownAssets]);
+  const cryptoRankBySymbol = useMemo(() => new Map(
+    (data?.scanCoverage || [])
+      .filter(item => item.marketClass === 'crypto' && Number.isFinite(item.rank))
+      .map(item => [item.symbol.toUpperCase(), item.rank as number])
+  ), [data?.scanCoverage]);
 
   const candidateFilterControls = (
     <div className="space-y-2">
@@ -541,6 +569,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
           key={candidate.id}
           candidate={candidate}
           rank={index + 1}
+          coinGeckoRank={candidate.marketCapRank ?? cryptoRankBySymbol.get(candidate.symbol.toUpperCase())}
           preparing={preparingId === candidate.id}
           alertActive={Boolean(data?.activeAlerts.some(alert =>
             alert.symbol === candidate.symbol && alert.timeframe === candidate.timeframe
@@ -553,13 +582,13 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
     </div>
   ) : data?.dailyRegimeScan.lastCompletedAt ? (
     <div className="rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.02] px-5 py-8 text-center text-xs text-slate-500">
-      Nu există candidați {candidateFilter === 'ALL' ? '' : candidateFilter.toLowerCase()} în Top 10 curent.
+      Nu există candidați {candidateFilter === 'ALL' ? '' : candidateFilter.toLowerCase()} în Top {UPCOMING_FLIP_DISPLAY_LIMIT} curent.
     </div>
   ) : (
     <div className="rounded-2xl border border-dashed border-violet-500/20 bg-violet-500/[0.04] px-5 py-8 text-center">
       <ScanSearch className="mx-auto h-7 w-7 text-violet-400" />
       <h3 className="mt-3 text-sm font-semibold text-slate-200">Rulează prima scanare completă</h3>
-      <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">Top 10 va fi populat după analiza universului crypto, stocks și metale.</p>
+      <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">Top {UPCOMING_FLIP_DISPLAY_LIMIT} va fi populat după analiza universului crypto, stocks și metale.</p>
     </div>
   );
 
@@ -572,9 +601,9 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
               <BellRing className="h-5 w-5" />
               <span className="font-mono text-[11px] font-bold uppercase tracking-[0.2em]">Alert Command Center</span>
             </div>
-            <h1 className="text-xl font-bold text-white sm:text-2xl">Alertele mele MoneyLine & Strategii</h1>
+            <h1 className="text-xl font-bold text-white sm:text-2xl">Alertele mele MoneyLine</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-              Centrul separă <strong className="text-amber-300">strategia LONG validată</strong> (Weekly Trend + Donchian 55/20, numai stocks/ETF, risc maxim 4%) de <strong className="text-violet-300">Top 10 Flips</strong> (4H/8H/1D/1W, toate clasele).
+              Flipuri confirmate, Top 20 aproape de flip (4H/8H/1D/1W) și alertele urmărite.
             </p>
           </div>
           <button
@@ -587,9 +616,8 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
           </button>
         </div>
 
-        <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-3">
           <SummaryCard icon={CheckCircle2} label="Flipuri Confirmate" value={summary.confirmed} tone="emerald" />
-          <SummaryCard icon={Sparkles} label="Strategii Trading (Donchian 55)" value={summary.strategies} tone="amber" />
           <SummaryCard icon={TrendingUp} label="Top Aproape Flip" value={summary.close} tone="cyan" />
           <SummaryCard icon={BellRing} label="Alerte Urmărite" value={summary.active} tone="slate" />
         </div>
@@ -601,9 +629,9 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                 <CalendarClock className="h-4 w-4 text-violet-300" />
               </div>
               <div>
-                <div className="text-xs font-bold text-violet-200">Comenzi de scanare separate</div>
+                <div className="text-xs font-bold text-violet-200">Comenzi de scanare</div>
                 <p className="mt-1 max-w-2xl text-[11px] leading-5 text-slate-400">
-                  Alege între <strong className="text-amber-300">Donchian 55 validat</strong> (numai stocks/ETF) și <strong className="text-violet-300">Top 10 Flips</strong> (4H, 8H, 1D, 1W). Modelele Macro/Sniper/Short rămân doar pentru cercetare, fără alerte automate.
+                  <strong className="text-violet-300">Top 20 Flips</strong> (4H, 8H, 1D, 1W) sau scanare rapidă pe watchlist.
                 </p>
               </div>
             </div>
@@ -612,7 +640,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
               <div className="text-left sm:text-right">
                 <div className="font-mono text-[10px] uppercase tracking-wider text-slate-500">
                   {activeScanScope
-                    ? `${activeScanScope === 'strategies' ? 'Scanare Strategii' : activeScanScope === 'quick' ? 'Scanare Rapidă' : 'Scanare Flips'} în curs`
+                    ? `${activeScanScope === 'quick' ? 'Scanare Rapidă' : 'Scanare Flips'} în curs`
                     : data?.manualScan.lastCompletedAt ? 'Ultima scanare' : 'Gata de rulare'}
                 </div>
                 <div className="mt-1 font-mono text-xs font-bold text-violet-200">
@@ -628,19 +656,11 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => void startManualScan('strategies')}
-                  disabled={Boolean(activeScanScope)}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 py-2 text-[11px] font-bold text-amber-200 shadow-sm transition hover:bg-amber-500/25 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Sparkles className={`h-3.5 w-3.5 ${activeScanScope === 'strategies' ? 'animate-pulse' : ''}`} /> Scanare Strategii (Donchian 55)
-                </button>
-                <button
-                  type="button"
                   onClick={() => void startManualScan('flips')}
                   disabled={Boolean(activeScanScope)}
                   className="inline-flex items-center justify-center gap-2 rounded-lg border border-violet-500/40 bg-violet-500/15 px-3 py-2 text-[11px] font-bold text-violet-200 transition hover:bg-violet-500/25 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <ScanSearch className={`h-3.5 w-3.5 ${activeScanScope === 'flips' || activeScanScope === 'full' ? 'animate-pulse' : ''}`} /> Scanare Top 10 Flips
+                  <ScanSearch className={`h-3.5 w-3.5 ${activeScanScope === 'flips' || activeScanScope === 'full' ? 'animate-pulse' : ''}`} /> Scanare Top 20 Flips
                 </button>
                 <button
                   type="button"
@@ -666,6 +686,52 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
             </div>
           )}
         </div>
+
+        <details className="mt-4 rounded-xl border border-white/[0.08] bg-white/[0.025] p-3" open>
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-bold text-slate-200">
+            <span className="flex items-center gap-2"><Radar className="h-4 w-4 text-cyan-300" /> Acoperirea ultimei scanări</span>
+            <span className="font-mono text-[10px] text-cyan-300">
+              {data?.dailyRegimeScan.coverage?.scannedAssets ?? data?.scanCoverage?.length ?? 0}/
+              {data?.dailyRegimeScan.coverage?.totalAssets ?? 0} active
+            </span>
+          </summary>
+          <p className="mt-2 text-[11px] leading-5 text-slate-500">
+            Fiecare activ din univers este raportat, inclusiv cele fără setup sau cu date indisponibile. Astfel vezi exact ce a fost analizat.
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {(['CONFIRMED', 'CANDIDATE', 'NO_SETUP', 'INSUFFICIENT_DATA', 'ERROR'] as const).map(status => (
+              <div key={status} className="rounded-lg border border-white/[0.06] bg-black/10 px-2 py-1.5">
+                <div className="text-[9px] uppercase tracking-wide text-slate-500">{coverageStatusMeta[status].label}</div>
+                <div className="mt-0.5 font-mono text-sm font-bold text-slate-200">{data?.dailyRegimeScan.coverage?.outcomes?.[status] ?? 0}</div>
+              </div>
+            ))}
+          </div>
+          {visibleCoverage.length > 0 && (
+            <>
+              <input
+                value={coverageSearch}
+                onChange={event => setCoverageSearch(event.target.value)}
+                placeholder="Caută în acoperire, ex. BTC sau Apple"
+                className="mt-3 w-full rounded-lg border border-white/[0.07] bg-white/[0.025] px-3 py-2 font-mono text-[11px] text-slate-200 outline-none placeholder:text-slate-600 focus:border-cyan-500/30"
+              />
+              <div className="mt-3 grid max-h-72 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
+                {visibleCoverage.map(item => (
+                  <div key={`${item.marketClass}:${item.symbol}`} className="rounded-lg border border-white/[0.06] bg-black/10 px-2.5 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-[11px] font-bold text-slate-200">{item.symbol}</span>
+                      <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[9px] font-bold ${coverageStatusMeta[item.status].tone}`}>{coverageStatusMeta[item.status].label}</span>
+                    </div>
+                    <div className="mt-1 flex items-center justify-between text-[9px] text-slate-500">
+                      <span>{item.marketClass}{item.rank ? ` · #${item.rank}` : ''}</span>
+                      <span>{item.weeklyConfirmed ? '1W confirmat' : item.weeklyCandidate ? '1W candidat' : '1W —'}</span>
+                    </div>
+                    {item.error && <div className="mt-1 truncate text-[9px] text-rose-300" title={item.error}>{item.error}</div>}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </details>
       </section>
 
       {scanMessage && (
@@ -687,7 +753,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
           onClick={() => setActiveTab('ALL')}
           className={`rounded-xl px-3.5 py-2 text-xs font-bold transition ${activeTab === 'ALL' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-400 hover:text-slate-200'}`}
         >
-          TOATE ({summary.confirmed + summary.strategies + summary.close + summary.active})
+          TOATE ({summary.confirmed + summary.close + summary.active})
         </button>
         <button
           type="button"
@@ -695,13 +761,6 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
           className={`rounded-xl px-3.5 py-2 text-xs font-bold transition ${activeTab === 'CONFIRMED' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-slate-200'}`}
         >
           FLIPURI CONFIRMATE ({summary.confirmed})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('STRATEGIES')}
-          className={`rounded-xl px-3.5 py-2 text-xs font-bold transition ${activeTab === 'STRATEGIES' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'text-slate-400 hover:text-slate-200'}`}
-        >
-          STRATEGII DE TRADING ({summary.strategies})
         </button>
         <button
           type="button"
@@ -765,6 +824,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                     key={`${candidate.id}:${candidate.candleTimestamp}`}
                     candidate={candidate}
                     rank={index + 1}
+                    coinGeckoRank={candidate.marketCapRank ?? cryptoRankBySymbol.get(candidate.symbol.toUpperCase())}
                     knownAssets={knownAssets}
                     onOpen={() => onOpenAsset(candidate.symbol, candidate.marketClass, candidate.timeframe)}
                   />
@@ -779,69 +839,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
         </section>
       )}
 
-      {/* 2. STRATEGII DE TRADING (DONCHIAN 55/20 LONG) */}
-      {(activeTab === 'ALL' || activeTab === 'STRATEGIES') && (
-        <section className="space-y-3">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <button
-              type="button"
-              onClick={() => setStrategiesOpen(prev => !prev)}
-              className="flex items-start gap-2.5 text-left group transition focus:outline-none"
-            >
-              <div className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-lg border border-amber-500/25 bg-amber-500/10 text-amber-300 group-hover:border-amber-500/40 group-hover:bg-amber-500/20 transition">
-                <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${strategiesOpen ? '' : '-rotate-90'}`} />
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-amber-300" />
-                  <h2 className="text-sm font-bold text-slate-100 group-hover:text-amber-300 transition">Strategii de Trading (Weekly Trend + Donchian 55/20 LONG)</h2>
-                  {data?.strategySetups?.length ? (
-                    <span className="rounded-md border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-300">
-                      {data.strategySetups.length} active
-                    </span>
-                  ) : null}
-                </div>
-                <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
-                  Numai stocks/ETF: Fast + Slow Weekly bullish, SMA 40 Weekly crescător, SMA 50/200 Daily aliniate și crescătoare, momentum pozitiv, breakout Donchian 55, volatilitate controlată și stop maxim 4%.
-                </p>
-              </div>
-            </button>
-          </div>
-
-          {strategiesOpen && (
-            data?.strategySetups?.length ? (
-              <div className="grid gap-3 lg:grid-cols-2">
-                {data.strategySetups.map((setup, index) => (
-                  <StrategySetupCard
-                    key={`${setup.strategy}:${setup.symbol}:${setup.candleTimestamp || index}`}
-                    setup={setup}
-                    knownAssets={knownAssets}
-                    onOpen={() => onOpenAsset(setup.symbol, setup.marketClass, setup.timeframe)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-dashed border-amber-500/20 bg-amber-500/[0.04] px-5 py-8 text-center">
-                <Sparkles className="mx-auto h-7 w-7 text-amber-400" />
-                <h3 className="mt-3 text-sm font-semibold text-slate-200">Niciun setup de strategie activ în memorie</h3>
-                <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-400">
-                  Apasă pe <strong className="text-amber-300">„Scanare Strategii (Donchian 55)”</strong> pentru a analiza universul stocks/ETF. Lipsa rezultatelor este normală: filtrele sunt intenționat rare și conservatoare.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => void startManualScan('strategies')}
-                  disabled={Boolean(activeScanScope)}
-                  className="mt-4 inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/20 px-4 py-2 text-xs font-bold text-amber-200 transition hover:bg-amber-500/30 disabled:opacity-50"
-                >
-                  <Sparkles className="h-4 w-4" /> Pornește Scanarea de Strategii
-                </button>
-              </div>
-            )
-          )}
-        </section>
-      )}
-
-      {/* 3. TOP 10 APROAPE DE FLIP */}
+      {/* 2. TOP 20 APROAPE DE FLIP */}
       {(activeTab === 'ALL' || activeTab === 'FLIPS') && (
         <section className="space-y-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -856,9 +854,9 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Radar className="h-4 w-4 text-violet-300" />
-                  <h2 className="text-sm font-bold text-slate-100 group-hover:text-violet-300 transition">Top 10 aproape de flip</h2>
+                  <h2 className="text-sm font-bold text-slate-100 group-hover:text-violet-300 transition">Top 20 aproape de flip</h2>
                   <span className="rounded-md border border-violet-500/25 bg-violet-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-violet-300">
-                    {visibleCandidates.length} candidați
+                    {visibleCandidates.length} din {allMatchingCandidates.length} candidați
                   </span>
                 </div>
                 <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">
@@ -866,7 +864,18 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                 </p>
               </div>
             </button>
-            {candidateFilterControls}
+            <div className="space-y-2">
+              {candidateFilterControls}
+              {allMatchingCandidates.length > UPCOMING_FLIP_DISPLAY_LIMIT && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllCandidates(prev => !prev)}
+                  className="w-full rounded-lg border border-cyan-500/25 bg-cyan-500/10 px-3 py-2 text-[10px] font-bold text-cyan-200 transition hover:bg-cyan-500/20"
+                >
+                  {showAllCandidates ? 'Arată primele 20' : `Arată toate (${allMatchingCandidates.length})`}
+                </button>
+              )}
+            </div>
           </div>
 
           {candidatesOpen && flipCandidateCards}
@@ -961,116 +970,16 @@ const SummaryCard: React.FC<{ icon: React.ElementType; label: string; value: num
   );
 };
 
-const StrategySetupCard: React.FC<{
-  setup: StrategyAlertSnapshot;
-  knownAssets?: AssetScannerRow[];
-  onOpen: () => void;
-}> = ({ setup, knownAssets, onOpen }) => {
-  const isConfirmed = setup.stage === 'CONFIRMED';
-  const isWatch = setup.stage === 'WATCH';
-  const isLong = setup.side === 'LONG';
-  const isDonchian = setup.strategy === 'WEEKLY_DONCHIAN_55_LONG';
-  const isMacro = setup.strategy === 'MONEYLINE_MACRO_LONG';
-  const isSniper = setup.strategy === 'MONEYLINE_4H_SNIPER_LONG';
-  const assetName = getAssetName(setup.symbol, undefined, knownAssets);
-  const showName = assetName && assetName.toUpperCase() !== setup.symbol.toUpperCase();
-
-  const strategyTitle = isDonchian
-    ? 'Weekly Trend + Donchian 55/20 LONG'
-    : isMacro
-      ? 'MoneyLine Macro Breakout LONG'
-      : isSniper
-        ? 'MoneyLine 4H Sniper LONG'
-        : 'Bear Rally Fade SHORT';
-
-  const tone = isConfirmed
-    ? isLong ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300' : 'border-rose-500/25 bg-rose-500/10 text-rose-300'
-    : isWatch
-      ? 'border-violet-500/25 bg-violet-500/10 text-violet-300'
-      : 'border-amber-500/25 bg-amber-500/10 text-amber-300';
-
-  const stageLabel = isConfirmed
-    ? isDonchian ? 'Breakout Donchian 55 Confirmat' : 'Confirmat pe lumânare închisă'
-    : isWatch
-      ? 'Radar de pregătire · încă nu este alertă'
-      : isDonchian ? 'Aproape de Donchian 55 (Armat)' : 'Setup Armat';
-
-  return (
-    <article className="overflow-hidden rounded-2xl border border-white/[0.07] bg-background-card p-4 shadow-sm transition hover:border-amber-500/20">
-      <div className="flex items-start justify-between gap-3">
-        <button type="button" onClick={onOpen} className="min-w-0 text-left">
-          <div className="flex flex-wrap items-center gap-2">
-            <strong className="font-mono text-lg text-white">${setup.symbol}</strong>
-            {showName && (
-              <span className="text-xs sm:text-sm font-semibold text-slate-200 truncate max-w-[170px] sm:max-w-[280px]" title={assetName}>
-                {assetName}
-              </span>
-            )}
-            <span className="rounded-md border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-cyan-300">
-              {setup.timeframe.toUpperCase()}
-            </span>
-            <span className="rounded-md border border-white/[0.07] bg-white/[0.03] px-1.5 py-0.5 text-[9px] uppercase text-slate-500">
-              {setup.marketClass}
-            </span>
-          </div>
-          <div className="mt-1 text-xs font-semibold text-slate-200">{strategyTitle}</div>
-          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
-            <Clock3 className="h-3 w-3" /> {formatDate(setup.candleTimestamp)}
-          </div>
-        </button>
-        <span className={`shrink-0 rounded-lg border px-2 py-1 font-mono text-[10px] font-black ${tone}`}>
-          {isConfirmed ? (isLong ? '🟢 CONFIRMAT LONG' : '🔴 CONFIRMAT SHORT') : isWatch ? '🟣 DE URMĂRIT' : '🟡 ARMAT'}
-        </span>
-      </div>
-
-      <div className="mt-3 text-xs text-slate-400">
-        <span className={`font-semibold ${isConfirmed ? (isLong ? 'text-emerald-300' : 'text-rose-300') : 'text-amber-300'}`}>
-          {stageLabel}
-        </span>
-        {setup.distanceToBreakoutPercent !== undefined && !isConfirmed && (
-          <span className={`ml-2 font-mono text-[11px] ${isWatch ? 'text-violet-200' : 'text-amber-200'}`}>
-            ({setup.distanceToBreakoutAtr?.toFixed(2) || '—'} ATR · {setup.distanceToBreakoutPercent.toFixed(2)}% sub Donchian 55)
-          </span>
-        )}
-      </div>
-
-      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <LevelBox label="Preț semnal" value={formatPrice(setup.signalPrice)} tone="slate" />
-        <LevelBox label="Stop Loss" value={formatPrice(setup.stopLoss)} tone="rose" />
-        <LevelBox label="Target 1 (1.5R)" value={formatPrice(setup.target1)} tone="emerald" />
-        <LevelBox label="Target 2 (3.0R)" value={formatPrice(setup.target2)} tone="emerald" />
-      </div>
-
-      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <LevelBox label="Risc maxim" value={`-${setup.riskPercent.toFixed(2)}%`} tone={setup.riskPercent <= 4 ? 'cyan' : 'amber'} />
-        <LevelBox label="Donchian 55" value={formatPrice(setup.donchianHigh55)} tone="cyan" />
-        <LevelBox label="Trailing Low 20" value={formatPrice(setup.donchianLow20)} tone="slate" />
-        <LevelBox label="ATR Percentile" value={setup.atrPercentile !== undefined ? `${setup.atrPercentile.toFixed(1)}%` : '—'} tone="slate" />
-      </div>
-
-      <button
-        type="button"
-        onClick={onOpen}
-        className="mt-3 flex w-full items-center justify-between border-t border-white/[0.05] pt-3 text-[11px] text-slate-500 transition hover:text-cyan-300"
-      >
-        <span className="truncate">{setup.exitRule}</span>
-        <span className="flex shrink-0 items-center gap-1 font-semibold text-cyan-300">
-          Deschide graficul <ChevronRight className="h-3.5 w-3.5" />
-        </span>
-      </button>
-    </article>
-  );
-};
-
 const FlipCandidateCard: React.FC<{
   candidate: FlipCandidateDashboardItem;
   rank: number;
+  coinGeckoRank?: number;
   preparing: boolean;
   alertActive: boolean;
   knownAssets?: AssetScannerRow[];
   onPrepare: () => void;
   onOpen: () => void;
-}> = ({ candidate, rank, preparing, alertActive, knownAssets, onPrepare, onOpen }) => {
+}> = ({ candidate, rank, coinGeckoRank, preparing, alertActive, knownAssets, onPrepare, onOpen }) => {
   const bullish = candidate.direction === 'BULLISH';
   const directionTone = bullish
     ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
@@ -1114,6 +1023,9 @@ const FlipCandidateCard: React.FC<{
                   <span className="text-xs sm:text-sm font-semibold text-slate-200 truncate max-w-[170px] sm:max-w-[280px]" title={assetName}>
                     {assetName}
                   </span>
+                )}
+                {candidate.marketClass === 'crypto' && coinGeckoRank && (
+                  <span className="rounded-md border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-200">CoinGecko #{coinGeckoRank}</span>
                 )}
                 <span className="rounded-md border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-cyan-300">{candidate.timeframe.toUpperCase()}</span>
                 <span className="rounded-md border border-white/[0.07] bg-white/[0.03] px-1.5 py-0.5 text-[9px] uppercase text-slate-500">{candidate.marketClass}</span>
@@ -1192,9 +1104,10 @@ const FlipCandidateCard: React.FC<{
 const ConfirmedFlipCard: React.FC<{
   candidate: FlipCandidateDashboardItem;
   rank: number;
+  coinGeckoRank?: number;
   knownAssets?: AssetScannerRow[];
   onOpen: () => void;
-}> = ({ candidate, rank, knownAssets, onOpen }) => {
+}> = ({ candidate, rank, coinGeckoRank, knownAssets, onOpen }) => {
   const bullish = candidate.direction === 'BULLISH';
   const tone = bullish
     ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
@@ -1221,6 +1134,9 @@ const ConfirmedFlipCard: React.FC<{
                 <span className="text-xs sm:text-sm font-semibold text-slate-200 truncate max-w-[170px] sm:max-w-[280px]" title={assetName}>
                   {assetName}
                 </span>
+              )}
+              {candidate.marketClass === 'crypto' && coinGeckoRank && (
+                <span className="rounded-md border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-200">CoinGecko #{coinGeckoRank}</span>
               )}
               <span className="rounded-md border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-cyan-300">{candidate.timeframe.toUpperCase()}</span>
               <span className="rounded-md border border-white/[0.07] bg-white/[0.03] px-1.5 py-0.5 text-[9px] uppercase text-slate-500">{candidate.marketClass}</span>

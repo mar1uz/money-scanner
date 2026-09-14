@@ -8,6 +8,7 @@ import {
   TRADING_360_ASSETS,
   AssetInfo,
   AssetMarketClass,
+  AssetMarketDataSource,
   ScannerMarketClass,
   getScannerAssets,
   withPrimaryNarrative,
@@ -37,6 +38,12 @@ export class MarketDataService {
   private quoteFetchedAt = new Map<string, number>();
   private marketCapCache: { values: Map<string, number>; updatedAt: number } | null = null;
   private topCryptoAssetsCache: { values: AssetInfo[]; updatedAt: number } | null = null;
+  private cryptoCandleSource = new Map<string, AssetMarketDataSource>();
+  private static readonly STABLE_SYMBOLS = new Set([
+    'USDT', 'USDC', 'DAI', 'FDUSD', 'USDE', 'USDS', 'TUSD', 'USDP', 'BUSD', 'PYUSD',
+    'USD1', 'RLUSD', 'USDG', 'USDD', 'USDY', 'USDF', 'USDGO', 'USYC', 'USDTB', 'USDAI',
+    'USD0', 'GHO', 'EURC', 'EUTBL', 'USTB', 'SOFID', 'APXUSD', 'USDS'
+  ]);
 
   private coinGeckoHeaders(): Record<string, string> {
     const key = process.env.COINGECKO_API_KEY;
@@ -66,6 +73,28 @@ export class MarketDataService {
     return asset?.marketDataSource === 'binance_futures' || /\.P$/i.test(symbol.trim());
   }
 
+  private rememberCryptoSources(assets: AssetInfo[]) {
+    for (const asset of assets) {
+      const symbol = asset.symbol.toUpperCase();
+      if (asset.marketDataSource === 'hyperliquid' || asset.marketDataSource === 'binance_futures') {
+        this.cryptoCandleSource.set(symbol, asset.marketDataSource);
+      } else {
+        this.cryptoCandleSource.set(symbol, 'binance_spot');
+      }
+    }
+  }
+
+  private resolveCryptoSource(symbol: string, asset?: AssetInfo): AssetMarketDataSource | undefined {
+    return this.cryptoCandleSource.get(symbol.toUpperCase())
+      || asset?.marketDataSource
+      || (this.isBinanceFuturesSymbol(symbol, asset) ? 'binance_futures' : undefined);
+  }
+
+  private providerSymbolFor(symbol: string, asset: AssetInfo | undefined, source: AssetMarketDataSource | undefined) {
+    if (source === 'hyperliquid') return symbol.replace(/\.P$/i, '').toUpperCase();
+    return asset?.providerSymbol || symbol;
+  }
+
   public async getCandles(
     symbol: string,
     timeframe: Timeframe = '1h',
@@ -76,9 +105,10 @@ export class MarketDataService {
     const resolvedMarketClass = requestedMarketClass || asset?.marketClass;
     const cacheScope = resolvedMarketClass || 'auto';
     const cacheKey = `${cacheScope}_${symbol}_${timeframe}_${limit}`;
-    const isBinanceFutures = this.isBinanceFuturesSymbol(symbol, asset);
-    const providerSymbol = asset?.providerSymbol || symbol;
-    const isHyperliquid = asset?.marketDataSource === 'hyperliquid';
+    const source = this.resolveCryptoSource(symbol, asset);
+    const isBinanceFutures = source === 'binance_futures';
+    const providerSymbol = this.providerSymbolFor(symbol, asset, source);
+    const isHyperliquid = source === 'hyperliquid';
     const isExplicitCryptoSpot = resolvedMarketClass === 'crypto' && !symbol.includes('.') && !symbol.startsWith('TOTAL');
     const isStockOrMetal = resolvedMarketClass === 'stocks' || resolvedMarketClass === 'metals'
       ? true
@@ -118,9 +148,10 @@ export class MarketDataService {
   ): Promise<Candle[]> {
     const asset = this.getAssetDefinition(symbol);
     const resolvedMarketClass = requestedMarketClass || asset?.marketClass;
-    const isBinanceFutures = this.isBinanceFuturesSymbol(symbol, asset);
-    const providerSymbol = asset?.providerSymbol || symbol;
-    const isHyperliquid = asset?.marketDataSource === 'hyperliquid';
+    const source = this.resolveCryptoSource(symbol, asset);
+    const isBinanceFutures = source === 'binance_futures';
+    const providerSymbol = this.providerSymbolFor(symbol, asset, source);
+    const isHyperliquid = source === 'hyperliquid';
     const isExplicitCryptoSpot = resolvedMarketClass === 'crypto' && !symbol.includes('.') && !symbol.startsWith('TOTAL');
     const isStockOrMetal = resolvedMarketClass === 'stocks' || resolvedMarketClass === 'metals'
       ? true
@@ -147,9 +178,10 @@ export class MarketDataService {
     const asset = this.getAssetDefinition(symbol);
     const resolvedMarketClass = requestedMarketClass || asset?.marketClass;
     const cacheKey = `${resolvedMarketClass || 'auto'}_${symbol}`;
-    const isBinanceFutures = this.isBinanceFuturesSymbol(symbol, asset);
-    const providerSymbol = asset?.providerSymbol || symbol;
-    const isHyperliquid = asset?.marketDataSource === 'hyperliquid';
+    const source = this.resolveCryptoSource(symbol, asset);
+    const isBinanceFutures = source === 'binance_futures';
+    const providerSymbol = this.providerSymbolFor(symbol, asset, source);
+    const isHyperliquid = source === 'hyperliquid';
     const isExplicitCryptoSpot = resolvedMarketClass === 'crypto' && !symbol.includes('.') && !symbol.startsWith('TOTAL');
     const isStockOrMetal = resolvedMarketClass === 'stocks' || resolvedMarketClass === 'metals'
       ? true
@@ -209,84 +241,103 @@ export class MarketDataService {
   }
 
   /**
-   * Full flip-detection universe: every CoinGecko Top 150 coin with an active
-   * Binance USDT spot market (5 min cached upstream). Unlike the narrative-
-   * balanced overview subset, nothing in the Top 150 is structurally excluded,
-   * so mid-caps like CAKE (#90) take part in flip scans.
+   * Full flip-detection universe: 150 coins ranked by CoinGecko market cap
+   * that have a live candle source (Binance USDT spot or Hyperliquid).
+   * Stables and assets without candles are skipped; the static catalog is
+   * never used to pad the list with coins outside CoinGecko's ranking.
    */
   public async getFlipUniverseCryptoAssets(): Promise<AssetInfo[]> {
     return this.getTopCryptoAssets(150);
   }
 
-  /** Top market-cap crypto assets that also have an active Binance USDT spot market. */
+  private async fetchCoinGeckoMarketsPage(page: number): Promise<CoinGeckoMarketRow[]> {
+    const response = await fetch(
+      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=${page}&sparkline=false`,
+      { headers: this.coinGeckoHeaders(), signal: AbortSignal.timeout(10_000) }
+    );
+    if (!response.ok) throw new Error(`CoinGecko HTTP ${response.status}`);
+    const rows = await response.json() as CoinGeckoMarketRow[];
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  /** CoinGecko market-cap ranked crypto assets with a live candle source. */
   public async getTopCryptoAssets(limit = 50): Promise<AssetInfo[]> {
     const poolLimit = Math.max(limit, 150);
     if (
       this.topCryptoAssetsCache &&
       Date.now() - this.topCryptoAssetsCache.updatedAt < 5 * 60_000
     ) {
+      this.rememberCryptoSources(this.topCryptoAssetsCache.values);
       return this.topCryptoAssetsCache.values.slice(0, limit);
     }
 
     try {
-      const [response, supportedSymbols] = await Promise.all([
-        fetch(
-          'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=150&page=1&sparkline=false',
-          { headers: this.coinGeckoHeaders(), signal: AbortSignal.timeout(10_000) }
-        ),
-        this.binanceAdapter.getSupportedUsdtBaseAssets()
+      const [page1, supportedSymbols, hyperliquidCoins] = await Promise.all([
+        this.fetchCoinGeckoMarketsPage(1),
+        this.binanceAdapter.getSupportedUsdtBaseAssets(),
+        this.hyperliquidAdapter.getTradableCoins().catch(() => new Set<string>())
       ]);
-      if (!response.ok) throw new Error(`CoinGecko HTTP ${response.status}`);
-
-      const rows = await response.json() as CoinGeckoMarketRow[];
       const existingBySymbol = new Map(
         TRADING_360_ASSETS.filter(asset => asset.marketClass === 'crypto').map(asset => [asset.symbol, asset])
       );
-      const marketCaps = new Map<string, number>();
-      const seen = new Set<string>();
-      const assets: AssetInfo[] = [];
-
-      for (const row of rows) {
-        const symbol = String(row.symbol || '').toUpperCase();
-        if (!symbol || !/^[A-Z0-9]+$/.test(symbol) || seen.has(symbol) || !supportedSymbols.has(symbol)) continue;
-        if (typeof row.market_cap !== 'number' || row.market_cap <= 0) continue;
-
-        const existing = existingBySymbol.get(symbol);
-        seen.add(symbol);
-        marketCaps.set(symbol, row.market_cap);
-        assets.push(withPrimaryNarrative({
-          symbol,
-          name: String(row.name || existing?.name || symbol),
-          coinGeckoId: row.id,
-          category: existing?.category || 'Infrastructure',
-          marketClass: 'crypto',
-          narratives: existing?.narratives,
-          quoteCurrency: 'USDT',
-          aliases: Array.from(new Set([...(existing?.aliases || []), String(row.id || ''), String(row.name || '')].filter(Boolean))),
-          marketCap: row.market_cap,
-          // Never fabricate a precise rank: unknown global rank stays 999
-          // (frontend hides it) instead of leaking a pool position as truth.
-          rank: Number(row.market_cap_rank || 999),
-          decimals: existing?.decimals ?? ((row.current_price || 0) < 1 ? 6 : 2)
-        }));
-        if (assets.length >= poolLimit) break;
+      for (const asset of existingBySymbol.values()) {
+        if (asset.marketDataSource === 'hyperliquid') hyperliquidCoins.add(asset.symbol.toUpperCase());
       }
 
-      // Fill gaps with the curated supported catalog, including the sector
-      // completion assets that can sit outside CoinGecko's first page.
-      if (assets.length < poolLimit) {
-        for (const fallback of CRYPTO_SPOT_ASSETS) {
-          if (!seen.has(fallback.symbol)) {
-            seen.add(fallback.symbol);
-            assets.push(fallback);
-            if (assets.length >= poolLimit) break;
-          }
+      const collect = (rows: CoinGeckoMarketRow[]) => {
+        const marketCaps = new Map<string, number>();
+        const seen = new Set<string>();
+        const assets: AssetInfo[] = [];
+        for (const row of rows) {
+          const symbol = String(row.symbol || '').toUpperCase();
+          if (!symbol || !/^[A-Z0-9]+$/.test(symbol) || seen.has(symbol)) continue;
+          if (MarketDataService.STABLE_SYMBOLS.has(symbol)) continue;
+          if (typeof row.market_cap !== 'number' || row.market_cap <= 0) continue;
+          const onBinance = supportedSymbols.has(symbol);
+          const onHyperliquid = hyperliquidCoins.has(symbol);
+          if (!onBinance && !onHyperliquid) continue;
+
+          const existing = existingBySymbol.get(symbol);
+          const marketDataSource: AssetMarketDataSource = onBinance ? 'binance_spot' : 'hyperliquid';
+          seen.add(symbol);
+          marketCaps.set(symbol, row.market_cap);
+          assets.push(withPrimaryNarrative({
+            symbol,
+            name: String(row.name || existing?.name || symbol),
+            coinGeckoId: row.id,
+            category: existing?.category || 'Infrastructure',
+            marketClass: 'crypto',
+            narratives: existing?.narratives,
+            quoteCurrency: onBinance ? 'USDT' : (existing?.quoteCurrency || 'USDC'),
+            aliases: Array.from(new Set([...(existing?.aliases || []), String(row.id || ''), String(row.name || '')].filter(Boolean))),
+            marketCap: row.market_cap,
+            rank: Number(row.market_cap_rank || 999),
+            decimals: existing?.decimals ?? ((row.current_price || 0) < 1 ? 6 : 2),
+            marketDataSource,
+            providerSymbol: existing?.providerSymbol || symbol,
+            exchange: existing?.exchange,
+            instrumentType: existing?.instrumentType
+          }));
+          if (assets.length >= poolLimit) break;
+        }
+        return { assets, marketCaps };
+      };
+
+      let rows = page1;
+      let collected = collect(rows);
+      if (collected.assets.length < poolLimit) {
+        try {
+          rows = rows.concat(await this.fetchCoinGeckoMarketsPage(2));
+          collected = collect(rows);
+        } catch {
+          // Keep the first CoinGecko page rather than padding with the static catalog.
         }
       }
 
-      this.marketCapCache = { values: marketCaps, updatedAt: Date.now() };
-      this.topCryptoAssetsCache = { values: assets, updatedAt: Date.now() };
-      return assets.slice(0, limit);
+      this.rememberCryptoSources(collected.assets);
+      this.marketCapCache = { values: collected.marketCaps, updatedAt: Date.now() };
+      this.topCryptoAssetsCache = { values: collected.assets, updatedAt: Date.now() };
+      return collected.assets.slice(0, limit);
     } catch {
       return CRYPTO_SPOT_ASSETS.slice(0, limit);
     }

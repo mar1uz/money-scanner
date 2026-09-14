@@ -410,7 +410,7 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
       )}
 
       {/* ── Treemap Squares Visual ── */}
-      <div className="relative min-h-[520px] sm:min-h-[640px] md:min-h-[720px] overflow-hidden rounded-2xl border border-white/[0.08] bg-[#070b12] shadow-2xl">
+      <div className="relative min-h-[520px] sm:min-h-[640px] md:min-h-[720px] overflow-hidden rounded-2xl border border-white/[0.08] bg-[#202b22] shadow-2xl">
         {loading && !coins.length ? (
           <div className="flex min-h-[520px] items-center justify-center gap-3 font-mono text-sm text-slate-400">
             <RefreshCw className="h-5 w-5 animate-spin text-cyan-400" />
@@ -474,7 +474,7 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
       </div>
 
       {/* ── Top Detailed List / Table (Optimized for Mobile & Desktop) ── */}
-      <div className="rounded-2xl border border-white/[0.08] bg-[#070b14] shadow-xl overflow-hidden">
+      <div className="rounded-2xl border border-white/[0.08] bg-[#202b22] shadow-xl overflow-hidden">
         {/* Subheader & Search */}
         <div className="p-4 sm:p-5 border-b border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-white/[0.02] to-transparent">
           <div>

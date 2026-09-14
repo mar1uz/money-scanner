@@ -376,7 +376,7 @@ const PriceChart: React.FC<{ result: BacktestResult }> = ({ result }) => {
           <span className="text-slate-200">● Preț</span><span className="text-cyan-300">— {isRsiStrategy ? 'SMA5' : 'SMA50'}</span><span className="text-amber-300">— SMA200</span>{isDonchian && <><span className="text-violet-300">— D55</span><span className="text-emerald-300">— D20</span></>}<span className="text-emerald-300">▲ Entry</span><span className="text-rose-300">× Exit</span>
         </div>
       </div>
-      <div className="mt-4 overflow-hidden rounded-xl border border-white/[0.05] bg-[#070b14] p-2">
+      <div className="mt-4 overflow-hidden rounded-xl border border-white/[0.05] bg-[#202b22] p-2">
         <svg viewBox={`0 0 ${width} ${height}`} className="h-64 w-full" role="img" aria-label="Grafic backtest cu intrări și ieșiri">
           {[0.25, 0.5, 0.75].map(level => <line key={level} x1="0" y1={height * level} x2={width} y2={height * level} stroke="#172033" strokeDasharray="4 5" />)}
           <path d={path(point => point.close)} fill="none" stroke="#e2e8f0" strokeWidth="1.5" opacity="0.9" />
@@ -403,7 +403,7 @@ const PriceChart: React.FC<{ result: BacktestResult }> = ({ result }) => {
         </svg>
       </div>
       {isRsiStrategy && (
-        <div className="mt-2 rounded-xl border border-white/[0.05] bg-[#070b14] px-2 py-1.5">
+        <div className="mt-2 rounded-xl border border-white/[0.05] bg-[#202b22] px-2 py-1.5">
           <div className="mb-1 flex items-center justify-between font-mono text-[8px] uppercase text-slate-600">
             <span>RSI(2)</span>
             <span>{isBearRally ? `Armare > ${rsiThreshold} · confirmare < ${rsiConfirmation}` : `Armare < ${rsiThreshold} · confirmare > ${rsiConfirmation}`}</span>
@@ -442,7 +442,7 @@ const EquityChart: React.FC<{ result: BacktestResult }> = ({ result }) => {
         <h2 className="text-sm font-bold text-slate-100">Curba capitalului, marcată la piață</h2>
         <div className="flex gap-3 text-[9px] font-bold uppercase"><span className="text-cyan-300">— Strategie</span><span className="text-slate-400">-- Buy & Hold</span></div>
       </div>
-      <div className="mt-4 overflow-hidden rounded-xl border border-white/[0.05] bg-[#070b14] p-2">
+      <div className="mt-4 overflow-hidden rounded-xl border border-white/[0.05] bg-[#202b22] p-2">
         <svg viewBox={`0 0 ${width} ${height}`} className="h-48 w-full">
           <line x1="0" y1={height / 2} x2={width} y2={height / 2} stroke="#172033" strokeDasharray="4 5" />
           <path d={path('benchmarkEquity')} fill="none" stroke="#64748b" strokeWidth="1.4" strokeDasharray="4 4" />

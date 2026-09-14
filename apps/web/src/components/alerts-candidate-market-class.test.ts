@@ -174,4 +174,16 @@ describe('filterFlipCandidates — Market Class Filtering', () => {
     assert.deepEqual(filterFlipCandidates(undefined, { candidateMarketClass: 'crypto' }), []);
     assert.deepEqual(filterFlipCandidates([], { candidateMarketClass: 'stocks' }), []);
   });
+
+  it('keeps the 20 closest unique assets from a larger scan universe', () => {
+    const many = Array.from({ length: 25 }, (_, index) => ({
+      ...mockCandidates[0],
+      id: `crypto:C${index}:4h`,
+      symbol: `C${index}`,
+      priorityScore: 90 - index
+    }));
+    const results = filterFlipCandidates(many);
+    assert.equal(results.length, 20);
+    assert.deepEqual(results.map(candidate => candidate.symbol), many.slice(0, 20).map(candidate => candidate.symbol));
+  });
 });

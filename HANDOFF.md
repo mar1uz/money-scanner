@@ -3394,6 +3394,63 @@ care nu accepta `radar` ca argument. Rezolvare (aceeasi seara):
 - Deploy: Cloud Build din root (`gcloud builds submit --config cloudbuild.yaml .`), proiect
   gen-lang-client-0610749770 → Cloud Run `market-scanner-360` (europe-west3). Dupa deploy, `/scan radar`
   functioneaza pe @Crypto_mac_alert_bot.
+- Deploy executat 2026-09-06 ~22:30: commit `Deterministic RADAR-SCAN digest`, build SUCCESS (4m40s),
+  revizia `market-scanner-360-00178-fgl` live 100% trafic, `/api/health` ok. Submitul local necesita
+  `--substitutions=COMMIT_SHA=<sha>` (altfel tag gol → eroare invalid image name).
+
+## 93. Flip universe = 150 monede CoinGecko pe market cap (nu Binance ∩ catalog pad)
+
+Problema: „Top 10 aproape de flip” arăta puține crypto-uri pentru că universul nu era Top 150 CoinGecko. `getTopCryptoAssets` lua pagina CoinGecko 150, păstra doar perechi Binance USDT (~87, fără HYPE #11), apoi umplea restul din catalogul static (ETH/BNB/SOL deja din top, plus monede în afara ranking-ului live).
+
+Fix:
+- Universul flip = 150 monede **ordonate după CoinGecko market cap** cu sursă reală de lumânări (Binance USDT spot sau Hyperliquid).
+- Stablecoins (USDT, USDC, DAI, …) excluse — Money Line pe peg nu are sens și nu există USDTUSDT.
+- Fără pad din catalogul static. Dacă în primele 250 CoinGecko nu sunt 150 scanabile, se ia pagina 2.
+- HYPE/KAS/XMR etc. intră pe Hyperliquid; `getCandles` folosește mapa de sursă din univers, nu `providerSymbol` de futures din catalog (KAS era `KASUSDT`).
+- Test: `packages/market-data` 10/10; `daily-regime-scan` 18/18. Smoke live: 150 asseturi, HYPE inclus, USDT exclus, CAKE inclus.
+
+```text
+Cloud Build: ee40edc2-7d31-4426-90ef-6477de84b3f6 (SUCCESS, 4m48s)
+Image tag: flipcg150-20260909204204
+Cloud Run revision: market-scanner-360-00179-qg4
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
+
+După deploy: o scanare Complet / flips din Alerte ca lista să se reconstruiească pe noul univers.
+
+## 94. Top 20 aproape de flip (afișare)
+
+User: tot aceleași puține monede; vrea măcar 20 din cele scanate.
+Cauza UI: `filterFlipCandidates` tăia la 10 asseturi unice, independent de universul de 150.
+Fix: `UPCOMING_FLIP_DISPLAY_LIMIT = 20`; titlu/butoane Top 20; test 25→20.
+
+```text
+Cloud Build: 0d09eaa6-0804-4bd3-94a9-bf2fc9228bb7 (SUCCESS, 4m23s)
+Image tag: flip20-20260910101140
+Cloud Run revision: market-scanner-360-00180-cr5
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health: HTTP 200, status ok
+```
+
+Dacă lista încă e scurtă, apasă Scanare Top 20 Flips — UI-ul nu poate arăta 20 dacă Firestore încă are doar vechile 10.
+
+## 95. Acces Viewer: tiberioursan@gmail.com — 2026-09-12
+
+Adăugat `tiberioursan@gmail.com` în `ALLOWED_EMAILS` (Viewer, nu admin). `ADMIN_EMAILS` rămâne doar `marius.perju.juravle@gmail.com`. Sursă: `cloudbuild.yaml`. Aplicat live prin `--update-env-vars` (fără rebuild de imagine).
+
+```text
+Cloud Run revision: market-scanner-360-00182-qpf
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Custom URL: https://scanner.relayhub.no
+Health: HTTP 200, status ok
+```
+
+Tiberiu: Google Sign-In cu acel Gmail pe pagina scannerului.
+
 
 
 

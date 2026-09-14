@@ -263,4 +263,65 @@ describe('Market Data Service & Normalization', () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it('builds the flip universe from CoinGecko market-cap order with live candle sources', async () => {
+    const originalFetch = globalThis.fetch;
+    const now = Date.now();
+    const geckoPage1 = [
+      { id: 'tether', symbol: 'usdt', name: 'Tether', market_cap: 180e9, market_cap_rank: 3, current_price: 1 },
+      { id: 'bitcoin', symbol: 'btc', name: 'Bitcoin', market_cap: 1.5e12, market_cap_rank: 1, current_price: 90000 },
+      { id: 'hyperliquid', symbol: 'hype', name: 'Hyperliquid', market_cap: 12e9, market_cap_rank: 11, current_price: 40 },
+      { id: 'pancakeswap-token', symbol: 'cake', name: 'PancakeSwap', market_cap: 554e6, market_cap_rank: 90, current_price: 2.5 },
+      { id: 'kaspa', symbol: 'kas', name: 'Kaspa', market_cap: 500e6, market_cap_rank: 76, current_price: 0.1 },
+      { id: 'no-market', symbol: 'zzz', name: 'No Venue', market_cap: 400e6, market_cap_rank: 120, current_price: 1 }
+    ];
+    const geckoPage2 = [
+      { id: 'fill-coin', symbol: 'aaa', name: 'Fill Coin', market_cap: 200e6, market_cap_rank: 180, current_price: 3 }
+    ];
+    let kasCandleBody: { type?: string; req?: { coin?: string } } = {};
+    globalThis.fetch = (async (input, init) => {
+      const url = String(input);
+      if (url.includes('/coins/markets') && url.includes('page=1')) return Response.json(geckoPage1);
+      if (url.includes('/coins/markets') && url.includes('page=2')) return Response.json(geckoPage2);
+      if (url.includes('/exchangeInfo')) {
+        return Response.json({
+          symbols: ['BTC', 'CAKE', 'AAA'].map(baseAsset => ({
+            status: 'TRADING', quoteAsset: 'USDT', isSpotTradingAllowed: true, baseAsset
+          }))
+        });
+      }
+      if (url.includes('hyperliquid.xyz/info')) {
+        const body = JSON.parse(String(init?.body || '{}'));
+        if (body.type === 'meta') return Response.json({ universe: [{ name: 'HYPE' }, { name: 'KAS' }] });
+        kasCandleBody = body;
+        return Response.json([
+          { t: now - 7_200_000, T: now - 3_600_001, o: '1', h: '2', l: '1', c: '1.5', v: '10' },
+          { t: now - 3_600_000, T: now + 1_000, o: '1.5', h: '2', l: '1.4', c: '1.8', v: '12' }
+        ]);
+      }
+      if (url.includes('/klines')) {
+        return Response.json([[now - 3_600_000, '1', '2', '1', '1.5', '10']]);
+      }
+      return new Response('Not found', { status: 404 });
+    }) as typeof fetch;
+
+    try {
+      const service = new MarketDataService();
+      const assets = await service.getTopCryptoAssets(5);
+      assert.deepEqual(assets.map(asset => asset.symbol), ['BTC', 'HYPE', 'CAKE', 'KAS', 'AAA']);
+      assert.equal(assets.find(asset => asset.symbol === 'HYPE')?.marketDataSource, 'hyperliquid');
+      assert.equal(assets.find(asset => asset.symbol === 'KAS')?.marketDataSource, 'hyperliquid');
+      assert.ok(!assets.some(asset => asset.symbol === 'USDT' || asset.symbol === 'ZZZ'));
+
+      const geckoOnly = geckoPage1.concat(geckoPage2).map(row => row.symbol.toUpperCase());
+      assert.ok(assets.every(asset => geckoOnly.includes(asset.symbol)));
+
+      const candles = await service.getCandles('KAS', '1h', 2, 'crypto');
+      assert.equal(candles.length, 2);
+      assert.equal(kasCandleBody.type, 'candleSnapshot');
+      assert.equal(kasCandleBody.req?.coin, 'KAS');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

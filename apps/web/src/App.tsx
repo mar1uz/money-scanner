@@ -30,6 +30,7 @@ import { USAStatusView } from './components/USAStatusView.js';
 import { CryptoRadarView } from './components/CryptoRadarView.js';
 import { CryptoBubbleView } from './components/CryptoBubbleView.js';
 import { CryptoHeatMapView } from './components/CryptoHeatMapView.js';
+import { useLanguage } from './i18n.js';
 import { AuthGate } from './components/AuthGate.js';
 import { AssetNavigationProvider } from './components/AssetNavigation.js';
 import { UserProfile } from '@money-scanner/shared';
@@ -42,33 +43,38 @@ interface AuthenticatedAppProps {
 
 const VALID_TIMEFRAMES: Timeframe[] = ['1h', '4h', '8h', '1d', '1w', '1m'];
 const VALID_MARKET_CLASSES = ['crypto', 'stocks', 'metals'] as const;
+const VALID_TABS: AppTab[] = ['market', 'crypto_radar', 'crypto_bubbles', 'crypto_heatmap', 'usa_status', 'trends', 'news', 'ai', 'alerts', 'backtest', 'status'];
 
 const readMoneyLineDeepLink = () => {
   const params = new URLSearchParams(window.location.search);
   const rawSymbol = (params.get('asset') || '').replace(/^[$#]/, '').trim().toUpperCase();
   const rawTimeframe = params.get('timeframe')?.toLowerCase() as Timeframe | undefined;
   const rawMarketClass = params.get('marketClass')?.toLowerCase();
+  const rawTab = params.get('tab') as AppTab | null;
   return {
     symbol: /^[A-Z0-9][A-Z0-9._:-]{0,30}$/.test(rawSymbol) ? rawSymbol : null,
     timeframe: rawTimeframe && VALID_TIMEFRAMES.includes(rawTimeframe) ? rawTimeframe : undefined,
     marketClass: VALID_MARKET_CLASSES.includes(rawMarketClass as typeof VALID_MARKET_CLASSES[number])
       ? rawMarketClass as typeof VALID_MARKET_CLASSES[number]
       : undefined,
+    tab: rawTab && VALID_TABS.includes(rawTab) ? rawTab : undefined,
+    watchlistOnly: params.get('watchlist') === '1',
     coinGeckoId: params.get('coinGeckoId') || undefined,
     coinPaprikaId: params.get('coinPaprikaId') || undefined
   };
 };
 
 const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) => {
+  const { language } = useLanguage();
   const initialDeepLink = useRef(readMoneyLineDeepLink()).current;
-  const [activeTab, setActiveTab] = useState<AppTab>(new URLSearchParams(window.location.search).get('tab') === 'crypto_radar' ? 'crypto_radar' : 'market');
+  const [activeTab, setActiveTab] = useState<AppTab>(initialDeepLink.tab || 'market');
   const [timeframe, setTimeframe] = useState<Timeframe>(initialDeepLink.timeframe || '1w');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [selectedTier, setSelectedTier] = useState('ALL');
   const [selectedNarrative, setSelectedNarrative] = useState<MarketNarrativeId | 'ALL'>('ALL');
   const [inspectedNarrative, setInspectedNarrative] = useState<NarrativeSummary | null>(null);
-  const [watchlistOnly, setWatchlistOnly] = useState(false);
+  const [watchlistOnly, setWatchlistOnly] = useState(initialDeepLink.watchlistOnly);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
       return localStorage.getItem('money_scanner_sidebar_collapsed') === 'true';
@@ -173,6 +179,21 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
   }, [selectedAssetSymbol, selectedAssetMarketClass, selectedAssetCoinGeckoId, selectedAssetCoinPaprikaId, timeframe]);
 
+  useEffect(() => {
+    const restoreFromLocation = () => {
+      const deepLink = readMoneyLineDeepLink();
+      setSelectedAssetSymbol(deepLink.symbol);
+      setSelectedAssetMarketClass(deepLink.marketClass);
+      setSelectedAssetCoinGeckoId(deepLink.coinGeckoId);
+      setSelectedAssetCoinPaprikaId(deepLink.coinPaprikaId);
+      setActiveTab(deepLink.tab || 'market');
+      setWatchlistOnly(deepLink.watchlistOnly);
+      if (deepLink.timeframe) setTimeframe(deepLink.timeframe);
+    };
+    window.addEventListener('popstate', restoreFromLocation);
+    return () => window.removeEventListener('popstate', restoreFromLocation);
+  }, []);
+
   const toggleWatchlist = (symbol: string) => {
     const sym = symbol.toUpperCase();
     const isAdding = !watchlist.includes(sym);
@@ -212,28 +233,67 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
     setSelectedAssetCoinGeckoId(coinGeckoId);
     setSelectedAssetCoinPaprikaId(coinPaprikaId);
     setSelectedAssetSymbol(normalizedSymbol);
+    const url = new URL(window.location.href);
+    url.searchParams.set('asset', normalizedSymbol);
+    url.searchParams.set('timeframe', selectedTimeframe || timeframe);
+    if (verifiedClass) url.searchParams.set('marketClass', verifiedClass);
+    if (coinGeckoId) url.searchParams.set('coinGeckoId', coinGeckoId);
+    if (coinPaprikaId) url.searchParams.set('coinPaprikaId', coinPaprikaId);
+    window.history.pushState({}, '', `${url.pathname}${url.search}${url.hash}`);
+  };
+
+  const handleTabChange = (tab: AppTab) => {
+    setWatchlistOnly(false);
+    setSelectedAssetSymbol(null);
+    setSelectedAssetMarketClass(undefined);
+    setSelectedAssetCoinGeckoId(undefined);
+    setSelectedAssetCoinPaprikaId(undefined);
+    setActiveTab(tab);
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', tab);
+    url.searchParams.delete('asset');
+    url.searchParams.delete('marketClass');
+    url.searchParams.delete('coinGeckoId');
+    url.searchParams.delete('coinPaprikaId');
+    url.searchParams.delete('watchlist');
+    window.history.pushState({}, '', `${url.pathname}${url.search}${url.hash}`);
+  };
+
+  const openWatchlist = () => {
+    setSelectedAssetSymbol(null);
+    setSelectedAssetMarketClass(undefined);
+    setSelectedAssetCoinGeckoId(undefined);
+    setSelectedAssetCoinPaprikaId(undefined);
+    setWatchlistOnly(true);
+    setActiveTab('market');
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', 'market');
+    url.searchParams.set('watchlist', '1');
+    url.searchParams.delete('asset');
+    window.history.pushState({}, '', `${url.pathname}${url.search}${url.hash}`);
+  };
+
+  const closeAsset = () => {
+    if (new URLSearchParams(window.location.search).has('asset')) {
+      window.history.back();
+      return;
+    }
+    setSelectedAssetSymbol(null);
   };
 
   return (
     <AssetNavigationProvider onOpenAsset={({ symbol, marketClass, timeframe: targetTimeframe, coinGeckoId }) => openAsset(symbol, marketClass, targetTimeframe, coinGeckoId)}>
-    <div className="min-h-screen flex bg-background text-slate-100 selection:bg-cyan-500/30 selection:text-cyan-200">
+    <div className="app-shell min-h-screen flex bg-background text-slate-100 selection:bg-cyan-500/30 selection:text-cyan-200">
       {/* Persistent Left Sidebar (Desktop) + Bottom Nav (Mobile) */}
       <Sidebar
         activeTab={activeTab}
-        onTabChange={(tab) => {
-          setSelectedAssetSymbol(null);
-          setSelectedAssetMarketClass(undefined);
-          setSelectedAssetCoinGeckoId(undefined);
-          setActiveTab(tab);
-        }}
+        onTabChange={handleTabChange}
         watchlistCount={watchlist.length}
-        onLogoClick={() => {
-          setSelectedAssetSymbol(null);
-          setSelectedAssetMarketClass(undefined);
-          setSelectedAssetCoinGeckoId(undefined);
-          setActiveTab('market');
-        }}
+        watchlistOnly={watchlistOnly}
+        onLogoClick={() => handleTabChange('market')}
         onOpenSearchModal={() => setIsSearchModalOpen(true)}
+        onOpenWatchlist={openWatchlist}
+        onOpenAlerts={() => handleTabChange('alerts')}
         hideDesktopSidebar={Boolean(selectedAssetSymbol)}
         collapsed={sidebarCollapsed}
         onCollapsedChange={setSidebarCollapsed}
@@ -270,7 +330,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
 
         {/* Notification Banner */}
         {bannerAlert && (
-          <div className="mx-4 lg:mx-8 mt-3 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs font-mono text-emerald-300 flex items-center justify-between shadow-glow-emerald animate-fade-in">
+          <div role="status" aria-live="polite" className="mx-4 lg:mx-8 mt-3 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs font-mono text-emerald-300 flex items-center justify-between shadow-glow-emerald animate-fade-in">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
               <span>{bannerAlert}</span>
@@ -285,7 +345,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
         )}
 
         {/* Main Content Area */}
-        <main className="flex-1 px-4 lg:px-8 py-6 space-y-6 max-w-[1600px] w-full mx-auto animate-fade-in">
+        <main className="workspace-main flex-1 px-4 lg:px-10 py-8 space-y-8 max-w-[1600px] w-full mx-auto animate-fade-in">
           {/* Full-Page Asset Deep-Dive View */}
           {selectedAssetSymbol && (
             <AssetDeepDiveView
@@ -295,12 +355,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
               coinPaprikaId={selectedAssetCoinPaprikaId}
               timeframe={timeframe}
               onTimeframeChange={setTimeframe}
-              onBack={() => {
-                setSelectedAssetSymbol(null);
-                setSelectedAssetMarketClass(undefined);
-                setSelectedAssetCoinGeckoId(undefined);
-                setSelectedAssetCoinPaprikaId(undefined);
-              }}
+                onBack={closeAsset}
               watchlist={watchlist}
               onToggleWatchlist={toggleWatchlist}
             />
@@ -312,7 +367,18 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
           <div className={selectedAssetSymbol ? 'hidden' : 'contents'}>
               {/* Tab 1: Market Intelligence (Gauges + Narrative Bar + Scanner Table) */}
               {activeTab === 'market' && (
-                <div className="space-y-6">
+                <div className="market-dashboard space-y-8">
+                  <section className="market-intro">
+                    <div>
+                      <p className="eyebrow">MARKET INTELLIGENCE / 360°</p>
+                      <h1>{language === 'ro' ? 'Piața, în perspectivă' : 'Markets, in perspective'}<span>.</span></h1>
+                      <p className="intro-description">{language === 'ro' ? 'O privire de ansamblu. Semnalele care contează.' : 'The bigger picture. The signals that matter.'}</p>
+                    </div>
+                    <button className="intro-watchlist" onClick={() => setWatchlistOnly(!watchlistOnly)} aria-pressed={watchlistOnly}>
+                      <span>{watchlistOnly ? (language === 'ro' ? 'Vezi toate activele' : 'View all assets') : (language === 'ro' ? 'Lista mea' : 'My watchlist')}</span>
+                      <span className="intro-count">{watchlist.length}</span>
+                    </button>
+                  </section>
                   {/* Top Market Intelligence Gauges */}
                   <MarketRegimeGauge
                     overview={overview}
@@ -322,6 +388,8 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
                   />
 
                   {/* Interactive Narrative & Sector Alpha Bar */}
+                  <details className="sector-disclosure">
+                    <summary><span>{language === 'ro' ? 'Sectoare & narațiuni' : 'Sectors & narratives'} <small>{selectedNarrative === 'ALL' ? (language === 'ro' ? 'Explorează tendințele pieței' : 'Explore market trends') : `Filtru activ: ${narratives.find(n => n.id === selectedNarrative)?.shortName || selectedNarrative}`}</small></span><span className="disclosure-plus" aria-hidden="true">+</span></summary>
                   <NarrativeBar
                     narratives={narratives}
                     timeframe={timeframe}
@@ -331,13 +399,15 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
                     loading={loading}
                   />
 
+                  </details>
+
                   {/* Scanner Signals Header & Table */}
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
                       <div className="flex items-center gap-2">
                         <Zap className="w-4 h-4 text-cyan-400" />
-                        <h2 className="text-xs font-bold tracking-wider uppercase font-mono text-slate-300">
-                          Semnale Live Market Scanner 360 ({timeframe.toUpperCase()})
+                        <h2 className="text-xl font-semibold tracking-tight text-slate-100">
+                          {language === 'ro' ? 'Semnale de piață' : 'Market signals'} · {timeframe.toUpperCase()}
                           {selectedNarrative !== 'ALL' && (
                             <span className="text-cyan-400 font-bold ml-2">
                               • Filtrat: {narratives.find(n => n.id === selectedNarrative)?.shortName || selectedNarrative}

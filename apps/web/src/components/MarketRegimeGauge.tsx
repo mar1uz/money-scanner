@@ -234,14 +234,14 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
   };
 
   const marketCategories: { id: MarketCategory; label: string; icon: any; count: number }[] = [
-    { id: 'ALL', label: 'Trading 360° (Toate)', icon: Layers, count: rows.length || 51 },
-    { id: 'crypto', label: 'Crypto 🪙', icon: Coins, count: rows.filter(r => r.marketClass ? r.marketClass === 'crypto' : isCrypto(r.symbol, r.category)).length },
-    { id: 'stocks', label: 'Stocks SUA 📈', icon: TrendingUp, count: rows.filter(r => r.marketClass ? r.marketClass === 'stocks' : isStock(r.symbol, r.category)).length },
-    { id: 'metals', label: 'Metale & Gold 🥇', icon: Award, count: rows.filter(r => r.marketClass ? r.marketClass === 'metals' : isMetal(r.symbol, r.category)).length }
+    { id: 'ALL', label: 'Toate piețele', icon: Layers, count: rows.length || 51 },
+    { id: 'crypto', label: 'Crypto', icon: Coins, count: rows.filter(r => r.marketClass ? r.marketClass === 'crypto' : isCrypto(r.symbol, r.category)).length },
+    { id: 'stocks', label: 'Acțiuni SUA', icon: TrendingUp, count: rows.filter(r => r.marketClass ? r.marketClass === 'stocks' : isStock(r.symbol, r.category)).length },
+    { id: 'metals', label: 'Metale', icon: Award, count: rows.filter(r => r.marketClass ? r.marketClass === 'metals' : isMetal(r.symbol, r.category)).length }
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="market-overview space-y-6">
       {/* Top Market Selector Filter Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 p-1.5 bg-white/[0.02] border border-white/[0.04] rounded-2xl">
         <div className="flex flex-wrap items-center gap-1">
@@ -277,12 +277,12 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
         {/* Card 1: Market Regime */}
         <div className={`card-base p-5 border transition-all ${regimeInfo.colorClass}`}>
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs uppercase font-mono tracking-wider text-slate-400">Market Regime</span>
+            <span className="text-xs font-medium text-slate-400">Market Regime</span>
             <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${regimeInfo.colorClass}`}>
               {regimeInfo.score > 0 ? `+${regimeInfo.score}` : regimeInfo.score} / 100
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="regime-value flex items-center gap-3">
             {regimeInfo.isBull ? (
               <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
                 <TrendingUp className="w-5 h-5 text-emerald-400" />
@@ -297,7 +297,7 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
               </div>
             )}
             <div>
-              <h3 className="text-sm font-bold text-slate-100 line-clamp-1">{regimeInfo.label}</h3>
+              <h3 className="text-sm font-bold text-slate-100">{regimeInfo.label}</h3>
               <p className="text-[11px] text-slate-400 mt-0.5">
                 {selectedCategory === 'stocks' ? 'Mega-Cap Equities Structure' : (selectedCategory === 'metals' ? 'Sovereign Commodities Demand' : 'Money Line Trend Composite')}
               </p>
@@ -308,7 +308,7 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
         {/* Card 2: Market Breadth */}
         <div className="card-base p-5">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs uppercase font-mono tracking-wider text-slate-400">Market Breadth</span>
+            <span className="text-xs font-medium text-slate-400">Market Breadth</span>
             <span className="text-xs font-mono font-bold text-cyan-300">
               {bullishPercent}% Bullish
             </span>
@@ -341,11 +341,11 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
         {/* Card 3: Global Liquidity & Market Cap */}
         <div className="card-base p-5">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs uppercase font-mono tracking-wider text-slate-400">Global Liquidity</span>
+            <span className="text-xs font-medium text-slate-400">Global Liquidity</span>
             <Layers className="w-4 h-4 text-cyan-400" />
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-xl font-bold font-mono text-slate-100">
+            <span className="text-3xl font-semibold tracking-tight text-slate-100">
               {totalMarketCap > 0 ? formatLargeNumber(totalMarketCap) : '$2.42T'}
             </span>
             <span className="text-xs text-slate-500 font-mono">Total Cap</span>
@@ -359,7 +359,7 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
         {/* Card 4: Fear and Greed Index */}
         <div className="card-base p-5">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs uppercase font-mono tracking-wider text-slate-400">Fear &amp; Greed</span>
+            <span className="text-xs font-medium text-slate-400">Fear &amp; Greed</span>
             <div className="flex items-center gap-1.5">
               <span className="text-sm">{fearGreedInfo.emoji}</span>
               <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${fearGreedInfo.colorClass}`}>
@@ -369,7 +369,7 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
           </div>
           
           <div className="flex items-baseline gap-2">
-            <span className="text-xl font-bold font-mono text-slate-100">{fearGreedScore}</span>
+            <span className="text-3xl font-semibold tracking-tight text-slate-100">{fearGreedScore}</span>
             <span className="text-xs text-slate-500 font-mono">/ 100</span>
           </div>
 

@@ -32,14 +32,30 @@ export class HyperliquidMarketAdapter {
   }
 
   private async request<T>(body: object): Promise<T> {
-    const response = await fetch(this.baseUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(10_000)
-    });
-    if (!response.ok) throw new Error(`Hyperliquid HTTP ${response.status}`);
-    return response.json() as Promise<T>;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const response = await fetch(this.baseUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(10_000)
+      });
+      if (response.ok) return response.json() as Promise<T>;
+      if (response.status !== 429 || attempt === 2) throw new Error(`Hyperliquid HTTP ${response.status}`);
+      const retryAfter = Number(response.headers.get('retry-after'));
+      const delayMs = Number.isFinite(retryAfter) ? Math.min(10_000, Math.max(250, retryAfter * 1000)) : 500 * (attempt + 1);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+    throw new Error('Hyperliquid request failed');
+  }
+
+  public async getTradableCoins(): Promise<Set<string>> {
+    const meta = await this.request<{ universe?: Array<{ name?: string }> }>({ type: 'meta' });
+    const values = new Set<string>();
+    for (const coin of meta.universe || []) {
+      const name = String(coin.name || '').toUpperCase();
+      if (name && !name.startsWith('@')) values.add(name);
+    }
+    return values;
   }
 
   private async fetchRange(symbol: string, timeframe: Timeframe, startTime: number, endTime: number, limit: number) {

@@ -69,6 +69,30 @@ export interface DailyRegimeScanStatus {
   errors: number;
   running: boolean;
   lastError?: string;
+  coverage?: FlipScanCoverageSummary;
+}
+
+export type FlipScanCoverageStatus = 'CONFIRMED' | 'CANDIDATE' | 'NO_SETUP' | 'INSUFFICIENT_DATA' | 'ERROR';
+
+export interface FlipScanCoverageItem {
+  symbol: string;
+  name?: string;
+  marketClass: AssetMarketClass;
+  rank?: number;
+  status: FlipScanCoverageStatus;
+  weeklyCandidate: boolean;
+  weeklyConfirmed: boolean;
+  candidateCount: number;
+  confirmedCount: number;
+  scannedAt: number;
+  error?: string;
+}
+
+export interface FlipScanCoverageSummary {
+  totalAssets: number;
+  scannedAssets: number;
+  outcomes: Record<FlipScanCoverageStatus, number>;
+  byMarket: Record<AssetMarketClass, number>;
 }
 
 export type ManualAlertScanScope = 'quick' | 'full' | 'flips' | 'strategies';
@@ -116,6 +140,7 @@ export interface FlipCandidate {
   symbol: string;
   name?: string;
   marketClass: AssetMarketClass;
+  marketCapRank?: number;
   timeframe: Extract<Timeframe, '4h' | '8h' | '1d' | '1w'>;
   direction: FlipCandidateDirection;
   status: FlipCandidateStatus;
@@ -154,6 +179,7 @@ interface FlipAssetScanResult {
   upcoming: FlipCandidate[];
   confirmedHistory: FlipCandidate[];
   newlyConfirmed: FlipCandidate[];
+  coverage?: Pick<FlipScanCoverageItem, 'status' | 'weeklyCandidate' | 'weeklyConfirmed' | 'candidateCount' | 'confirmedCount' | 'error'>;
 }
 
 interface DailyRegimeMatch {
@@ -236,6 +262,7 @@ export class AppState {
   private manualAlertScanNextAllowed = new Map<string, number>();
   private flipCandidates: FlipCandidate[] = [];
   private confirmedFlips: FlipCandidate[] = [];
+  private flipScanCoverage: FlipScanCoverageItem[] = [];
   private strategySetups: StrategyAlertSnapshot[] = [];
   private telegramFlipPreferences = new Map<string, TelegramFlipAlertPreferences>();
   private telegramFlipSubscriptions = new Map<string, TelegramFlipAlertSubscription>();
@@ -449,9 +476,9 @@ export class AppState {
     timeframe: Timeframe,
     marketClass: ScannerMarketClass
   ): Promise<TelegramMoneyLineScanResult> {
-    // Flip scans run on the FULL Top 150 pool, not the narrative-balanced
-    // overview subset, so mid-caps outside Top 50 / narrative top-10
-    // (e.g. CAKE #90) are not structurally excluded from flip detection.
+    // Flip scans run on 150 CoinGecko market-cap coins with live candles,
+    // not the narrative-balanced overview subset, so mid-caps outside Top 50
+    // / narrative top-10 (e.g. CAKE #90) are not structurally excluded.
     const liveCrypto = marketClass === 'crypto' || marketClass === 'ALL'
       ? await this.marketData.getFlipUniverseCryptoAssets()
       : [];
@@ -600,6 +627,7 @@ export class AppState {
       manualScan: this.getManualAlertScanStatus(userId),
       flipCandidates: this.flipCandidates.map(candidate => ({ ...candidate })),
       confirmedFlips: this.confirmedFlips.map(candidate => ({ ...candidate })),
+      scanCoverage: this.flipScanCoverage.map(item => ({ ...item })),
       strategySetups: this.strategySetups.map(setup => ({ ...setup })),
       updatedAt: Date.now(),
       ...this.telegramBot.getDeliveryConfiguration()
@@ -1011,7 +1039,7 @@ export class AppState {
     };
 
     try {
-      // Full Top 150 pool for flip detection (see executeTelegramMoneyLineScan):
+      // 150 CoinGecko market-cap coins for flip detection (see executeTelegramMoneyLineScan):
       // mid-caps like CAKE must reach confirmed-history, dashboard and Telegram.
       const [liveCrypto, stocks, metals] = await Promise.all([
         this.marketData.getFlipUniverseCryptoAssets(),
@@ -1025,6 +1053,7 @@ export class AppState {
       const candidates: FlipCandidate[] = [];
       const confirmedHistory: FlipCandidate[] = [];
       const newlyConfirmed: FlipCandidate[] = [];
+      const coverage: FlipScanCoverageItem[] = [];
       let errors = 0;
       const concurrency = 4;
 
@@ -1034,20 +1063,41 @@ export class AppState {
           this.scanFlipAsset(asset.symbol, asset.marketClass as AssetMarketClass)
         ));
 
-        settled.forEach(result => {
+        settled.forEach((result, batchIndex) => {
+          const asset = batch[batchIndex];
           if (result.status === 'fulfilled') {
-            candidates.push(...result.value.upcoming);
-            confirmedHistory.push(...result.value.confirmedHistory);
-            newlyConfirmed.push(...result.value.newlyConfirmed);
+            const attachMarketCapRank = (items: FlipCandidate[]) => items.map(item => ({
+              ...item,
+              marketCapRank: asset.marketClass === 'crypto' && Number.isFinite(asset.rank) ? asset.rank : undefined
+            }));
+            candidates.push(...attachMarketCapRank(result.value.upcoming));
+            confirmedHistory.push(...attachMarketCapRank(result.value.confirmedHistory));
+            newlyConfirmed.push(...attachMarketCapRank(result.value.newlyConfirmed));
+            const source = result.value.coverage;
+            if (source) {
+              coverage.push({ symbol: asset.symbol, name: asset.name, marketClass: asset.marketClass as AssetMarketClass, rank: asset.rank, scannedAt: Date.now(), ...source });
+            }
           } else {
             errors += 1;
+            // Promise.allSettled does not retain the asset on the rejection, so
+            // the batch index is used below to keep failed assets visible.
             console.warn('Flip-only asset scan failed:', result.reason instanceof Error ? result.reason.message : result.reason);
+          }
+        });
+        settled.forEach((result, batchIndex) => {
+          if (result.status === 'rejected') {
+            const asset = batch[batchIndex];
+            coverage.push({ symbol: asset.symbol, name: asset.name, marketClass: asset.marketClass as AssetMarketClass, rank: asset.rank, status: 'ERROR', weeklyCandidate: false, weeklyConfirmed: false, candidateCount: 0, confirmedCount: 0, scannedAt: Date.now(), error: result.reason instanceof Error ? result.reason.message : String(result.reason) });
           }
         });
         this.dailyRegimeScanStatus.scannedAssets += settled.filter(result => result.status === 'fulfilled').length;
       }
 
       this.flipCandidates = this.rankUpcomingCandidates(candidates);
+      this.flipScanCoverage = coverage.sort((left, right) => (left.rank || 9999) - (right.rank || 9999) || left.symbol.localeCompare(right.symbol));
+      const outcomes = { CONFIRMED: 0, CANDIDATE: 0, NO_SETUP: 0, INSUFFICIENT_DATA: 0, ERROR: 0 } as Record<FlipScanCoverageStatus, number>;
+      const byMarket = { crypto: 0, stocks: 0, metals: 0 } as Record<AssetMarketClass, number>;
+      this.flipScanCoverage.forEach(item => { outcomes[item.status] += 1; byMarket[item.marketClass] += 1; });
       await this.publishConfirmedFlipEvents([...newlyConfirmed, ...confirmedHistory.filter(c => c.timeframe === '1w')], 'scheduled/full scan');
       this.mergeConfirmedFlips(confirmedHistory);
 
@@ -1058,8 +1108,11 @@ export class AppState {
         strategyMatches: 0,
         strategyArmed: 0,
         errors,
-        running: false
+        running: false,
+        coverage: { totalAssets: universe.length, scannedAssets: this.flipScanCoverage.filter(item => item.status !== 'ERROR').length, outcomes, byMarket }
       };
+      const activeKeys = new Set(universe.map(asset => `${asset.marketClass}:${asset.symbol}`));
+      this.confirmedFlips = this.confirmedFlips.filter(candidate => activeKeys.has(`${candidate.marketClass}:${candidate.symbol}`));
       await this.persistDailyRegimeState();
     } catch (error) {
       this.dailyRegimeScanStatus = {
@@ -1364,10 +1417,46 @@ export class AppState {
       const stored = snapshot.data() as {
         status?: DailyRegimeScanStatus;
         alerts?: DispatchedAlert[];
-        flipCandidates?: FlipCandidate[];
-        confirmedFlips?: FlipCandidate[];
-        strategySetups?: StrategyAlertSnapshot[];
-      } | undefined;
+      flipCandidates?: FlipCandidate[];
+      confirmedFlips?: FlipCandidate[];
+      scanCoverage?: FlipScanCoverageItem[];
+      strategySetups?: StrategyAlertSnapshot[];
+      schemaVersion?: number;
+      activeRunId?: string;
+    } | undefined;
+
+      if (stored?.schemaVersion === 2 && stored.activeRunId) {
+        const run = await this.dailyRegimeDocument().collection('runs').doc(stored.activeRunId).get();
+        const segmentIds = (run.data()?.segmentIds as string[] | undefined) || [];
+        const segments = await Promise.all(segmentIds.map(id =>
+          this.dailyRegimeDocument().collection('runs').doc(stored.activeRunId!).collection('segments').doc(id).get()
+        ));
+        const values = new Map<string, unknown[]>();
+        segments.forEach(segment => {
+          const data = segment.data();
+          if (data?.kind && Array.isArray(data.items)) values.set(`${data.kind}:${data.group || ''}`, data.items);
+        });
+        const collect = (kind: string) => Array.from(values.entries())
+          .filter(([key]) => key.startsWith(`${kind}:`))
+          .flatMap(([, items]) => items);
+        if (stored.status && !scanIsRunning) this.dailyRegimeScanStatus = {
+          ...stored.status,
+          enabled: true,
+          schedule: '0 8 * * *',
+          timezone: 'Europe/Bucharest',
+          running: false
+        };
+        this.flipCandidates = collect('candidates') as FlipCandidate[];
+        this.confirmedFlips = collect('confirmed') as FlipCandidate[];
+        this.flipScanCoverage = collect('coverage') as FlipScanCoverageItem[];
+        this.strategySetups = collect('strategies') as StrategyAlertSnapshot[];
+        const persistedAlerts = collect('alerts') as DispatchedAlert[];
+        if (persistedAlerts.length) {
+          const individual = this.alertHistory.filter(alert => alert.type !== 'MultiTimeframeReversal' && alert.type !== 'StrategySetup');
+          this.alertHistory = [...persistedAlerts, ...individual].sort((left, right) => right.timestamp - left.timestamp).slice(0, 250);
+        }
+        return;
+      }
       // Dashboard polling must not replace live progress with a persisted
       // partial status from an earlier write while a scan is still running.
       if (stored?.status && !scanIsRunning) this.dailyRegimeScanStatus = {
@@ -1379,6 +1468,7 @@ export class AppState {
       };
       if (Array.isArray(stored?.flipCandidates)) this.flipCandidates = stored.flipCandidates.slice(0, 400);
       if (Array.isArray(stored?.confirmedFlips)) this.confirmedFlips = stored.confirmedFlips.slice(0, 1_000);
+      if (Array.isArray(stored?.scanCoverage)) this.flipScanCoverage = stored.scanCoverage.slice(0, 500);
       if (Array.isArray(stored?.strategySetups)) this.strategySetups = stored.strategySetups.slice(0, 100);
       if (Array.isArray(stored?.alerts)) {
         const individual = this.alertHistory.filter(alert =>
@@ -1406,15 +1496,78 @@ export class AppState {
         .slice(0, 200);
       // JSON normalization strips optional undefined values rejected by
       // Firestore while preserving the exact dashboard payload shape.
-      const payload = JSON.parse(JSON.stringify({
-        status: this.dailyRegimeScanStatus,
-        alerts,
-        flipCandidates: this.flipCandidates,
-        confirmedFlips: this.confirmedFlips,
-        strategySetups: this.strategySetups,
+      const main = this.dailyRegimeDocument();
+      const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const run = main.collection('runs').doc(runId);
+      const safeStatus = JSON.parse(JSON.stringify(this.dailyRegimeScanStatus)) as DailyRegimeScanStatus;
+      const segmentIds: string[] = [];
+      const groups = new Map<string, { kind: string; group: string; items: unknown[] }>();
+      const add = (kind: string, group: string, items: unknown[]) => {
+        const normalized = JSON.parse(JSON.stringify(items));
+        for (let index = 0; index < normalized.length; index += 80) {
+          const chunk = normalized.slice(index, index + 80);
+          const id = `${kind}-${group || 'all'}-${String(Math.floor(index / 80) + 1).padStart(3, '0')}`;
+          segmentIds.push(id);
+          groups.set(id, { kind, group, items: chunk });
+        }
+      };
+      const grouped = (items: Array<{ marketClass?: string; timeframe?: string }>) => {
+        const map = new Map<string, unknown[]>();
+        items.forEach(item => {
+          const key = `${item.marketClass || 'all'}-${item.timeframe || 'all'}`;
+          map.set(key, [...(map.get(key) || []), item]);
+        });
+        return map;
+      };
+      grouped(this.flipCandidates).forEach((items, key) => add('candidates', key, items));
+      grouped(this.confirmedFlips).forEach((items, key) => add('confirmed', key, items));
+      grouped(this.flipScanCoverage).forEach((items, key) => add('coverage', key, items));
+      add('alerts', 'all', alerts);
+      add('strategies', 'all', this.strategySetups);
+      const db = main.firestore;
+      let batch = db.batch();
+      let writes = 0;
+      for (const [id, segment] of groups) {
+        batch.set(run.collection('segments').doc(id), { ...segment, updatedAt: Date.now() });
+        writes += 1;
+        if (writes === 450) { await batch.commit(); batch = db.batch(); writes = 0; }
+      }
+      batch.set(run, {
+        schemaVersion: 2,
+        status: safeStatus,
+        segmentIds,
+        counts: {
+          candidates: this.flipCandidates.length,
+          confirmed: this.confirmedFlips.length,
+          coverage: this.flipScanCoverage.length,
+          alerts: alerts.length,
+          strategies: this.strategySetups.length
+        },
         updatedAt: Date.now()
-      }));
-      await this.dailyRegimeDocument().set(payload, { merge: true });
+      });
+      await batch.commit();
+      await main.set({
+        schemaVersion: 2,
+        activeRunId: runId,
+        status: safeStatus,
+        summary: this.dailyRegimeScanStatus.coverage,
+        updatedAt: Date.now()
+      });
+      const oldRuns = await main.collection('runs').listDocuments();
+      const keep = new Set(oldRuns.map(ref => ref.id).sort().slice(-3));
+      keep.add(runId);
+      for (const oldRun of oldRuns) {
+        if (keep.has(oldRun.id)) continue;
+        const oldSegments = await oldRun.collection('segments').listDocuments();
+        let deleteBatch = db.batch();
+        let deleteCount = 0;
+        for (const segment of oldSegments) {
+          deleteBatch.delete(segment); deleteCount += 1;
+          if (deleteCount === 450) { await deleteBatch.commit(); deleteBatch = db.batch(); deleteCount = 0; }
+        }
+        deleteBatch.delete(oldRun);
+        await deleteBatch.commit();
+      }
       this.dailyRegimeStateLoadedAt = Date.now();
     } catch (error) {
       console.warn('Daily regime state persistence failed:', error instanceof Error ? error.message : error);
@@ -1590,7 +1743,10 @@ export class AppState {
     const weeklyClosed = weekly.filter(candle => candle.isClosed !== false).sort((left, right) => left.timestamp - right.timestamp);
     const weeklySignal = this.moneyLine.calculateLatest(symbol, '1w', weeklyClosed);
     const price = quote?.price || dailyClosed[dailyClosed.length - 1]?.close || 0;
-    if (!weeklySignal || !price) return { upcoming: [], confirmedHistory: [], newlyConfirmed: [] };
+    if (!weeklySignal || !price) return {
+      upcoming: [], confirmedHistory: [], newlyConfirmed: [],
+      coverage: { status: 'INSUFFICIENT_DATA', weeklyCandidate: false, weeklyConfirmed: false, candidateCount: 0, confirmedCount: 0 }
+    };
 
     const timeframeCandles = [
       ['4h', candles4h],
@@ -1605,6 +1761,8 @@ export class AppState {
       this.findMostRecentConfirmedFlip(symbol, marketClass, timeframe, timeframeSeries, price, weeklySignal.tier, weeklySignal.score)
     ).filter((candidate): candidate is FlipCandidate => Boolean(candidate));
 
+    const weeklyCandidate = latestCandidates.some(candidate => candidate.timeframe === '1w' && candidate.status !== 'CONFIRMED');
+    const weeklyConfirmed = confirmedHistory.some(candidate => candidate.timeframe === '1w' && candidate.status === 'CONFIRMED');
     return {
       upcoming: latestCandidates.filter(candidate => candidate.status !== 'CONFIRMED'),
       confirmedHistory,
@@ -1614,7 +1772,14 @@ export class AppState {
       // stays dashboard-only. Call sites append confirmedHistory 1W entries;
       // the alertHistory filter in publishConfirmedFlipEvents keeps delivery
       // one-time (backfill once, then new only).
-      newlyConfirmed: latestCandidates.filter(candidate => candidate.status === 'CONFIRMED')
+      newlyConfirmed: latestCandidates.filter(candidate => candidate.status === 'CONFIRMED'),
+      coverage: {
+        status: weeklyConfirmed ? 'CONFIRMED' : weeklyCandidate ? 'CANDIDATE' : 'NO_SETUP',
+        weeklyCandidate,
+        weeklyConfirmed,
+        candidateCount: latestCandidates.filter(candidate => candidate.status !== 'CONFIRMED').length,
+        confirmedCount: confirmedHistory.length
+      }
     };
   }
 
@@ -1628,8 +1793,8 @@ export class AppState {
       if (!bestByAssetTimeframe.has(key)) bestByAssetTimeframe.set(key, candidate);
     });
 
-    // Retain up to 100 candidates per timeframe. The UI still shows a focused
-    // Top 10 by default, while timeframe filters and symbol search can reveal
+    // Retain up to 100 candidates per timeframe. The UI shows a focused
+    // Top 20 by default, while timeframe filters and symbol search can reveal
     // a specific setup such as ETH 1W without letting 4H candidates hide it.
     const timeframes: FlipCandidate['timeframe'][] = ['4h', '8h', '1d', '1w'];
     return timeframes

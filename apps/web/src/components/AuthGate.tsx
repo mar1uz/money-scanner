@@ -61,7 +61,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
 
   if (checking) {
     return (
-      <div className="min-h-screen grid place-items-center bg-[#070b12] text-slate-300">
+      <div className="min-h-screen grid place-items-center bg-[#202b22] text-slate-300">
         <div className="flex items-center gap-3 font-mono text-sm"><Loader2 className="h-5 w-5 animate-spin text-cyan-400" />Verific sesiunea securizată…</div>
       </div>
     );
@@ -84,7 +84,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
       };
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#070b12] px-5 py-10 text-slate-100">
+    <main className="min-h-screen overflow-hidden bg-[#202b22] px-5 py-10 text-slate-100">
       <div className="pointer-events-none fixed inset-0 opacity-50" style={{ background: 'radial-gradient(circle at 50% 28%, rgba(6,182,212,0.14), transparent 31%), radial-gradient(circle at 15% 90%, rgba(16,185,129,0.08), transparent 28%)' }} />
       <section className="relative mx-auto flex min-h-[78vh] max-w-md flex-col items-center justify-center text-center">
         <div className="mb-7 grid h-20 w-20 place-items-center rounded-3xl border border-cyan-400/30 bg-cyan-500/10 shadow-[0_0_45px_rgba(34,211,238,0.18)]">

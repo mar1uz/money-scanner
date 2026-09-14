@@ -406,6 +406,12 @@ export interface DailyRegimeScanStatus {
   errors: number;
   running: boolean;
   lastError?: string;
+  coverage?: {
+    totalAssets: number;
+    scannedAssets: number;
+    outcomes: Record<FlipScanCoverageStatus, number>;
+    byMarket: Record<'crypto' | 'stocks' | 'metals', number>;
+  };
 }
 
 export type ManualAlertScanScope = 'quick' | 'full' | 'flips' | 'strategies';
@@ -431,6 +437,7 @@ export interface FlipCandidateDashboardItem {
   symbol: string;
   name?: string;
   marketClass: 'crypto' | 'stocks' | 'metals';
+  marketCapRank?: number;
   timeframe: '4h' | '8h' | '1d' | '1w';
   direction: FlipCandidateDirection;
   status: FlipCandidateStatus;
@@ -456,6 +463,21 @@ export interface FlipCandidateDashboardItem {
   scannedAt: number;
 }
 
+export type FlipScanCoverageStatus = 'CONFIRMED' | 'CANDIDATE' | 'NO_SETUP' | 'INSUFFICIENT_DATA' | 'ERROR';
+export interface FlipScanCoverageItem {
+  symbol: string;
+  name?: string;
+  marketClass: 'crypto' | 'stocks' | 'metals';
+  rank?: number;
+  status: FlipScanCoverageStatus;
+  weeklyCandidate: boolean;
+  weeklyConfirmed: boolean;
+  candidateCount: number;
+  confirmedCount: number;
+  scannedAt: number;
+  error?: string;
+}
+
 export interface AlertsDashboardResponse {
   activeAlerts: ActiveAlertDashboardItem[];
   history: AlertHistoryDashboardItem[];
@@ -466,6 +488,7 @@ export interface AlertsDashboardResponse {
   manualScan: ManualAlertScanStatus;
   flipCandidates: FlipCandidateDashboardItem[];
   confirmedFlips: FlipCandidateDashboardItem[];
+  scanCoverage: FlipScanCoverageItem[];
   strategySetups: StrategyAlertSnapshot[];
   updatedAt: number;
 }

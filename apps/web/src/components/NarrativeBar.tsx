@@ -23,7 +23,6 @@ import {
   Gamepad2,
   TrendingUp,
   TrendingDown,
-  ChevronDown,
   ChevronRight,
   Sparkles,
   SlidersHorizontal,
@@ -71,7 +70,6 @@ export const NarrativeBar: React.FC<NarrativeBarProps> = ({
   loading = false
 }) => {
   const { language } = useLanguage();
-  const [isCollapsed, setIsCollapsed] = React.useState(false);
 
   const formatMarketCap = (cap?: number) => {
     if (!cap) return '-';
@@ -85,14 +83,7 @@ export const NarrativeBar: React.FC<NarrativeBarProps> = ({
     <div className="space-y-3">
       {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={() => setIsCollapsed(prev => !prev)}
-          className="flex items-start gap-2.5 text-left group transition focus:outline-none"
-        >
-          <div className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-lg border border-cyan-500/25 bg-cyan-500/10 text-cyan-300 group-hover:border-cyan-500/40 group-hover:bg-cyan-500/20 transition">
-            <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isCollapsed ? '-rotate-90' : ''}`} />
-          </div>
+        <div className="flex items-start gap-2.5 text-left">
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <Sparkles className="w-4 h-4 text-cyan-400" />
@@ -116,7 +107,7 @@ export const NarrativeBar: React.FC<NarrativeBarProps> = ({
                 : `Aggregated performance on the latest closed ${timeframe.toUpperCase()} candle and Market Cap composition`}
             </p>
           </div>
-        </button>
+        </div>
 
         {selectedNarrative !== 'ALL' && (
           <button
@@ -130,7 +121,7 @@ export const NarrativeBar: React.FC<NarrativeBarProps> = ({
       </div>
 
       {/* Horizontal Scrollable / Grid Cards */}
-      {!isCollapsed && (
+      {(
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-8 gap-2.5">
         {narratives.map((n) => {
           const isSelected = selectedNarrative === n.id;
