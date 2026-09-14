@@ -3468,6 +3468,27 @@ Custom URL: https://scanner.relayhub.no
 Health check (/api/health): HTTP 200 OK (status: "ok", service: "market-scanner-360-api")
 ```
 
+## 97. Intelligence View & Daily Briefing Suite Deployment — 2026-09-15
+
+Deployment executat cu succes pentru noua suită **Intelligence View & Daily Intelligence Briefing**:
+- Adăugat componenta `IntelligenceView.tsx` și rutele AI `/api/ai/intelligence-brief`.
+- Adăugat teste automate dedicate `intelligence-brief.test.ts` (116 API + 73 Web = 189 teste trecute cu 100% pass rate).
+- Compilare și bundling Vite finalizat fără erori.
+
+```text
+Source commit: 7552015
+Local tests: 189 passed, 0 failed (100% pass rate)
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Cloud Build ID: e95389b2-39fc-469d-a97c-ba816af96c19 (SUCCESS, 3m35s)
+Cloud Run revision: market-scanner-360-00188-l6d
+Traffic: 100%
+Public bundle: assets/index-DJEyS78j.js, assets/index-CMeskojC.css
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Custom URL: https://scanner.relayhub.no
+Health check (/api/health): HTTP 200 OK (status: "ok", service: "market-scanner-360-api")
+```
+
+
 
 
 
