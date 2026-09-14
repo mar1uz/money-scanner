@@ -3451,6 +3451,24 @@ Health: HTTP 200, status ok
 
 Tiberiu: Google Sign-In cu acel Gmail pe pagina scannerului.
 
+## 96. Full Project Update & Cloud Run Deployment — 2026-09-14
+
+Deployment executat cu succes în urma actualizărilor de sistem (univers Top 150 CoinGecko, Top 20 flip candidates display, acces viewer, rafinări UI și teste monorepo):
+
+```text
+Source commit: b01a3ec
+Local tests: 186 passed, 0 failed (100% pass rate)
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Cloud Build ID: 6245fff8-67c4-4040-a643-6dba0e1ea1f5 (SUCCESS, 5m30s)
+Cloud Run revision: market-scanner-360-00187-qgb
+Traffic: 100%
+Public bundle: assets/index-Cv9IghiR.js, assets/index-DFLRbcPz.css
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Custom URL: https://scanner.relayhub.no
+Health check (/api/health): HTTP 200 OK (status: "ok", service: "market-scanner-360-api")
+```
+
+
 
 
 
