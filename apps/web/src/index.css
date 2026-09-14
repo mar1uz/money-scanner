@@ -454,6 +454,75 @@ body { background: #181f13; }
   .workspace-main { padding-bottom: calc(48px + env(safe-area-inset-bottom)); }
   .market-overview .card-base { border-radius: 22px; }
 }
+
+/* Intelligence: one calm reading surface for the combined news/social brief. */
+.intelligence-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding: 1.25rem 1.35rem;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 1rem;
+  background: rgba(17, 24, 39, 0.72);
+}
+.intelligence-icon {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  border-radius: 0.8rem;
+  color: #c4b5fd;
+  background: rgba(124, 58, 237, 0.12);
+}
+.intelligence-eyebrow {
+  margin: 0 0 0.25rem;
+  color: #a78bfa;
+  font: 600 0.7rem/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.12em;
+}
+.intelligence-title { margin: 0; color: #f8fafc; font-size: clamp(1.25rem, 2vw, 1.7rem); font-weight: 700; }
+.intelligence-subtitle { max-width: 48rem; margin: 0.35rem 0 0; color: #94a3b8; font-size: 0.85rem; line-height: 1.5; }
+.intelligence-meta { display: inline-flex; align-items: center; gap: 0.35rem; flex: 0 0 auto; color: #94a3b8; font: 0.7rem/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.intelligence-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 0.55rem; padding: 0.65rem; border: 1px solid rgba(148, 163, 184, 0.16); border-radius: 0.85rem; background: rgba(15, 23, 42, 0.56); }
+.intelligence-filter-label { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0 0.3rem; color: #94a3b8; font: 0.72rem/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.intelligence-filter-group { display: inline-flex; flex-wrap: wrap; gap: 0.2rem; padding: 0.2rem; border-radius: 0.6rem; background: rgba(15, 23, 42, 0.7); }
+.intelligence-filter-group button, .intelligence-actions button { min-height: 2.25rem; border: 1px solid transparent; border-radius: 0.5rem; padding: 0.35rem 0.65rem; color: #94a3b8; background: transparent; font-size: 0.74rem; cursor: pointer; }
+.intelligence-filter-group button:hover, .intelligence-filter-group button:focus-visible, .intelligence-actions button:hover, .intelligence-actions button:focus-visible { color: #f8fafc; border-color: rgba(103, 232, 249, 0.36); outline: none; }
+.intelligence-filter-group button.is-selected { color: #cffafe; border-color: rgba(34, 211, 238, 0.42); background: rgba(8, 145, 178, 0.18); }
+.intelligence-brief { padding: clamp(1.1rem, 3vw, 2rem); border: 1px solid rgba(34, 211, 238, 0.22); border-radius: 1rem; background: linear-gradient(145deg, rgba(8, 47, 73, 0.28), rgba(15, 23, 42, 0.78)); }
+.intelligence-summary { max-width: 74rem; margin: 0; color: #e2e8f0; font-size: clamp(1rem, 1.3vw, 1.16rem); line-height: 1.7; }
+.intelligence-summary:not(.is-expanded) { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 10; }
+.intelligence-summary a { color: #a5f3fc; text-decoration: underline; text-decoration-color: rgba(103, 232, 249, 0.6); text-underline-offset: 0.16em; }
+.intelligence-summary a:hover, .intelligence-summary a:focus-visible { color: #fff; text-decoration-color: #fff; outline: none; }
+.intelligence-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.25rem; padding-top: 0.85rem; border-top: 1px solid rgba(148, 163, 184, 0.15); color: #94a3b8; font-size: 0.73rem; }
+.intelligence-actions button { display: inline-flex; align-items: center; gap: 0.35rem; border-color: rgba(148, 163, 184, 0.18); background: rgba(15, 23, 42, 0.62); }
+.intelligence-actions button:disabled { opacity: 0.55; cursor: wait; }
+.intelligence-state { display: flex; align-items: center; justify-content: center; gap: 0.6rem; min-height: 8rem; color: #94a3b8; font-size: 0.9rem; text-align: center; }
+.intelligence-state.is-error { flex-wrap: wrap; color: #fcd34d; }
+.intelligence-state button { min-height: 2.5rem; border: 1px solid rgba(250, 204, 21, 0.35); border-radius: 0.5rem; padding: 0.4rem 0.75rem; color: #fde68a; background: rgba(120, 53, 15, 0.2); }
+.intelligence-sources { display: grid; gap: 1rem; padding: 1rem; border: 1px solid rgba(148, 163, 184, 0.16); border-radius: 1rem; background: rgba(15, 23, 42, 0.52); }
+.intelligence-source-group h2 { margin: 0 0 0.45rem; color: #cbd5e1; font: 600 0.72rem/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase; letter-spacing: 0.1em; }
+.intelligence-source-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 2.75rem; padding: 0.45rem 0; color: #94a3b8; font-size: 0.78rem; text-decoration: none; border-bottom: 1px solid rgba(148, 163, 184, 0.1); }
+.intelligence-source-row:hover, .intelligence-source-row:focus-visible { color: #e2e8f0; outline: none; }
+.intelligence-source-row > span:first-child { display: flex; min-width: 0; flex-direction: column; gap: 0.15rem; }
+.intelligence-source-row strong { color: #a5f3fc; font-size: 0.7rem; }
+.intelligence-source-row > span:last-child { display: inline-flex; align-items: center; gap: 0.3rem; flex: 0 0 auto; font: 0.68rem/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; }
+@media (max-width: 767px) {
+  .intelligence-hero { flex-direction: column; padding: 1rem; }
+  .intelligence-meta { padding-left: 3.25rem; }
+  .intelligence-filters { align-items: stretch; }
+  .intelligence-filter-label { width: 100%; }
+  .intelligence-filter-group { flex: 1 1 100%; overflow-x: auto; flex-wrap: nowrap; }
+  .intelligence-filter-group button { white-space: nowrap; }
+  .intelligence-summary { font-size: 1rem; line-height: 1.65; }
+  .intelligence-actions { align-items: flex-start; flex-direction: column; }
+  .intelligence-actions > div { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .intelligence-actions button { justify-content: center; }
+  .intelligence-source-row { align-items: flex-start; flex-direction: column; gap: 0.35rem; }
+}
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .card-base, .card-elevated, .cyber-glass, .market-overview .card-base, .app-header, .app-sidebar, .mobile-nav, .mobile-search-orb { background: #35442b; }
 }

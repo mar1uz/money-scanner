@@ -9,7 +9,14 @@ import {
   MarketIntelligenceScope,
   MoneyLineSignal,
   NewsCategory,
-  NewsSynthesisPayload
+  NewsSynthesisPayload,
+  IntelligenceBriefPayload,
+  IntelligenceBriefFilters,
+  IntelligenceSector,
+  IntelligencePeriod,
+  IntelligenceSourceFilter,
+  NewsItem,
+  XPostItem
 } from '@money-scanner/shared';
 import { scanCryptoFourCriteria } from '../services/crypto-four-criteria-scanner.js';
 import { scanStockBusinessQuality } from '../services/stock-business-quality-scanner.js';
@@ -20,6 +27,9 @@ export const aiRouter = Router();
 
 const synthesisCache = new Map<string, { payload: NewsSynthesisPayload; updatedAt: number }>();
 const SYNTHESIS_CACHE_MS = 5 * 60_000;
+const intelligenceBriefCache = new Map<string, { payload: IntelligenceBriefPayload; updatedAt: number }>();
+const intelligenceBriefInFlight = new Map<string, Promise<IntelligenceBriefPayload>>();
+const INTELLIGENCE_BRIEF_CACHE_MS = 5 * 60_000;
 const intelligenceCache = new Map<string, { payload: MarketIntelligenceReport; updatedAt: number }>();
 const intelligenceInFlight = new Map<string, Promise<MarketIntelligenceReport>>();
 // The scheduled 07:00 Europe/Oslo snapshot must remain instantly available
@@ -54,6 +64,97 @@ const waitForSourceRefresh = (refresh: Promise<void>): Promise<void> => {
   });
 };
 
+const parseIntelligenceFilters = (req: any): IntelligenceBriefFilters => {
+  const validSectors: IntelligenceSector[] = ['all', 'crypto', 'stocks', 'macro', 'metals'];
+  const validPeriods: IntelligencePeriod[] = ['24h', '7d'];
+  const validSources: IntelligenceSourceFilter[] = ['all', 'news', 'social'];
+  const sector = validSectors.includes(req.query.sector) ? req.query.sector : 'all';
+  const period = validPeriods.includes(req.query.period) ? req.query.period : '24h';
+  const source = validSources.includes(req.query.source) ? req.query.source : 'all';
+  return { sector, period, source };
+};
+
+const SECTOR_SYMBOLS: Record<Exclude<IntelligenceSector, 'all' | 'macro'>, Set<string>> = {
+  crypto: new Set(['BTC', 'ETH', 'SOL', 'XRP', 'DOGE', 'ADA', 'SUI', 'AVAX', 'LINK', 'AAVE', 'UNI', 'BNB', 'ARB', 'OP', 'PEPE', 'WIF', 'BONK']),
+  stocks: new Set(['NVDA', 'TSLA', 'AAPL', 'MSFT', 'META', 'GOOGL', 'AMZN', 'PLTR', 'AMD', 'ASML', 'MSTR', 'COIN', 'SPY', 'QQQ']),
+  metals: new Set(['XAU', 'GOLD', 'XAG', 'SILVER', 'OIL', 'COPPER', 'GLD', 'SLV'])
+};
+
+const newsMatchesSector = (item: NewsItem, sector: IntelligenceSector): boolean => {
+  if (sector === 'all') return true;
+  if (sector === 'macro') return item.category === 'Macro';
+  if (sector === 'crypto') return item.category === 'Protocol' || item.category === 'Security' || item.category === 'Exchange'
+    || item.mentionedSymbols.some(symbol => SECTOR_SYMBOLS.crypto.has(symbol.toUpperCase()));
+  return item.mentionedSymbols.some(symbol => SECTOR_SYMBOLS[sector].has(symbol.toUpperCase()))
+    || (sector === 'stocks' && item.category === 'Institutional');
+};
+
+const socialMatchesSector = (item: XPostItem, sector: IntelligenceSector): boolean => {
+  if (sector === 'all') return true;
+  if (item.sector === sector) return true;
+  if (sector === 'macro') return /\b(fed|inflation|cpi|rates?|gdp|macro|powell|central bank)\b/i.test(item.text);
+  return item.mentionedSymbols.some(symbol => SECTOR_SYMBOLS[sector].has(symbol.toUpperCase()));
+};
+
+const normalizedEventKey = (text: string): string => {
+  const stopWords = new Set(['the', 'and', 'for', 'with', 'from', 'this', 'that', 'after', 'today', 'news', 'market', 'a', 'an', 'of', 'în', 'și', 'cu', 'din']);
+  return text.toLowerCase()
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/[^a-z0-9$ ]/g, ' ')
+    .split(/\s+/)
+    .filter(word => word.length > 2 && !stopWords.has(word))
+    .slice(0, 8)
+    .join(' ');
+};
+
+export const selectIntelligenceSources = (
+  news: NewsItem[],
+  socialPosts: XPostItem[],
+  filters: IntelligenceBriefFilters
+) => {
+  const cutoff = Date.now() - (filters.period === '7d' ? 7 : 1) * 24 * 60 * 60_000;
+  const candidates = [
+    ...(filters.source === 'social' ? [] : news
+      .filter(item => item.publishedAt >= cutoff && newsMatchesSector(item, filters.sector))
+      .map(item => ({ kind: 'news' as const, item, text: `${item.title} ${item.summary}`, timestamp: item.publishedAt, credibility: item.credibilityScore || 0.5 }))),
+    ...(filters.source === 'news' ? [] : socialPosts
+      .filter(item => item.timestamp >= cutoff && socialMatchesSector(item, filters.sector))
+      .map(item => ({ kind: 'social' as const, item, text: item.text, timestamp: item.timestamp, credibility: item.authorCredibilityScore || 0.5 })))
+  ];
+  const eventCounts = new Map<string, number>();
+  for (const candidate of candidates) {
+    const key = normalizedEventKey(candidate.text);
+    eventCounts.set(key, (eventCounts.get(key) || 0) + 1);
+  }
+  const selectedByEvent = new Map<string, number>();
+  const ranked = candidates
+    .map(candidate => {
+      const key = normalizedEventKey(candidate.text);
+      const age = Math.max(0, Date.now() - candidate.timestamp);
+      const recency = Math.max(0, 1 - age / ((filters.period === '7d' ? 7 : 1) * 24 * 60 * 60_000));
+      const corroboration = Math.min(1, ((eventCounts.get(key) || 1) - 1) / 2);
+      const concrete = /\b(approved|launch|launched|report|decision|rate|hack|upgrade|earnings|inflows|outflows|announced|a aprobat|decizie|rezultate)\b/i.test(candidate.text) ? 0.2 : 0;
+      return { ...candidate, key, score: recency * 0.55 + candidate.credibility * 0.2 + corroboration * 0.15 + concrete };
+    })
+    .sort((left, right) => right.score - left.score)
+    .filter(candidate => {
+      const count = selectedByEvent.get(candidate.key) || 0;
+      if (count >= 2) return false;
+      selectedByEvent.set(candidate.key, count + 1);
+      return true;
+    })
+    .slice(0, 32);
+  return {
+    news: ranked.filter(candidate => candidate.kind === 'news').map(candidate => candidate.item as NewsItem).slice(0, 16),
+    social: ranked.filter(candidate => candidate.kind === 'social').map(candidate => candidate.item as XPostItem).slice(0, 16)
+  };
+};
+
+const briefFullText = (segments: NewsSynthesisPayload['segments']) => segments
+  .map(segment => segment.text.trim())
+  .filter(Boolean)
+  .join(' ');
+
 aiRouter.get('/news/synthesis', async (req, res) => {
   try {
     const language: 'ro' | 'en' = req.query.language === 'en' ? 'en' : 'ro';
@@ -81,6 +182,75 @@ aiRouter.get('/news/synthesis', async (req, res) => {
     res.json(payload);
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to generate grounded news synthesis', details: err.message });
+  }
+});
+
+aiRouter.get('/intelligence/brief', async (req, res) => {
+  const filters = parseIntelligenceFilters(req);
+  const language: 'ro' | 'en' = req.query.language === 'en' ? 'en' : 'ro';
+  const refresh = req.query.refresh === '1';
+  const cacheKey = `${language}:${filters.sector}:${filters.period}:${filters.source}`;
+  const cached = intelligenceBriefCache.get(cacheKey);
+  if (!refresh && cached && Date.now() - cached.updatedAt < INTELLIGENCE_BRIEF_CACHE_MS) {
+    res.set('Cache-Control', 'public, max-age=60');
+    return res.json(cached.payload);
+  }
+  const running = intelligenceBriefInFlight.get(cacheKey);
+  if (running) {
+    try {
+      res.set('Cache-Control', 'no-store');
+      return res.json(await running);
+    } catch (err: any) {
+      if (cached) {
+        res.set('X-Intelligence-Stale', 'true');
+        return res.json(cached.payload);
+      }
+      return res.status(500).json({ error: 'Failed to generate intelligence brief', details: err.message });
+    }
+  }
+
+  const generate = (async (): Promise<IntelligenceBriefPayload> => {
+    const appState = AppState.getInstance();
+    await Promise.all([
+      filters.source === 'social' ? Promise.resolve() : waitForSourceRefresh(appState.news.fetchLiveNews()),
+      filters.source === 'news' ? Promise.resolve() : waitForSourceRefresh(appState.social.refreshFreeSources())
+    ]);
+    const selected = selectIntelligenceSources(
+      appState.news.getLatestNews(200),
+      appState.social.getRecentVerifiedPosts(),
+      filters
+    );
+    const synthesis = await appState.ai.generateNewsSynthesis(selected.news, selected.social, language);
+    const compactSegments = synthesis.segments
+      .map(segment => ({
+        ...segment,
+        text: segment.text.replace(/\s+/g, ' ').trim()
+      }))
+      .filter(segment => segment.text.length > 15)
+      .slice(0, 5);
+    const payload: IntelligenceBriefPayload = {
+      ...synthesis,
+      segments: compactSegments,
+      fullText: briefFullText(compactSegments),
+      sourceCount: synthesis.sources.length,
+      latestSourceAt: synthesis.sources.reduce<number | null>((latest, source) => Math.max(latest || 0, source.publishedAt), null),
+      filters
+    };
+    intelligenceBriefCache.set(cacheKey, { payload, updatedAt: Date.now() });
+    return payload;
+  })();
+  intelligenceBriefInFlight.set(cacheKey, generate);
+  try {
+    res.set('Cache-Control', 'no-store');
+    return res.json(await generate);
+  } catch (err: any) {
+    if (cached) {
+      res.set('X-Intelligence-Stale', 'true');
+      return res.json(cached.payload);
+    }
+    return res.status(500).json({ error: 'Failed to generate intelligence brief', details: err.message });
+  } finally {
+    intelligenceBriefInFlight.delete(cacheKey);
   }
 });
 

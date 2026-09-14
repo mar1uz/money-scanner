@@ -3,7 +3,6 @@ import {
   LayoutGrid,
   Landmark,
   Radio,
-  Newspaper,
   BrainCircuit,
   LineChart,
   CircleDot,
@@ -58,20 +57,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'crypto_bubbles', label: 'Crypto Bubble', shortLabel: 'Bubbles', icon: CircleDot, accent: 'text-fuchsia-400', badge: '100' },
     { id: 'ai', label: 'AI Briefing', shortLabel: 'AI Briefing', icon: BrainCircuit, accent: 'text-purple-400', badge: 'AI' },
     { id: 'usa_status', label: 'USA Macro', shortLabel: 'USA Macro', icon: Landmark, accent: 'text-blue-400', badge: '🇺🇸' },
-    { id: 'trends', label: 'X Intelligence', shortLabel: 'X Trends', icon: Radio, accent: 'text-violet-400' },
-    { id: 'news', label: 'News Feed', shortLabel: 'News Feed', icon: Newspaper, accent: 'text-amber-400' },
+    { id: 'intelligence', label: 'Intelligence', shortLabel: 'Intelligence', icon: Radio, accent: 'text-violet-400', badge: 'AI' },
     { id: 'backtest', label: 'Backtest Lab', shortLabel: 'Backtest', icon: LineChart, accent: 'text-emerald-400' },
     { id: 'status', label: 'System & Bot Health', shortLabel: 'Status', icon: Activity, accent: 'text-emerald-400' }
   ];
   const scanner = navItems.filter(item => item.id === 'market');
   const explore = navItems.filter(item => ['crypto_heatmap', 'crypto_radar', 'crypto_bubbles'].includes(item.id));
-  const research = navItems.filter(item => ['ai', 'usa_status', 'trends', 'news', 'backtest'].includes(item.id));
+  const research = navItems.filter(item => ['ai', 'usa_status', 'intelligence', 'backtest'].includes(item.id));
   const renderDesktopItem = (item: typeof navItems[number]) => {
     const Icon = item.icon;
     const selected = activeTab === item.id && !(item.id === 'market' && watchlistOnly);
     return <button key={item.id} onClick={() => onTabChange(item.id)} aria-current={selected ? 'page' : undefined} className={`sidebar-nav-item ${selected ? 'is-active' : ''}`}>
       <Icon size={18} strokeWidth={1.7} /><span>{item.label}</span>
-      {item.id === 'ai' && <span className="nav-ai-badge">AI</span>}
+      {item.badge && <span className="nav-ai-badge">{item.badge}</span>}
     </button>;
   };
 

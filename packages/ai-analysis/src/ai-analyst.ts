@@ -1356,7 +1356,9 @@ export class AIMarketAnalystService {
         '- Do not invent facts, prices, percentages, URLs, people, posts, or source IDs.',
         '- If sources disagree, state the disagreement.',
         '- Prefer recent and specific developments; clearly distinguish fact from interpretation.',
-        '- Return 3 to 6 short segments. Each segment must be understandable when clicked independently.',
+        '- Return 3 to 5 short segments, each no longer than 220 characters. Together they should read as one coherent briefing.',
+        '- Put the most important event first, then explain why it matters and what to watch next when the sources support it.',
+        '- Use plain text only. Do not emit Markdown, HTML, URLs, or citation labels inside the segment text.',
         JSON.stringify(inputs)
       ].join('\n');
 
@@ -1384,7 +1386,7 @@ export class AIMarketAnalystService {
                   segments: {
                     type: 'ARRAY',
                     minItems: 3,
-                    maxItems: 6,
+                    maxItems: 5,
                     items: {
                       type: 'OBJECT',
                       required: ['text', 'sourceIds'],

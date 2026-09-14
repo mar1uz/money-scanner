@@ -36,6 +36,23 @@ export interface NewsSynthesisPayload {
   language: 'ro' | 'en';
 }
 
+export type IntelligenceSector = 'all' | 'crypto' | 'stocks' | 'macro' | 'metals';
+export type IntelligencePeriod = '24h' | '7d';
+export type IntelligenceSourceFilter = 'all' | 'news' | 'social';
+
+export interface IntelligenceBriefFilters {
+  sector: IntelligenceSector;
+  period: IntelligencePeriod;
+  source: IntelligenceSourceFilter;
+}
+
+export interface IntelligenceBriefPayload extends NewsSynthesisPayload {
+  fullText: string;
+  sourceCount: number;
+  latestSourceAt: number | null;
+  filters: IntelligenceBriefFilters;
+}
+
 export interface AIAnalysisPayload {
   marketRegime: MarketRegimeType;
   executiveSummary: string;

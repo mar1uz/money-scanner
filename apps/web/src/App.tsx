@@ -20,8 +20,7 @@ import { NarrativeDetailModal } from './components/NarrativeDetailModal.js';
 import { UniversalSearchModal } from './components/UniversalSearchModal.js';
 import { ScannerTable } from './components/ScannerTable.js';
 import { AssetDeepDiveView } from './components/AssetDeepDiveView.js';
-import { XTrendsView } from './components/XTrendsView.js';
-import { NewsFeedView } from './components/NewsFeedView.js';
+import { IntelligenceView } from './components/IntelligenceView.js';
 import { AIBriefingView } from './components/AIBriefingView.js';
 import { BacktestView } from './components/BacktestView.js';
 import { SystemStatusView } from './components/SystemStatusView.js';
@@ -33,7 +32,7 @@ import { CryptoHeatMapView } from './components/CryptoHeatMapView.js';
 import { useLanguage } from './i18n.js';
 import { AuthGate } from './components/AuthGate.js';
 import { AssetNavigationProvider } from './components/AssetNavigation.js';
-import { UserProfile } from '@money-scanner/shared';
+import { IntelligenceSourceFilter, UserProfile } from '@money-scanner/shared';
 import { Zap, CheckCircle2, RefreshCw } from 'lucide-react';
 
 interface AuthenticatedAppProps {
@@ -43,21 +42,32 @@ interface AuthenticatedAppProps {
 
 const VALID_TIMEFRAMES: Timeframe[] = ['1h', '4h', '8h', '1d', '1w', '1m'];
 const VALID_MARKET_CLASSES = ['crypto', 'stocks', 'metals'] as const;
-const VALID_TABS: AppTab[] = ['market', 'crypto_radar', 'crypto_bubbles', 'crypto_heatmap', 'usa_status', 'trends', 'news', 'ai', 'alerts', 'backtest', 'status'];
+const VALID_TABS: AppTab[] = ['market', 'crypto_radar', 'crypto_bubbles', 'crypto_heatmap', 'usa_status', 'intelligence', 'ai', 'alerts', 'backtest', 'status'];
 
 const readMoneyLineDeepLink = () => {
   const params = new URLSearchParams(window.location.search);
   const rawSymbol = (params.get('asset') || '').replace(/^[$#]/, '').trim().toUpperCase();
   const rawTimeframe = params.get('timeframe')?.toLowerCase() as Timeframe | undefined;
   const rawMarketClass = params.get('marketClass')?.toLowerCase();
-  const rawTab = params.get('tab') as AppTab | null;
+  const rawTab = params.get('tab');
+  const rawSource = params.get('source');
+  const legacySource: IntelligenceSourceFilter | undefined = rawTab === 'trends'
+    ? 'social'
+    : rawTab === 'news' ? 'news' : undefined;
+  const intelligenceSource: IntelligenceSourceFilter = rawSource === 'news' || rawSource === 'social' || rawSource === 'all'
+    ? rawSource
+    : legacySource || 'all';
+  const tab = rawTab === 'trends' || rawTab === 'news'
+    ? 'intelligence'
+    : rawTab && VALID_TABS.includes(rawTab as AppTab) ? rawTab as AppTab : undefined;
   return {
     symbol: /^[A-Z0-9][A-Z0-9._:-]{0,30}$/.test(rawSymbol) ? rawSymbol : null,
     timeframe: rawTimeframe && VALID_TIMEFRAMES.includes(rawTimeframe) ? rawTimeframe : undefined,
     marketClass: VALID_MARKET_CLASSES.includes(rawMarketClass as typeof VALID_MARKET_CLASSES[number])
       ? rawMarketClass as typeof VALID_MARKET_CLASSES[number]
       : undefined,
-    tab: rawTab && VALID_TABS.includes(rawTab) ? rawTab : undefined,
+    tab,
+    intelligenceSource,
     watchlistOnly: params.get('watchlist') === '1',
     coinGeckoId: params.get('coinGeckoId') || undefined,
     coinPaprikaId: params.get('coinPaprikaId') || undefined
@@ -256,6 +266,11 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
     url.searchParams.delete('coinGeckoId');
     url.searchParams.delete('coinPaprikaId');
     url.searchParams.delete('watchlist');
+    if (tab !== 'intelligence') {
+      url.searchParams.delete('sector');
+      url.searchParams.delete('period');
+      url.searchParams.delete('source');
+    }
     window.history.pushState({}, '', `${url.pathname}${url.search}${url.hash}`);
   };
 
@@ -478,10 +493,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
               {activeTab === 'usa_status' && <USAStatusView />}
 
               {/* Tab 3: X Narrative Intelligence & AI News Aggregator */}
-              {activeTab === 'trends' && <XTrendsView onSelectAsset={(sym) => openAsset(sym)} />}
-
-              {/* Tab 4: News Feed */}
-              {activeTab === 'news' && <NewsFeedView />}
+              {activeTab === 'intelligence' && <IntelligenceView initialSource={initialDeepLink.intelligenceSource} />}
 
               {/* Tab 5: AI Market Briefing & Interactive Chat */}
               {activeTab === 'ai' && <AIBriefingView />}

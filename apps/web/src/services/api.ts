@@ -6,6 +6,8 @@ import {
   XTrendTopic,
   NewsItem,
   NewsSynthesisPayload,
+  IntelligenceBriefPayload,
+  IntelligenceBriefFilters,
   AIAnalysisPayload,
   MarketIntelligenceReport,
   MarketIntelligenceScope,
@@ -160,6 +162,25 @@ export async function fetchNewsSynthesis(
   if (category && category !== 'ALL') params.set('category', category);
   const res = await fetchWithDeadline(`${API_BASE}/news/synthesis?${params.toString()}`, undefined, 30_000);
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch grounded news synthesis`);
+  return res.json();
+}
+
+export async function fetchIntelligenceBrief(
+  filters: IntelligenceBriefFilters,
+  language: 'ro' | 'en' = 'ro',
+  refresh = false
+): Promise<IntelligenceBriefPayload> {
+  const params = new URLSearchParams({
+    language,
+    sector: filters.sector,
+    period: filters.period,
+    source: filters.source
+  });
+  if (refresh) params.set('refresh', '1');
+  const res = await fetchWithDeadline(`${API_BASE}/intelligence/brief?${params.toString()}`, {
+    cache: 'no-store'
+  }, 35_000);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch intelligence brief`);
   return res.json();
 }
 
