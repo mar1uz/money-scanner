@@ -1,0 +1,42 @@
+{
+  "_comment": "Signal Graphite — Money Scanner theme palette. Hex only; edit here, then apply to apps/web/tailwind.config.js + apps/web/src/index.css.",
+  "surface": {
+    "bg": "#0B0D10",
+    "chrome": "#151A21",
+    "surface": "#12151A",
+    "raised": "#171B22",
+    "hover": "#1D222B",
+    "line": "#232A35",
+    "lineHover": "#334054"
+  },
+  "text": {
+    "primary": "#E9EDF3",
+    "body": "#C9D2DD",
+    "muted": "#9AA4B2",
+    "faint": "#8791A1",
+    "ink": "#10140A"
+  },
+  "accent": {
+    "lime": "#C8F169",
+    "limeLight": "#D8F89B",
+    "limeMid": "#CDEE7F",
+    "limePale": "#EAF5B3",
+    "limeDeep": "#A9D845"
+  },
+  "data": {
+    "up": "#3DDC97",
+    "upLight": "#57DFA5",
+    "upDeep": "#27B87A",
+    "down": "#FF6B8A",
+    "downLight": "#FF8AA5",
+    "downDeep": "#E84E70",
+    "warn": "#FFC24B",
+    "warnLight": "#FFE39B",
+    "info": "#6FC7FF",
+    "ai": "#A78BFA",
+    "aiLight": "#C4B5FD"
+  },
+  "brand": {
+    "xTwitter": "#1DA1F2"
+  }
+}

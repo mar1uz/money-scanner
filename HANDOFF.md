@@ -3517,3 +3517,22 @@ Aprobat de utilizator după preview (`tmp/design-preview/theme-signal-graphite.h
 - body bg rgb(11,13,16) ✓, font Inter ✓, mono JetBrains Mono ✓; nicio urmă din paleta veche (singurul hit = badge-ul de preview al serverului local de mock, actualizat și el).
 - Build monorepo complet ✓ (pachete + api + worker + web). Bundle web: `index-B3dpyl4W.css`, `index-fH1itNGD.js`.
 - Teste monorepo: 242 pass / 0 fail (5+10+9+13+8+8+116+73).
+
+**Deploy producție (2026-09-16):**
+
+```text
+Source commit: df2f379
+Local tests: 242 passed, 0 failed
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Cloud Build ID: 5d242fe1-3849-440c-b214-bee11394eabd (SUCCESS, 5m25s)
+Cloud Run revision: market-scanner-360-00190-xpm
+Traffic: 100%
+Public bundle: assets/index-fH1itNGD.js, assets/index-B3dpyl4W.css (lime #c8f169 prezent în bundle; zero hex-uri din paleta veche)
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health check (/api/health): HTTP 200 OK (status: "ok", service: "market-scanner-360-api")
+```
+
+**scanner.relayhub.no — indisponibil (cauză externă, NU de la temă/deploy):**
+- DNS: `scanner.relayhub.no` → NXDOMAIN la nameserverul autoritativ (`ns01/ns02.one.com`); zona a fost modificată recent (serial 2026091501 → 15.09.2026). Recordul pentru `scanner` nu mai există.
+- GCP: nu mai există nici domain mapping-ul (`domain-mappings list` = 0), iar Cloud Run nu permite crearea de domain mappings în `europe-west3` (501 UNIMPLEMENTED). Certificatul LB-ului existent (`relayhub-cert-v2`, creat 15.09) acoperă doar `relayhub.no`; URL map-ul nu are host rule pentru `scanner`.
+- Deci ruta completă către `scanner.relayhub.no` lipsește acum. Restaurare posibilă: (a) rută prin LB-ul existent (serverless NEG → market-scanner-360 + backend + host rule + certificat pentru `scanner.relayhub.no`) + record DNS A → 8.232.135.187 la one.com; sau (b) se folosește doar URL-ul run.app. În așteptarea deciziei utilizatorului.
