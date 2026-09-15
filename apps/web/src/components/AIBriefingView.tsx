@@ -423,7 +423,7 @@ export const AIBriefingView: React.FC = () => {
     <div
       key={post.id}
       onClick={() => window.open(post.url, '_blank', 'noopener,noreferrer')}
-      className="ai-post-card rounded-xl bg-[#202b22] p-3.5 space-y-2"
+      className="ai-post-card rounded-xl bg-[#151A21] p-3.5 space-y-2"
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -495,7 +495,7 @@ export const AIBriefingView: React.FC = () => {
                 href={cite.url || '#'}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#202b22] hover:bg-[#202b22] text-slate-300 hover:text-purple-300 border border-white/[0.06] hover:border-purple-500/30 text-[11px] transition-all"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#151A21] hover:bg-[#151A21] text-slate-300 hover:text-purple-300 border border-white/[0.06] hover:border-purple-500/30 text-[11px] transition-all"
               >
                 <ExternalLink className="w-2.5 h-2.5 text-purple-400" />
                 <span className="line-clamp-1 max-w-[200px]">{cite.title}</span>
@@ -601,7 +601,7 @@ export const AIBriefingView: React.FC = () => {
     ];
 
     return (
-      <section className="rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-cyan-500/[0.06] via-[#111827] to-purple-500/[0.04] p-4 sm:p-5 space-y-4">
+      <section className="rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-cyan-500/[0.06] via-[#12151A] to-purple-500/[0.04] p-4 sm:p-5 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <button
             type="button"
@@ -801,7 +801,7 @@ export const AIBriefingView: React.FC = () => {
           : 'border-white/[0.08] bg-white/[0.02] text-slate-400';
 
     return (
-      <section className="rounded-2xl border border-purple-500/25 bg-gradient-to-br from-purple-500/[0.08] via-[#111827] to-cyan-500/[0.04] p-4 sm:p-5 space-y-4">
+      <section className="rounded-2xl border border-purple-500/25 bg-gradient-to-br from-purple-500/[0.08] via-[#12151A] to-cyan-500/[0.04] p-4 sm:p-5 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <button
             type="button"
@@ -1052,7 +1052,7 @@ export const AIBriefingView: React.FC = () => {
 
     return (
       <div className={`space-y-6 transition-opacity ${loadingIntelligence ? 'opacity-60' : 'opacity-100'}`}>
-        <section className="relative overflow-hidden rounded-2xl border border-purple-500/20 bg-gradient-to-br from-purple-500/[0.10] via-[#111827] to-cyan-500/[0.05] p-4 sm:p-6">
+        <section className="relative overflow-hidden rounded-2xl border border-purple-500/20 bg-gradient-to-br from-purple-500/[0.10] via-[#12151A] to-cyan-500/[0.05] p-4 sm:p-6">
           <div className="absolute -right-12 -top-12 w-40 h-40 rounded-full bg-purple-500/10 blur-3xl" />
           <div className="relative space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1250,9 +1250,9 @@ export const AIBriefingView: React.FC = () => {
   ];
 
   return (
-    <div className="flex h-[calc(100vh-var(--header-height)-2rem)] rounded-2xl overflow-hidden border border-white/[0.06] bg-[#202b22]">
+    <div className="flex h-[calc(100vh-var(--header-height)-2rem)] rounded-2xl overflow-hidden border border-white/[0.06] bg-[#151A21]">
       {/* ═══ Left Sidebar ═══ */}
-      <aside className="hidden lg:flex flex-col w-[240px] bg-[#202b22] border-r border-white/[0.06] shrink-0">
+      <aside className="hidden lg:flex flex-col w-[240px] bg-[#151A21] border-r border-white/[0.06] shrink-0">
         {/* Logo Area */}
         <div className="px-4 py-4 border-b border-white/[0.06]">
           <div className="flex items-center gap-2 mb-3">
@@ -1330,7 +1330,7 @@ export const AIBriefingView: React.FC = () => {
 
       {/* ═══ Main Chat Area ═══ */}
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="shrink-0 border-b border-white/[0.06] bg-[#202b22]/95 px-3 sm:px-6 py-3">
+        <div className="shrink-0 border-b border-white/[0.06] bg-[#151A21]/95 px-3 sm:px-6 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <button
               type="button"
@@ -1446,7 +1446,7 @@ export const AIBriefingView: React.FC = () => {
         </div>
 
         {/* ═══ Bottom Input Bar ═══ */}
-        <div className="shrink-0 border-t border-white/[0.06] bg-[#202b22] px-4 sm:px-8 py-3">
+        <div className="shrink-0 border-t border-white/[0.06] bg-[#151A21] px-4 sm:px-8 py-3">
           {/* Mobile quick questions */}
           <div className="lg:hidden flex gap-1.5 mb-2.5 overflow-x-auto pb-1 scrollbar-hide">
             {inspirationQuestions.slice(0, 3).map((q, idx) => (
@@ -1474,7 +1474,7 @@ export const AIBriefingView: React.FC = () => {
                 }
               }}
               placeholder='Întreabă despre o monedă... ex: "Ce se întâmplă cu Solana?"'
-              className="flex-1 bg-[#202b22] border border-white/[0.08] rounded-xl px-4 py-2.5 text-[13.5px] text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/20 transition-all"
+              className="flex-1 bg-[#151A21] border border-white/[0.08] rounded-xl px-4 py-2.5 text-[13.5px] text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/20 transition-all"
               disabled={askingAI}
             />
             <button

@@ -3493,3 +3493,27 @@ Health check (/api/health): HTTP 200 OK (status: "ok", service: "market-scanner-
 
 
 
+
+
+### 2026-09-16 — Tema nouă propusă: „Signal Graphite" (preview, neaprobat încă)
+- Analizat UI actual (olive glass #181f13 + #b7df8a, radii 26px, blur peste tot) — decis: propunere de retemă, preview înainte de implementare.
+- Direcție „Signal Graphite": grafit neutru (#0B0D10 / #12151A / #171B22), hairlines 1px, radii 12px, fără glass; accent lime semnătură (#C8F169) doar interactiv/brand; culori semantice de date: up #3DDC97, down #FF6B8A, warn #FFC24B, info #6FC7FF; Inter + tabular-nums (JetBrains Mono pentru micro-labels), floor 12px.
+- Preview: `tmp/design-preview/theme-signal-graphite.html` (mockup self-contained, zone reale: sidebar, topbar, hero, KPI, Alerte, tabel Semnale). QA numeric: 0 overlaps (inclusiv thead vs row1), 0 truncări, toate fonturile ≥12px, contrast AA pe toate perechile testate (muted #8791A1 pe superficii, chip-uri pe carduri).
+- Bug găsit la QA: `position:sticky; top:58px` pe thead într-un wrapper `overflow-x:auto` → Chrome computa overflow-y:auto și împingea header-ul 58px peste primul rând. Fix în mockup: thead static (implementarea reală să folosească page-level sticky corect).
+- De implementat DOAR după aprobarea utilizatorului: index.css (token map global), tailwind.config.js (remap cyan/blue/purple/violet → grafite+lime), componente cu clase hardcodate.
+
+
+### 2026-09-16 — Signal Graphite implementat în aplicație (temă nouă)
+
+Aprobat de utilizator după preview (`tmp/design-preview/theme-signal-graphite.html`). Implementare completă:
+
+- `apps/web/tailwind.config.js` — culori remapate pe Signal Graphite (numele istorice rămân, doar hex-urile se schimbă): cyan→lime #C8F169, blue→info #6FC7FF, purple/violet/fuchsia→violet AI, emerald/green→mint bullish #3DDC97, rose/red→coral bearish #FF6B8A, amber/orange→warn #FFC24B, background→grafit (#0B0D10/#12151A/#171B22/#232A35/#1D222B). Fonturi: Inter + JetBrains Mono (înlocuiește mono→sans).
+- `apps/web/src/index.css` — rescris complet: selectorii păstrați, valori noi; fără glass/blur în exces (suprafețe plate + hairlines), radii 12–14px, accent lime doar pe interactiv, secțiunile legacy (cyber-glass, intelligence, mobile dock, AI prose) recolorate. Backup original: /tmp/ms-index-css.original.bak (necomis).
+- `apps/web/index.html` — theme-color #0B0D10 + preconnect/load Inter + JetBrains Mono.
+- Migrare scriptată hex→hex în 15 componente (tabel explicit): cele mai frecvente: #202b22→#151A21 (43×), #10b981→#3DDC97 (23×), #f43f5e→#FF6B8A (18×), #06b6d4→#C8F169 (18×), #38bdf8→#6FC7FF (16×), plus gradiente navy→grafit și olive→grafit. Scan final: 0 hex-uri în afara paletei noi în sursă și în bundle-ul construit.
+
+**QA (aplicația reală, preview local cu date demo, 1440px + 390px):**
+- 0 overlap-uri structurale, 0 truncări (tabel scanner, header, sidebar).
+- body bg rgb(11,13,16) ✓, font Inter ✓, mono JetBrains Mono ✓; nicio urmă din paleta veche (singurul hit = badge-ul de preview al serverului local de mock, actualizat și el).
+- Build monorepo complet ✓ (pachete + api + worker + web). Bundle web: `index-B3dpyl4W.css`, `index-fH1itNGD.js`.
+- Teste monorepo: 242 pass / 0 fail (5+10+9+13+8+8+116+73).

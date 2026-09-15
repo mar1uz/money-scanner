@@ -113,7 +113,7 @@ export const CryptoBubbleView: React.FC<CryptoBubbleViewProps> = ({ onSelectAsse
         </div>
       )}
 
-      <div ref={canvasRef} className="crypto-bubble-canvas overflow-hidden rounded-2xl border border-white/[0.06] bg-[radial-gradient(circle_at_18%_10%,rgba(192,38,211,0.12),transparent_32%),radial-gradient(circle_at_82%_72%,rgba(6,182,212,0.08),transparent_34%),linear-gradient(135deg,rgba(15,20,32,0.95),rgba(7,10,19,0.95))]">
+      <div ref={canvasRef} className="crypto-bubble-canvas overflow-hidden rounded-2xl border border-white/[0.06] bg-[radial-gradient(circle_at_18%_10%,rgba(167,139,250,0.12),transparent_32%),radial-gradient(circle_at_82%_72%,rgba(200,241,105,0.08),transparent_34%),linear-gradient(135deg,rgba(17,20,27,0.95),rgba(11,13,16,0.95))]">
         {loading && coins.length === 0 ? (
           <div className="flex min-h-[540px] items-center justify-center gap-3 text-sm font-mono text-slate-400"><RefreshCw className="h-5 w-5 animate-spin text-fuchsia-400" />Se încarcă top 100...</div>
         ) : (
@@ -131,7 +131,7 @@ export const CryptoBubbleView: React.FC<CryptoBubbleViewProps> = ({ onSelectAsse
                     left: x - size / 2,
                     top: y - size / 2
                   }}
-                  className={`crypto-bubble absolute flex flex-col items-center justify-center overflow-hidden rounded-full border p-2 text-center transition-[box-shadow,border-color,transform] duration-200 hover:z-20 hover:scale-105 hover:shadow-[0_0_28px_rgba(232,121,249,0.32)] focus:z-20 focus:outline-none focus:ring-2 focus:ring-fuchsia-300 ${
+                  className={`crypto-bubble absolute flex flex-col items-center justify-center overflow-hidden rounded-full border p-2 text-center transition-[box-shadow,border-color,transform] duration-200 hover:z-20 hover:scale-105 hover:shadow-[0_0_28px_rgba(196,181,253,0.32)] focus:z-20 focus:outline-none focus:ring-2 focus:ring-fuchsia-300 ${
                     !validChange(coin.change) || coin.change === 0
                       ? 'border-slate-500/30 bg-slate-500/10 text-slate-300'
                       : positive

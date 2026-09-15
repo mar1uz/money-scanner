@@ -25,7 +25,7 @@ export const DexCandlestickChart: React.FC<{ candles: Candle[]; symbol: string }
       {visible.map((candle, index) => {
         const x = (index + 0.5) * step;
         const up = candle.close >= candle.open;
-        const color = up ? '#34d399' : '#fb7185';
+        const color = up ? '#57DFA5' : '#FF8AA5';
         const top = Math.min(y(candle.open), y(candle.close));
         const bodyHeight = Math.max(1.5, Math.abs(y(candle.open) - y(candle.close)));
         return <g key={candle.timestamp}>
@@ -126,7 +126,7 @@ export const CryptoMarketOnlyView: React.FC<{
         : `Prețuri USD raportate de ${quote.source}; puncte de preț, nu lumânări OHLCV.`}</p>
       {dex?.candles?.length ? <DexCandlestickChart candles={dex.candles} symbol={info.symbol} /> : prices.length > 1 ? <>
         <div className="mt-4 flex justify-between text-xs text-slate-400"><span>Min. {money(low)}</span><span>Max. {money(high)}</span></div>
-        <svg viewBox="0 0 800 260" className="mt-2 w-full" role="img" aria-label={`Istoric de preț ${info.name}`}><polyline points={points} fill="none" stroke="#22d3ee" strokeWidth="2.5" vectorEffect="non-scaling-stroke" /></svg>
+        <svg viewBox="0 0 800 260" className="mt-2 w-full" role="img" aria-label={`Istoric de preț ${info.name}`}><polyline points={points} fill="none" stroke="#CDEE7F" strokeWidth="2.5" vectorEffect="non-scaling-stroke" /></svg>
         <div className="flex justify-between text-xs text-slate-400"><span>{new Date(start).toLocaleDateString('ro-RO')}</span><span>{new Date(end).toLocaleString('ro-RO')}</span></div>
       </> : <p className="py-10 text-sm text-slate-400">Istoricul de preț nu este disponibil momentan de la furnizor. Cotația de mai sus rămâne disponibilă.</p>}
     </div>

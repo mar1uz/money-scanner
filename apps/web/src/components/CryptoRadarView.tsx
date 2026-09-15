@@ -461,11 +461,11 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
 
           <p className="text-xs text-slate-400">Apasă pe numele monedei pentru graficul DEX Screener într-o filă nouă. Butonul Detalii arată dovezile scanării și auditul de securitate.</p>
 
-          <div className="relative rounded-xl border border-white/10 bg-[#202b22]/40">
+          <div className="relative rounded-xl border border-white/10 bg-[#151A21]/40">
             {/* Sticky Table Header (docks at top-[56px] below the 56px app header, fully opaque background, synchronized native horizontal scroll) */}
             <div
               ref={stickyHeaderRef}
-              className="radar-sticky-header sticky top-[56px] z-25 overflow-x-auto no-scrollbar bg-[#202b22] border-b border-white/10 rounded-t-xl shadow-[0_4px_12px_rgba(0,0,0,0.5)] touch-pan-x touch-pan-y"
+              className="radar-sticky-header sticky top-[56px] z-25 overflow-x-auto no-scrollbar bg-[#151A21] border-b border-white/10 rounded-t-xl shadow-[0_4px_12px_rgba(0,0,0,0.5)] touch-pan-x touch-pan-y"
             >
               <table aria-label="Crypto Radar - Cap tabel" className="w-full text-sm whitespace-nowrap table-fixed" style={{ minWidth: tableMinWidth }}>
                 <colgroup>

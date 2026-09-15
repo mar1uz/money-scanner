@@ -585,7 +585,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
                 {explanation ? (
                   <>
                     {/* 1. 🎯 GHID DE INVESTIȚIE & VERDICT STRATEGIC */}
-                    <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-b from-[#0c142b] to-[#070b16] border border-cyan-500/30 shadow-xl space-y-4">
+                    <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-b from-[#151A21] to-[#0D1015] border border-cyan-500/30 shadow-xl space-y-4">
                       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/[0.06]">
                         <div className="flex items-center gap-2.5">
                           <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300">

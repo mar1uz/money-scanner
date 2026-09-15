@@ -28,8 +28,6 @@ import {
 export const USAStatusView: React.FC = () => {
   const [data, setData] = useState<USAEconomicStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeSimRateCut, setActiveSimRateCut] = useState<number>(25); // 0, 25, 50, 75 bps
-  const [activeSimCpi, setActiveSimCpi] = useState<number>(2.7);
 
   const loadData = async () => {
     setLoading(true);
@@ -64,37 +62,6 @@ export const USAStatusView: React.FC = () => {
     );
   }
 
-  // Dynamic simulation response when user changes scenarios
-  const getSimulatedGuidance = () => {
-    if (activeSimRateCut >= 50 && activeSimCpi <= 2.5) {
-      return {
-        title: 'Expansiune Agresivă a Lichidității (Super-Ciclul de Relaxare)',
-        summary: 'O reducere de 50 bps a dobânzii Fed coroborată cu un CPI la 2.5% semnalează victoria deplină asupra inflației și deschide supapa de lichiditate maximă pentru piețele globale de capital.',
-        cryptoVerdict: 'Parabolic Bullish (Breakout ATH)',
-        stocksVerdict: 'Strong Bullish (Creștere Evaluări P/E)',
-        metalsVerdict: 'Bullish (Slăbire DXY & Inflows)'
-      };
-    }
-    if (activeSimCpi >= 3.3) {
-      return {
-        title: 'Pauză Tactica Fed pe Fond de Inflație Persistentă (Sticky CPI)',
-        summary: 'Creșterea CPI peste 3.3% ar determina Fed să tempereze ritmul reducerilor de dobândă, menținând un regim de dobânzi ridicate pe termen mai lung (Higher for Longer).',
-        cryptoVerdict: 'Consolidare / Range Volatil',
-        stocksVerdict: 'Consolidare & Rotație spre Valoare',
-        metalsVerdict: 'Strong Bullish (Hedge Inflație)'
-      };
-    }
-    return {
-      title: data.aiGuidance.regimeTitle,
-      summary: data.aiGuidance.executiveSummary,
-      cryptoVerdict: 'Strong Bullish (Corelație M2 +85%)',
-      stocksVerdict: 'Bullish (Scădere Cost Capital)',
-      metalsVerdict: 'Strong Bullish (Hedge Datorie $36.2T)'
-    };
-  };
-
-  const simGuidance = getSimulatedGuidance();
-
   return (
     <div className="space-y-6 animate-fade-in font-sans">
       {/* Header Banner */}
@@ -110,8 +77,13 @@ export const USAStatusView: React.FC = () => {
             </span>
           </div>
           <p className="text-xs text-slate-400 font-mono">
-            Date oficiale Trezorerie, Federal Reserve, Biroul de Statistică al Muncii (BLS) &amp; Sinteză Strategică AI în Timp Real.
+            Serii oficiale FRED, U.S. Treasury și calendare Fed/BLS/BEA, cu data fiecărei observații.
           </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-mono text-slate-500">
+            <span className="rounded border border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-emerald-300">FRED + U.S. Treasury</span>
+            <span>Observațiile afișează data reală a seriei.</span>
+            {data.dataQuality?.unavailableSeries.length ? <span className="text-amber-300">{data.dataQuality.unavailableSeries.length} serii indisponibile</span> : null}
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
@@ -153,11 +125,11 @@ export const USAStatusView: React.FC = () => {
           <div className="space-y-1 text-[11px] font-mono text-slate-400 pt-2 border-t border-rose-500/20">
             <div className="flex justify-between">
               <span>Dobânzi Anuale:</span>
-              <strong className="text-slate-200">${(data.fiscal.annualInterestExpense / 1e12).toFixed(2)}T / an</strong>
+              <strong className="text-slate-200">{data.fiscal.annualInterestExpense !== undefined ? `$${(data.fiscal.annualInterestExpense / 1e12).toFixed(2)}T / an` : '—'}</strong>
             </div>
             <div className="flex justify-between">
               <span>Datorie / Cetățean:</span>
-              <strong className="text-slate-300">${data.fiscal.debtPerCitizen.toLocaleString()}</strong>
+              <strong className="text-slate-300">{data.fiscal.debtPerCitizen !== undefined ? `$${data.fiscal.debtPerCitizen.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '—'}</strong>
             </div>
           </div>
         </div>
@@ -207,11 +179,11 @@ export const USAStatusView: React.FC = () => {
           <div className="space-y-1 text-[11px] font-mono text-slate-400 pt-2 border-t border-cyan-500/20">
             <div className="flex justify-between">
               <span>Șanse Reducere 25 bps:</span>
-              <strong className="text-emerald-400">{data.monetaryPolicy.rateCutProb25bps}%</strong>
+              <strong className="text-emerald-400">{data.monetaryPolicy.rateCutProb25bps !== undefined ? `${data.monetaryPolicy.rateCutProb25bps}%` : '—'}</strong>
             </div>
             <div className="flex justify-between">
               <span>Rată Neutră Estimată:</span>
-              <strong className="text-cyan-300">{data.monetaryPolicy.neutralRateEstimate}%</strong>
+              <strong className="text-cyan-300">{data.monetaryPolicy.neutralRateEstimate !== undefined ? `${data.monetaryPolicy.neutralRateEstimate}%` : '—'}</strong>
             </div>
           </div>
         </div>
@@ -301,7 +273,7 @@ export const USAStatusView: React.FC = () => {
                 Regim Curbă: <span className="text-cyan-300">{data.yieldCurve.curveRegime}</span>
               </span>
               <p className="text-slate-400 text-[11px] leading-relaxed">
-                Spread-ul 10Y - 2Y a revenit în teritoriu pozitiv (+0.20%), confirmând faza de dez-inversare clasică premergătoare relaxării monetare. Istoric, această fază favorizează activele de risc pe fondul expansiunii masei monetare.
+                Spread-ul este calculat din randamentele oficiale ale aceleiași observații și trebuie interpretat împreună cu inflația, piața muncii și condițiile financiare.
               </p>
             </div>
           </div>
@@ -332,6 +304,7 @@ export const USAStatusView: React.FC = () => {
                   <div className={`text-[10px] font-bold ${idx.changePercent >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                     {idx.changePercent >= 0 ? `+${idx.changePercent}%` : `${idx.changePercent}%`}
                   </div>
+                  <div className="text-[9px] text-slate-600">{idx.observationDate || '—'}</div>
                 </div>
               </div>
             ))}
@@ -355,24 +328,70 @@ export const USAStatusView: React.FC = () => {
         </div>
       </div>
 
-      {/* AI Future Guidance & Multi-Asset Synthesis */}
+      {/* Extended official series */}
+      {data.indicators && (
+        <div className="cyber-glass rounded-2xl p-6 border border-background-border space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-background-border pb-3">
+            <div>
+              <h3 className="font-bold text-base text-slate-100 font-mono">Indicatori Macro Extinse</h3>
+              <p className="mt-1 text-xs text-slate-400 font-mono">Lichiditate, creștere, condiții financiare și risc de recesiune din serii FRED.</p>
+            </div>
+            <span className="text-[10px] font-mono text-cyan-300">{Object.keys(data.indicators).length} serii disponibile</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            {['GDP', 'INDPRO', 'M2SL', 'WALCL', 'RRPONTSYD', 'WTREGEN', 'NFCI', 'T10Y3M', 'DFII10', 'T10YIE', 'JTSJOL', 'CCSA'].map(id => {
+              const item = data.indicators?.[id];
+              if (!item) return null;
+              const display = item.unit.includes('USD billions') ? `$${(item.value / 1000).toFixed(2)}T` : item.value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+              return (
+                <div key={id} className="rounded-xl border border-background-border bg-background-surface/70 p-3">
+                  <div className="font-mono text-[10px] font-bold text-cyan-300">{id}</div>
+                  <div className="mt-1 font-mono text-sm font-black text-slate-100">{display}</div>
+                  <div className="mt-1 text-[9px] text-slate-500">{item.unit} · {item.observationDate}</div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="text-[10px] font-mono text-slate-500">Surse: <a className="text-cyan-400 hover:underline" href="https://fred.stlouisfed.org/" target="_blank" rel="noreferrer">FRED</a> și <a className="text-cyan-400 hover:underline" href="https://fiscaldata.treasury.gov/" target="_blank" rel="noreferrer">U.S. Treasury</a>. Valorile au frecvențe diferite și nu sunt sincronizate artificial.</div>
+        </div>
+      )}
+
+      {data.calendar?.length ? (
+        <div className="cyber-glass rounded-2xl p-6 border border-background-border space-y-3">
+          <div className="flex items-center gap-2 border-b border-background-border pb-3">
+            <Calendar className="w-4 h-4 text-cyan-400" />
+            <h3 className="font-bold text-base text-slate-100 font-mono">Calendar macro SUA</h3>
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {data.calendar.map(event => (
+              <a key={event.title} href={event.sourceUrl} target="_blank" rel="noreferrer" className="rounded-xl border border-background-border bg-background-surface/70 p-3 transition hover:border-cyan-500/40">
+                <div className="text-xs font-bold text-slate-100">{event.title}</div>
+                <div className="mt-1 text-[11px] text-cyan-300">{event.date}</div>
+                <div className="mt-1 text-[9px] text-slate-500">Sursă: {event.source}</div>
+              </a>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Macro synthesis & multi-asset context */}
       <div className="cyber-glass rounded-2xl p-6 border border-background-border space-y-6 shadow-2xl">
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-background-border">
           <div className="flex items-center gap-2.5">
             <BrainCircuit className="w-5 h-5 text-cyan-400" />
             <div>
               <h2 className="text-lg font-bold text-slate-100 font-mono">
-                AI Future Guidance &amp; Sinteză Strategică Multimarket
+                Sinteză macro &amp; impact pe piețe
               </h2>
               <p className="text-xs text-slate-400 font-mono">
-                Analiză macroeconomică generată de AI cu recalculare dinamică la fiecare actualizare a datelor.
+                Sinteză deterministă calculată din datele oficiale și din data reală a fiecărei observații.
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 px-3 py-1 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-xs font-mono text-cyan-300 font-bold">
             <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Grad de Încredere Model AI: {data.aiGuidance.confidenceScore}%</span>
+            <span>{data.aiGuidance.confidenceScore !== undefined ? `Grad de Încredere Model AI: ${data.aiGuidance.confidenceScore}%` : 'Sinteză pe date oficiale'}</span>
           </div>
         </div>
 
@@ -380,10 +399,10 @@ export const USAStatusView: React.FC = () => {
         <div className="p-5 rounded-2xl bg-gradient-to-r from-cyan-500/10 via-background-surface to-emerald-500/10 border border-cyan-500/30 space-y-2">
           <div className="flex items-center gap-2 font-mono text-xs font-bold text-cyan-300">
             <Zap className="w-4 h-4 text-cyan-400" />
-            <span>{simGuidance.title}</span>
+            <span>{data.aiGuidance.regimeTitle}</span>
           </div>
           <p className="text-xs text-slate-300 font-sans leading-relaxed">
-            {simGuidance.summary}
+            {data.aiGuidance.executiveSummary}
           </p>
         </div>
 
@@ -397,7 +416,7 @@ export const USAStatusView: React.FC = () => {
                 <span>Acțiuni SUA &amp; Tech</span>
               </div>
               <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">
-                {simGuidance.stocksVerdict}
+                {data.aiGuidance.impactOnStocks.stance}
               </span>
             </div>
             <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
@@ -418,7 +437,7 @@ export const USAStatusView: React.FC = () => {
                 </span>
               </div>
               <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold shadow-glow-emerald">
-                {simGuidance.cryptoVerdict}
+                {data.aiGuidance.impactOnCrypto.stance}
               </span>
             </div>
             <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
@@ -434,7 +453,7 @@ export const USAStatusView: React.FC = () => {
                 <span>Metale &amp; Gold ($XAU)</span>
               </div>
               <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-bold shadow-glow-gold">
-                {simGuidance.metalsVerdict}
+                {data.aiGuidance.impactOnMetals.stance}
               </span>
             </div>
             <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
@@ -473,56 +492,6 @@ export const USAStatusView: React.FC = () => {
           </div>
         </div>
 
-        {/* Interactive Scenario Simulator */}
-        <div className="p-4 rounded-2xl bg-background-card/90 border border-background-border space-y-3 font-mono text-xs">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sliders className="w-4 h-4 text-cyan-400" />
-              <span className="font-bold text-slate-200">Simulator Interactiv de Scenarii Macro (What-If AI Engine)</span>
-            </div>
-            <span className="text-[10px] text-slate-400">Modifică parametrii pentru a recalcula interpretarea AI</span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-4 pt-1">
-            <div className="flex items-center gap-2">
-              <span className="text-slate-400 text-[11px]">Reducere Dobândă Fed:</span>
-              <div className="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5">
-                {[0, 25, 50, 75].map((bps) => (
-                  <button
-                    key={bps}
-                    onClick={() => setActiveSimRateCut(bps)}
-                    className={`px-2.5 py-1 rounded text-[11px] transition-all ${
-                      activeSimRateCut === bps
-                        ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    {bps === 0 ? 'Pauză (0 bps)' : `-${bps} bps`}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-slate-400 text-[11px]">Nivel CPI Inflație:</span>
-              <div className="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5">
-                {[2.2, 2.7, 3.4].map((cpi) => (
-                  <button
-                    key={cpi}
-                    onClick={() => setActiveSimCpi(cpi)}
-                    className={`px-2.5 py-1 rounded text-[11px] transition-all ${
-                      activeSimCpi === cpi
-                        ? 'bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/40'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    {cpi}%
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

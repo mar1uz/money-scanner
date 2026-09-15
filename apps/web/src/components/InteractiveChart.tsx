@@ -39,6 +39,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../i18n.js';
 import { fetchBullishAlertStatus, setBullishAlert } from '../services/api.js';
+import { calculateMoneyLineCloud } from '@money-scanner/money-line/cloud-supertrend';
 
 interface InteractiveChartProps {
   candles: Candle[];
@@ -83,167 +84,8 @@ const formatFlipPrice = (price: number): string => {
   }).format(price);
 };
 
-const getMoneyLineParameters = (timeframe: string) => {
-  const tf = timeframe.toLowerCase();
-  if (tf === '1h') return { fastFactor: 2.2, slowFactor: 3.0, atrLength: 12 };
-  if (tf === '4h' || tf === '8h' || tf === '1d') return { fastFactor: 2.5, slowFactor: 3.5, atrLength: 10 };
-  if (tf === '1w' || tf === '1m') return { fastFactor: 2.8, slowFactor: 3.8, atrLength: 10 };
-  return { fastFactor: 2.0, slowFactor: 3.0, atrLength: 10 };
-};
-
-// Exact MoneyLine Overlay Force v1 Mathematical Computation
-export function calculateMoneyLineForce(candles: Candle[], timeframe: string) {
-  if (!candles || candles.length === 0) {
-    return {
-      lineFast: [],
-      dirFast: [],
-      lineSlow: [],
-      dirSlow: [],
-      sma50: [],
-      sma200: [],
-      cloudColor: [],
-      buySignals: [],
-      sellSignals: []
-    };
-  }
-
-  // --- Parametri Adaptabili (LogicƒÉ Cloud) ---
-  const {
-    fastFactor: f_fast,
-    slowFactor: f_slow,
-    atrLength: atr_len
-  } = getMoneyLineParameters(timeframe);
-
-  // Calculate True Range and Wilder's RMA ATR
-  const tr: number[] = [];
-  for (let i = 0; i < candles.length; i++) {
-    if (i === 0) {
-      tr.push(candles[i].high - candles[i].low);
-    } else {
-      const hl = candles[i].high - candles[i].low;
-      const hc = Math.abs(candles[i].high - candles[i - 1].close);
-      const lc = Math.abs(candles[i].low - candles[i - 1].close);
-      tr.push(Math.max(hl, hc, lc));
-    }
-  }
-
-  const atr: number[] = [];
-  let sum = 0;
-  for (let i = 0; i < atr_len && i < tr.length; i++) sum += tr[i];
-  let prevAtr = sum / Math.max(1, Math.min(atr_len, tr.length));
-  for (let i = 0; i < tr.length; i++) {
-    if (i < atr_len) {
-      atr.push(prevAtr);
-    } else {
-      const curAtr = (prevAtr * (atr_len - 1) + tr[i]) / atr_len;
-      atr.push(curAtr);
-      prevAtr = curAtr;
-    }
-  }
-
-  // Standard Supertrend algorithm (ta.supertrend)
-  const calcSupertrend = (multiplier: number) => {
-    const line: number[] = [];
-    const dir: number[] = []; // -1 = Up (Bullish), +1 = Down (Bearish)
-
-    let upperBand = 0;
-    let lowerBand = 0;
-    let currentDir = 1;
-
-    for (let i = 0; i < candles.length; i++) {
-      const c = candles[i];
-      const curAtr = atr[i] || (c.high - c.low);
-      const hl2 = (c.high + c.low) / 2;
-
-      const basicUpper = hl2 + multiplier * curAtr;
-      const basicLower = hl2 - multiplier * curAtr;
-
-      if (i === 0) {
-        upperBand = basicUpper;
-        lowerBand = basicLower;
-        currentDir = c.close > basicUpper ? -1 : 1;
-      } else {
-        const prevClose = candles[i - 1].close;
-        const prevLower = lowerBand;
-        const prevUpper = upperBand;
-
-        lowerBand = (basicLower > prevLower || prevClose < prevLower) ? basicLower : prevLower;
-        upperBand = (basicUpper < prevUpper || prevClose > prevUpper) ? basicUpper : prevUpper;
-
-        if (currentDir === 1 && c.close > prevUpper) {
-          currentDir = -1; // Bullish flip
-        } else if (currentDir === -1 && c.close < prevLower) {
-          currentDir = 1; // Bearish flip
-        }
-      }
-
-      const val = currentDir === -1 ? lowerBand : upperBand;
-      // Keep the full computed precision here. Formatting belongs to the UI;
-      // rounding the indicator itself would make flip thresholds wrong for
-      // low-priced assets.
-      line.push(val);
-      dir.push(currentDir);
-    }
-
-    return { line, dir };
-  };
-
-  const fast = calcSupertrend(f_fast);
-  const slow = calcSupertrend(f_slow);
-
-  // 50 Simple Moving Average (SMA 50)
-  const sma50: number[] = [];
-  const sma50Len = 50;
-  for (let i = 0; i < candles.length; i++) {
-    const windowStart = Math.max(0, i - sma50Len + 1);
-    let sumClose = 0;
-    for (let j = windowStart; j <= i; j++) {
-      sumClose += candles[j].close;
-    }
-    const count = i - windowStart + 1;
-    sma50.push(sumClose / count);
-  }
-
-  // 200 Simple Moving Average (SMA 200)
-  const sma200: number[] = [];
-  const smaLen = 200;
-  for (let i = 0; i < candles.length; i++) {
-    const windowStart = Math.max(0, i - smaLen + 1);
-    let sumClose = 0;
-    for (let j = windowStart; j <= i; j++) {
-      sumClose += candles[j].close;
-    }
-    const count = i - windowStart + 1;
-    sma200.push(sumClose / count);
-  }
-
-  // Buy & Sell signal identification (ta.change(dirSlow))
-  const buySignals: boolean[] = [];
-  const sellSignals: boolean[] = [];
-
-  for (let i = 0; i < candles.length; i++) {
-    if (i === 0) {
-      buySignals.push(false);
-      sellSignals.push(false);
-    } else {
-      const prevDirSlow = slow.dir[i - 1];
-      const curDirSlow = slow.dir[i];
-      buySignals.push(curDirSlow === -1 && prevDirSlow === 1);
-      sellSignals.push(curDirSlow === 1 && prevDirSlow === -1);
-    }
-  }
-
-  return {
-    lineFast: fast.line,
-    dirFast: fast.dir,
-    lineSlow: slow.line,
-    dirSlow: slow.dir,
-    sma50,
-    sma200,
-    buySignals,
-    sellSignals
-  };
-}
+// The chart and server alerts intentionally share the same indicator engine.
+export const calculateMoneyLineForce = calculateMoneyLineCloud;
 
 export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   candles,
@@ -551,26 +393,26 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       width: container.clientWidth || 360,
       height: initialHeight,
       layout: {
-        background: { type: ColorType.Solid, color: '#080c14' },
+        background: { type: ColorType.Solid, color: '#0B0D10' },
         textColor: '#94a3b8',
         fontSize: 11
       },
       grid: {
-        vertLines: { color: 'rgba(30, 41, 59, 0.4)' },
-        horzLines: { color: 'rgba(30, 41, 59, 0.4)' }
+        vertLines: { color: 'rgba(30, 36, 46, 0.4)' },
+        horzLines: { color: 'rgba(30, 36, 46, 0.4)' }
       },
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: '#38bdf8', width: 1, style: 3 },
-        horzLine: { color: '#38bdf8', width: 1, style: 3 }
+        vertLine: { color: '#6FC7FF', width: 1, style: 3 },
+        horzLine: { color: '#6FC7FF', width: 1, style: 3 }
       },
       rightPriceScale: {
-        borderColor: '#1e293b',
+        borderColor: '#232A35',
         scaleMargins: { top: 0.1, bottom: 0.2 }
       },
       timeScale: {
         visible: true,
-        borderColor: '#1e293b',
+        borderColor: '#232A35',
         timeVisible: true,
         secondsVisible: false,
         tickMarkFormatter: (time: number, tickMarkType: number, locale: string) => {
@@ -592,16 +434,16 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     chartApiRef.current = chart;
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: '#10b981',
-      downColor: '#f43f5e',
+      upColor: '#3DDC97',
+      downColor: '#FF6B8A',
       borderVisible: false,
-      wickUpColor: '#10b981',
-      wickDownColor: '#f43f5e'
+      wickUpColor: '#3DDC97',
+      wickDownColor: '#FF6B8A'
     });
     candleSeriesRef.current = candleSeries;
 
     const volumeSeries = chart.addSeries(HistogramSeries, {
-      color: '#06b6d4',
+      color: '#C8F169',
       priceFormat: { type: 'volume' },
       priceScaleId: ''
     });
@@ -641,7 +483,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     const formattedVolume = cleanCandles.map((c) => ({
       time: Math.floor(c.timestamp / 1000) as any,
       value: c.volume,
-      color: c.close >= c.open ? 'rgba(16, 185, 129, 0.25)' : 'rgba(244, 63, 94, 0.25)'
+      color: c.close >= c.open ? 'rgba(61, 220, 151, 0.25)' : 'rgba(255, 107, 138, 0.25)'
     }));
 
     candleSeries.setData(formattedCandles);
@@ -649,7 +491,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
 
     // Fast Supertrend Line
     const fastLineSeries = chart.addSeries(LineSeries, {
-      color: '#10b981',
+      color: '#3DDC97',
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: false
@@ -658,13 +500,13 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     const formattedFastLine = moneyLine.lineFast.map((val, idx) => ({
       time: Math.floor(cleanCandles[idx].timestamp / 1000) as any,
       value: val,
-      color: moneyLine.dirFast[idx] < 0 ? '#10b981' : '#f43f5e'
+      color: moneyLine.dirFast[idx] < 0 ? '#3DDC97' : '#FF6B8A'
     }));
     fastLineSeries.setData(formattedFastLine);
 
     // Slow Supertrend Line (Cloud Edge)
     const slowLineSeries = chart.addSeries(LineSeries, {
-      color: '#059669',
+      color: '#27B87A',
       lineWidth: 1,
       lineStyle: 2,
       priceLineVisible: false,
@@ -674,14 +516,14 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     const formattedSlowLine = moneyLine.lineSlow.map((val, idx) => ({
       time: Math.floor(cleanCandles[idx].timestamp / 1000) as any,
       value: val,
-      color: moneyLine.dirSlow[idx] < 0 ? 'rgba(16, 185, 129, 0.7)' : 'rgba(244, 63, 94, 0.7)'
+      color: moneyLine.dirSlow[idx] < 0 ? 'rgba(61, 220, 151, 0.7)' : 'rgba(255, 107, 138, 0.7)'
     }));
     slowLineSeries.setData(formattedSlowLine);
 
     // SMA 50 Intermediate Baseline (Yellow, Thin 1px)
     if (showSma50) {
       const sma50Series = chart.addSeries(LineSeries, {
-        color: '#fbbf24', // Amber/Yellow
+        color: '#FFC24B', // Amber/Yellow
         lineWidth: 1,
         lineStyle: 0,
         priceLineVisible: false,
@@ -720,7 +562,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
         markers.push({
           time: timeInSec,
           position: 'belowBar',
-          color: '#10b981',
+          color: '#3DDC97',
           shape: 'arrowUp',
           size: 2
         });
@@ -728,7 +570,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
         markers.push({
           time: timeInSec,
           position: 'aboveBar',
-          color: '#f43f5e',
+          color: '#FF6B8A',
           shape: 'arrowDown',
           size: 2
         });
@@ -744,7 +586,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     if (lastIdx >= 0) {
       const currentFlipThreshold = moneyLine.lineSlow[lastIdx];
       const isBullSlow = moneyLine.dirSlow[lastIdx] < 0;
-      const flipColor = isBullSlow ? '#f43f5e' : '#10b981';
+      const flipColor = isBullSlow ? '#FF6B8A' : '#3DDC97';
 
       if (currentFlipThreshold && Number.isFinite(currentFlipThreshold) && currentFlipThreshold > 0) {
         candleSeries.createPriceLine({
@@ -845,20 +687,20 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
           theme: 'dark',
           style: '1',
           locale: language,
-          toolbar_bg: '#080c14',
+          toolbar_bg: '#0B0D10',
           enable_publishing: false,
           allow_symbol_change: true,
           container_id: uniqueId,
           withdateranges: true,
           hide_side_toolbar: false,
           hide_top_toolbar: false,
-          studies: [
-            "STD;Supertrend",
-            "MASimple@tv-basicstudies"
-          ],
+          // The official iframe cannot load private Pine scripts. The exact
+          // MoneyLine Cloud is rendered in the native chart tab using the
+          // shared package implementation.
+          studies: ["MASimple@tv-basicstudies"],
           studies_overrides: {
             "moving average.length": 200,
-            "moving average.plot.color": "#fbbf24",
+            "moving average.plot.color": "#FFC24B",
             "moving average.plot.linewidth": 2
           },
           details: true,
@@ -1018,7 +860,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
         id: `h_${Date.now()}`,
         type: 'horizontal',
         p1: { timeIndex: pt.timeIndex, price: pt.price },
-        color: '#38bdf8'
+        color: '#6FC7FF'
       };
       setDrawings(prev => [...prev, newDrawing]);
       setActiveTool('select');
@@ -1030,7 +872,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
         id: `v_${Date.now()}`,
         type: 'vertical',
         p1: { timeIndex: pt.timeIndex, price: pt.price },
-        color: '#a855f7'
+        color: '#A78BFA'
       };
       setDrawings(prev => [...prev, newDrawing]);
       setActiveTool('select');
@@ -1045,14 +887,14 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
         p1: { timeIndex: currentStart.timeIndex, price: currentStart.price },
         p2: { timeIndex: pt.timeIndex, price: pt.price },
         color: activeTool === 'fibonacci' 
-          ? '#fbbf24' 
+          ? '#FFC24B' 
           : (activeTool === 'ruler' 
-            ? '#10b981' 
+            ? '#3DDC97' 
             : (activeTool === 'long_position' 
-              ? '#10b981' 
+              ? '#3DDC97' 
               : (activeTool === 'short_position' 
-                ? '#f43f5e' 
-                : (activeTool === 'rectangle' ? '#06b6d4' : (activeTool === 'channel' ? '#06b6d4' : (activeTool === 'ray' ? '#38bdf8' : '#06b6d4'))))))
+                ? '#FF6B8A' 
+                : (activeTool === 'rectangle' ? '#C8F169' : (activeTool === 'channel' ? '#C8F169' : (activeTool === 'ray' ? '#6FC7FF' : '#C8F169'))))))
       };
       setDrawings(prev => [...prev, newDrawing]);
       setCurrentStart(null);
@@ -1082,14 +924,14 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
         p1: { timeIndex: currentStart.timeIndex, price: currentStart.price },
         p2: { timeIndex: pt.timeIndex, price: pt.price },
         color: activeTool === 'fibonacci' 
-          ? '#fbbf24' 
+          ? '#FFC24B' 
           : (activeTool === 'ruler' 
-            ? '#10b981' 
+            ? '#3DDC97' 
             : (activeTool === 'long_position' 
-              ? '#10b981' 
+              ? '#3DDC97' 
               : (activeTool === 'short_position' 
-                ? '#f43f5e' 
-                : (activeTool === 'rectangle' ? '#06b6d4' : (activeTool === 'channel' ? '#06b6d4' : (activeTool === 'ray' ? '#38bdf8' : '#06b6d4'))))))
+                ? '#FF6B8A' 
+                : (activeTool === 'rectangle' ? '#C8F169' : (activeTool === 'channel' ? '#C8F169' : (activeTool === 'ray' ? '#6FC7FF' : '#C8F169'))))))
       };
       setDrawings(prev => [...prev, newDrawing]);
       setCurrentStart(null);
@@ -1109,7 +951,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
         id: `h_${Date.now()}`,
         type: 'horizontal',
         p1: { timeIndex: pt.timeIndex, price: pt.price },
-        color: '#38bdf8'
+        color: '#6FC7FF'
       };
       setDrawings(prev => [...prev, newDrawing]);
       setActiveTool('select');
@@ -1121,7 +963,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
         id: `v_${Date.now()}`,
         type: 'vertical',
         p1: { timeIndex: pt.timeIndex, price: pt.price },
-        color: '#a855f7'
+        color: '#A78BFA'
       };
       setDrawings(prev => [...prev, newDrawing]);
       setActiveTool('select');
@@ -1135,7 +977,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
         type: activeTool,
         p1: { timeIndex: currentStart.timeIndex, price: currentStart.price },
         p2: { timeIndex: pt.timeIndex, price: pt.price },
-        color: activeTool === 'ruler' ? '#10b981' : '#06b6d4'
+        color: activeTool === 'ruler' ? '#3DDC97' : '#C8F169'
       };
       setDrawings(prev => [...prev, newDrawing]);
       setCurrentStart(null);
@@ -1176,7 +1018,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
         type: activeTool,
         p1: { timeIndex: currentStart.timeIndex, price: currentStart.price },
         p2: { timeIndex, price },
-        color: activeTool === 'ruler' ? '#10b981' : '#06b6d4'
+        color: activeTool === 'ruler' ? '#3DDC97' : '#C8F169'
       };
       setDrawings(prev => [...prev, newDrawing]);
       setCurrentStart(null);
@@ -1211,11 +1053,7 @@ get_cloud_params() =>
     int atr_len = 10
     
     if timeframe.isminutes
-        if timeframe.multiplier < 15
-            f_fast  := 1.8
-            f_slow  := 2.6
-            atr_len := 14
-        else if timeframe.multiplier < 60
+        if timeframe.multiplier == 60
             f_fast  := 2.2
             f_slow  := 3.0
             atr_len := 12
@@ -1227,7 +1065,7 @@ get_cloud_params() =>
         f_fast  := 2.5
         f_slow  := 3.5
         atr_len := 10
-    else if timeframe.isweekly
+    else if timeframe.isweekly or timeframe.ismonthly
         f_fast  := 2.8
         f_slow  := 3.8
         atr_len := 10
@@ -1250,12 +1088,12 @@ finalSlow  = useAuto ? slowFactor : manualSlow
 [lineSlow, dirSlow] = ta.supertrend(finalSlow, finalAtr)
 
 // Plotare Linii Nor
-plotFast = plot(lineFast, color=dirFast < 0 ? color.new(#10b981, 20) : color.new(#f43f5e, 20), linewidth=1, title="Baza Nor (Fast)")
-plotSlow = plot(lineSlow, color=dirSlow < 0 ? color.new(#059669, 40) : color.new(#e11d48, 40), linewidth=1, style=plot.style_linebr, title="Margine Nor (Slow)")
+plotFast = plot(lineFast, color=dirFast < 0 ? color.new(#3DDC97, 20) : color.new(#FF6B8A, 20), linewidth=1, title="Baza Nor (Fast)")
+plotSlow = plot(lineSlow, color=dirSlow < 0 ? color.new(#27B87A, 40) : color.new(#E84E70, 40), linewidth=1, style=plot.style_linebr, title="Margine Nor (Slow)")
 
 // Colorare Nor Dinamic
-cloudColor = (dirFast < 0 and dirSlow < 0) ? color.new(#10b981, 80) : 
-             (dirFast > 0 and dirSlow > 0) ? color.new(#f43f5e, 80) : color.new(#64748b, 85)
+cloudColor = (dirFast < 0 and dirSlow < 0) ? color.new(#3DDC97, 80) : 
+             (dirFast > 0 and dirSlow > 0) ? color.new(#FF6B8A, 80) : color.new(#64748b, 85)
 
 fill(plotFast, plotSlow, color=cloudColor, title="Money Line Cloud Fill")
 
@@ -1263,15 +1101,15 @@ fill(plotFast, plotSlow, color=cloudColor, title="Money Line Cloud Fill")
 buySignal  = ta.change(dirSlow) < 0
 sellSignal = ta.change(dirSlow) > 0
 
-plotshape(buySignal, title="Semnal BUY (Bull Flip)", style=shape.triangleup, location=location.belowbar, color=#10b981, size=size.small, text="BUY", textcolor=#10b981)
-plotshape(sellSignal, title="Semnal SELL (Bear Flip)", style=shape.triangledown, location=location.abovebar, color=#f43f5e, size=size.small, text="SELL", textcolor=#f43f5e)
+plotshape(buySignal, title="Semnal BUY (Bull Flip)", style=shape.triangleup, location=location.belowbar, color=#3DDC97, size=size.small, text="BUY", textcolor=#3DDC97)
+plotshape(sellSignal, title="Semnal SELL (Bear Flip)", style=shape.triangledown, location=location.abovebar, color=#FF6B8A, size=size.small, text="SELL", textcolor=#FF6B8A)
 
 // ==========================================
 // 2. Medii Mobile: SMA 50 (Galben) & SMA 200 (Alb)
 // ==========================================
 showSma50  = input.bool(true, title="Afi»ôeazƒÉ SMA 50 (Galben sub»õire)", group="Medii Mobile")
 lenSma50   = input.int(50, title="Lungime SMA 50", minval=1, group="Medii Mobile")
-colSma50   = input.color(#fbbf24, title="Culoare SMA 50", group="Medii Mobile")
+colSma50   = input.color(#FFC24B, title="Culoare SMA 50", group="Medii Mobile")
 
 showSma200 = input.bool(true, title="Afi»ôeazƒÉ SMA 200 (Alb gros)", group="Medii Mobile")
 lenSma200  = input.int(200, title="Lungime SMA 200", minval=1, group="Medii Mobile")
@@ -1294,7 +1132,7 @@ if showFlipLine and barstate.islast
     line.delete(flipLine)
     label.delete(flipLbl)
     string flipAction = dirSlow < 0 ? "SELL FLIP" : "BUY FLIP"
-    color flipCol = dirSlow < 0 ? #f43f5e : #10b981
+    color flipCol = dirSlow < 0 ? #FF6B8A : #3DDC97
     string flipText = "PRAG " + flipAction + ": $" + (lineSlow < 1 ? str.tostring(lineSlow, "#.####") : str.tostring(lineSlow, "#.##"))
     flipLine := line.new(bar_index - 12, lineSlow, bar_index + 6, lineSlow, color=flipCol, width=2, style=line.style_dashed, extend=extend.none)
     flipLbl  := label.new(bar_index + 6, lineSlow, flipText, color=color.new(flipCol, 20), textcolor=color.white, size=size.small, style=label.style_label_left)
@@ -1334,7 +1172,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
               }`}
             >
               <BarChart2 className="w-3.5 h-3.5 text-blue-400" />
-              <span>TradingView Oficial + MoneyLine</span>
+              <span>TradingView extern</span>
             </button>
 
             <button
@@ -1497,7 +1335,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
           </div>
 
           {/* Mobile Quick TA & Percentage Measurement Bar (Optimized for touch) */}
-          <div className="md:hidden flex flex-col gap-2 p-2.5 bg-[#090e1c] border border-cyan-500/30 rounded-2xl shadow-xl">
+          <div className="md:hidden flex flex-col gap-2 p-2.5 bg-[#12151A] border border-cyan-500/30 rounded-2xl shadow-xl">
             <div className="flex items-center justify-between gap-2 overflow-x-auto pb-0.5">
               {/* 1. Pointer Mode */}
               <button
@@ -1520,7 +1358,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                 }}
                 className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-mono font-bold transition-all shrink-0 ${
                   activeTool === 'ruler'
-                    ? 'bg-emerald-500 text-slate-950 font-black shadow-[0_0_20px_rgba(16,185,129,0.6)] ring-2 ring-emerald-300 animate-pulse'
+                    ? 'bg-emerald-500 text-slate-950 font-black shadow-[0_0_20px_rgba(61,220,151,0.6)] ring-2 ring-emerald-300 animate-pulse'
                     : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/25'
                 }`}
               >
@@ -1590,7 +1428,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
               if (!latestRuler || !latestRuler.p2) return null;
               const stats = getRulerStats(latestRuler.p1, latestRuler.p2);
               return (
-                <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-[#091124] border border-cyan-500/40 text-xs font-mono animate-fade-in shadow-md">
+                <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-[#151A21] border border-cyan-500/40 text-xs font-mono animate-fade-in shadow-md">
                   <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                     <span className="text-cyan-400 font-bold">üìè Rezultat:</span>
                     <span className={`font-black ${stats.isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
@@ -1617,14 +1455,14 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
           {/* Chart View Container with Floating Drawing Tools & SVG Overlay */}
           <div className="relative w-full rounded-2xl overflow-hidden bg-background-card border border-background-border">
             {isLoadingHistory && (
-              <div className="absolute left-1/2 top-3 z-40 -translate-x-1/2 rounded-full border border-cyan-500/30 bg-[#07111f]/95 px-3 py-1.5 text-[10px] font-bold font-mono text-cyan-300 shadow-xl backdrop-blur-xl animate-pulse">
+              <div className="absolute left-1/2 top-3 z-40 -translate-x-1/2 rounded-full border border-cyan-500/30 bg-[#12151A]/95 px-3 py-1.5 text-[10px] font-bold font-mono text-cyan-300 shadow-xl backdrop-blur-xl animate-pulse">
                 Se √ÆncarcƒÉ istoric mai vechi‚Ä¶
               </div>
             )}
             {/* Left Floating Technical Drawing Toolbar (Full TradingView Suite - Visible on mobile & desktop, vertically scrollable) */}
             <div
               onTouchStart={(e) => e.stopPropagation()}
-              className="flex absolute left-1.5 sm:left-3 top-2 sm:top-3 z-30 flex-col items-center gap-1 p-1 sm:p-1.5 bg-[#0a0e17]/90 backdrop-blur-xl border border-white/[0.08] rounded-xl shadow-2xl max-h-[calc(100%-1rem)] overflow-y-auto no-scrollbar touch-pan-y overscroll-y-contain"
+              className="flex absolute left-1.5 sm:left-3 top-2 sm:top-3 z-30 flex-col items-center gap-1 p-1 sm:p-1.5 bg-[#0D1015]/90 backdrop-blur-xl border border-white/[0.08] rounded-xl shadow-2xl max-h-[calc(100%-1rem)] overflow-y-auto no-scrollbar touch-pan-y overscroll-y-contain"
             >
               {/* 1. Pointer / Cursor Mode */}
               <button
@@ -1826,7 +1664,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                 if (!anchor || chartWidth <= 0) return null;
 
                 const isBuy = latestState.nextFlip === 'BUY';
-                const color = isBuy ? '#34d399' : '#fb7185';
+                const color = isBuy ? '#57DFA5' : '#FF8AA5';
                 const priceLabel = `$${formatFlipPrice(latestState.slowLine)}`;
                 const estimatedTextWidth = Math.max(38, priceLabel.length * 7.2);
                 const priceScaleWidth = 64;
@@ -1854,7 +1692,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                       x={labelX}
                       y={labelY}
                       fill={color}
-                      stroke="rgba(7, 17, 30, 0.72)"
+                      stroke="rgba(13, 16, 21, 0.72)"
                       strokeWidth="3"
                       paintOrder="stroke"
                       textAnchor="start"
@@ -1883,12 +1721,12 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                         y1={c1.y}
                         x2={c2.x}
                         y2={c2.y}
-                        stroke={d.color || '#06b6d4'}
+                        stroke={d.color || '#C8F169'}
                         strokeWidth="2"
                         strokeLinecap="round"
                       />
-                      <circle cx={c1.x} cy={c1.y} r="3.5" fill={d.color || '#06b6d4'} />
-                      <circle cx={c2.x} cy={c2.y} r="3.5" fill={d.color || '#06b6d4'} />
+                      <circle cx={c1.x} cy={c1.y} r="3.5" fill={d.color || '#C8F169'} />
+                      <circle cx={c2.x} cy={c2.y} r="3.5" fill={d.color || '#C8F169'} />
                     </g>
                   );
                 }
@@ -1907,11 +1745,11 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                         y1={c1.y}
                         x2={extX}
                         y2={extY}
-                        stroke={d.color || '#38bdf8'}
+                        stroke={d.color || '#6FC7FF'}
                         strokeWidth="2"
                         strokeLinecap="round"
                       />
-                      <circle cx={c1.x} cy={c1.y} r="3.5" fill={d.color || '#38bdf8'} />
+                      <circle cx={c1.x} cy={c1.y} r="3.5" fill={d.color || '#6FC7FF'} />
                     </g>
                   );
                 }
@@ -1925,7 +1763,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                         y1={c1.y}
                         x2={2500}
                         y2={c1.y}
-                        stroke={d.color || '#38bdf8'}
+                        stroke={d.color || '#6FC7FF'}
                         strokeWidth="1.5"
                         strokeDasharray="5 5"
                       />
@@ -1935,14 +1773,14 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                         width="80"
                         height="20"
                         rx="4"
-                        fill="#080c14"
-                        stroke={d.color || '#38bdf8'}
+                        fill="#0B0D10"
+                        stroke={d.color || '#6FC7FF'}
                         strokeWidth="1"
                       />
                       <text
                         x={50}
                         y={c1.y + 4}
-                        fill="#38bdf8"
+                        fill="#6FC7FF"
                         textAnchor="middle"
                         fontFamily="monospace"
                         fontSize="10"
@@ -1963,7 +1801,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                         y1={0}
                         x2={c1.x}
                         y2={600}
-                        stroke={d.color || '#a855f7'}
+                        stroke={d.color || '#A78BFA'}
                         strokeWidth="1.5"
                         strokeDasharray="5 5"
                       />
@@ -1975,12 +1813,12 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                 if (d.type === 'fibonacci' && c2 && d.p2) {
                   const fibLevels = [
                     { level: 0.0, label: '0.0% (Start)', color: '#94a3b8' },
-                    { level: 0.236, label: '23.6%', color: '#38bdf8' },
-                    { level: 0.382, label: '38.2%', color: '#34d399' },
-                    { level: 0.5, label: '50.0%', color: '#fbbf24' },
-                    { level: 0.618, label: '61.8% Golden Pocket', color: '#f59e0b' },
-                    { level: 0.786, label: '78.6%', color: '#fb7185' },
-                    { level: 1.0, label: '100.0% (End)', color: '#e879f9' }
+                    { level: 0.236, label: '23.6%', color: '#6FC7FF' },
+                    { level: 0.382, label: '38.2%', color: '#57DFA5' },
+                    { level: 0.5, label: '50.0%', color: '#FFC24B' },
+                    { level: 0.618, label: '61.8% Golden Pocket', color: '#FFC24B' },
+                    { level: 0.786, label: '78.6%', color: '#FF8AA5' },
+                    { level: 1.0, label: '100.0% (End)', color: '#C4B5FD' }
                   ];
 
                   const priceDiff = d.p2.price - d.p1.price;
@@ -2021,7 +1859,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                               width="135"
                               height="18"
                               rx="3"
-                              fill="#080c14"
+                              fill="#0B0D10"
                               stroke={fib.color}
                               strokeWidth="0.8"
                             />
@@ -2047,10 +1885,10 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                   const channelH = 40;
                   return (
                     <g key={d.id}>
-                      <line x1={c1.x} y1={c1.y} x2={c2.x} y2={c2.y} stroke={d.color || '#06b6d4'} strokeWidth="2" />
-                      <line x1={c1.x} y1={c1.y + channelH} x2={c2.x} y2={c2.y + channelH} stroke={d.color || '#06b6d4'} strokeWidth="2" />
-                      <line x1={c1.x} y1={c1.y + channelH / 2} x2={c2.x} y2={c2.y + channelH / 2} stroke={d.color || '#06b6d4'} strokeWidth="1" strokeDasharray="4 4" opacity="0.6" />
-                      <polygon points={`${c1.x},${c1.y} ${c2.x},${c2.y} ${c2.x},${c2.y + channelH} ${c1.x},${c1.y + channelH}`} fill="rgba(6, 182, 212, 0.1)" />
+                      <line x1={c1.x} y1={c1.y} x2={c2.x} y2={c2.y} stroke={d.color || '#C8F169'} strokeWidth="2" />
+                      <line x1={c1.x} y1={c1.y + channelH} x2={c2.x} y2={c2.y + channelH} stroke={d.color || '#C8F169'} strokeWidth="2" />
+                      <line x1={c1.x} y1={c1.y + channelH / 2} x2={c2.x} y2={c2.y + channelH / 2} stroke={d.color || '#C8F169'} strokeWidth="1" strokeDasharray="4 4" opacity="0.6" />
+                      <polygon points={`${c1.x},${c1.y} ${c2.x},${c2.y} ${c2.x},${c2.y + channelH} ${c1.x},${c1.y + channelH}`} fill="rgba(200, 241, 105, 0.1)" />
                     </g>
                   );
                 }
@@ -2063,7 +1901,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                   const height = Math.abs(c2.y - c1.y);
                   return (
                     <g key={d.id}>
-                      <rect x={left} y={top} width={width} height={height} fill="rgba(6, 182, 212, 0.15)" stroke="#06b6d4" strokeWidth="1.5" rx="3" />
+                      <rect x={left} y={top} width={width} height={height} fill="rgba(200, 241, 105, 0.15)" stroke="#C8F169" strokeWidth="1.5" rx="3" />
                     </g>
                   );
                 }
@@ -2078,11 +1916,11 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                   const rr = Math.abs((targetPrice - d.p1.price) / Math.max(0.0001, (d.p1.price - stopLossPrice)));
                   return (
                     <g key={d.id}>
-                      <rect x={c1.x} y={targetY} width={boxWidth} height={Math.abs(c1.y - targetY)} fill="rgba(16, 185, 129, 0.25)" stroke="#10b981" strokeWidth="1.5" />
-                      <rect x={c1.x} y={c1.y} width={boxWidth} height={Math.abs(stopY - c1.y)} fill="rgba(244, 63, 94, 0.25)" stroke="#f43f5e" strokeWidth="1.5" />
+                      <rect x={c1.x} y={targetY} width={boxWidth} height={Math.abs(c1.y - targetY)} fill="rgba(61, 220, 151, 0.25)" stroke="#3DDC97" strokeWidth="1.5" />
+                      <rect x={c1.x} y={c1.y} width={boxWidth} height={Math.abs(stopY - c1.y)} fill="rgba(255, 107, 138, 0.25)" stroke="#FF6B8A" strokeWidth="1.5" />
                       <line x1={c1.x} y1={c1.y} x2={c1.x + boxWidth} y2={c1.y} stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="3 3" />
-                      <rect x={c1.x + 5} y={c1.y - 12} width="110" height="24" rx="4" fill="#080c14" stroke="#10b981" strokeWidth="1" />
-                      <text x={c1.x + 60} y={c1.y + 4} fill="#34d399" textAnchor="middle" fontFamily="monospace" fontSize="10" fontWeight="bold">
+                      <rect x={c1.x + 5} y={c1.y - 12} width="110" height="24" rx="4" fill="#0B0D10" stroke="#3DDC97" strokeWidth="1" />
+                      <text x={c1.x + 60} y={c1.y + 4} fill="#57DFA5" textAnchor="middle" fontFamily="monospace" fontSize="10" fontWeight="bold">
                         LONG ‚Ä¢ R:R {rr.toFixed(2)}
                       </text>
                     </g>
@@ -2099,11 +1937,11 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                   const rr = Math.abs((d.p1.price - targetPrice) / Math.max(0.0001, (stopLossPrice - d.p1.price)));
                   return (
                     <g key={d.id}>
-                      <rect x={c1.x} y={c1.y} width={boxWidth} height={Math.abs(targetY - c1.y)} fill="rgba(16, 185, 129, 0.25)" stroke="#10b981" strokeWidth="1.5" />
-                      <rect x={c1.x} y={stopY} width={boxWidth} height={Math.abs(c1.y - stopY)} fill="rgba(244, 63, 94, 0.25)" stroke="#f43f5e" strokeWidth="1.5" />
+                      <rect x={c1.x} y={c1.y} width={boxWidth} height={Math.abs(targetY - c1.y)} fill="rgba(61, 220, 151, 0.25)" stroke="#3DDC97" strokeWidth="1.5" />
+                      <rect x={c1.x} y={stopY} width={boxWidth} height={Math.abs(c1.y - stopY)} fill="rgba(255, 107, 138, 0.25)" stroke="#FF6B8A" strokeWidth="1.5" />
                       <line x1={c1.x} y1={c1.y} x2={c1.x + boxWidth} y2={c1.y} stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="3 3" />
-                      <rect x={c1.x + 5} y={c1.y - 12} width="110" height="24" rx="4" fill="#080c14" stroke="#f43f5e" strokeWidth="1" />
-                      <text x={c1.x + 60} y={c1.y + 4} fill="#fb7185" textAnchor="middle" fontFamily="monospace" fontSize="10" fontWeight="bold">
+                      <rect x={c1.x + 5} y={c1.y - 12} width="110" height="24" rx="4" fill="#0B0D10" stroke="#FF6B8A" strokeWidth="1" />
+                      <text x={c1.x + 60} y={c1.y + 4} fill="#FF8AA5" textAnchor="middle" fontFamily="monospace" fontSize="10" fontWeight="bold">
                         SHORT ‚Ä¢ R:R {rr.toFixed(2)}
                       </text>
                     </g>
@@ -2131,8 +1969,8 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                         y={top}
                         width={width}
                         height={height}
-                        fill={stats.isUp ? 'rgba(16, 185, 129, 0.18)' : 'rgba(244, 63, 94, 0.18)'}
-                        stroke={stats.isUp ? '#10b981' : '#f43f5e'}
+                        fill={stats.isUp ? 'rgba(61, 220, 151, 0.18)' : 'rgba(255, 107, 138, 0.18)'}
+                        stroke={stats.isUp ? '#3DDC97' : '#FF6B8A'}
                         strokeWidth="1.5"
                         strokeDasharray="4 4"
                         rx="4"
@@ -2143,7 +1981,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                         y1={c1.y}
                         x2={c2.x}
                         y2={c2.y}
-                        stroke={stats.isUp ? '#34d399' : '#fb7185'}
+                        stroke={stats.isUp ? '#57DFA5' : '#FF8AA5'}
                         strokeWidth="1.5"
                         strokeDasharray="2 2"
                       />
@@ -2154,8 +1992,8 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                         width={badgeWidth}
                         height={badgeHeight}
                         rx="8"
-                        fill="#070c17"
-                        stroke={stats.isUp ? '#10b981' : '#f43f5e'}
+                        fill="#0D1015"
+                        stroke={stats.isUp ? '#3DDC97' : '#FF6B8A'}
                         strokeWidth="1.5"
                         filter="drop-shadow(0 4px 10px rgba(0,0,0,0.85))"
                       />
@@ -2163,7 +2001,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                       <text
                         x={badgeX + badgeWidth / 2}
                         y={badgeY + 14}
-                        fill={stats.isUp ? '#34d399' : '#fb7185'}
+                        fill={stats.isUp ? '#57DFA5' : '#FF8AA5'}
                         textAnchor="middle"
                         fontFamily="monospace"
                         fontSize="11"
@@ -2199,7 +2037,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                       y1={currentStart.y}
                       x2={mousePos.x}
                       y2={mousePos.y}
-                      stroke="#06b6d4"
+                      stroke="#C8F169"
                       strokeWidth="2"
                       strokeDasharray="3 3"
                     />
@@ -2211,7 +2049,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                         y1={currentStart.y}
                         x2={mousePos.x}
                         y2={mousePos.y}
-                        stroke="#fbbf24"
+                        stroke="#FFC24B"
                         strokeWidth="1.5"
                         strokeDasharray="4 4"
                       />
@@ -2220,7 +2058,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                         y1={mousePos.y}
                         x2={Math.max(currentStart.x, mousePos.x) + 200}
                         y2={mousePos.y}
-                        stroke="#fbbf24"
+                        stroke="#FFC24B"
                         strokeWidth="1.5"
                       />
                     </g>
@@ -2231,8 +2069,8 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                       y={Math.min(currentStart.y, mousePos.y)}
                       width={Math.abs(mousePos.x - currentStart.x)}
                       height={Math.abs(mousePos.y - currentStart.y)}
-                      fill="rgba(6, 182, 212, 0.15)"
-                      stroke="#06b6d4"
+                      fill="rgba(200, 241, 105, 0.15)"
+                      stroke="#C8F169"
                       strokeWidth="1.5"
                       strokeDasharray="4 4"
                     />
@@ -2243,8 +2081,8 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                       y={Math.min(currentStart.y, mousePos.y)}
                       width={Math.abs(mousePos.x - currentStart.x)}
                       height={Math.abs(mousePos.y - currentStart.y)}
-                      fill={activeTool === 'long_position' ? "rgba(16, 185, 129, 0.2)" : "rgba(244, 63, 94, 0.2)"}
-                      stroke={activeTool === 'long_position' ? "#10b981" : "#f43f5e"}
+                      fill={activeTool === 'long_position' ? "rgba(61, 220, 151, 0.2)" : "rgba(255, 107, 138, 0.2)"}
+                      stroke={activeTool === 'long_position' ? "#3DDC97" : "#FF6B8A"}
                       strokeWidth="1.5"
                       strokeDasharray="4 4"
                     />
@@ -2256,8 +2094,8 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                         y={Math.min(currentStart.y, mousePos.y)}
                         width={Math.abs(mousePos.x - currentStart.x)}
                         height={Math.abs(mousePos.y - currentStart.y)}
-                        fill="rgba(56, 189, 248, 0.18)"
-                        stroke="#38bdf8"
+                        fill="rgba(111, 199, 255, 0.18)"
+                        stroke="#6FC7FF"
                         strokeWidth="1.5"
                         strokeDasharray="4 4"
                         rx="4"
@@ -2267,7 +2105,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                         y1={currentStart.y}
                         x2={mousePos.x}
                         y2={mousePos.y}
-                        stroke="#38bdf8"
+                        stroke="#6FC7FF"
                         strokeWidth="1.5"
                         strokeDasharray="2 2"
                       />
@@ -2302,15 +2140,15 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
                                 width={badgeW}
                                 height={badgeH}
                                 rx="6"
-                                fill="#070c17"
-                                stroke="#38bdf8"
+                                fill="#0D1015"
+                                stroke="#6FC7FF"
                                 strokeWidth="1"
                                 filter="drop-shadow(0 4px 8px rgba(0,0,0,0.8))"
                               />
                               <text
                                 x={bX + badgeW / 2}
                                 y={bY + 13}
-                                fill="#38bdf8"
+                                fill="#6FC7FF"
                                 textAnchor="middle"
                                 fontFamily="monospace"
                                 fontSize="10"
@@ -2445,7 +2283,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="‚ö†Ô∏
             <div className="flex items-center gap-2 text-cyan-300">
               <Sparkles className="w-4 h-4 text-cyan-400 shrink-0" />
               <span>
-                <strong>MoneyLine pe TradingView:</strong> SuperTrendul nativ oferƒÉ reperul vizual direct √Æn grafic, iar pragul exact MoneyLine pentru {activeInterval.toUpperCase()} este linia coloratƒÉ <strong>PRAG ML EXACT</strong> de sus. Bara lateralƒÉ din st√¢nga este panoul oficial TradingView pentru instrumentele de desen.
+                <strong>MoneyLine exact:</strong> folose»ôte tabul ‚ÄûMoneyLine‚Äù pentru norul, pragul »ôi semnalele calculate cu acela»ôi motor ca alertele. Acest tab este graficul TradingView extern »ôi nu poate √ÆncƒÉrca scripturi Pine private.
               </span>
             </div>
           </div>

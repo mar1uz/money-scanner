@@ -12,6 +12,28 @@ export interface MacroIndexItem {
   changePercent: number;
   category: 'Equities' | 'Volatility' | 'Currency' | 'Liquidity';
   statusBadge?: string;
+  observationDate?: string;
+  source?: string;
+}
+
+export interface MacroObservation {
+  value: number;
+  observationDate: string;
+  priorValue?: number;
+  priorObservationDate?: string;
+  yearAgoValue?: number;
+  unit: string;
+  frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annual';
+  source: string;
+  sourceUrl: string;
+  status: 'available' | 'stale' | 'unavailable';
+}
+
+export interface MacroCalendarEvent {
+  title: string;
+  date: string;
+  source: string;
+  sourceUrl: string;
 }
 
 export interface USAEconomicStatus {
@@ -20,10 +42,12 @@ export interface USAEconomicStatus {
     totalNationalDebt: number; // in USD
     debtFormatted: string; // e.g. "$36.24T"
     debtToGdpPercent: number; // e.g. 123.8
-    annualInterestExpense: number; // in USD e.g. 1.12T
-    annualDeficit: number;
-    debtPerCitizen: number;
-    debtPerTaxpayer: number;
+    annualInterestExpense?: number; // in USD
+    annualDeficit?: number;
+    debtPerCitizen?: number;
+    debtPerTaxpayer?: number;
+    observationDate?: string;
+    source?: string;
   };
   inflation: {
     cpiYoY: number; // e.g. 2.7
@@ -38,9 +62,9 @@ export interface USAEconomicStatus {
     fedFundsRateRange: string; // "5.25% - 5.50%"
     effectiveFedRate: number; // 5.33
     nextFomcDate: string; // "18 Septembrie 2026"
-    rateCutProb25bps: number; // e.g. 84
-    rateCutProb50bps: number; // e.g. 16
-    neutralRateEstimate: number; // e.g. 3.25
+    rateCutProb25bps?: number;
+    rateCutProb50bps?: number;
+    neutralRateEstimate?: number;
     cyclePhase: 'Easing Cycle (Rate Cuts)' | 'Tightening' | 'Neutral Pause';
   };
   yieldCurve: {
@@ -64,6 +88,14 @@ export interface USAEconomicStatus {
     m2GrowthYoY: number; // e.g. 2.8
   };
   indices: MacroIndexItem[];
+  indicators?: Record<string, MacroObservation>;
+  calendar?: MacroCalendarEvent[];
+  dataQuality?: {
+    generatedAt: number;
+    staleSources: string[];
+    unavailableSeries: string[];
+    note: string;
+  };
   aiGuidance: {
     regimeTitle: string; // "Soft Landing & Global Liquidity Expansion"
     executiveSummary: string;
@@ -82,6 +114,6 @@ export interface USAEconomicStatus {
     };
     keyRiskFactors: string[];
     actionableTradingThesis: string;
-    confidenceScore: number; // 0-100
+    confidenceScore?: number; // 0-100; omitted for deterministic summaries
   };
 }

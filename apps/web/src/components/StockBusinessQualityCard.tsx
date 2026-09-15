@@ -202,7 +202,7 @@ export const StockBusinessQualityCard: React.FC<StockBusinessQualityCardProps> =
     : null;
 
   return (
-    <div className="rounded-2xl bg-gradient-to-b from-[#110f24] via-[#0d111e] to-[#070b16] border border-purple-500/25 shadow-lg overflow-hidden">
+    <div className="rounded-2xl bg-gradient-to-b from-[#161B24] via-[#12151A] to-[#0D1015] border border-purple-500/25 shadow-lg overflow-hidden">
       {/* ── Compact Header (always visible) ── */}
       <button
         onClick={() => setExpanded(prev => !prev)}

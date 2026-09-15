@@ -376,14 +376,14 @@ const PriceChart: React.FC<{ result: BacktestResult }> = ({ result }) => {
           <span className="text-slate-200">● Preț</span><span className="text-cyan-300">— {isRsiStrategy ? 'SMA5' : 'SMA50'}</span><span className="text-amber-300">— SMA200</span>{isDonchian && <><span className="text-violet-300">— D55</span><span className="text-emerald-300">— D20</span></>}<span className="text-emerald-300">▲ Entry</span><span className="text-rose-300">× Exit</span>
         </div>
       </div>
-      <div className="mt-4 overflow-hidden rounded-xl border border-white/[0.05] bg-[#202b22] p-2">
+      <div className="mt-4 overflow-hidden rounded-xl border border-white/[0.05] bg-[#151A21] p-2">
         <svg viewBox={`0 0 ${width} ${height}`} className="h-64 w-full" role="img" aria-label="Grafic backtest cu intrări și ieșiri">
-          {[0.25, 0.5, 0.75].map(level => <line key={level} x1="0" y1={height * level} x2={width} y2={height * level} stroke="#172033" strokeDasharray="4 5" />)}
+          {[0.25, 0.5, 0.75].map(level => <line key={level} x1="0" y1={height * level} x2={width} y2={height * level} stroke="#1D222B" strokeDasharray="4 5" />)}
           <path d={path(point => point.close)} fill="none" stroke="#e2e8f0" strokeWidth="1.5" opacity="0.9" />
-          <path d={path(fastValue)} fill="none" stroke="#22d3ee" strokeWidth="1.7" />
-          <path d={path(point => point.sma200)} fill="none" stroke="#fbbf24" strokeWidth="1.7" />
-          {isDonchian && <path d={path(point => point.donchianHigh55 ?? point.close)} fill="none" stroke="#a78bfa" strokeWidth="1.4" strokeDasharray="5 4" />}
-          {isDonchian && <path d={path(point => point.donchianLow20 ?? point.close)} fill="none" stroke="#34d399" strokeWidth="1.4" strokeDasharray="5 4" />}
+          <path d={path(fastValue)} fill="none" stroke="#CDEE7F" strokeWidth="1.7" />
+          <path d={path(point => point.sma200)} fill="none" stroke="#FFC24B" strokeWidth="1.7" />
+          {isDonchian && <path d={path(point => point.donchianHigh55 ?? point.close)} fill="none" stroke="#A78BFA" strokeWidth="1.4" strokeDasharray="5 4" />}
+          {isDonchian && <path d={path(point => point.donchianLow20 ?? point.close)} fill="none" stroke="#57DFA5" strokeWidth="1.4" strokeDasharray="5 4" />}
           {result.trades.map(trade => {
             const entryPoint = pointAt(trade.entryTimestamp);
             const exitPoint = pointAt(trade.exitTimestamp);
@@ -391,31 +391,31 @@ const PriceChart: React.FC<{ result: BacktestResult }> = ({ result }) => {
             const entryY = y(entryPoint.close);
             const exitX = x(trade.exitTimestamp);
             const exitY = y(exitPoint.close);
-            const entryColor = trade.side === 'LONG' ? '#34d399' : '#fb7185';
+            const entryColor = trade.side === 'LONG' ? '#57DFA5' : '#FF8AA5';
             return (
               <g key={trade.id}>
                 <path d={`M ${entryX} ${entryY - 8} L ${entryX - 5} ${entryY + 2} L ${entryX + 5} ${entryY + 2} Z`} fill={entryColor} />
-                <line x1={exitX - 4} y1={exitY - 4} x2={exitX + 4} y2={exitY + 4} stroke="#fb7185" strokeWidth="2" />
-                <line x1={exitX + 4} y1={exitY - 4} x2={exitX - 4} y2={exitY + 4} stroke="#fb7185" strokeWidth="2" />
+                <line x1={exitX - 4} y1={exitY - 4} x2={exitX + 4} y2={exitY + 4} stroke="#FF8AA5" strokeWidth="2" />
+                <line x1={exitX + 4} y1={exitY - 4} x2={exitX - 4} y2={exitY + 4} stroke="#FF8AA5" strokeWidth="2" />
               </g>
             );
           })}
         </svg>
       </div>
       {isRsiStrategy && (
-        <div className="mt-2 rounded-xl border border-white/[0.05] bg-[#202b22] px-2 py-1.5">
+        <div className="mt-2 rounded-xl border border-white/[0.05] bg-[#151A21] px-2 py-1.5">
           <div className="mb-1 flex items-center justify-between font-mono text-[8px] uppercase text-slate-600">
             <span>RSI(2)</span>
             <span>{isBearRally ? `Armare > ${rsiThreshold} · confirmare < ${rsiConfirmation}` : `Armare < ${rsiThreshold} · confirmare > ${rsiConfirmation}`}</span>
           </div>
           <svg viewBox={`0 0 ${width} 72`} className="h-16 w-full" role="img" aria-label="RSI 2 și pragul de intrare">
-            <line x1="0" y1={66 - rsiThreshold / 100 * 58} x2={width} y2={66 - rsiThreshold / 100 * 58} stroke={isBearRally ? '#fb7185' : '#34d399'} strokeDasharray="4 5" opacity="0.75" />
-            <line x1="0" y1={66 - rsiConfirmation / 100 * 58} x2={width} y2={66 - rsiConfirmation / 100 * 58} stroke={isBearRally ? '#fbbf24' : '#34d399'} strokeDasharray="4 5" opacity="0.65" />
-            <path d={rsiPath} fill="none" stroke="#a78bfa" strokeWidth="1.5" />
+            <line x1="0" y1={66 - rsiThreshold / 100 * 58} x2={width} y2={66 - rsiThreshold / 100 * 58} stroke={isBearRally ? '#FF8AA5' : '#57DFA5'} strokeDasharray="4 5" opacity="0.75" />
+            <line x1="0" y1={66 - rsiConfirmation / 100 * 58} x2={width} y2={66 - rsiConfirmation / 100 * 58} stroke={isBearRally ? '#FFC24B' : '#57DFA5'} strokeDasharray="4 5" opacity="0.65" />
+            <path d={rsiPath} fill="none" stroke="#A78BFA" strokeWidth="1.5" />
             {points.filter(point => isBearRally ? point.armedShort || point.shortTrigger : point.armedLong || point.longTrigger).map(point => {
               const value = Math.max(0, Math.min(100, point.rsi2 ?? 50));
               const confirmed = isBearRally ? point.shortTrigger : point.longTrigger;
-              return <circle key={point.timestamp} cx={x(point.timestamp)} cy={66 - value / 100 * 58} r={confirmed ? 3.6 : 2.6} fill={confirmed ? (isBearRally ? '#fb7185' : '#34d399') : '#fbbf24'} />;
+              return <circle key={point.timestamp} cx={x(point.timestamp)} cy={66 - value / 100 * 58} r={confirmed ? 3.6 : 2.6} fill={confirmed ? (isBearRally ? '#FF8AA5' : '#57DFA5') : '#FFC24B'} />;
             })}
           </svg>
         </div>
@@ -442,11 +442,11 @@ const EquityChart: React.FC<{ result: BacktestResult }> = ({ result }) => {
         <h2 className="text-sm font-bold text-slate-100">Curba capitalului, marcată la piață</h2>
         <div className="flex gap-3 text-[9px] font-bold uppercase"><span className="text-cyan-300">— Strategie</span><span className="text-slate-400">-- Buy & Hold</span></div>
       </div>
-      <div className="mt-4 overflow-hidden rounded-xl border border-white/[0.05] bg-[#202b22] p-2">
+      <div className="mt-4 overflow-hidden rounded-xl border border-white/[0.05] bg-[#151A21] p-2">
         <svg viewBox={`0 0 ${width} ${height}`} className="h-48 w-full">
-          <line x1="0" y1={height / 2} x2={width} y2={height / 2} stroke="#172033" strokeDasharray="4 5" />
+          <line x1="0" y1={height / 2} x2={width} y2={height / 2} stroke="#1D222B" strokeDasharray="4 5" />
           <path d={path('benchmarkEquity')} fill="none" stroke="#64748b" strokeWidth="1.4" strokeDasharray="4 4" />
-          <path d={path('strategyEquity')} fill="none" stroke="#22d3ee" strokeWidth="2.2" />
+          <path d={path('strategyEquity')} fill="none" stroke="#CDEE7F" strokeWidth="2.2" />
         </svg>
       </div>
     </section>

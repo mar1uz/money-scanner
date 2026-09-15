@@ -188,7 +188,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className={`app-header fixed top-0 right-0 ${hasSidebar ? 'left-0 md:left-[260px]' : 'left-0'} z-40 bg-[#202b22]/95 backdrop-blur-2xl border-b border-white/[0.08] px-2 sm:px-6 lg:px-8 h-[56px] flex items-center justify-between gap-1.5 sm:gap-4 transition-all`}>
+    <header className={`app-header fixed top-0 right-0 ${hasSidebar ? 'left-0 md:left-[260px]' : 'left-0'} z-40 bg-[#151A21]/95 backdrop-blur-2xl border-b border-white/[0.08] px-2 sm:px-6 lg:px-8 h-[56px] flex items-center justify-between gap-1.5 sm:gap-4 transition-all`}>
       {/* Mobile search is a real fixed-width control, so it cannot overlap the timeframe pills. */}
       <button
         type="button"
@@ -257,7 +257,7 @@ export const Header: React.FC<HeaderProps> = ({
             />
 
             {/* Dropdown Container */}
-            <div className="absolute left-0 right-0 top-full mt-2 bg-[#202b22] border border-cyan-500/40 rounded-2xl shadow-2xl overflow-hidden z-50 animate-fade-in max-h-[440px] overflow-y-auto divide-y divide-white/[0.04]">
+            <div className="absolute left-0 right-0 top-full mt-2 bg-[#151A21] border border-cyan-500/40 rounded-2xl shadow-2xl overflow-hidden z-50 animate-fade-in max-h-[440px] overflow-y-auto divide-y divide-white/[0.04]">
               <div className="p-2.5 bg-white/[0.04] text-[10px] font-mono text-slate-400 flex items-center justify-between border-b border-white/[0.06]">
                 <span className="flex items-center gap-1 text-cyan-300 font-bold">
                   <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
@@ -474,7 +474,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
 
           {isLanguageOpen && (
-            <div className="absolute right-0 top-full mt-2 min-w-[150px] overflow-hidden rounded-xl border border-cyan-500/30 bg-[#202b22] shadow-2xl z-50 animate-fade-in">
+            <div className="absolute right-0 top-full mt-2 min-w-[150px] overflow-hidden rounded-xl border border-cyan-500/30 bg-[#151A21] shadow-2xl z-50 animate-fade-in">
               {([
                 { id: 'ro' as Language, label: 'Română' },
                 { id: 'en' as Language, label: 'English' }

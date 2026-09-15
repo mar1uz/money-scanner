@@ -31,7 +31,7 @@ export const AssetProfileOverviewCard: React.FC<AssetProfileOverviewCardProps> =
   const keyPoints = isRo ? profile.keyPointsRo : profile.keyPointsEn;
 
   return (
-    <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-b from-[#0e172e] via-[#090f20] to-[#070b16] border border-cyan-500/35 shadow-2xl space-y-4">
+    <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-b from-[#161B24] via-[#12151A] to-[#0D1015] border border-cyan-500/35 shadow-2xl space-y-4">
       {/* ── Header ── */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/[0.06]">
         <div className="flex items-center gap-3">

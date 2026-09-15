@@ -216,7 +216,7 @@ export const CryptoBusinessQualityCard: React.FC<CryptoBusinessQualityCardProps>
     : null;
 
   return (
-    <div className="rounded-2xl bg-gradient-to-b from-[#0a1225] to-[#070b16] border border-cyan-500/20 shadow-lg overflow-hidden">
+    <div className="rounded-2xl bg-gradient-to-b from-[#151A21] to-[#0D1015] border border-cyan-500/20 shadow-lg overflow-hidden">
       {/* ── Compact Header (always visible) ── */}
       <button
         onClick={() => setExpanded(prev => !prev)}
