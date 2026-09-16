@@ -23,7 +23,7 @@ type SortField = 'rank' | 'price' | 'change' | 'changeYtd' | 'marketCap';
 type SortDirection = 'asc' | 'desc';
 
 interface CryptoHeatMapViewProps {
-  onSelectAsset: (symbol: string, coinGeckoId?: string, marketClass?: string) => void;
+  onSelectAsset: (symbol: string, coinGeckoId?: string, coinPaprikaId?: string, marketClass?: string) => void;
 }
 
 interface HeatRect {
@@ -410,7 +410,7 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
       )}
 
       {/* ── Treemap Squares Visual ── */}
-      <div className="relative min-h-[520px] sm:min-h-[640px] md:min-h-[720px] overflow-hidden rounded-2xl border border-white/[0.08] bg-[#151A21] shadow-2xl">
+      <div className="relative min-h-[520px] sm:min-h-[640px] md:min-h-[720px] overflow-hidden rounded-[30px] border border-white/[0.08] bg-[#151A21] shadow-2xl">
         {loading && !coins.length ? (
           <div className="flex min-h-[520px] items-center justify-center gap-3 font-mono text-sm text-slate-400">
             <RefreshCw className="h-5 w-5 animate-spin text-cyan-400" />
@@ -426,7 +426,8 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
               type="button"
               onClick={() => onSelectAsset(
                 rect.coin.symbol,
-                scope === 'crypto' ? rect.coin.id : undefined,
+                scope === 'crypto' ? rect.coin.coinGeckoId : undefined,
+                scope === 'crypto' ? rect.coin.coinPaprikaId : undefined,
                 scope
               )}
               title={`${rect.coin.name} · #${rect.coin.rank} · ${formatMarketCap(rect.coin.marketCap)} · Preț: ${formatPrice(rect.coin.price)} · ${rect.coin.change === null ? '—' : `${rect.coin.change >= 0 ? '+' : ''}${rect.coin.change.toFixed(2)}%`} · YTD: ${rect.coin.changeYtd !== undefined && rect.coin.changeYtd !== null ? `${rect.coin.changeYtd >= 0 ? '+' : ''}${rect.coin.changeYtd.toFixed(2)}%` : '—'}`}
@@ -474,7 +475,7 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
       </div>
 
       {/* ── Top Detailed List / Table (Optimized for Mobile & Desktop) ── */}
-      <div className="rounded-2xl border border-white/[0.08] bg-[#151A21] shadow-xl overflow-hidden">
+      <div className="rounded-[30px] border border-white/[0.08] bg-[#151A21] shadow-xl overflow-hidden">
         {/* Subheader & Search */}
         <div className="p-4 sm:p-5 border-b border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-white/[0.02] to-transparent">
           <div>
@@ -584,7 +585,7 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
                   return (
                     <tr
                       key={coin.id}
-                      onClick={() => onSelectAsset(coin.symbol, scope === 'crypto' ? coin.id : undefined, scope)}
+                      onClick={() => onSelectAsset(coin.symbol, scope === 'crypto' ? coin.coinGeckoId : undefined, scope === 'crypto' ? coin.coinPaprikaId : undefined, scope)}
                       className="hover:bg-white/[0.03] transition-colors cursor-pointer group"
                     >
                       {/* Rank */}
@@ -689,7 +690,7 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
                 <button
                   key={coin.id}
                   type="button"
-                  onClick={() => onSelectAsset(coin.symbol, scope === 'crypto' ? coin.id : undefined, scope)}
+                  onClick={() => onSelectAsset(coin.symbol, scope === 'crypto' ? coin.coinGeckoId : undefined, scope === 'crypto' ? coin.coinPaprikaId : undefined, scope)}
                   className="w-full p-3.5 text-left hover:bg-white/[0.04] transition-colors flex flex-col gap-2.5"
                 >
                   {/* Top Row: Rank, Icon, Symbol, Name & Price */}

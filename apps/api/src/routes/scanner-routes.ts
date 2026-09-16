@@ -29,6 +29,30 @@ let binanceSpotCache: { rows: BinanceMarketRow[]; expiresAt: number } | undefine
 let binanceFuturesCache: { rows: BinanceMarketRow[]; expiresAt: number } | undefined;
 const searchResponseCache = new Map<string, { payload: ReturnType<typeof rankSymbolSearchCandidates>; expiresAt: number }>();
 
+const normalizeProviderName = (value: string) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+// Bubble and Heat Map deep links pass exact provider IDs, bypassing the
+// symbol-only scanner route. When such a coin is missing from the static
+// catalog, keep deep-dive parity with Market Scanner clicks: a name-verified
+// match in the live exchange-backed top list continues on the standard
+// exchange route (candles + Money Line) instead of degrading to the
+// price-only aggregator page.
+const matchesLiveExchangeAsset = async (symbol: string, providerName: string): Promise<boolean> => {
+  const profileName = normalizeProviderName(providerName);
+  if (!profileName) return false;
+  try {
+    const liveAsset = (await AppState.getInstance().marketData.getTopCryptoAssets(150))
+      .find(asset => asset.symbol.toUpperCase() === symbol);
+    const liveName = normalizeProviderName(liveAsset?.name || '');
+    if (!liveName) return false;
+    return liveName === profileName
+      || (profileName.length >= 4 && liveName.includes(profileName))
+      || (liveName.length >= 4 && profileName.includes(liveName));
+  } catch {
+    return false;
+  }
+};
+
 const fetchJson = async <T>(url: string, timeoutMs = 3_500, headers?: Record<string, string>): Promise<T | undefined> => {
   try {
     const response = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
@@ -391,7 +415,9 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       const matchesCatalog = catalog?.coinGeckoId && cryptoReference.coinGeckoId
         ? catalog.coinGeckoId === cryptoReference.coinGeckoId
         : names.some(name => name.trim().toLowerCase() === profile.name.trim().toLowerCase());
-      if (!matchesCatalog) return res.json(await loadAggregated());
+      if (!matchesCatalog && !(await matchesLiveExchangeAsset(symbol, profile.name))) {
+        return res.json(await loadAggregated());
+      }
     }
 
     let assetInfo = TRADING_360_ASSETS.find(asset =>

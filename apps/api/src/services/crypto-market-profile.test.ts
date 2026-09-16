@@ -138,6 +138,30 @@ test('Bitcoin from Bubbles retains existing exchange candles and Money Line rout
   assert.equal(body.dataAvailability, undefined);
 });
 
+test('bubble coin missing from the catalog keeps scanner parity when verified on the live exchange list', async t => {
+  const profile = normalizeCryptoProfile(row({ id: 'popcat', symbol: 'popcat', name: 'Popcat' }), 'coingecko')!;
+  t.mock.method(cryptoMarketProfiles, 'resolve', async () => profile);
+  t.mock.method(cryptoMarketProfiles, 'prices', async () => { assert.fail('POPCAT must keep exchange OHLCV, not aggregated price history'); });
+  let candleCalls = 0;
+  t.mock.method(AppState, 'getInstance', () => ({
+    marketData: {
+      getTopCryptoAssets: async () => [{ symbol: 'POPCAT', name: 'Popcat', marketClass: 'crypto' }],
+      getPriceQuote: async () => ({ price: 1.2 }),
+      getCandles: async () => { candleCalls++; return []; }
+    },
+    moneyLine: { calculateLatest: () => null },
+    news: { getNewsForAsset: async () => [], getCachedNewsForAsset: () => [] },
+    social: { getPostsForSymbol: () => [], getTrendingTopics: () => [] }
+  }));
+  const handler = (scannerRouter.stack.find((layer: any) => layer.route?.path === '/assets/:symbol') as any).route.stack[0].handle;
+  let body: any;
+  await handler({ params: { symbol: 'POPCAT' }, query: { marketClass: 'crypto', timeframe: '1w', coinGeckoId: 'popcat' } },
+    { json: (value: any) => { body = value; }, status: (status: number) => { assert.fail(`Unexpected HTTP ${status}`); } });
+  assert.equal(candleCalls, 6);
+  assert.equal(body.dataAvailability, undefined);
+  assert.equal(body.info.name, 'Popcat');
+});
+
 test('Money Line uses DEX OHLCV only after 210 verified closed candles', async () => {
   const profiles = new CryptoMarketProfiles(async input => response(String(input).includes('market_chart') ? { prices: [] } : [row()]));
   const candles = Array.from({ length: 211 }, (_, index) => ({ timestamp: index * 3_600_000, open: 1, high: 2, low: 0.5, close: 1.5, volume: 10, isClosed: index < 210 }));
