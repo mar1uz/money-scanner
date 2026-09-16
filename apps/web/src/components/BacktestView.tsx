@@ -138,7 +138,7 @@ export const BacktestView: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-8">
-      <section className="rounded-2xl border border-cyan-500/25 bg-gradient-to-br from-cyan-500/[0.08] via-background-card to-violet-500/[0.06] p-4 sm:p-6">
+      <section className="rounded-[30px] border border-cyan-500/25 bg-gradient-to-br from-cyan-500/[0.08] via-background-card to-violet-500/[0.06] p-4 sm:p-6">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div className="max-w-3xl">
             <div className="flex items-center gap-2 text-cyan-300">
@@ -214,7 +214,7 @@ export const BacktestView: React.FC = () => {
       )}
 
       {loading && !result ? (
-        <div className="h-72 animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.03]" />
+        <div className="h-72 animate-pulse rounded-[30px] border border-white/[0.06] bg-white/[0.03]" />
       ) : result ? (
         <>
           <section className="grid grid-cols-2 gap-3 lg:grid-cols-6">
@@ -246,7 +246,7 @@ export const BacktestView: React.FC = () => {
 
           <section className="grid gap-4 xl:grid-cols-[1.45fr_0.55fr]">
             <PriceChart result={result} />
-            <div className="rounded-2xl border border-white/[0.07] bg-background-card p-4">
+            <div className="rounded-[30px] border border-white/[0.07] bg-background-card p-4">
               <h2 className="text-sm font-bold text-slate-100">Reguli testate</h2>
               <div className="mt-3 space-y-2">
                 {(result.strategyRules || []).map((rule, index) => (
@@ -276,7 +276,7 @@ export const BacktestView: React.FC = () => {
 
           <EquityChart result={result} />
 
-          <section className="rounded-2xl border border-violet-500/20 bg-violet-500/[0.04] p-4 sm:p-5">
+          <section className="rounded-[30px] border border-violet-500/20 bg-violet-500/[0.04] p-4 sm:p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="flex items-center gap-2"><GitCompareArrows className="h-4 w-4 text-violet-300" /><h2 className="text-sm font-bold text-slate-100">Verificare multi-asset</h2></div>
@@ -366,7 +366,7 @@ const PriceChart: React.FC<{ result: BacktestResult }> = ({ result }) => {
   , points[0]);
 
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-background-card p-4 sm:p-5">
+    <div className="rounded-[30px] border border-white/[0.07] bg-background-card p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-bold text-slate-100">Preț, {isRsiStrategy ? 'SMA5' : 'SMA50'}{isDonchian ? ', Donchian 55/20' : ''} și execuții</h2>
@@ -437,7 +437,7 @@ const EquityChart: React.FC<{ result: BacktestResult }> = ({ result }) => {
     `${index ? 'L' : 'M'} ${(index / Math.max(1, points.length - 1) * width).toFixed(2)} ${y(point[field]).toFixed(2)}`
   ).join(' ');
   return (
-    <section className="rounded-2xl border border-white/[0.07] bg-background-card p-4 sm:p-5">
+    <section className="rounded-[30px] border border-white/[0.07] bg-background-card p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-bold text-slate-100">Curba capitalului, marcată la piață</h2>
         <div className="flex gap-3 text-[9px] font-bold uppercase"><span className="text-cyan-300">— Strategie</span><span className="text-slate-400">-- Buy & Hold</span></div>
@@ -484,7 +484,7 @@ const MiniStat: React.FC<{ label: string; value: string }> = ({ label, value }) 
 );
 
 const TradeLog: React.FC<{ result: BacktestResult }> = ({ result }) => (
-  <section className="rounded-2xl border border-white/[0.07] bg-background-card p-4 sm:p-5">
+  <section className="rounded-[30px] border border-white/[0.07] bg-background-card p-4 sm:p-5">
     <h2 className="text-sm font-bold text-slate-100">Execuții ({result.trades.length})</h2>
     <div className="mt-3 overflow-x-auto">
       <table className="w-full min-w-[900px] text-left font-mono text-[10px]">

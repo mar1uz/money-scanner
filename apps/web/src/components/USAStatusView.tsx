@@ -65,7 +65,7 @@ export const USAStatusView: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in font-sans">
       {/* Header Banner */}
-      <div className="flex flex-wrap items-center justify-between gap-4 p-6 cyber-glass rounded-2xl border border-background-border shadow-2xl">
+      <div className="flex flex-wrap items-center justify-between gap-4 p-6 cyber-glass rounded-[30px] border border-background-border shadow-2xl">
         <div className="space-y-1.5">
           <div className="flex items-center gap-2.5">
             <span className="text-2xl">🇺🇸</span>
@@ -101,7 +101,7 @@ export const USAStatusView: React.FC = () => {
       {/* 4 Core Macro Pillars */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Pillar 1: U.S. National Debt */}
-        <div className="cyber-glass rounded-2xl p-5 border border-rose-500/30 bg-rose-500/5 space-y-3 relative overflow-hidden shadow-glow-ruby">
+        <div className="cyber-glass rounded-[30px] p-5 border border-rose-500/30 bg-rose-500/5 space-y-3 relative overflow-hidden shadow-glow-ruby">
           <div className="flex items-center justify-between font-mono text-xs text-slate-400">
             <span className="uppercase font-bold tracking-wider text-rose-300">Datoria Totală SUA</span>
             <a
@@ -135,7 +135,7 @@ export const USAStatusView: React.FC = () => {
         </div>
 
         {/* Pillar 2: Inflation & CPI vs Fed Target */}
-        <div className="cyber-glass rounded-2xl p-5 border border-emerald-500/30 bg-emerald-500/5 space-y-3 shadow-glow-emerald">
+        <div className="cyber-glass rounded-[30px] p-5 border border-emerald-500/30 bg-emerald-500/5 space-y-3 shadow-glow-emerald">
           <div className="flex items-center justify-between font-mono text-xs text-slate-400">
             <span className="uppercase font-bold tracking-wider text-emerald-300">Inflație &amp; CPI YoY</span>
             <Percent className="w-4 h-4 text-emerald-400" />
@@ -162,7 +162,7 @@ export const USAStatusView: React.FC = () => {
         </div>
 
         {/* Pillar 3: Fed Policy & Rate Cut Odds */}
-        <div className="cyber-glass rounded-2xl p-5 border border-cyan-500/30 bg-cyan-500/5 space-y-3 shadow-glow-cyan">
+        <div className="cyber-glass rounded-[30px] p-5 border border-cyan-500/30 bg-cyan-500/5 space-y-3 shadow-glow-cyan">
           <div className="flex items-center justify-between font-mono text-xs text-slate-400">
             <span className="uppercase font-bold tracking-wider text-cyan-300">Dobânda Fed &amp; Ciclul FOMC</span>
             <Activity className="w-4 h-4 text-cyan-400" />
@@ -189,7 +189,7 @@ export const USAStatusView: React.FC = () => {
         </div>
 
         {/* Pillar 4: Labor Market & Unemployment */}
-        <div className="cyber-glass rounded-2xl p-5 border border-background-border space-y-3">
+        <div className="cyber-glass rounded-[30px] p-5 border border-background-border space-y-3">
           <div className="flex items-center justify-between font-mono text-xs text-slate-400">
             <span className="uppercase font-bold tracking-wider text-slate-300">Piața Muncii &amp; Șomaj</span>
             <TrendingUp className="w-4 h-4 text-cyan-400" />
@@ -219,7 +219,7 @@ export const USAStatusView: React.FC = () => {
       {/* Yield Curve & Inversion Radar + Major US Indices */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 Cols: Interactive US Treasury Yield Curve */}
-        <div className="lg:col-span-2 cyber-glass rounded-2xl p-6 border border-background-border space-y-4">
+        <div className="lg:col-span-2 cyber-glass rounded-[30px] p-6 border border-background-border space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-background-border">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
@@ -280,7 +280,7 @@ export const USAStatusView: React.FC = () => {
         </div>
 
         {/* Right Col: Wall Street Indices & Volatility (VIX, DXY, M2) */}
-        <div className="cyber-glass rounded-2xl p-6 border border-background-border space-y-3">
+        <div className="cyber-glass rounded-[30px] p-6 border border-background-border space-y-3">
           <div className="flex items-center justify-between font-mono text-xs text-slate-300 pb-2 border-b border-background-border">
             <h3 className="font-bold text-sm text-slate-100">Indici Majori &amp; Barometru Macro</h3>
             <span className="text-[10px] text-cyan-400 font-bold">Wall Street 360°</span>
@@ -330,7 +330,7 @@ export const USAStatusView: React.FC = () => {
 
       {/* Extended official series */}
       {data.indicators && (
-        <div className="cyber-glass rounded-2xl p-6 border border-background-border space-y-4">
+        <div className="cyber-glass rounded-[30px] p-6 border border-background-border space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-background-border pb-3">
             <div>
               <h3 className="font-bold text-base text-slate-100 font-mono">Indicatori Macro Extinse</h3>
@@ -357,7 +357,7 @@ export const USAStatusView: React.FC = () => {
       )}
 
       {data.calendar?.length ? (
-        <div className="cyber-glass rounded-2xl p-6 border border-background-border space-y-3">
+        <div className="cyber-glass rounded-[30px] p-6 border border-background-border space-y-3">
           <div className="flex items-center gap-2 border-b border-background-border pb-3">
             <Calendar className="w-4 h-4 text-cyan-400" />
             <h3 className="font-bold text-base text-slate-100 font-mono">Calendar macro SUA</h3>
@@ -375,7 +375,7 @@ export const USAStatusView: React.FC = () => {
       ) : null}
 
       {/* Macro synthesis & multi-asset context */}
-      <div className="cyber-glass rounded-2xl p-6 border border-background-border space-y-6 shadow-2xl">
+      <div className="cyber-glass rounded-[30px] p-6 border border-background-border space-y-6 shadow-2xl">
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-background-border">
           <div className="flex items-center gap-2.5">
             <BrainCircuit className="w-5 h-5 text-cyan-400" />
@@ -396,7 +396,7 @@ export const USAStatusView: React.FC = () => {
         </div>
 
         {/* Executive Summary Card */}
-        <div className="p-5 rounded-2xl bg-gradient-to-r from-cyan-500/10 via-background-surface to-emerald-500/10 border border-cyan-500/30 space-y-2">
+        <div className="p-5 rounded-[30px] bg-gradient-to-r from-cyan-500/10 via-background-surface to-emerald-500/10 border border-cyan-500/30 space-y-2">
           <div className="flex items-center gap-2 font-mono text-xs font-bold text-cyan-300">
             <Zap className="w-4 h-4 text-cyan-400" />
             <span>{data.aiGuidance.regimeTitle}</span>

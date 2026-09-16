@@ -627,7 +627,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
       </div>
 
       {/* Cyber Table with Interactive Sortable Column Headers & 2D Sticky Headers */}
-      <div className="overflow-auto max-h-[75vh] md:max-h-[82vh] rounded-2xl border border-white/[0.08] card-base shadow-2xl relative custom-scrollbar">
+      <div className="overflow-auto max-h-[75vh] md:max-h-[82vh] rounded-[30px] border border-white/[0.08] card-base shadow-2xl relative custom-scrollbar">
         <table className="w-full text-left text-xs border-collapse">
           <thead className="sticky top-0 z-20 bg-[#151A21] border-b border-white/[0.08] text-[11px] font-mono uppercase tracking-wider text-slate-400 select-none shadow-md">
             <tr>

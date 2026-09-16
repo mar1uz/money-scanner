@@ -585,7 +585,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
                 {explanation ? (
                   <>
                     {/* 1. 🎯 GHID DE INVESTIȚIE & VERDICT STRATEGIC */}
-                    <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-b from-[#151A21] to-[#0D1015] border border-cyan-500/30 shadow-xl space-y-4">
+                    <div className="p-4 sm:p-5 rounded-[30px] bg-gradient-to-b from-[#151A21] to-[#0D1015] border border-cyan-500/30 shadow-xl space-y-4">
                       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/[0.06]">
                         <div className="flex items-center gap-2.5">
                           <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300">
@@ -672,7 +672,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
 
                     {/* 2. 🔮 PERSPECTIVĂ & FORWARD ECONOMIC */}
                     {explanation.economicForward && (
-                      <div className="p-4 sm:p-5 rounded-2xl bg-white/[0.02] border border-white/[0.06] space-y-4">
+                      <div className="p-4 sm:p-5 rounded-[30px] bg-white/[0.02] border border-white/[0.06] space-y-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <TrendingUp className="w-4 h-4 text-cyan-400" />
@@ -738,7 +738,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
 
                     {/* 3. 📊 REZUMAT ULTIMELE RAPOARTE ECONOMICE & FINANCIARE */}
                     {explanation.recentReports && explanation.recentReports.length > 0 && (
-                      <div className="p-4 sm:p-5 rounded-2xl bg-white/[0.02] border border-white/[0.06] space-y-4">
+                      <div className="p-4 sm:p-5 rounded-[30px] bg-white/[0.02] border border-white/[0.06] space-y-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <FileText className="w-4 h-4 text-emerald-400" />
@@ -790,7 +790,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
                     )}
 
                     {/* 4. 🛡️ TEZĂ TEHNICĂ & SUPORT / REZISTENȚĂ */}
-                    <div className="p-4 sm:p-5 rounded-2xl bg-white/[0.02] border border-white/[0.06] space-y-3">
+                    <div className="p-4 sm:p-5 rounded-[30px] bg-white/[0.02] border border-white/[0.06] space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Compass className="w-4 h-4 text-cyan-400" />

@@ -134,7 +134,7 @@ export const StockBusinessQualityCard: React.FC<StockBusinessQualityCardProps> =
   // ── Loading state ──
   if (loading) {
     return (
-      <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06] flex items-center gap-3">
+      <div className="p-4 rounded-[30px] bg-white/[0.02] border border-white/[0.06] flex items-center gap-3">
         <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
         <span className="text-xs text-slate-400 font-mono">
           {isRo ? 'Se evaluează profitabilitatea și calitatea acțiunii…' : 'Evaluating stock profitability and business quality…'}
@@ -146,7 +146,7 @@ export const StockBusinessQualityCard: React.FC<StockBusinessQualityCardProps> =
   // ── Error state — non-blocking ──
   if (error) {
     return (
-      <div className="p-3.5 rounded-2xl bg-rose-950/10 border border-rose-500/15 flex items-center gap-2.5">
+      <div className="p-3.5 rounded-[30px] bg-rose-950/10 border border-rose-500/15 flex items-center gap-2.5">
         <AlertCircle className="w-4 h-4 text-rose-400/60 shrink-0" />
         <span className="text-xs text-slate-400 font-mono">
           {isRo ? 'Eroare la încărcarea datelor de calitate a acțiunilor' : 'Error loading stock quality data'}
@@ -161,7 +161,7 @@ export const StockBusinessQualityCard: React.FC<StockBusinessQualityCardProps> =
     const yahooUrl = `https://finance.yahoo.com/quote/${encodeURIComponent(cleanSym)}`;
 
     return (
-      <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06] space-y-3">
+      <div className="p-4 rounded-[30px] bg-white/[0.02] border border-white/[0.06] space-y-3">
         <div className="flex items-center gap-2.5">
           <div className="p-1.5 rounded-lg bg-slate-500/10 border border-slate-500/20">
             <ShieldCheck className="w-4 h-4 text-slate-500" />
@@ -202,7 +202,7 @@ export const StockBusinessQualityCard: React.FC<StockBusinessQualityCardProps> =
     : null;
 
   return (
-    <div className="rounded-2xl bg-gradient-to-b from-[#161B24] via-[#12151A] to-[#0D1015] border border-purple-500/25 shadow-lg overflow-hidden">
+    <div className="rounded-[30px] bg-gradient-to-b from-[#161B24] via-[#12151A] to-[#0D1015] border border-purple-500/25 shadow-lg overflow-hidden">
       {/* ── Compact Header (always visible) ── */}
       <button
         onClick={() => setExpanded(prev => !prev)}

@@ -168,7 +168,7 @@ export const XTrendsView: React.FC<XTrendsViewProps> = ({ onSelectAsset }) => {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Top Hero: AI Intelligence Radar Banner */}
-      <div className="relative overflow-hidden rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-950/40 via-background-card to-blue-950/40 p-6 shadow-2xl backdrop-blur-xl">
+      <div className="relative overflow-hidden rounded-[30px] border border-cyan-500/30 bg-gradient-to-r from-cyan-950/40 via-background-card to-blue-950/40 p-6 shadow-2xl backdrop-blur-xl">
         <div className="relative z-10 flex flex-wrap items-center justify-between gap-6">
           <div className="space-y-2 max-w-2xl">
             <div className="flex items-center gap-2.5">
@@ -264,7 +264,7 @@ export const XTrendsView: React.FC<XTrendsViewProps> = ({ onSelectAsset }) => {
       </div>
 
       {/* Control Bar: Sector Tabs, Impact Filters, Search & Sort */}
-      <div className="cyber-glass rounded-2xl p-4 border border-background-border space-y-4">
+      <div className="cyber-glass rounded-[30px] p-4 border border-background-border space-y-4">
         {/* Sector Tabs */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -366,7 +366,7 @@ export const XTrendsView: React.FC<XTrendsViewProps> = ({ onSelectAsset }) => {
               onClick={() => {
                 window.open(post.url, '_blank', 'noopener,noreferrer');
               }}
-              className={`cyber-glass rounded-2xl p-5 border transition-all cursor-pointer flex flex-col justify-between space-y-4 group hover:-translate-y-1 hover:shadow-2xl ${
+              className={`cyber-glass rounded-[30px] p-5 border transition-all cursor-pointer flex flex-col justify-between space-y-4 group hover:-translate-y-1 hover:shadow-2xl ${
                 isBreaking
                   ? 'border-rose-500/40 bg-gradient-to-b from-rose-950/20 via-background-card to-background-card hover:border-rose-500/70 shadow-glow-ruby'
                   : 'border-background-border hover:border-cyan-500/50 hover:shadow-glow-cyan'
@@ -509,7 +509,7 @@ export const XTrendsView: React.FC<XTrendsViewProps> = ({ onSelectAsset }) => {
       </div>
 
       {filteredPosts.length === 0 && (
-        <div className="p-12 text-center text-xs font-mono text-slate-400 space-y-2 cyber-glass rounded-2xl border border-background-border">
+        <div className="p-12 text-center text-xs font-mono text-slate-400 space-y-2 cyber-glass rounded-[30px] border border-background-border">
           <p>Nicio știre găsită pentru criteriile selectate.</p>
           <button
             onClick={() => {

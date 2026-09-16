@@ -5,11 +5,11 @@ Aprobată 2026-09-16; preview original: `tmp/design-preview/theme-signal-graphit
 
 ## Principii
 
-- Suprafețe grafit neutre (fără tentă olive), hairlines de 1px, radii 18px la carduri (16px mobil), fără glass/blur în exces.
+- Suprafețe grafit neutre (fără tentă olive), hairlines de 1px, **radii 30px la carduri (26px mobil)** — „Ultra Round / Varianta C" (2026-09-16); nav capsule 999px, sweep `rounded-2xl/3xl` → 30/32px în componente.
 - Fundal ambient cu glow-uri radiale rotunde (lime 9% dreapta-sus, albastru 7.5% stânga, violet 6.5% jos), fixe, peste #0B0D10.
 - Accent **lime `#C8F169`** doar pe interactiv și brand (nav activ, chips selectate, CTA, cifre cheie).
 - Culori semantice de date: **up `#3DDC97`**, **down `#FF6B8A`**, **warn `#FFC24B`**, **info `#6FC7FF`**, **AI `#A78BFA`**.
-- Tipografie: Inter (UI) + JetBrains Mono (numerice/micro-label-uri), `tabular-nums` forțat de `.font-mono`.
+- Tipografie: **Quicksand (UI, 400–700)** + JetBrains Mono (numerice/micro-label-uri), `tabular-nums` forțat de `.font-mono`. Quicksand nu are 800/900 — bold-ul se sintetizează peste 700.
 - Floor de lizibilitate pentru texte noi: ≥ 12px (micro-label-urile existente de 9–11px rămân, dar nu coborî sub).
 
 ## Fișiere

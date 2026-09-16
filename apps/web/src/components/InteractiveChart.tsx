@@ -1145,7 +1145,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="âš ï¸
 `;
 
   return (
-    <div className="w-full bg-background-surface/90 rounded-2xl p-4 border border-background-border shadow-2xl space-y-4">
+    <div className="w-full bg-background-surface/90 rounded-[30px] p-4 border border-background-border shadow-2xl space-y-4">
       {/* Chart Navigation & Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-background-border">
         {/* Navigation Mode */}
@@ -1335,7 +1335,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="âš ï¸
           </div>
 
           {/* Mobile Quick TA & Percentage Measurement Bar (Optimized for touch) */}
-          <div className="md:hidden flex flex-col gap-2 p-2.5 bg-[#12151A] border border-cyan-500/30 rounded-2xl shadow-xl">
+          <div className="md:hidden flex flex-col gap-2 p-2.5 bg-[#12151A] border border-cyan-500/30 rounded-[30px] shadow-xl">
             <div className="flex items-center justify-between gap-2 overflow-x-auto pb-0.5">
               {/* 1. Pointer Mode */}
               <button
@@ -1453,7 +1453,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="âš ï¸
           </div>
 
           {/* Chart View Container with Floating Drawing Tools & SVG Overlay */}
-          <div className="relative w-full rounded-2xl overflow-hidden bg-background-card border border-background-border">
+          <div className="relative w-full rounded-[30px] overflow-hidden bg-background-card border border-background-border">
             {isLoadingHistory && (
               <div className="absolute left-1/2 top-3 z-40 -translate-x-1/2 rounded-full border border-cyan-500/30 bg-[#12151A]/95 px-3 py-1.5 text-[10px] font-bold font-mono text-cyan-300 shadow-xl backdrop-blur-xl animate-pulse">
                 Se Ã®ncarcÄƒ istoric mai vechiâ€¦
@@ -2274,7 +2274,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="âš ï¸
           </div>
 
           {/* Official TradingView Container with Full Native Toolbars */}
-          <div className="w-full rounded-2xl overflow-hidden bg-background-card border border-background-border shadow-2xl">
+          <div className="w-full rounded-[30px] overflow-hidden bg-background-card border border-background-border shadow-2xl">
             <div ref={tvWidgetContainerRef} className="w-full h-[620px]" />
           </div>
 

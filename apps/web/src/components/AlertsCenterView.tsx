@@ -581,11 +581,11 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
       ))}
     </div>
   ) : data?.dailyRegimeScan.lastCompletedAt ? (
-    <div className="rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.02] px-5 py-8 text-center text-xs text-slate-500">
+    <div className="rounded-[30px] border border-dashed border-white/[0.08] bg-white/[0.02] px-5 py-8 text-center text-xs text-slate-500">
       Nu există candidați {candidateFilter === 'ALL' ? '' : candidateFilter.toLowerCase()} în Top {UPCOMING_FLIP_DISPLAY_LIMIT} curent.
     </div>
   ) : (
-    <div className="rounded-2xl border border-dashed border-violet-500/20 bg-violet-500/[0.04] px-5 py-8 text-center">
+    <div className="rounded-[30px] border border-dashed border-violet-500/20 bg-violet-500/[0.04] px-5 py-8 text-center">
       <ScanSearch className="mx-auto h-7 w-7 text-violet-400" />
       <h3 className="mt-3 text-sm font-semibold text-slate-200">Rulează prima scanare completă</h3>
       <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">Top {UPCOMING_FLIP_DISPLAY_LIMIT} va fi populat după analiza universului crypto, stocks și metale.</p>
@@ -594,7 +594,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
 
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-cyan-500/[0.08] via-background-card to-violet-500/[0.05] p-4 sm:p-6">
+      <section className="overflow-hidden rounded-[30px] border border-cyan-500/20 bg-gradient-to-br from-cyan-500/[0.08] via-background-card to-violet-500/[0.05] p-4 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="mb-2 flex items-center gap-2 text-cyan-300">
@@ -676,7 +676,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
 
           {activeScanScope && (
             <div className="mt-3">
-              <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+              <div className="h-2.5 overflow-hidden rounded-full bg-white/[0.06]">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-amber-400 via-cyan-400 to-violet-400 transition-all duration-500"
                   style={{ width: `${Math.max(3, scanProgress)}%` }}
@@ -831,7 +831,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                 ))}
               </div>
             ) : (
-              <div className="rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.02] px-5 py-8 text-center text-xs text-slate-500">
+              <div className="rounded-[30px] border border-dashed border-white/[0.08] bg-white/[0.02] px-5 py-8 text-center text-xs text-slate-500">
                 Niciun flip confirmat nu corespunde filtrelor selectate. Rulează „Scanare Top Flips” pentru a actualiza întregul univers.
               </div>
             )
@@ -921,7 +921,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
           {activeAlertsOpen && (
             loading && !data ? (
               <div className="grid gap-3 lg:grid-cols-2">
-                {[0, 1].map(item => <div key={item} className="h-56 animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.03]" />)}
+                {[0, 1].map(item => <div key={item} className="h-56 animate-pulse rounded-[30px] border border-white/[0.06] bg-white/[0.03]" />)}
               </div>
             ) : data?.activeAlerts.length ? (
               <div className="grid gap-3 lg:grid-cols-2">
@@ -940,7 +940,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                   ))}
               </div>
             ) : (
-              <div className="rounded-2xl border border-dashed border-white/[0.10] bg-white/[0.02] px-5 py-12 text-center">
+              <div className="rounded-[30px] border border-dashed border-white/[0.10] bg-white/[0.02] px-5 py-12 text-center">
                 <BellRing className="mx-auto h-8 w-8 text-slate-600" />
                 <h3 className="mt-3 text-sm font-semibold text-slate-200">Nu ai alerte active</h3>
                 <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">Deschide un asset, alege timeframe-ul și apasă „Alertă plan”. Aplicația îl va monitoriza automat.</p>
@@ -1011,7 +1011,7 @@ const FlipCandidateCard: React.FC<{
   const showName = assetName && assetName.toUpperCase() !== candidate.symbol.toUpperCase();
 
   return (
-    <article className="overflow-hidden rounded-2xl border border-white/[0.07] bg-background-card shadow-sm transition hover:border-violet-500/20">
+    <article className="overflow-hidden rounded-[30px] border border-white/[0.07] bg-background-card shadow-sm transition hover:border-violet-500/20">
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
           <button type="button" onClick={onOpen} className="flex min-w-0 items-start gap-3 text-left">
@@ -1044,7 +1044,7 @@ const FlipCandidateCard: React.FC<{
               <span>Distanță până la confirmare</span>
               <span>{proximity}%</span>
             </div>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.05]">
+            <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white/[0.05]">
               <div className={`h-full rounded-full ${bullish ? 'bg-emerald-400' : 'bg-rose-400'}`} style={{ width: `${proximity}%` }} />
             </div>
           </div>
@@ -1123,7 +1123,7 @@ const ConfirmedFlipCard: React.FC<{
   const showName = assetName && assetName.toUpperCase() !== candidate.symbol.toUpperCase();
 
   return (
-    <article className="rounded-2xl border border-white/[0.07] bg-background-card p-4 shadow-sm transition hover:border-emerald-500/20">
+    <article className="rounded-[30px] border border-white/[0.07] bg-background-card p-4 shadow-sm transition hover:border-emerald-500/20">
       <div className="flex items-start justify-between gap-3">
         <button type="button" onClick={onOpen} className="flex min-w-0 items-start gap-3 text-left">
           <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border font-mono text-xs font-black ${tone}`}>#{rank}</div>
@@ -1177,7 +1177,7 @@ const ActiveAlertCard: React.FC<{ alert: ActiveAlertDashboardItem; removing: boo
   const showName = assetName && assetName.toUpperCase() !== alert.symbol.toUpperCase();
 
   return (
-    <article className="rounded-2xl border border-white/[0.07] bg-background-card p-4 shadow-sm transition hover:border-cyan-500/20">
+    <article className="rounded-[30px] border border-white/[0.07] bg-background-card p-4 shadow-sm transition hover:border-cyan-500/20">
       <div className="flex items-start justify-between gap-3">
         <button type="button" onClick={onOpen} className="min-w-0 text-left">
           <div className="flex flex-wrap items-center gap-2">
@@ -1218,7 +1218,7 @@ const ActiveAlertCard: React.FC<{ alert: ActiveAlertDashboardItem; removing: boo
           </div>
           <strong className="font-mono text-2xl text-white">{alert.progressPercent}%</strong>
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-white/[0.05]">
+        <div className="h-2.5 overflow-hidden rounded-full bg-white/[0.05]">
           <div className={`h-full rounded-full transition-all duration-700 ${meta.bar}`} style={{ width: `${Math.max(2, alert.progressPercent)}%` }} />
         </div>
       </div>

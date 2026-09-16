@@ -66,7 +66,7 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md overflow-y-auto">
-      <div className="relative w-full max-w-5xl bg-background-card border border-background-border rounded-2xl shadow-2xl overflow-hidden my-8 cyber-glass">
+      <div className="relative w-full max-w-5xl bg-background-card border border-background-border rounded-[30px] shadow-2xl overflow-hidden my-8 cyber-glass">
         {/* Modal Header */}
         <div className="flex items-center justify-between p-6 border-b border-background-border bg-background-surface/40">
           <div className="flex items-center gap-4">

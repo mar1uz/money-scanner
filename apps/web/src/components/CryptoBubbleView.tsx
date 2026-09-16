@@ -113,7 +113,7 @@ export const CryptoBubbleView: React.FC<CryptoBubbleViewProps> = ({ onSelectAsse
         </div>
       )}
 
-      <div ref={canvasRef} className="crypto-bubble-canvas overflow-hidden rounded-2xl border border-white/[0.06] bg-[radial-gradient(circle_at_18%_10%,rgba(167,139,250,0.12),transparent_32%),radial-gradient(circle_at_82%_72%,rgba(200,241,105,0.08),transparent_34%),linear-gradient(135deg,rgba(17,20,27,0.95),rgba(11,13,16,0.95))]">
+      <div ref={canvasRef} className="crypto-bubble-canvas overflow-hidden rounded-[30px] border border-white/[0.06] bg-[radial-gradient(circle_at_18%_10%,rgba(167,139,250,0.12),transparent_32%),radial-gradient(circle_at_82%_72%,rgba(200,241,105,0.08),transparent_34%),linear-gradient(135deg,rgba(17,20,27,0.95),rgba(11,13,16,0.95))]">
         {loading && coins.length === 0 ? (
           <div className="flex min-h-[540px] items-center justify-center gap-3 text-sm font-mono text-slate-400"><RefreshCw className="h-5 w-5 animate-spin text-fuchsia-400" />Se încarcă top 100...</div>
         ) : (
@@ -155,7 +155,7 @@ export const CryptoBubbleView: React.FC<CryptoBubbleViewProps> = ({ onSelectAsse
         )}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-slate-950/40">
+      <div className="overflow-hidden rounded-[30px] border border-white/[0.07] bg-slate-950/40">
         <div className="border-b border-white/[0.06] px-4 py-5 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-white">Top 100 · Creștere în ultimele 24h</h2>

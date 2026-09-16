@@ -3562,3 +3562,29 @@ Public bundle: assets/index-B06QgySA.js, assets/index-CFXPZzya.css (glow + radiu
 Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health check (/api/health): HTTP 200 OK
 ```
+
+### 2026-09-16 — Ultra Round (Varianta C) + Quicksand + paritate click Asset (Bubble/HeatMap)
+
+Cerute de utilizator după preview-uri aprobate: **Varianta C** (rotunjit maxim, „Ultra Round") + **Varianta 3 de font (Quicksand)**; înainte de deploy, click pe Asset din **Crypto Bubble** și **Heat Map** trebuie să deschidă aceeași pagină informativă cu Money Line ca din **Market Scanner**.
+
+**Temă Ultra Round:**
+- `index.css` — blocul „Ultra Round": carduri **30px** desktop / **26px** mobil; `sidebar-nav-item` capsule (999px, fără bara inset de accent); watchlist + mobile-nav capsule; more-menu 26px; glow-urile ambientale păstrate.
+- Sweep scriptat (21 fișiere): `rounded-2xl` → `rounded-[30px]` (75×), `rounded-3xl` → `rounded-[32px]` (2×), 0 rămase.
+- Bare de progres Alerts: h-1.5/h-2 → h-2.5 (3 locuri).
+- **Fonturi**: Quicksand (400–700) înlocuiește Inter (index.html, tailwind.config.js, index.css); cifrele rămân pe JetBrains Mono. QA computed: Quicksand ✓ (body+h1), 30px/26px ✓, nav 999px ✓.
+
+**Paritate click Asset (cauză + fix):**
+- Click-urile din Bubble/HeatMap trimit ID-uri exacte de provider → ruta `/assets/:symbol` intra pe ramura de verificare catalog; pentru coinii din afara catalogului static (70 intrări) pagina degrada la agregat (price-only, fără Money Line), în timp ce click-ul din Scanner (doar simbol) folosea ruta exchange (lumânări + Money Line).
+- Fix 1 — `scanner-routes.ts`: `matchesLiveExchangeAsset` — nume normalizat verificat în `getTopCryptoAssets(150)`; la potrivire se continuă pe ruta exchange (paritate Scanner), altfel agregat.
+- Fix 2 — `CryptoHeatMapView.tsx` + `App.tsx`: id-urile se trimit corect (`coinGeckoId` + `coinPaprikaId`); înainte, `coin.id` (paprika id pentru sursa fallback) era trimis ca coinGeckoId.
+- Test nou în `crypto-market-profile.test.ts` (13/13 ✓); suita monorepo **243/0**.
+- E2E local (mock): Scanner / Bubble / HeatMap → AssetDeepDiveView identic (back + chart + Money Line, 7 canvasuri).
+
+```text
+Source commit: <COMMIT_SHA>
+Local tests: 243 passed, 0 failed
+Cloud Build ID: <BUILD_ID>
+Cloud Run revision: <REVISION>
+Public bundle: <JS>, <CSS>
+Health check (/api/health): HTTP 200 OK
+```

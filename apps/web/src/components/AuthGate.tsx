@@ -87,7 +87,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
     <main className="min-h-screen overflow-hidden bg-[#151A21] px-5 py-10 text-slate-100">
       <div className="pointer-events-none fixed inset-0 opacity-50" style={{ background: 'radial-gradient(circle at 50% 28%, rgba(200,241,105,0.14), transparent 31%), radial-gradient(circle at 15% 90%, rgba(61,220,151,0.08), transparent 28%)' }} />
       <section className="relative mx-auto flex min-h-[78vh] max-w-md flex-col items-center justify-center text-center">
-        <div className="mb-7 grid h-20 w-20 place-items-center rounded-3xl border border-cyan-400/30 bg-cyan-500/10 shadow-[0_0_45px_rgba(205,238,127,0.18)]">
+        <div className="mb-7 grid h-20 w-20 place-items-center rounded-[32px] border border-cyan-400/30 bg-cyan-500/10 shadow-[0_0_45px_rgba(205,238,127,0.18)]">
           <ShieldCheck className="h-10 w-10 text-cyan-300" />
         </div>
         <div className="mb-3 flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-[0.22em] text-cyan-300"><LockKeyhole className="h-4 w-4" />Market Scanner 360</div>
@@ -104,7 +104,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
           type="button"
           onClick={() => void login()}
           disabled={signingIn}
-          className="mt-7 flex w-full items-center justify-center gap-3 rounded-2xl border border-white/15 bg-white px-5 py-3.5 text-sm font-semibold text-slate-900 transition hover:bg-cyan-50 disabled:cursor-wait disabled:opacity-65"
+          className="mt-7 flex w-full items-center justify-center gap-3 rounded-[30px] border border-white/15 bg-white px-5 py-3.5 text-sm font-semibold text-slate-900 transition hover:bg-cyan-50 disabled:cursor-wait disabled:opacity-65"
         >
           {signingIn ? <Loader2 className="h-5 w-5 animate-spin" /> : <LogIn className="h-5 w-5" />}
           {copy.login}

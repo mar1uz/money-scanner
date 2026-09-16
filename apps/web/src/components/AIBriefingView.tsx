@@ -527,7 +527,7 @@ export const AIBriefingView: React.FC = () => {
     if (scope !== 'crypto' || (!criteriaScan && !loadingCriteriaScan && !criteriaScanError)) return null;
     if (loadingCriteriaScan && !criteriaScan) {
       return (
-        <section className="rounded-2xl border border-cyan-500/20 bg-cyan-500/[0.04] p-5 animate-pulse">
+        <section className="rounded-[30px] border border-cyan-500/20 bg-cyan-500/[0.04] p-5 animate-pulse">
           <div className="flex items-center gap-2 text-cyan-300 text-sm font-semibold">
             <Activity className="w-4 h-4 animate-spin" />
             {language === 'ro' ? 'Verific top 200 și corelez datele fundamentale…' : 'Scanning the top 200 and matching fundamental data…'}
@@ -538,7 +538,7 @@ export const AIBriefingView: React.FC = () => {
     }
     if (!criteriaScan) {
       return (
-        <section className="rounded-2xl border border-rose-500/20 bg-rose-500/[0.05] p-4">
+        <section className="rounded-[30px] border border-rose-500/20 bg-rose-500/[0.05] p-4">
           <p className="text-sm text-rose-300">{criteriaScanError}</p>
           <button onClick={() => void loadCriteriaScan(true)} className="mt-3 inline-flex items-center gap-2 text-xs text-slate-200">
             <RefreshCw className="w-3.5 h-3.5" /> {language === 'ro' ? 'Reîncearcă scanarea' : 'Retry scan'}
@@ -601,7 +601,7 @@ export const AIBriefingView: React.FC = () => {
     ];
 
     return (
-      <section className="rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-cyan-500/[0.06] via-[#12151A] to-purple-500/[0.04] p-4 sm:p-5 space-y-4">
+      <section className="rounded-[30px] border border-cyan-500/20 bg-gradient-to-br from-cyan-500/[0.06] via-[#12151A] to-purple-500/[0.04] p-4 sm:p-5 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <button
             type="button"
@@ -745,7 +745,7 @@ export const AIBriefingView: React.FC = () => {
   const renderStockCriteriaScanner = () => {
     if (loadingStockCriteriaScan && !stockCriteriaScan) {
       return (
-        <section className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.04] p-5 space-y-3">
+        <section className="rounded-[30px] border border-purple-500/20 bg-purple-500/[0.04] p-5 space-y-3">
           <div className="flex items-center gap-2 text-xs font-mono text-purple-300">
             <Award className="w-4 h-4 animate-spin" />
             {language === 'ro' ? 'Evaluez calitatea și profitabilitatea acțiunilor…' : 'Analyzing stock business quality and profitability…'}
@@ -757,7 +757,7 @@ export const AIBriefingView: React.FC = () => {
     if (!stockCriteriaScan) {
       if (stockCriteriaScanError) {
         return (
-          <section className="rounded-2xl border border-rose-500/20 bg-rose-500/[0.05] p-4">
+          <section className="rounded-[30px] border border-rose-500/20 bg-rose-500/[0.05] p-4">
             <p className="text-sm text-rose-300">{stockCriteriaScanError}</p>
             <button onClick={() => void loadStockCriteriaScan(true)} className="mt-3 inline-flex items-center gap-2 text-xs text-slate-200">
               <RefreshCw className="w-3.5 h-3.5" /> {language === 'ro' ? 'Reîncearcă scanarea' : 'Retry scan'}
@@ -801,7 +801,7 @@ export const AIBriefingView: React.FC = () => {
           : 'border-white/[0.08] bg-white/[0.02] text-slate-400';
 
     return (
-      <section className="rounded-2xl border border-purple-500/25 bg-gradient-to-br from-purple-500/[0.08] via-[#12151A] to-cyan-500/[0.04] p-4 sm:p-5 space-y-4">
+      <section className="rounded-[30px] border border-purple-500/25 bg-gradient-to-br from-purple-500/[0.08] via-[#12151A] to-cyan-500/[0.04] p-4 sm:p-5 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <button
             type="button"
@@ -1024,7 +1024,7 @@ export const AIBriefingView: React.FC = () => {
   const renderIntelligenceDashboard = () => {
     if (loadingIntelligence && !intelligence) {
       return (
-        <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.04] p-5 space-y-4 animate-pulse">
+        <div className="rounded-[30px] border border-purple-500/20 bg-purple-500/[0.04] p-5 space-y-4 animate-pulse">
           <div className="h-5 w-56 rounded bg-white/[0.08]" />
           <div className="h-3 w-full rounded bg-white/[0.05]" />
           <div className="h-3 w-4/5 rounded bg-white/[0.05]" />
@@ -1041,7 +1041,7 @@ export const AIBriefingView: React.FC = () => {
 
     if (!intelligence) {
       return (
-        <div className="rounded-2xl border border-rose-500/25 bg-rose-500/[0.06] p-5">
+        <div className="rounded-[30px] border border-rose-500/25 bg-rose-500/[0.06] p-5">
           <p className="text-sm text-rose-300">{intelligenceError || (language === 'ro' ? 'Raportul nu este disponibil.' : 'Report unavailable.')}</p>
           <button onClick={() => void loadIntelligence(true)} className="mt-3 inline-flex items-center gap-2 text-xs text-slate-200">
             <RefreshCw className="w-3.5 h-3.5" /> {language === 'ro' ? 'Încearcă din nou' : 'Try again'}
@@ -1052,7 +1052,7 @@ export const AIBriefingView: React.FC = () => {
 
     return (
       <div className={`space-y-6 transition-opacity ${loadingIntelligence ? 'opacity-60' : 'opacity-100'}`}>
-        <section className="relative overflow-hidden rounded-2xl border border-purple-500/20 bg-gradient-to-br from-purple-500/[0.10] via-[#12151A] to-cyan-500/[0.05] p-4 sm:p-6">
+        <section className="relative overflow-hidden rounded-[30px] border border-purple-500/20 bg-gradient-to-br from-purple-500/[0.10] via-[#12151A] to-cyan-500/[0.05] p-4 sm:p-6">
           <div className="absolute -right-12 -top-12 w-40 h-40 rounded-full bg-purple-500/10 blur-3xl" />
           <div className="relative space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1250,7 +1250,7 @@ export const AIBriefingView: React.FC = () => {
   ];
 
   return (
-    <div className="flex h-[calc(100vh-var(--header-height)-2rem)] rounded-2xl overflow-hidden border border-white/[0.06] bg-[#151A21]">
+    <div className="flex h-[calc(100vh-var(--header-height)-2rem)] rounded-[30px] overflow-hidden border border-white/[0.06] bg-[#151A21]">
       {/* ═══ Left Sidebar ═══ */}
       <aside className="hidden lg:flex flex-col w-[240px] bg-[#151A21] border-r border-white/[0.06] shrink-0">
         {/* Logo Area */}
@@ -1426,7 +1426,7 @@ export const AIBriefingView: React.FC = () => {
               {msg.sender === 'user' ? (
                 /* User message — right-aligned purple bubble */
                 <div className="flex justify-end">
-                  <div className="max-w-[70%] bg-gradient-to-r from-purple-600/30 to-violet-600/25 border border-purple-500/30 rounded-2xl rounded-tr-sm px-5 py-3">
+                  <div className="max-w-[70%] bg-gradient-to-r from-purple-600/30 to-violet-600/25 border border-purple-500/30 rounded-[30px] rounded-tr-sm px-5 py-3">
                     <p className="text-[13.5px] text-slate-100 leading-relaxed">{msg.text}</p>
                   </div>
                 </div>

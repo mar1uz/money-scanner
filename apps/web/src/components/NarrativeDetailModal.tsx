@@ -78,7 +78,7 @@ export const NarrativeDetailModal: React.FC<NarrativeDetailModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-fade-in">
       <div 
-        className="relative w-full max-w-4xl max-h-[90vh] flex flex-col bg-background-card border border-white/[0.08] rounded-2xl shadow-2xl overflow-hidden"
+        className="relative w-full max-w-4xl max-h-[90vh] flex flex-col bg-background-card border border-white/[0.08] rounded-[30px] shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}

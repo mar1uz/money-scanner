@@ -82,7 +82,7 @@ export const CryptoMarketOnlyView: React.FC<{
       )}
       <button onClick={onRefresh} disabled={loading} className="rounded-xl border border-white/10 p-2.5 text-cyan-300" aria-label="Reîncarcă datele"><RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} /></button>
     </div>
-    <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-5 sm:p-6">
+    <div className="rounded-[30px] border border-white/10 bg-slate-950/40 p-5 sm:p-6">
       <div className="flex flex-wrap items-baseline gap-3">
         <span className="text-3xl font-bold text-white">{money(quote.price)}</span>
         <span className={change !== null && change >= 0 ? 'text-emerald-300' : 'text-rose-300'}>
@@ -109,7 +109,7 @@ export const CryptoMarketOnlyView: React.FC<{
         {quote.isStale ? 'Date întârziate · ' : ''}Actualizare {quote.source}: {new Date(quote.timestamp).toLocaleString('ro-RO')}
       </p>
     </div>
-    {dex && <div className="rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/[0.04] p-5 sm:p-6">
+    {dex && <div className="rounded-[30px] border border-fuchsia-500/20 bg-fuchsia-500/[0.04] p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold text-white">Piața DEX principală</h2><p className="mt-1 text-xs text-slate-400">Pereche selectată după lichiditatea USD raportată de DEX Screener.</p></div>
         <a href={dex.dexUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-fuchsia-400/25 px-3 py-1.5 text-xs text-fuchsia-200">DEX Screener <ExternalLink className="h-3.5 w-3.5" /></a></div>
       <dl className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -119,7 +119,7 @@ export const CryptoMarketOnlyView: React.FC<{
       </dl>
       <p className="mt-4 truncate font-mono text-[10px] text-slate-500" title={dex.contractAddress}>Contract: {dex.contractAddress}</p>
     </div>}
-    <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-5 sm:p-6">
+    <div className="rounded-[30px] border border-white/10 bg-slate-950/40 p-5 sm:p-6">
       <h2 className="font-semibold text-white">{dex?.candles?.length ? `Grafic OHLCV DEX · ${timeframe.toUpperCase()}` : 'Istoric de preț · ultimele 30 de zile disponibile'}</h2>
       <p className="mt-1 text-xs text-slate-400">{dex?.candles?.length
         ? `Lumânări reale USD din pool-ul selectat de DEX Screener, furnizate de ${dex.candleSource}. Ultima lumânare poate fi încă deschisă.`

@@ -243,7 +243,7 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
   return (
     <div className="market-overview space-y-6">
       {/* Top Market Selector Filter Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-1.5 bg-white/[0.02] border border-white/[0.04] rounded-2xl">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-1.5 bg-white/[0.02] border border-white/[0.04] rounded-[30px]">
         <div className="flex flex-wrap items-center gap-1">
           {marketCategories.map(cat => (
             <button

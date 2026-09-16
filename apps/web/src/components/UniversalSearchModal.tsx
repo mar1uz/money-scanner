@@ -225,7 +225,7 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
       onClick={onClose}
     >
       <div 
-        className="relative w-full max-w-2xl flex flex-col bg-[#151A21] border border-cyan-500/40 rounded-2xl sm:rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.95)] overflow-hidden max-h-[92vh] sm:max-h-[85vh]"
+        className="relative w-full max-w-2xl flex flex-col bg-[#151A21] border border-cyan-500/40 rounded-[30px] sm:rounded-[32px] shadow-[0_20px_60px_rgba(0,0,0,0.95)] overflow-hidden max-h-[92vh] sm:max-h-[85vh]"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >

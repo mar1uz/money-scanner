@@ -226,7 +226,7 @@ export const Header: React.FC<HeaderProps> = ({
               setIsDropdownOpen(true);
             }}
             placeholder="Caută un activ, simbol sau companie…"
-            className="w-full bg-white/[0.03] group-hover:bg-white/[0.06] border border-white/[0.07] group-hover:border-cyan-500/40 rounded-xl sm:rounded-2xl pl-9 sm:pl-10 pr-9 py-2 text-xs font-mono text-slate-100 placeholder-slate-400 focus:outline-none transition-all shadow-inner cursor-pointer"
+            className="w-full bg-white/[0.03] group-hover:bg-white/[0.06] border border-white/[0.07] group-hover:border-cyan-500/40 rounded-xl sm:rounded-[30px] pl-9 sm:pl-10 pr-9 py-2 text-xs font-mono text-slate-100 placeholder-slate-400 focus:outline-none transition-all shadow-inner cursor-pointer"
           />
 
           {searchQuery ? (
@@ -257,7 +257,7 @@ export const Header: React.FC<HeaderProps> = ({
             />
 
             {/* Dropdown Container */}
-            <div className="absolute left-0 right-0 top-full mt-2 bg-[#151A21] border border-cyan-500/40 rounded-2xl shadow-2xl overflow-hidden z-50 animate-fade-in max-h-[440px] overflow-y-auto divide-y divide-white/[0.04]">
+            <div className="absolute left-0 right-0 top-full mt-2 bg-[#151A21] border border-cyan-500/40 rounded-[30px] shadow-2xl overflow-hidden z-50 animate-fade-in max-h-[440px] overflow-y-auto divide-y divide-white/[0.04]">
               <div className="p-2.5 bg-white/[0.04] text-[10px] font-mono text-slate-400 flex items-center justify-between border-b border-white/[0.06]">
                 <span className="flex items-center gap-1 text-cyan-300 font-bold">
                   <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
