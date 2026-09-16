@@ -648,15 +648,14 @@ body,
 /* ─── Theme switcher (zi / seară) ─── */
 .theme-switcher { position: relative; flex: 0 0 auto; }
 .theme-switcher-btn {
-  display: inline-flex; align-items: center; gap: 5px; min-height: 34px;
-  padding: 7px 11px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; min-height: 36px; padding: 0;
+  border-radius: 999px;
   border: 1px solid var(--t-line); background: var(--t-surface); color: var(--t-text);
   transition: border-color .2s ease, background-color .2s ease, box-shadow .2s ease, color .2s ease;
 }
 .theme-switcher-btn:hover { border-color: var(--t-line-strong); background: var(--t-hover); }
 .theme-switcher-btn.is-light { border-color: rgba(200,241,105,.55); box-shadow: 0 0 0 3px rgba(200,241,105,.14); color: #4E6B0D; }
-.theme-switcher-btn .chev { opacity: .6; transition: transform .2s ease; }
-.theme-switcher-btn[aria-expanded="true"] .chev { transform: rotate(180deg); }
 .theme-menu {
   position: absolute; right: 0; top: calc(100% + 10px); z-index: 90; width: 262px;
   padding: 10px; display: grid; gap: 2px; border-radius: 24px;

@@ -9,9 +9,8 @@ import {
   Star,
   RefreshCw,
   CornerDownLeft,
-  BellRing,
+  Bell,
   Languages,
-  ChevronDown,
   Check,
   LogOut
 } from 'lucide-react';
@@ -46,7 +45,6 @@ export const Header: React.FC<HeaderProps> = ({
   searchQuery,
   onSearchChange,
   onOpenAlerts,
-  isStale = false,
   allAssets = [],
   onSelectAsset,
   watchlist = [],
@@ -189,7 +187,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className={`app-header fixed top-0 right-0 ${hasSidebar ? 'left-0 md:left-[260px]' : 'left-0'} z-40 bg-[rgb(var(--t-surface-raised-rgb)/0.95)] backdrop-blur-2xl border-b border-white/[0.08] px-2 sm:px-6 lg:px-8 h-[56px] flex items-center justify-between gap-1.5 sm:gap-4 transition-all`}>
+    <header className={`app-header fixed top-0 right-0 ${hasSidebar ? 'left-0 md:left-[260px]' : 'left-0'} z-40 border-b border-white/[0.08] px-2 sm:px-6 lg:px-8 h-[56px] flex items-center justify-between gap-1.5 sm:gap-4 transition-all`}>
       {/* Mobile search is a real fixed-width control, so it cannot overlap the timeframe pills. */}
       <button
         type="button"
@@ -392,14 +390,14 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Right Controls: Timeframe Pills, Live Status, Refresh */}
       <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 sm:flex-none sm:gap-2.5">
         {/* Timeframe Selector */}
-        <div className="flex min-w-0 flex-1 items-center rounded-xl border border-white/[0.06] bg-white/[0.03] p-0.5 sm:flex-none">
+        <div className="flex min-w-0 flex-1 items-center rounded-full border border-white/[0.08] bg-white/[0.03] p-1 sm:flex-none">
           {(['1h', '4h', '8h', '1d', '1w', '1m'] as Timeframe[]).map((tf) => (
             <button
               key={tf}
               onClick={() => onTimeframeChange(tf)}
-              className={`min-w-0 flex-1 px-1.5 py-1 text-[10px] font-mono rounded-lg transition-all sm:flex-none sm:px-2.5 sm:text-[11px] ${
+              className={`min-w-0 min-h-0 flex-1 px-2.5 py-1.5 text-[12px] font-mono rounded-full transition-all sm:flex-none sm:px-3.5 sm:text-[13px] ${
                 timeframe === tf
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold shadow-sm'
+                  ? 'bg-cyan-500/25 text-cyan-200 font-bold shadow-sm'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -408,38 +406,26 @@ export const Header: React.FC<HeaderProps> = ({
           ))}
         </div>
 
-        {/* Refresh Button */}
+        {/* Refresh Button (desktop only) */}
         {onRefreshMarket && (
           <button
             onClick={onRefreshMarket}
             disabled={isRefreshing}
             title="Actualizează Datele de Piață"
-            className="flex items-center justify-center w-8 h-8 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] text-slate-300 hover:text-cyan-300 border border-white/[0.06] transition-all disabled:opacity-50"
+            className="hidden md:flex items-center justify-center w-9 h-9 min-h-0 rounded-full bg-white/[0.03] hover:bg-white/[0.07] text-slate-300 hover:text-cyan-300 border border-white/[0.06] transition-all disabled:opacity-50"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-cyan-400' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-cyan-400' : ''}`} />
           </button>
         )}
-
-        {/* Live / Stale Pulse */}
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-          <span className="relative flex h-2 w-2">
-            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isStale ? 'bg-amber-400' : 'bg-emerald-400'}`}></span>
-            <span className={`relative inline-flex rounded-full h-2 w-2 ${isStale ? 'bg-amber-400' : 'bg-emerald-400'}`}></span>
-          </span>
-          <span className="text-[10px] font-mono text-slate-400 hidden sm:inline font-medium">
-            {isStale ? 'STALE' : 'LIVE'}
-          </span>
-        </div>
 
         {/* Central Alerts Page */}
         {onOpenAlerts && (
           <button
             onClick={onOpenAlerts}
             title="Deschide alertele mele"
-            className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-mono text-slate-400 hover:text-cyan-300 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] rounded-xl transition-all"
+            className="flex items-center justify-center w-9 h-9 min-h-0 shrink-0 rounded-full text-slate-400 hover:text-cyan-300 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] transition-all"
           >
-            <BellRing className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="hidden lg:inline">Alert</span>
+            <Bell className="w-4 h-4 text-cyan-400" />
           </button>
         )}
 
@@ -470,11 +456,9 @@ export const Header: React.FC<HeaderProps> = ({
             title={language === 'ro' ? 'Schimbă limba' : 'Change language'}
             aria-label={language === 'ro' ? 'Schimbă limba' : 'Change language'}
             aria-expanded={isLanguageOpen}
-            className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 text-[10px] sm:text-[11px] font-mono font-bold text-slate-300 hover:text-cyan-300 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] rounded-xl transition-all"
+            className="flex items-center justify-center w-9 h-9 min-h-0 rounded-full text-slate-300 hover:text-cyan-300 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] transition-all"
           >
-            <Languages className="w-3.5 h-3.5 text-cyan-400" />
-            <span>{language.toUpperCase()}</span>
-            <ChevronDown className={`w-3 h-3 transition-transform ${isLanguageOpen ? 'rotate-180' : ''}`} />
+            <Languages className="w-4 h-4 text-cyan-400" />
           </button>
 
           {isLanguageOpen && (

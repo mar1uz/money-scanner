@@ -39,8 +39,8 @@ THEMES = {
    'surface': '#FFFFFF', 'surface2': '#FFFFFF', 'surface_raised': '#F7F9FB', 'surface_inset': '#F1F4F8',
    'line': '#E3E8EF', 'line_strong': '#C9D3DF', 'hover': '#F1F4F8',
    'text': '#10151C', 'text2': '#39424E', 'muted': '#5D6874', 'faint': '#6B7684',
-   'header_bg': 'rgba(255,255,255,.86)', 'header_solid': 'rgba(255,255,255,.96)',
-   'dock_bg': 'rgba(255,255,255,.92)',
+   'header_bg': '#FFFFFF', 'header_solid': '#FFFFFF',
+   'dock_bg': '#FFFFFF',
    'overlay04': 'rgba(15,20,27,.04)', 'overlay06': 'rgba(15,20,27,.06)',
    'overlay08': 'rgba(15,20,27,.08)', 'overlay15': 'rgba(15,20,27,.15)',
    'sheen': 'rgba(255,255,255,.55)',
@@ -58,8 +58,8 @@ THEMES = {
    'surface': '#FFFDF9', 'surface2': '#FFFFFF', 'surface_raised': '#FAF6EC', 'surface_inset': '#F3EFE4',
    'line': '#E9E2D3', 'line_strong': '#D6CCB6', 'hover': '#F3EFE4',
    'text': '#1C1810', 'text2': '#4A4436', 'muted': '#6B6455', 'faint': '#756E5F',
-   'header_bg': 'rgba(255,253,249,.88)', 'header_solid': 'rgba(255,253,249,.97)',
-   'dock_bg': 'rgba(255,253,249,.93)',
+   'header_bg': '#FFFDF9', 'header_solid': '#FFFDF9',
+   'dock_bg': '#FFFDF9',
    'overlay04': 'rgba(60,50,30,.04)', 'overlay06': 'rgba(60,50,30,.07)',
    'overlay08': 'rgba(60,50,30,.09)', 'overlay15': 'rgba(60,50,30,.16)',
    'sheen': 'rgba(255,255,255,.6)',
@@ -70,22 +70,22 @@ THEMES = {
    'accent_soft': '#5C6B0E', 'scheme': 'light',
  },
  'l3': {
-   'label': 'L3 · Liquid', 'swatch': '#F2F5F9',
-   'bg': '#F2F5F9', 'bg_image': ("radial-gradient(900px 460px at 86% -8%, rgba(200,241,105,.34), transparent 58%),"
-     "radial-gradient(760px 560px at -8% 40%, rgba(111,199,255,.26), transparent 60%),"
-     "radial-gradient(860px 620px at 62% 112%, rgba(167,139,250,.22), transparent 62%)"),
-   'surface': 'rgba(255,255,255,.55)', 'surface2': 'rgba(255,255,255,.72)', 'surface_raised': 'rgba(255,255,255,.55)', 'surface_inset': 'rgba(255,255,255,.5)',
-   'line': 'rgba(15,20,27,.06)', 'line_strong': 'rgba(15,20,27,.12)', 'hover': 'rgba(255,255,255,.8)',
-   'text': '#0F141B', 'text2': '#39424E', 'muted': '#5A6573', 'faint': '#666E7A',
-   'header_bg': 'rgba(255,255,255,.7)', 'header_solid': 'rgba(255,255,255,.94)',
-   'dock_bg': 'rgba(255,255,255,.78)',
-   'overlay04': 'rgba(15,20,27,.04)', 'overlay06': 'rgba(15,20,27,.06)',
-   'overlay08': 'rgba(15,20,27,.09)', 'overlay15': 'rgba(15,20,27,.16)',
-   'sheen': 'rgba(255,255,255,.5)',
+   'label': 'L3 · Sky', 'swatch': '#ECF3FA',
+   'bg': '#ECF3FA', 'bg_image': ("radial-gradient(940px 480px at 86% -8%, rgba(111,199,255,.34), transparent 58%),"
+     "radial-gradient(780px 580px at -8% 40%, rgba(200,241,105,.16), transparent 60%),"
+     "radial-gradient(880px 640px at 62% 112%, rgba(167,139,250,.14), transparent 62%)"),
+   'surface': '#FFFFFF', 'surface2': '#FFFFFF', 'surface_raised': '#F3F8FD', 'surface_inset': '#E8F1F9',
+   'line': '#D9E5F2', 'line_strong': '#BCD2E8', 'hover': '#EFF5FB',
+   'text': '#101A26', 'text2': '#3C4A5C', 'muted': '#5B6B7E', 'faint': '#66788C',
+   'header_bg': '#FFFFFF', 'header_solid': '#FFFFFF',
+   'dock_bg': '#FFFFFF',
+   'overlay04': 'rgba(16,26,38,.04)', 'overlay06': 'rgba(16,26,38,.06)',
+   'overlay08': 'rgba(16,26,38,.09)', 'overlay15': 'rgba(16,26,38,.16)',
+   'sheen': 'rgba(255,255,255,0)',
    'nav_active_text': '#1A2205',
-   'shadow_card': '0 20px 44px -26px rgba(30,40,60,.30)', 'shadow_hover': '0 24px 50px -26px rgba(30,40,60,.36)',
-   'dock_shadow': '0 18px 44px -16px rgba(30,40,60,.35), 0 2px 5px rgba(30,40,60,.08)',
-   'brief_gradient': 'linear-gradient(145deg, rgba(255,255,255,.72), rgba(255,255,255,.5))',
+   'shadow_card': '0 12px 28px -20px rgba(30,50,80,.24)', 'shadow_hover': '0 14px 32px -20px rgba(30,50,80,.30)',
+   'dock_shadow': '0 16px 40px -18px rgba(30,50,80,.32), 0 2px 5px rgba(30,50,80,.08)',
+   'brief_gradient': 'linear-gradient(145deg, #FFFFFF, #EFF5FB)',
    'accent_soft': '#4E6B0D', 'scheme': 'light',
  },
  'l4': {
@@ -96,8 +96,8 @@ THEMES = {
    'surface': '#FFFFFF', 'surface2': '#FFFFFF', 'surface_raised': '#F0F8F3', 'surface_inset': '#E3F3E8',
    'line': '#D8EDDF', 'line_strong': '#B9DCC6', 'hover': '#E3F3E8',
    'text': '#0E1F16', 'text2': '#2F4A38', 'muted': '#5B7A68', 'faint': '#556F60',
-   'header_bg': 'rgba(243,250,245,.9)', 'header_solid': 'rgba(243,250,245,.97)',
-   'dock_bg': 'rgba(255,255,255,.93)',
+   'header_bg': '#FFFFFF', 'header_solid': '#FFFFFF',
+   'dock_bg': '#FFFFFF',
    'overlay04': 'rgba(14,31,22,.04)', 'overlay06': 'rgba(14,31,22,.07)',
    'overlay08': 'rgba(14,31,22,.09)', 'overlay15': 'rgba(14,31,22,.16)',
    'sheen': 'rgba(255,255,255,.55)',
@@ -113,11 +113,11 @@ THEMES = {
      "radial-gradient(760px 540px at -8% 40%, rgba(61,220,151,.22), transparent 60%),"
      "radial-gradient(840px 600px at 60% 112%, rgba(255,176,120,.26), transparent 62%),"
      "linear-gradient(120deg,#F6F0FF 0%,#ECF7F1 48%,#FFF3E8 100%)"),
-   'surface': 'rgba(255,255,255,.86)', 'surface2': 'rgba(255,255,255,.92)', 'surface_raised': 'rgba(244,239,252,.85)', 'surface_inset': 'rgba(244,239,252,.7)',
-   'line': 'rgba(23,18,42,.07)', 'line_strong': 'rgba(23,18,42,.14)', 'hover': 'rgba(244,239,252,.9)',
+   'surface': '#FFFFFF', 'surface2': '#FFFFFF', 'surface_raised': '#F6F2FC', 'surface_inset': '#EFE9F9',
+   'line': '#E7E1F3', 'line_strong': '#D3C9EA', 'hover': '#F3EEFB',
    'text': '#17122A', 'text2': '#4A4358', 'muted': '#6E6688', 'faint': '#6E6688',
-   'header_bg': 'rgba(250,248,254,.82)', 'header_solid': 'rgba(250,248,254,.95)',
-   'dock_bg': 'rgba(255,255,255,.85)',
+   'header_bg': '#FFFFFF', 'header_solid': '#FFFFFF',
+   'dock_bg': '#FFFFFF',
    'overlay04': 'rgba(23,18,42,.04)', 'overlay06': 'rgba(23,18,42,.06)',
    'overlay08': 'rgba(23,18,42,.08)', 'overlay15': 'rgba(23,18,42,.14)',
    'sheen': 'rgba(255,255,255,.5)',
@@ -246,7 +246,7 @@ def core_block(tid, t):
 out = []
 out.append("/* ══════════════════════════════════════════════════════════════════\n"
            "   Theme engine — tokens for dark + 5 light themes (2026-09-16)\n"
-           "   Generated by tmp/gen-theme.py; edit that file and re-run.\n"
+           "   Generated by apps/web/tools/gen-theme.py; edit that file and re-run.\n"
            "   Switch via <html data-theme=\"dark|l1|l2|l3|l4|l5\">\n"
            "   ══════════════════════════════════════════════════════════════════ */\n")
 out.append(":root {")
@@ -260,27 +260,34 @@ for tid in ('l1','l2','l3','l4','l5'):
     out.append("}\n")
 
 # light-specific structural overrides
-out.append("""/* Light structural overrides */
-html[data-theme^='l'] .app-header { backdrop-filter: blur(16px) saturate(150%); -webkit-backdrop-filter: blur(16px) saturate(150%); }
+out.append("""/* Light structural overrides — solid surfaces, no translucency */
+html[data-theme^='l'] .app-header,
+html[data-theme^='l'] .card-base, html[data-theme^='l'] .card-elevated, html[data-theme^='l'] .cyber-glass,
+html[data-theme^='l'] .market-overview .card-base, html[data-theme^='l'] .app-sidebar,
+html[data-theme^='l'] .mobile-nav, html[data-theme^='l'] .mobile-search-orb, html[data-theme^='l'] .intro-watchlist,
+html[data-theme^='l'] .theme-menu, html[data-theme^='l'] .mobile-more-menu {
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+html[data-theme^='l'] .card-base, html[data-theme^='l'] .card-elevated, html[data-theme^='l'] .cyber-glass,
+html[data-theme^='l'] .market-overview .card-base {
+  background-image: none;
+}
+html[data-theme^='l'] .market-overview .card-base:first-child {
+  background-image: linear-gradient(135deg, rgba(200,241,105,.18), rgba(200,241,105,.035) 72%);
+  border-color: rgba(150,178,66,.35);
+}
+html[data-theme='l3'] .market-overview .card-base:first-child {
+  background-image: linear-gradient(135deg, #EAF3FD, #FBFDFF 62%);
+  border-color: rgba(120,160,210,.4);
+}
+html[data-theme='l5'] .market-overview .card-base:nth-child(1) { background-image: linear-gradient(135deg, #EFE8FC, #FBF9FF 62%); }
+html[data-theme='l5'] .market-overview .card-base:nth-child(2) { background-image: linear-gradient(135deg, #E6F6EE, #FAFFFC 62%); }
+html[data-theme='l5'] .market-overview .card-base:nth-child(3) { background-image: linear-gradient(135deg, #FDEEDF, #FFFBF6 62%); }
 html[data-theme^='l'] .brand-mark { box-shadow: 0 6px 18px -8px rgba(120,160,20,.45); }
 html[data-theme^='l'] .scanner-section table th { color: var(--t-muted); }
 html[data-theme^='l'] .mobile-nav-lens { box-shadow: inset 0 1px 1px rgba(255,255,255,.5), 0 2px 8px rgba(23,32,46,.12); }
 html[data-theme^='l'] ::-webkit-scrollbar-thumb { background: var(--t-overlay-15); }
 html[data-theme^='l'] ::-webkit-scrollbar-thumb:hover { background: rgba(15,20,27,.28); }
-html[data-theme='l3'] .card-base, html[data-theme='l3'] .card-elevated, html[data-theme='l3'] .cyber-glass,
-html[data-theme='l3'] .market-overview .card-base, html[data-theme='l3'] .app-header,
-html[data-theme='l3'] .mobile-nav, html[data-theme='l3'] .mobile-search-orb, html[data-theme='l3'] .intro-watchlist,
-html[data-theme='l3'] .app-sidebar, html[data-theme='l3'] .today-watchlist {
-  backdrop-filter: blur(18px) saturate(150%); -webkit-backdrop-filter: blur(18px) saturate(150%);
-}
-html[data-theme='l3'] .card-base, html[data-theme='l3'] .card-elevated, html[data-theme='l3'] .cyber-glass,
-html[data-theme='l3'] .market-overview .card-base {
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.85), var(--t-shadow-card);
-}
-html[data-theme='l3'] .app-sidebar { border-right: 1px solid rgba(255,255,255,.7); }
-html[data-theme='l5'] .market-overview .card-base:nth-child(1) { background-image: linear-gradient(135deg, rgba(167,139,250,.18), rgba(255,255,255,0) 60%); }
-html[data-theme='l5'] .market-overview .card-base:nth-child(2) { background-image: linear-gradient(135deg, rgba(61,220,151,.16), rgba(255,255,255,0) 60%); }
-html[data-theme='l5'] .market-overview .card-base:nth-child(3) { background-image: linear-gradient(135deg, rgba(255,176,120,.20), rgba(255,255,255,0) 60%); }
 html[data-theme^='l'] .intelligence-icon { border-color: rgba(139,92,246,.3); color: #6D4FCF; background: rgba(139,92,246,.1); }
 html[data-theme^='l'] .intelligence-eyebrow { color: #6D4FCF; }
 html[data-theme^='l'] .intelligence-state.is-error { color: #8A5A12; }

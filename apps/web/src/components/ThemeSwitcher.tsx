@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, Moon, Palette, Sun } from 'lucide-react';
+import { Check, Moon, Palette, Sun } from 'lucide-react';
 
 export type ThemeId = 'dark' | 'l1' | 'l2' | 'l3' | 'l4' | 'l5';
 
@@ -13,7 +13,7 @@ interface ThemeOption {
 export const THEME_OPTIONS: ThemeOption[] = [
   { id: 'l1', label: 'L1 · Paper', hint: 'alb rece, minimal', swatch: '#F5F7FA' },
   { id: 'l2', label: 'L2 · Ivory', hint: 'alb cald, de hârtie', swatch: '#F7F4EC' },
-  { id: 'l3', label: 'L3 · Liquid', hint: 'sticlă luminoasă', swatch: '#F2F5F9' },
+  { id: 'l3', label: 'L3 · Sky', hint: 'albastru senin', swatch: '#ECF3FA' },
   { id: 'l4', label: 'L4 · Mint', hint: 'verde proaspăt', swatch: '#E9F5EE' },
   { id: 'l5', label: 'L5 · Sorbet', hint: 'pastel multicolor', swatch: '#F6F0FF' }
 ];
@@ -80,8 +80,7 @@ export const ThemeSwitcher: React.FC = () => {
         aria-label="Alege tema (zi / seară)"
         title="Temă: zi / seară"
       >
-        {isLight ? <Sun size={15} /> : <Moon size={15} />}
-        <ChevronDown size={11} className="chev" />
+        {isLight ? <Sun size={16} /> : <Moon size={16} />}
       </button>
 
       {open && (
