@@ -3581,10 +3581,13 @@ Cerute de utilizator după preview-uri aprobate: **Varianta C** (rotunjit maxim,
 - E2E local (mock): Scanner / Bubble / HeatMap → AssetDeepDiveView identic (back + chart + Money Line, 7 canvasuri).
 
 ```text
-Source commit: <COMMIT_SHA>
+Source commit: 6f5b050
 Local tests: 243 passed, 0 failed
-Cloud Build ID: <BUILD_ID>
-Cloud Run revision: <REVISION>
-Public bundle: <JS>, <CSS>
+Local build: passed (packages/*, apps/api, apps/worker, apps/web)
+Cloud Build ID: 084e73eb-3f5a-4f48-b763-771128d96cdc (SUCCESS)
+Cloud Run revision: market-scanner-360-00192-n6z
+Traffic: 100%
+Public bundle: assets/index-Dv72kFR9.js, assets/index-CkbwBYnm.css (Quicksand + border-radius:30px confirmate în CSS-ul servit)
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health check (/api/health): HTTP 200 OK
 ```
