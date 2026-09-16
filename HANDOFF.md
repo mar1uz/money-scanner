@@ -3606,8 +3606,66 @@ Cerut de utilizator: „temă light pentru zi, dark rămâne pentru seară — d
 **Comutator UI:** `apps/web/src/components/ThemeSwitcher.tsx` — buton ☀️/🌙 (pill, glow lime când e light) în header lângă selectorul de limbă; dropdown „modern" (sticlă, 24px radius) cu Dark + L1…L5, swatch-uri circulare, subtitlu RO, bifă pe activ. Închidere la click în afară / Escape.
 
 ```text
-Source commit: <COMMIT_SHA>
+Source commit: a811421
 Tests: 243 passed, 0 failed
-Cloud Build ID: <BUILD_ID>
-Cloud Run revision: <REVISION>
+Cloud Build ID: 2d4b6042-44ef-4d33-b719-1762df7893be (SUCCESS)
+Cloud Run revision: market-scanner-360-00193-zc6
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health check (/api/health): HTTP 200 OK
+```
+
+### 2026-09-16 — Top bar rearanjat + teme 100% solide (fără transluciditate)
+
+Cerut de utilizator (screenshot): scos indicatorul LIVE verde (fără funcționalitate), refresh scos de pe mobil, butoanele alarmă/temă/limbă mai mici și egale, bara timeframe mai mare; nicio temă translucidă/transparentă — toate să aibă palete de culori solide distincte (stil Ivory).
+
+- `Header.tsx`: scos `isStale`/bula LIVE; refresh doar desktop; clopoțel/temă/limbă → 3 butoane egale mici (`w-9 h-9 rounded-full`); bara timeframe mai lată (`rounded-full … p-1`); iconița `Bell` (nu `BellRing`).
+- `gen-theme.py`: L3 Liquid → **L3 · Sky** (albastru solid, fără sticlă), L5 Sorbet carduri opace, toate headerele solide; fără blur/sheen.
+- QA: 20/20 scanări de contrast curate (5 teme × 4 tab-uri); web tests 73/73.
+
+```text
+Source commit: 0ed52bf
+Cloud Build ID: 90988f93-874b-4f4a-8d92-dfc00bff871b (SUCCESS)
+Cloud Run revision: market-scanner-360-00194-5sb
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health check (/api/health): HTTP 200 OK
+```
+
+### 2026-09-16 — Bara de tabel: freeze flush (nu floating, fără date deasupra)
+
+Cerut: „bara e floating și se văd date deasupra ei când fac scroll; vreau exact ca tabelul, să nu fie floating, dar să rămână fixă (freeze)".
+
+- **Cauză (măsurată, nu ghicită)**: cutia de scroll a tabelului are clasa `card-base` ca fiu direct al `.scanner-section` → primea `padding: 20px` (desktop) / `10px` (mobil). Într-un scrollport cu padding, rândurile curg **prin banda de padding de deasupra** thead-ului sticky → fâșie de 11px (mobil) / 21px (desktop) cu conținut de rând vizibil „deasupra barei". În plus, `shadow-md` (thead) + `shadow-2xl` (cutie) + `shadow-[4px_0_12px…rgba(0,0,0,0.8)]` (coloana sticky) + `td:first-child { box-shadow:#000 }` dădeau aspectul de „floating".
+- **Fix**: clasă `scanner-table-scroll` + regula `.scanner-section > .card-base.scanner-table-scroll { padding: 0 }` (leak 11px → 1px = doar bordura); `thead`/`th` bg → `var(--t-surface)` (culoarea exactă a tabelului, nu tinta `raised`); eliminați toți cei 4 shadow-i. Sticky `top-0` + z-20/30 păstrate (freeze).
+- **Verificat**: leakPx=1 (mobil + desktop, măsurat în DOM), vizual L1 + dark (niciun rând deasupra header-ului, flush, solid), web tests 73/73, tsc clean.
+
+```text
+Source commit: 9a844b1
+Cloud Build ID: 7cae8eb9-c647-48cb-ae91-ff7d226a9f17 (SUCCESS)
+Cloud Run revision: market-scanner-360-00195-b5s
+Traffic: 100%
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health check (/api/health): HTTP 200 OK
+```
+
+### 2026-09-16 — Acoperire: tile-uri = filtre, rânduri = deep-dive Money Line
+
+Cerut: „meniurile să fie interactive — click pe filtre să filtreze proiectele de mai jos; click pe listă să se deschidă panoul cu Money Line".
+
+- `AlertsCenterView.tsx`, secțiunea „Acoperirea ultimei scanări":
+  - cele 5 tile-uri (CONFIRMAT / CANDIDAT / FĂRĂ SETUP / DATE INSUFICIENTE / EROARE) sunt acum **butoane toggle** (`coverageStatusFilter`): click = filtrează lista după status, click din nou = reset la toate; tile-ul activ păstrează tonalitatea statusului; iconiță funnel adăugată ca affordance.
+  - rândurile din listă sunt **butoane** → `onOpenAsset(item.symbol, item.marketClass, '1w')` → aceeași pagină deep-dive Money Line ca din Scanner (chevron „>" ca affordance; `aria`/title).
+  - listă goală sub filtru → mesaj „Niciun activ pentru filtrul selectat" (înainte blocul întreg dispărea, inclusiv căutarea).
+- `tmp/design-preview/server.cjs`: mock `/api/alerts/dashboard` cu `scanCoverage` în toate cele 5 statusuri (QA local).
+- QA (Playwright, mobil 390px + desktop): 8 rânduri → Candidat=2 (AI, MON) → Confirmat=3 (XTZ, LUNC, DCR) → Eroare=1 (ZRX9) → toggle-off=8; click rând XTZ → deep-dive cu back button, 7 canvasuri, text Money Line; vizual L1 confirmat. Teste monorepo **243/0**, tsc clean.
+
+```text
+Source commit: b98e22e
+Cloud Build ID: 2762a5ed-6a3e-44d8-9604-1bdb8e14a840 (SUCCESS)
+Cloud Run revision: market-scanner-360-00196-5t4
+Traffic: 100%
+Public bundle: assets/index-DKwhbiRu.js (conține «Niciun activ pentru filtrul selectat», «Deschide analiza Money Line pentru», «Filtrează:» — verificat în JS-ul servit)
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health check (/api/health): HTTP 200 OK
 ```
