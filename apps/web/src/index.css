@@ -379,9 +379,12 @@ button, a, input, select, summary { outline-offset: 4px; }
 .sector-disclosure[open] .disclosure-plus { transform: rotate(45deg); }
 .sector-disclosure[open] { padding-bottom: 24px; }
 .scanner-section > .card-base { padding: 20px; }
+/* Table scroll box: no padding — a padded scrollport leaves an 11/21px strip where scrolled
+   rows show above the sticky thead (looks like the header floats over live data). */
+.scanner-section > .card-base.scanner-table-scroll { padding: 0; }
 .scanner-section table th { font-weight: 500; letter-spacing: .02em; padding-top: 18px; padding-bottom: 18px; }
 .scanner-section table td { padding-top: 20px; padding-bottom: 20px; }
-.scanner-section table td:first-child { box-shadow: 3px 0 8px -6px #000; }
+.scanner-section table td:first-child { box-shadow: none; }
 @media (max-width: 1100px) and (min-width: 768px) {
   .market-overview > .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .market-intro { align-items: flex-start; flex-direction: column; }
@@ -444,7 +447,7 @@ body { background: var(--t-bg); }
 .market-overview > div:first-child button { border-radius: 999px; min-height: 38px; }
 .sector-disclosure { border-color: var(--t-line); }
 .scanner-section > .card-base button { border-radius: 999px; min-height: 34px; }
-.scanner-section table th { background-color: var(--t-surface-2); }
+.scanner-section table th { background-color: var(--t-surface); }
 .scanner-section table td { border-color: var(--t-overlay-06); }
 .mobile-dock { position: fixed; z-index: 50; bottom: max(16px, env(safe-area-inset-bottom)); left: 0; right: 0; width: min(304px, calc(100% - 48px)); align-items: center; gap: 8px; margin-inline: auto; pointer-events: none; }
 .mobile-nav, .mobile-search-orb {
@@ -572,7 +575,7 @@ body { background: var(--ml-bg); color: var(--ml-text); }
 .nav-group-label { color: var(--t-faint); font-size: 11px; }
 .market-intro h1 { color: var(--ml-text); }
 .intro-description, .section-title { color: var(--ml-muted); }
-.scanner-section table th { background: var(--ml-surface-raised); color: var(--t-muted); }
+.scanner-section table th { background: var(--t-surface); color: var(--t-muted); }
 .scanner-section table td[data-col] { font-size: 13px; }
 .scanner-section table td[data-col="asset"] { min-width: 190px; }
 .scanner-section table td[data-col="price"], .scanner-section table td[data-col="change24h"],

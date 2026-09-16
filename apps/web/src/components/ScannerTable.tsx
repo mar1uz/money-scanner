@@ -627,14 +627,14 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
       </div>
 
       {/* Cyber Table with Interactive Sortable Column Headers & 2D Sticky Headers */}
-      <div className="overflow-auto max-h-[75vh] md:max-h-[82vh] rounded-[30px] border border-white/[0.08] card-base shadow-2xl relative custom-scrollbar">
+      <div className="overflow-auto max-h-[75vh] md:max-h-[82vh] rounded-[30px] border border-white/[0.08] card-base relative custom-scrollbar scanner-table-scroll">
         <table className="w-full text-left text-xs border-collapse">
-          <thead className="sticky top-0 z-20 bg-[var(--t-surface-raised)] border-b border-white/[0.08] text-[11px] font-mono uppercase tracking-wider text-slate-400 select-none shadow-md">
+          <thead className="sticky top-0 z-20 bg-[var(--t-surface)] border-b border-white/[0.08] text-[11px] font-mono uppercase tracking-wider text-slate-400 select-none">
             <tr>
               {/* Asset Name & Symbol Header - Sticky TOP and LEFT (Corner cell z-30) */}
               <th data-col="asset"
                 onClick={() => handleSort('symbol')}
-                className="sticky top-0 left-0 z-30 bg-[var(--t-surface-raised)] border-b border-white/[0.08] border-r border-white/[0.06] shadow-[4px_0_12px_-2px_rgba(0,0,0,0.8)] py-4 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+                className="sticky top-0 left-0 z-30 bg-[var(--t-surface)] border-b border-white/[0.08] border-r border-white/[0.06] py-4 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
               >
                 <div className="flex items-center gap-1.5">
                   <span>Asset</span>
@@ -645,7 +645,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
               {/* Price Header */}
               <th data-col="price"
                 onClick={() => handleSort('price')}
-                className="sticky top-0 bg-[var(--t-surface-raised)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+                className="sticky top-0 bg-[var(--t-surface)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
               >
                 <div className="flex items-center gap-1.5">
                   <span>Preț</span>
@@ -656,7 +656,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
               {/* Expand/Collapse Timeframe Arrow Button Header */}
               <th data-col="ml-toggle"
                 onClick={() => setIsMlExpanded(prev => !prev)}
-                className="sticky top-0 bg-[var(--t-surface-raised)] border-b border-white/[0.08] py-3.5 px-2 cursor-pointer hover:text-cyan-300 transition-colors group select-none text-center"
+                className="sticky top-0 bg-[var(--t-surface)] border-b border-white/[0.08] py-3.5 px-2 cursor-pointer hover:text-cyan-300 transition-colors group select-none text-center"
                 title={isMlExpanded ? 'Restrânge: afișează doar ML 1W' : 'Apasă săgeata pentru a deschide toate timeframe-urile (ML 1H, 4H, 8H, 1D, 1W)'}
               >
                 <div className="flex items-center justify-center">
@@ -681,7 +681,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                   <th data-col="ml-1h"
                     onClick={() => handleSort('moneyLine1hPercent')}
                     title="Click: crescător → descrescător → NEW FLIP acum"
-                    className="sticky top-0 bg-[var(--t-surface-raised)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group animate-fade-in"
+                    className="sticky top-0 bg-[var(--t-surface)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group animate-fade-in"
                   >
                     <div className="flex items-center gap-1.5">
                       <span>ML 1H</span>
@@ -693,7 +693,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                   <th data-col="ml-4h"
                     onClick={() => handleSort('moneyLine4hPercent')}
                     title="Click: crescător → descrescător → NEW FLIP acum"
-                    className="sticky top-0 bg-[var(--t-surface-raised)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group animate-fade-in"
+                    className="sticky top-0 bg-[var(--t-surface)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group animate-fade-in"
                   >
                     <div className="flex items-center gap-1.5">
                       <span>ML 4H</span>
@@ -705,7 +705,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                   <th data-col="ml-8h"
                     onClick={() => handleSort('moneyLine8hPercent')}
                     title="Click: crescător → descrescător → NEW FLIP acum"
-                    className="sticky top-0 bg-[var(--t-surface-raised)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group animate-fade-in"
+                    className="sticky top-0 bg-[var(--t-surface)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group animate-fade-in"
                   >
                     <div className="flex items-center gap-1.5">
                       <span>ML 8H</span>
@@ -717,7 +717,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                   <th data-col="ml-1d"
                     onClick={() => handleSort('moneyLine1dPercent')}
                     title="Click: crescător → descrescător → NEW FLIP acum"
-                    className="sticky top-0 bg-[var(--t-surface-raised)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group animate-fade-in"
+                    className="sticky top-0 bg-[var(--t-surface)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group animate-fade-in"
                   >
                     <div className="flex items-center gap-1.5">
                       <span>ML 1D</span>
@@ -731,7 +731,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
               <th data-col="ml-1w"
                 onClick={() => handleSort('moneyLine1wPercent')}
                 title="Click: crescător → descrescător → NEW FLIP acum"
-                className="sticky top-0 bg-[var(--t-surface-raised)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+                className="sticky top-0 bg-[var(--t-surface)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
               >
                 <div className="flex items-center gap-1.5">
                   <span>ML 1W</span>
@@ -742,7 +742,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
               {/* 24h Change Header */}
               <th data-col="change24h"
                 onClick={() => handleSort('change24h')}
-                className="sticky top-0 bg-[var(--t-surface-raised)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+                className="sticky top-0 bg-[var(--t-surface)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
               >
                 <div className="flex items-center gap-1.5">
                   <span>Var. 24h</span>
@@ -753,7 +753,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
               {/* YTD % Change Header */}
               <th data-col="changeYtd"
                 onClick={() => handleSort('changeYtd')}
-                className="sticky top-0 bg-[var(--t-surface-raised)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+                className="sticky top-0 bg-[var(--t-surface)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
               >
                 <div className="flex items-center gap-1.5">
                   <span>YTD %</span>
@@ -764,7 +764,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
               {/* Market Cap Header */}
               <th data-col="marketCap"
                 onClick={() => handleSort('marketCap')}
-                className="sticky top-0 bg-[var(--t-surface-raised)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group text-cyan-300"
+                className="sticky top-0 bg-[var(--t-surface)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group text-cyan-300"
               >
                 <div className="flex items-center gap-1.5">
                   <DollarSign className="w-3.5 h-3.5 text-cyan-400" />
@@ -776,7 +776,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
               {/* Money Line Score Header */}
               <th data-col="score"
                 onClick={() => handleSort('moneyLineScore')}
-                className="sticky top-0 bg-[var(--t-surface-raised)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+                className="sticky top-0 bg-[var(--t-surface)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
               >
                 <div className="flex items-center gap-1.5">
                   <span>Scor Money Line</span>
@@ -787,7 +787,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
               {/* Tier Status Header */}
               <th data-col="tier"
                 onClick={() => handleSort('tier')}
-                className="sticky top-0 bg-[var(--t-surface-raised)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+                className="sticky top-0 bg-[var(--t-surface)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
               >
                 <div className="flex items-center gap-1.5">
                   <span>Regim / Tier</span>
@@ -798,7 +798,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
               {/* RVOL Header */}
               <th data-col="rvol"
                 onClick={() => handleSort('rvol')}
-                className="sticky top-0 bg-[var(--t-surface-raised)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+                className="sticky top-0 bg-[var(--t-surface)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
               >
                 <div className="flex items-center gap-1.5">
                   <span>RVOL</span>
@@ -809,7 +809,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
               {/* Volatility ATR Header */}
               <th data-col="atr"
                 onClick={() => handleSort('volatilityAtrPercent')}
-                className="sticky top-0 bg-[var(--t-surface-raised)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+                className="sticky top-0 bg-[var(--t-surface)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
               >
                 <div className="flex items-center gap-1.5">
                   <span>Volatilitate ATR</span>
@@ -820,7 +820,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
               {/* X Momentum Header */}
               <th data-col="x"
                 onClick={() => handleSort('xTrendScore')}
-                className="sticky top-0 bg-[var(--t-surface-raised)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+                className="sticky top-0 bg-[var(--t-surface)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
               >
                 <div className="flex items-center gap-1.5">
                   <Flame className="w-3.5 h-3.5 text-amber-400" />
@@ -832,7 +832,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
               {/* AI Bias & Verdict Header */}
               <th data-col="ai"
                 onClick={() => handleSort('aiConfidence')}
-                className="sticky top-0 bg-[var(--t-surface-raised)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
+                className="sticky top-0 bg-[var(--t-surface)] border-b border-white/[0.08] py-3.5 px-4 cursor-pointer hover:text-cyan-300 transition-colors group"
               >
                 <div className="flex items-center gap-1.5">
                   <span>AI Verdict</span>
@@ -840,7 +840,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                 </div>
               </th>
 
-              <th className="sticky top-0 bg-[var(--t-surface-raised)] border-b border-white/[0.08] py-3.5 px-4 text-right">Acțiuni</th>
+              <th className="sticky top-0 bg-[var(--t-surface)] border-b border-white/[0.08] py-3.5 px-4 text-right">Acțiuni</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/[0.04]">
@@ -875,7 +875,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                     }`}
                   >
                     {/* Symbol & Name Column - Sticky LEFT (z-10) with matching solid background */}
-                    <td data-col="asset" className="sticky left-0 z-10 bg-[var(--t-surface-raised)] group-hover:bg-[var(--t-surface-raised)] border-r border-white/[0.06] shadow-[4px_0_12px_-2px_rgba(0,0,0,0.8)] py-3.5 px-4 font-mono font-bold transition-colors">
+                    <td data-col="asset" className="sticky left-0 z-10 bg-[var(--t-surface)] group-hover:bg-[var(--t-surface-raised)] border-r border-white/[0.06] py-3.5 px-4 font-mono font-bold transition-colors">
                       <div className="flex items-center gap-2">
                         {watchlistOnly && onReorderWatchlist && (
                           <div className="flex flex-col gap-0.5 text-slate-500 hover:text-slate-300 transition-colors">
