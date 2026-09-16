@@ -8,6 +8,15 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
+    <script>
+      // Apply saved theme before first paint (dark | l1..l5)
+      (function () {
+        try {
+          var t = localStorage.getItem('ms-theme');
+          if (t && ['dark', 'l1', 'l2', 'l3', 'l4', 'l5'].indexOf(t) !== -1) document.documentElement.dataset.theme = t;
+        } catch (e) { /* storage unavailable */ }
+      })();
+    </script>
     <title>Market Scanner 360 — Multi-Asset Intelligence & Money Line Engine</title>
     <meta name="description" content="Professional 360° multi-asset scanner for Crypto, US Stocks & Precious Metals with deterministic Money Line engine, technical analysis tools, and AI Briefing." />
   </head>

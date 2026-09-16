@@ -389,17 +389,21 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     container.innerHTML = '';
     const initialHeight = container.clientHeight > 0 ? container.clientHeight : (window.innerWidth < 768 ? 480 : 540);
 
+    // Theme-aware chart colors (resolved from CSS tokens at creation time).
+    const themeStyles = getComputedStyle(document.documentElement);
+    const themeColor = (name: string, fallback: string) => themeStyles.getPropertyValue(name).trim() || fallback;
+
     const chart = createChart(container, {
       width: container.clientWidth || 360,
       height: initialHeight,
       layout: {
-        background: { type: ColorType.Solid, color: '#0B0D10' },
-        textColor: '#94a3b8',
+        background: { type: ColorType.Solid, color: themeColor('--t-bg', '#0B0D10') },
+        textColor: themeColor('--t-muted', '#94a3b8'),
         fontSize: 11
       },
       grid: {
-        vertLines: { color: 'rgba(30, 36, 46, 0.4)' },
-        horzLines: { color: 'rgba(30, 36, 46, 0.4)' }
+        vertLines: { color: 'rgba(132, 142, 158, 0.18)' },
+        horzLines: { color: 'rgba(132, 142, 158, 0.18)' }
       },
       crosshair: {
         mode: CrosshairMode.Normal,
@@ -407,12 +411,12 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
         horzLine: { color: '#6FC7FF', width: 1, style: 3 }
       },
       rightPriceScale: {
-        borderColor: '#232A35',
+        borderColor: themeColor('--t-line', '#232A35'),
         scaleMargins: { top: 0.1, bottom: 0.2 }
       },
       timeScale: {
         visible: true,
-        borderColor: '#232A35',
+        borderColor: themeColor('--t-line', '#232A35'),
         timeVisible: true,
         secondsVisible: false,
         tickMarkFormatter: (time: number, tickMarkType: number, locale: string) => {
@@ -684,10 +688,10 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
           symbol: tvSymbol,
           interval: tvInterval,
           timezone: 'Etc/UTC',
-          theme: 'dark',
+          theme: (document.documentElement.dataset.theme || 'dark').startsWith('l') ? 'light' : 'dark',
           style: '1',
           locale: language,
-          toolbar_bg: '#0B0D10',
+          toolbar_bg: getComputedStyle(document.documentElement).getPropertyValue('--t-bg').trim() || '#0B0D10',
           enable_publishing: false,
           allow_symbol_change: true,
           container_id: uniqueId,
@@ -1335,7 +1339,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
           </div>
 
           {/* Mobile Quick TA & Percentage Measurement Bar (Optimized for touch) */}
-          <div className="md:hidden flex flex-col gap-2 p-2.5 bg-[#12151A] border border-cyan-500/30 rounded-[30px] shadow-xl">
+          <div className="md:hidden flex flex-col gap-2 p-2.5 bg-[var(--t-surface)] border border-cyan-500/30 rounded-[30px] shadow-xl">
             <div className="flex items-center justify-between gap-2 overflow-x-auto pb-0.5">
               {/* 1. Pointer Mode */}
               <button
@@ -1428,7 +1432,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
               if (!latestRuler || !latestRuler.p2) return null;
               const stats = getRulerStats(latestRuler.p1, latestRuler.p2);
               return (
-                <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-[#151A21] border border-cyan-500/40 text-xs font-mono animate-fade-in shadow-md">
+                <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-[var(--t-surface-raised)] border border-cyan-500/40 text-xs font-mono animate-fade-in shadow-md">
                   <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                     <span className="text-cyan-400 font-bold">📏 Rezultat:</span>
                     <span className={`font-black ${stats.isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
@@ -1455,14 +1459,14 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
           {/* Chart View Container with Floating Drawing Tools & SVG Overlay */}
           <div className="relative w-full rounded-[30px] overflow-hidden bg-background-card border border-background-border">
             {isLoadingHistory && (
-              <div className="absolute left-1/2 top-3 z-40 -translate-x-1/2 rounded-full border border-cyan-500/30 bg-[#12151A]/95 px-3 py-1.5 text-[10px] font-bold font-mono text-cyan-300 shadow-xl backdrop-blur-xl animate-pulse">
+              <div className="absolute left-1/2 top-3 z-40 -translate-x-1/2 rounded-full border border-cyan-500/30 bg-[rgb(var(--t-surface-rgb)/0.95)] px-3 py-1.5 text-[10px] font-bold font-mono text-cyan-300 shadow-xl backdrop-blur-xl animate-pulse">
                 Se încarcă istoric mai vechi…
               </div>
             )}
             {/* Left Floating Technical Drawing Toolbar (Full TradingView Suite - Visible on mobile & desktop, vertically scrollable) */}
             <div
               onTouchStart={(e) => e.stopPropagation()}
-              className="flex absolute left-1.5 sm:left-3 top-2 sm:top-3 z-30 flex-col items-center gap-1 p-1 sm:p-1.5 bg-[#0D1015]/90 backdrop-blur-xl border border-white/[0.08] rounded-xl shadow-2xl max-h-[calc(100%-1rem)] overflow-y-auto no-scrollbar touch-pan-y overscroll-y-contain"
+              className="flex absolute left-1.5 sm:left-3 top-2 sm:top-3 z-30 flex-col items-center gap-1 p-1 sm:p-1.5 bg-[rgb(var(--t-surface-rgb)/0.9)] backdrop-blur-xl border border-white/[0.08] rounded-xl shadow-2xl max-h-[calc(100%-1rem)] overflow-y-auto no-scrollbar touch-pan-y overscroll-y-contain"
             >
               {/* 1. Pointer / Cursor Mode */}
               <button

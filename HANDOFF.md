@@ -3591,3 +3591,23 @@ Public bundle: assets/index-Dv72kFR9.js, assets/index-CkbwBYnm.css (Quicksand + 
 Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health check (/api/health): HTTP 200 OK
 ```
+
+### 2026-09-16 — Theme engine: dark + 5 teme light cu comutator (Zi/Noapte)
+
+Cerut de utilizator: „temă light pentru zi, dark rămâne pentru seară — dă-mi preview pentru 3 variante", apoi „încă 2 variante mai colorate ca L2" și „implementează-le pe toate într-un buton cu soare + dropdown modern".
+
+**Motor de teme:**
+- Tokeni CSS `--t-*` (hex + rgb triplets) pentru 6 teme (`dark`, `l1` Paper, `l2` Ivory, `l3` Liquid, `l4` Mint, `l5` Sorbet) în `apps/web/src/theme.css` — GENERAT de `apps/web/tools/gen-theme.py` (sursa de adevăr; editează scriptul și rulează `python3 apps/web/tools/gen-theme.py`). Comutare: `<html data-theme="dark|l1…l5">`.
+- `tailwind.config.js`: scalele de culori referă `rgb(var(--t-…-rgb) / <alpha-value>)` (inclusiv `white` → rol de text: alb pe dark, near-black pe light; `slate` se întoarce pe light). Valorile DARK = exact paleta Signal Graphite anterioară (nimic schimbat vizual pe dark).
+- `index.css`: hex-urile paletei → `var(--t-*)`; blocurile Ultra Round folosesc `--t-bg-image`/`--t-sheen`; peste 40 de hex-uri literale din componente (`bg-[#151A21]` etc.) → `var(--t-surface-raised)` sau `rgb(var(--t-…-rgb)/α)`; `InteractiveChart` citește `--t-bg/--t-muted/--t-line` la runtime (inclusiv widget TradingView: theme light/dark + toolbar_bg din token).
+- Pitfall rezolvat: pașii foarte deschiși ai scalelor (50/100/200) sunt folosiți ca TEXT pe dark (`text-emerald-50` pe bule, `text-violet-200` pe Alerts etc.) → pe light trebuie valori ÎNCHISE; altfel text ≈ invizibil pe fundaluri palide. La fel `heatColor` (tile-uri) + chip-uri.
+- QA: script multi-tab (contrast heuristic pe `main *`, prag 1.8) — 0 probleme pe Market/Bubble/HeatMap/Alerts în L1 și L5; dark neschimbat. Playwright: comutatorul setează `dataset.theme` + `localStorage['ms-theme']` ✓; boot script în `index.html` aplică tema salvată înainte de primul paint.
+
+**Comutator UI:** `apps/web/src/components/ThemeSwitcher.tsx` — buton ☀️/🌙 (pill, glow lime când e light) în header lângă selectorul de limbă; dropdown „modern" (sticlă, 24px radius) cu Dark + L1…L5, swatch-uri circulare, subtitlu RO, bifă pe activ. Închidere la click în afară / Escape.
+
+```text
+Source commit: <COMMIT_SHA>
+Tests: 243 passed, 0 failed
+Cloud Build ID: <BUILD_ID>
+Cloud Run revision: <REVISION>
+```
