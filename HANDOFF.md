@@ -3536,3 +3536,10 @@ Health check (/api/health): HTTP 200 OK (status: "ok", service: "market-scanner-
 - DNS: `scanner.relayhub.no` → NXDOMAIN la nameserverul autoritativ (`ns01/ns02.one.com`); zona a fost modificată recent (serial 2026091501 → 15.09.2026). Recordul pentru `scanner` nu mai există.
 - GCP: nu mai există nici domain mapping-ul (`domain-mappings list` = 0), iar Cloud Run nu permite crearea de domain mappings în `europe-west3` (501 UNIMPLEMENTED). Certificatul LB-ului existent (`relayhub-cert-v2`, creat 15.09) acoperă doar `relayhub.no`; URL map-ul nu are host rule pentru `scanner`.
 - Deci ruta completă către `scanner.relayhub.no` lipsește acum. Restaurare posibilă: (a) rută prin LB-ul existent (serverless NEG → market-scanner-360 + backend + host rule + certificat pentru `scanner.relayhub.no`) + record DNS A → 8.232.135.187 la one.com; sau (b) se folosește doar URL-ul run.app. În așteptarea deciziei utilizatorului.
+
+**Restaurare scanner.relayhub.no — partea GCP făcută (2026-09-16):**
+- Firebase Auth: adăugat `scanner.relayhub.no` la authorizedDomains (altfel Google Sign-In nu merge pe domeniu).
+- LB existent (8.232.135.187): NEG serverless `scanner-neg` (→ market-scanner-360, europe-west3) + backend `scanner-backend` (EXTERNAL_MANAGED) + host rule `scanner.relayhub.no` în `relayhub-url-map` → scanner-backend (relayhub.no neatins).
+- Certificat managed `scanner-relayhub-cert` (scanner.relayhub.no) atașat la `relayhub-https-proxy` alături de `relayhub-cert-v2`; status PROVISIONING — se activează după ce DNS-ul indică LB-ul.
+- HTTP→HTTPS: redirect global deja existent (relayhub-http-redirect) acoperă și scanner.
+- Rămâne (user, one.com): record DNS `A scanner → 8.232.135.187`. După propagare, certificatul devine ACTIVE și `https://scanner.relayhub.no` funcționează.
