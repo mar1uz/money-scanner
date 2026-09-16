@@ -3543,3 +3543,22 @@ Health check (/api/health): HTTP 200 OK (status: "ok", service: "market-scanner-
 - Certificat managed `scanner-relayhub-cert` (scanner.relayhub.no) atașat la `relayhub-https-proxy` alături de `relayhub-cert-v2`; status PROVISIONING — se activează după ce DNS-ul indică LB-ul.
 - HTTP→HTTPS: redirect global deja existent (relayhub-http-redirect) acoperă și scanner.
 - Rămâne (user, one.com): record DNS `A scanner → 8.232.135.187`. După propagare, certificatul devine ACTIVE și `https://scanner.relayhub.no` funcționează.
+
+
+### 2026-09-16 — Follow-up: fundaluri mai rotunde și moderne
+
+Cerut de utilizator („schimbă fondurile din pagina web cu ceva mai rotund și modern").
+
+- **Fundal**: `body` + `.app-shell::before` — glow-uri radiale rotunde, fixe: lime 9% (dreapta-sus), albastru 7.5% (stânga), violet 6.5% (jos); peste grafitul #0B0D10.
+- **Suprafețe**: carduri (`.card-base`/`.card-elevated`/`.market-overview`) la **18px** radius (16px pe mobil la KPI) + sheen subtil sus; nav items 12px; more-menu mobil 18px.
+- QA: computed styles verificate (18px, gradiente aplicate), screenshots desktop+mobil, teste web 73/73.
+
+```text
+Source commit: f4eb39d
+Cloud Build ID: 55c193c6-1a80-4846-91b1-944d029be502 (SUCCESS, 4m24s)
+Cloud Run revision: market-scanner-360-00191-25s
+Traffic: 100%
+Public bundle: assets/index-B06QgySA.js, assets/index-CFXPZzya.css (glow + radius 18px confirmate în CSS-ul servit)
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health check (/api/health): HTTP 200 OK
+```

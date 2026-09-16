@@ -5,7 +5,8 @@ Aprobată 2026-09-16; preview original: `tmp/design-preview/theme-signal-graphit
 
 ## Principii
 
-- Suprafețe grafit neutre (fără tentă olive), hairlines de 1px, radii 12–14px, fără glass/blur în exces.
+- Suprafețe grafit neutre (fără tentă olive), hairlines de 1px, radii 18px la carduri (16px mobil), fără glass/blur în exces.
+- Fundal ambient cu glow-uri radiale rotunde (lime 9% dreapta-sus, albastru 7.5% stânga, violet 6.5% jos), fixe, peste #0B0D10.
 - Accent **lime `#C8F169`** doar pe interactiv și brand (nav activ, chips selectate, CTA, cifre cheie).
 - Culori semantice de date: **up `#3DDC97`**, **down `#FF6B8A`**, **warn `#FFC24B`**, **info `#6FC7FF`**, **AI `#A78BFA`**.
 - Tipografie: Inter (UI) + JetBrains Mono (numerice/micro-label-uri), `tabular-nums` forțat de `.font-mono`.
