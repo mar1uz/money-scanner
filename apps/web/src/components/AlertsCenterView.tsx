@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronRight,
   Clock3,
+  Filter,
   RefreshCw,
   Radar,
   ScanSearch,
@@ -28,6 +29,7 @@ import {
   fetchAlertsDashboard,
   FlipCandidateDashboardItem,
   FlipScanCoverageItem,
+  FlipScanCoverageStatus,
   ManualAlertScanScope,
   runManualAlertScan,
   setBullishAlert
@@ -222,6 +224,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
   const [candidateSearch, setCandidateSearch] = useState('');
   const [showAllCandidates, setShowAllCandidates] = useState(false);
   const [coverageSearch, setCoverageSearch] = useState('');
+  const [coverageStatusFilter, setCoverageStatusFilter] = useState<FlipScanCoverageStatus | 'ALL'>('ALL');
   const [confirmedFilter, setConfirmedFilter] = useState<'ALL' | 'BULLISH' | 'BEARISH'>('ALL');
   const [confirmedTimeframe, setConfirmedTimeframe] = useState<'ALL' | '4h' | '8h' | '1d' | '1w'>('ALL');
   const [confirmedMarketClass, setConfirmedMarketClass] = useState<ConfirmedMarketClassFilter>('ALL');
@@ -429,10 +432,13 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
   }, [candidateOptions, data?.flipCandidates, showAllCandidates]);
   const visibleCoverage = useMemo(() => {
     const query = coverageSearch.trim().toUpperCase();
-    return (data?.scanCoverage || []).filter(item => !query
-      || item.symbol.toUpperCase().includes(query)
-      || (item.name || '').toUpperCase().includes(query));
-  }, [coverageSearch, data?.scanCoverage]);
+    return (data?.scanCoverage || []).filter(item => {
+      if (coverageStatusFilter !== 'ALL' && item.status !== coverageStatusFilter) return false;
+      return !query
+        || item.symbol.toUpperCase().includes(query)
+        || (item.name || '').toUpperCase().includes(query);
+    });
+  }, [coverageSearch, coverageStatusFilter, data?.scanCoverage]);
   const topConfirmedFlips = useMemo(() => {
     return filterConfirmedFlips(data?.confirmedFlips, {
       confirmedFilter,
@@ -699,14 +705,29 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
             Fiecare activ din univers este raportat, inclusiv cele fără setup sau cu date indisponibile. Astfel vezi exact ce a fost analizat.
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
-            {(['CONFIRMED', 'CANDIDATE', 'NO_SETUP', 'INSUFFICIENT_DATA', 'ERROR'] as const).map(status => (
-              <div key={status} className="rounded-lg border border-white/[0.06] bg-black/10 px-2 py-1.5">
-                <div className="text-[9px] uppercase tracking-wide text-slate-500">{coverageStatusMeta[status].label}</div>
-                <div className="mt-0.5 font-mono text-sm font-bold text-slate-200">{data?.dailyRegimeScan.coverage?.outcomes?.[status] ?? 0}</div>
-              </div>
-            ))}
+            {(['CONFIRMED', 'CANDIDATE', 'NO_SETUP', 'INSUFFICIENT_DATA', 'ERROR'] as const).map(status => {
+              const isActive = coverageStatusFilter === status;
+              return (
+                <button
+                  key={status}
+                  type="button"
+                  aria-pressed={isActive}
+                  onClick={() => setCoverageStatusFilter(current => current === status ? 'ALL' : status)}
+                  title={isActive ? 'Renunță la filtru' : `Filtrează: ${coverageStatusMeta[status].label}`}
+                  className={`rounded-lg border px-2 py-1.5 text-left transition ${isActive
+                    ? coverageStatusMeta[status].tone
+                    : 'border-white/[0.06] bg-black/10 hover:border-cyan-500/30 hover:bg-white/[0.04]'}`}
+                >
+                  <div className={`flex items-center justify-between gap-1 text-[9px] uppercase tracking-wide ${isActive ? 'opacity-90' : 'text-slate-500'}`}>
+                    <span className="truncate">{coverageStatusMeta[status].label}</span>
+                    <Filter className={`h-2.5 w-2.5 shrink-0 ${isActive ? '' : 'opacity-45'}`} />
+                  </div>
+                  <div className={`mt-0.5 font-mono text-sm font-bold ${isActive ? '' : 'text-slate-200'}`}>{data?.dailyRegimeScan.coverage?.outcomes?.[status] ?? 0}</div>
+                </button>
+              );
+            })}
           </div>
-          {visibleCoverage.length > 0 && (
+          {(data?.scanCoverage?.length ?? 0) > 0 && (
             <>
               <input
                 value={coverageSearch}
@@ -714,21 +735,34 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                 placeholder="Caută în acoperire, ex. BTC sau Apple"
                 className="mt-3 w-full rounded-lg border border-white/[0.07] bg-white/[0.025] px-3 py-2 font-mono text-[11px] text-slate-200 outline-none placeholder:text-slate-600 focus:border-cyan-500/30"
               />
-              <div className="mt-3 grid max-h-72 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
-                {visibleCoverage.map(item => (
-                  <div key={`${item.marketClass}:${item.symbol}`} className="rounded-lg border border-white/[0.06] bg-black/10 px-2.5 py-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-[11px] font-bold text-slate-200">{item.symbol}</span>
-                      <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[9px] font-bold ${coverageStatusMeta[item.status].tone}`}>{coverageStatusMeta[item.status].label}</span>
-                    </div>
-                    <div className="mt-1 flex items-center justify-between text-[9px] text-slate-500">
-                      <span>{item.marketClass}{item.rank ? ` · #${item.rank}` : ''}</span>
-                      <span>{item.weeklyConfirmed ? '1W confirmat' : item.weeklyCandidate ? '1W candidat' : '1W —'}</span>
-                    </div>
-                    {item.error && <div className="mt-1 truncate text-[9px] text-rose-300" title={item.error}>{item.error}</div>}
-                  </div>
-                ))}
-              </div>
+              {visibleCoverage.length > 0 ? (
+                <div className="mt-3 grid max-h-72 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
+                  {visibleCoverage.map(item => (
+                    <button
+                      key={`${item.marketClass}:${item.symbol}`}
+                      type="button"
+                      onClick={() => onOpenAsset(item.symbol, item.marketClass, '1w')}
+                      title={`Deschide analiza Money Line pentru ${item.symbol}`}
+                      className="rounded-lg border border-white/[0.06] bg-black/10 px-2.5 py-2 text-left transition hover:border-cyan-500/35 hover:bg-cyan-500/[0.06]"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-[11px] font-bold text-slate-200">{item.symbol}</span>
+                        <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[9px] font-bold ${coverageStatusMeta[item.status].tone}`}>{coverageStatusMeta[item.status].label}</span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between text-[9px] text-slate-500">
+                        <span>{item.marketClass}{item.rank ? ` · #${item.rank}` : ''}</span>
+                        <span className="flex items-center gap-0.5">
+                          {item.weeklyConfirmed ? '1W confirmat' : item.weeklyCandidate ? '1W candidat' : '1W —'}
+                          <ChevronRight className="h-3 w-3 shrink-0 opacity-50" />
+                        </span>
+                      </div>
+                      {item.error && <div className="mt-1 truncate text-[9px] text-rose-300" title={item.error}>{item.error}</div>}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-[11px] text-slate-500">Niciun activ pentru filtrul selectat — apasă din nou pe filtru ca să revii la toate.</p>
+              )}
             </>
           )}
         </details>
