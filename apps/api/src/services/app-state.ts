@@ -43,6 +43,7 @@ import { DailySmaReclaimRunner } from './daily-sma-reclaim-runner.js';
 import { MaCrossAlertRunner } from './ma-cross-alert-runner.js';
 import { StructureScannerRunner } from './structure-scanner-runner.js';
 import { calculateFlipPriorityScore } from './flip-priority-score.js';
+import { RegimeTapeService } from './regime-tape-service.js';
 import { DailySmaReclaimReport } from '@money-scanner/shared';
 
 export interface BullishCloudAlertRule {
@@ -259,6 +260,7 @@ export class AppState {
   public maCrossAlerts = new MaCrossAlertRunner(this.marketData, this.telegramBot);
   public structureScanner = new StructureScannerRunner(this.marketData);
   public priceAlerts = new PriceAlertService(this.marketData, this.telegramBot);
+  public regimeTape = RegimeTapeService.getInstance(this.marketData, this.moneyLine, this.telegramBot);
 
   public cachedSignals: Map<string, MoneyLineSignal> = new Map(); // key: `${symbol}_${timeframe}`
   public alertHistory: DispatchedAlert[] = [];
