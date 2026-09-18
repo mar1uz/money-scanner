@@ -44,9 +44,7 @@ export function createServer() {
       || req.path === '/alerts/daily-sma-reclaim/scheduled'
       || req.path === '/ai/daily-warmup'
       || req.path === '/tape/scan'
-      || req.path === '/tape/events'
-      || req.path === '/tape/summary'
-      || req.path === '/tape/x-preview'
+      || req.path === '/tape/proof'
       || req.path === '/tape/waitlist'
       || req.path.startsWith('/auth/')
     ) {
@@ -107,3 +105,4 @@ export function createServer() {
 
   return app;
 }
+
