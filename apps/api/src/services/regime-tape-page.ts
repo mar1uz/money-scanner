@@ -38,9 +38,7 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
 <body>
 <main>
   <h1>Money Line Regime Tape</h1>
-  <p class="sub">Every regime transition the Money Line engine records on closed daily and weekly candles - kept permanently, including the ones that lose. With 1d / 7d / 30d forward outcomes.</p>
-
-  <div class="warn"><strong>Risk warning.</strong> This page is market-regime analytics computed from public market data. It is not investment advice and not a recommendation to buy or sell any asset. A "Bullish" regime reading describes indicator state on a closed candle; it does not predict that the price will rise. Past transitions do not guarantee future results.</div>
+  <p class="sub">Money Scanner catches the moment an asset flips into a bullish or bearish regime - on closed daily and weekly candles, across hundreds of assets, before the crowd notices. This tape is the proof: every flip we have ever published, kept permanently, with the real 1d / 7d / 30d outcomes. Winners and losers alike.</p>
 
   <h2>Latest scan</h2>
   <div class="card" id="scan">Loading...</div>
@@ -75,7 +73,7 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
     <p><strong>Money Line</strong> is a deterministic, non-repainting composite score from -100 to +100 computed only on closed candles: EMA alignment 25%, EMA20 slope 15%, ROC(9/21) 15%, MACD(12/26/9) 15%, RSI(14) 15%, RVOL(20) 10%, ATR(14) volatility regime 5%. Tiers: Strong Bullish >= +60, Bullish >= +20, Neutral -20..+20, Bearish <= -20, Strong Bearish <= -60.</p>
     <p>A tape event is recorded when the tier on the latest closed candle differs from the previous closed candle. Universe: top liquid crypto assets by market cap plus the tracked stock/ETF and metals list. Sources: Binance / Hyperliquid public candles (crypto), Yahoo Finance public chart API (stocks, ETFs, metals). Method version <code id="mver"></code>, tape version <code id="tver"></code>.</p>
     <p>Coverage and scan errors are published in "Latest scan" so gaps in the record are visible. Outcomes measure the simple price return from the transition close price after 1, 7 and 30 days; they are statistics, not trade results.</p>
-    <p class="muted">Operator: Money Scanner (scanner.relayhub.no). The operator may hold or trade assets shown on this tape. Contact via the dashboard.</p>
+    <p class="muted">Operator: Money Scanner (scanner.relayhub.no). The operator may hold or trade assets shown on this tape. Signals use closed candles; technical regime data, not investment advice or a profit forecast. Past transitions do not guarantee future results.</p>
   </div>
 </main>
 <script>

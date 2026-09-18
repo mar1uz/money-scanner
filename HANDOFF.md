@@ -3955,7 +3955,8 @@ All public paths are whitelisted in `server.ts` before the Firebase session midd
 
 ### Compliance posture
 
-- Public copy states facts only: "Money Line crossed into Bullish on the daily close", never "price will rise". Every public surface carries the risk warning, method version, data sources, UTC timestamps, and a conflicts note. The tape deliberately records all transitions, including losers; outcomes are labelled statistics, not trade results.
+- Tone (owner directive, 2026-09-18): lead with strong, persuasive, evidence-backed claims - the product's value is early regime detection, so say it boldly. No false claims, no guaranteed-return promises. Disclosures stay concise and secondary (footer/methodology line), never the headline.
+- Public copy states verifiable facts: "Money Line crossed into Bullish on the daily close", never "price will rise". The tape deliberately records all transitions, including losers; outcomes are labelled statistics, not trade results. Method version, data sources, UTC timestamps and the conflicts note live on the public page.
 - Even with this framing, public investment-related posts can be "investment recommendations" under ESMA/Finanstilsynet guidance — keep methodology, timestamps, sources, and risk disclosure attached to every post, and keep X posting human-reviewed.
 - Data licensing: Yahoo Finance public chart API and RSS/social ingestion are used under their public terms; commercial redistribution terms must be re-verified before charging for derived feeds.
 
