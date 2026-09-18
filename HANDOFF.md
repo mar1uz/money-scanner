@@ -3966,3 +3966,24 @@ All public paths are whitelisted in `server.ts` before the Firebase session midd
 - Waitlist has no double opt-in email yet (no mail sender configured).
 - X preview is manual; do not wire auto-posting without a fresh compliance review.
 - Backtests in `docs/backtests/` are research artifacts, not a verifiable track record; the tape is the track record.
+
+---
+
+## Product positioning & X content system (owner directive, 2026-09-18)
+
+### The three-part framework (central to all product copy)
+
+- **Money Line = WHEN the trend changes.** Deterministic regime transitions on closed candles; the Regime Tape is the public proof.
+- **AI Briefing = WHERE attention and capital are concentrating.** Current strong narratives and sectors, with their leading, popular and rising coins, sector score, catalysts and risks.
+- **4x200 = WHICH projects show economic quality.** The top-200 business-quality screen across four criteria: growth, network effect, sustainable revenue, and holder value / revenue sharing.
+
+Every public surface and post should map to one of these three. Copy tone: bold and evidence-backed; numbers only when sourced; no guaranteed-return claims; disclosures concise and secondary.
+
+### Recurring X content pillars (grounded in the owner's live app screenshots, 2026-09-18)
+
+1. **Bull Flip Results** — measured return since a confirmed Money Line regime flip. Uses the standard result-card template (see the template spec from the design task). Re-verify the number live before every post; otherwise label it as an app snapshot. Owner-supplied examples: UNI +73.51%, LIT +37.41%, MINA +31.15%, RAY +33.69%, ARB +17.43%, CAKE +9.27%, STX +2.64%.
+2. **Market Regime + Breadth** — overall market state card. Owner example: Market Regime +45/100 "BULLISH (Market Expansion)", Market Breadth 50% Bullish, global liquidity $2.42T.
+3. **Sector Intelligence (AI Briefing)** — hot sector cards with score, why-now, leaders, catalysts, risks. Owner examples: Crypto Layer 2 HOT 88/100 ($ARB +24.03%, $OP +12.57%, $STX +10.09%, $ZK +13.71%, $STRK +34.03%; catalysts: rollup adoption, ecosystem expansion/TVL growth; risk: macro liquidity shocks). DeFi & Fintech BULLISH 82/100 ($UNI +15.24%, $JUP +12.88%, $PENDLE +12.95%, $AAVE +8.05%, $MORPHO +8.96%; catalysts: DEX volume growth, yield optimization demand; risks: smart-contract vulnerabilities, regulatory scrutiny).
+4. **4x200 Quality** — projects passing all four business-quality criteria. Owner examples: $PUMP 100/100 4/4 (growth +8.8%, $159.24M fees/30d, $55.52M revenue/30d, $25.15M holder value/30d); $RAY 100/100 4/4 (growth +75.8%, $27.85M fees/30d, $4.60M revenue/30d, $3.17M holder value/30d); $JUP 4x200 example supplied separately. Screen context from the app: 200 scanned, 127 with data, 8 passing 4/4, 12 first-3.
+
+Cadence: rotate pillars so the feed never becomes a monotonous ticker stream — market state, sector strength, project quality, measured results. Each pillar gets its own visual template under one Money Scanner identity.
