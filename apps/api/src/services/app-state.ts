@@ -39,6 +39,7 @@ import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { evaluateDailyStrategyAlerts, StrategyAlertEvaluation } from './strategy-alert-service.js';
 import { DailySmaReclaimRunner } from './daily-sma-reclaim-runner.js';
+import { RegimeTapeService } from './regime-tape-service.js';
 import { DailySmaReclaimReport } from '@money-scanner/shared';
 
 export interface BullishCloudAlertRule {
@@ -252,6 +253,7 @@ export class AppState {
   public alertDispatcher = new AlertDispatcher();
   public telegramBot = new TelegramBotHandler();
   public dailySmaReclaim = new DailySmaReclaimRunner(this.marketData, this.telegramBot);
+  public regimeTape = RegimeTapeService.getInstance(this.marketData, this.moneyLine, this.telegramBot);
 
   public cachedSignals: Map<string, MoneyLineSignal> = new Map(); // key: `${symbol}_${timeframe}`
   public alertHistory: DispatchedAlert[] = [];

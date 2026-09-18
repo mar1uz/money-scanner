@@ -8,6 +8,7 @@ export * from './types/daily-sma-reclaim.js';
 export * from './types/auth.js';
 export * from './types/backtest.js';
 export * from './types/macro.js';
+export * from './types/regime-tape.js';
 export * from './constants/assets.js';
 export * from './constants/asset-profiles.js';
 export * from './constants/scoring.js';

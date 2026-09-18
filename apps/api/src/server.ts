@@ -11,6 +11,7 @@ import { telegramRouter } from './routes/telegram-routes.js';
 import { backtestRouter } from './routes/backtest-routes.js';
 import { authRouter } from './routes/auth-routes.js';
 import { macroRouter } from './routes/macro-routes.js';
+import { tapeRouter, tapePageHandler } from './routes/tape-routes.js';
 import { authMiddleware } from './middleware/auth.js';
 
 export function createServer() {
@@ -42,6 +43,11 @@ export function createServer() {
       || req.path === '/alerts/daily-regime-scan'
       || req.path === '/alerts/daily-sma-reclaim/scheduled'
       || req.path === '/ai/daily-warmup'
+      || req.path === '/tape/scan'
+      || req.path === '/tape/events'
+      || req.path === '/tape/summary'
+      || req.path === '/tape/x-preview'
+      || req.path === '/tape/waitlist'
       || req.path.startsWith('/auth/')
     ) {
       return next();
@@ -58,6 +64,10 @@ export function createServer() {
   app.use('/api', telegramRouter);
   app.use('/api', backtestRouter);
   app.use('/api', macroRouter);
+  app.use('/api', tapeRouter);
+
+  // Public Regime Tape page (no session)
+  app.get('/tape', tapePageHandler as any);
 
   // Serve static web app bundle if built
   const possibleWebDistPaths = [

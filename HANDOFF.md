@@ -3743,3 +3743,73 @@ Health check (/api/health): HTTP 200 OK
 
 - Sursă urcată pe GitHub: https://github.com/mar1uz/money-scanner (privat). Remote `origin` = acel URL. `.env` rămâne local (gitignore); pe GitHub e doar `.env.example`.
 
+
+---
+
+## Regime Tape (public transition ledger) — added 2026-09-18
+
+### What it is
+
+A public, durable, append-only ledger of every Money Line **regime transition** (tier change between two consecutive closed candles) across the tracked universe, with forward outcomes at 1d / 7d / 30d. This is the trust layer for the product: the complete public track record, including losing signals, with published coverage and scan errors. Positioning is **market-regime analytics**, not trade calls.
+
+### Architecture
+
+- `packages/shared/src/types/regime-tape.ts` — `RegimeTapeEvent`, `RegimeTapeScanReport`, `RegimeTapeCoverageItem`, `RegimeTapeWaitlistEntry`, `REGIME_TAPE_VERSION` (`tape-v1.0.0`), `REGIME_TAPE_DISCLOSURE`.
+- `apps/api/src/services/regime-tape-service.ts` — scan runner, Firestore persistence, outcome sweeps, owner-only Telegram digest, X preview builder, waitlist.
+- `apps/api/src/routes/tape-routes.ts` — endpoints below.
+- `apps/api/src/services/regime-tape-page.ts` — self-contained public HTML page (no session, no build step).
+- `scripts/configure-regime-tape-scheduler.mjs` — Cloud Scheduler job (`money-scanner-regime-tape-scan`, daily 07:30 Europe/Oslo). Dry-run by default; `--apply` creates the job via the Scheduler API, reusing the existing `x-daily-scan-token` header without printing it.
+
+### Data model (Firestore, named database `money-scanner-360`)
+
+- `regime_tape_events/{tape:<marketClass>:<symbol>:<timeframe>:<candleCloseTime>}` — one document per transition. The document id is the idempotency key; writes are create-only inside a transaction, so scheduler retries and cold starts can never duplicate an event. Fields: symbol, name, marketClass, timeframe, previousTier, tier, score, previousScore, transitionPrice, candleCloseTime, detectedAt, source, methodVersion (`MONEY_LINE_VERSION`), tapeVersion, indicator contributions, `outcomes.{d1,d7,d30} = { price, returnPct, measuredAt }`.
+- `regime_tape_scans/{tape-scan:<UTC day>}` — per-run report: universe size, scanned, errors, new events, outcomes updated, per-asset coverage (`SCANNED | INSUFFICIENT_DATA | STALE_DATA | ERROR`).
+- `regime_tape_waitlist/{base64url(email)}` — demand validation signups (email, source, optional EUR price point). No payments are collected.
+- `operations/regime-tape` — latest scan pointer; `operations/regime-tape-lock` — distributed run lock (20 min TTL, transaction-claimed).
+
+### Endpoints
+
+- `POST /api/tape/scan` — Cloud Scheduler target, protected by the shared `x-daily-scan-token` header (constant-time check, same as the other scheduled scans). Scans `1d` + `1w` closed candles for the full universe (crypto flip universe + stocks + metals, stablecoins excluded), appends new events, then updates due 1d/7d/30d outcomes (max 60 per run).
+- `GET /api/tape/events?limit=&symbol=&timeframe=` — public JSON ledger (5 min cache).
+- `GET /api/tape/summary` — public: latest scan report + waitlist count.
+- `GET /api/tape/x-preview` — daily X post text built from the latest scan. **Manual review only; nothing posts autonomously.**
+- `POST /api/tape/waitlist` — public; validates email, dedupes by address.
+- `GET /tape` — public page (ledger table, scan coverage, X preview with copy button, waitlist form, methodology + risk warning + conflicts note).
+
+All public paths are whitelisted in `server.ts` before the Firebase session middleware. `/tape/scan` and `/tape/waitlist` validate their own inputs/token.
+
+### Configuration
+
+- `REGIME_TAPE_TELEGRAM_DIGEST=0` disables the owner-only Telegram digest (default on when a default chat is configured). Digest goes only to the existing verified owner chat through `TelegramBotHandler.sendMarkdown`; no public channel is used.
+- No new secrets, no new dependencies, no new infra: Firestore (`money-scanner-360`) and the existing scheduler token are reused.
+
+### Deploy & scheduler activation
+
+1. Standard pipeline: push to `main` → Cloud Build (`cloudbuild.yaml`) → Cloud Run `market-scanner-360` (europe-west3). No env changes required.
+2. Create the scheduler job once: `node scripts/configure-regime-tape-scheduler.mjs --apply` (requires `gcloud` auth on the project).
+3. First run: `gcloud scheduler jobs run money-scanner-regime-tape-scan --location=europe-west3`, or POST `/api/tape/scan` with the token.
+4. Verify: `https://scanner.relayhub.no/tape`, `/api/tape/summary`, `/api/tape/events`.
+
+### Rollback
+
+- Revert the merge commit and redeploy. The ledger data in Firestore is additive and unaffected by rollback; old revisions simply stop writing to it.
+- Delete the scheduler job: `gcloud scheduler jobs delete money-scanner-regime-tape-scan --location=europe-west3`.
+
+### Operations & monitoring
+
+- Scan health: `GET /api/tape/summary` → `latestScan.status` (`complete | partial | failed`), `errors`, and per-asset `coverage`.
+- Firestore usage grows by ≤ universe × timeframes events/day plus one scan doc/day; outcome sweeps are capped (60/run).
+- The run lock protects against multi-instance overlap; a crashed run's lock expires after 20 minutes.
+
+### Compliance posture
+
+- Public copy states facts only: "Money Line crossed into Bullish on the daily close", never "price will rise". Every public surface carries the risk warning, method version, data sources, UTC timestamps, and a conflicts note. The tape deliberately records all transitions, including losers; outcomes are labelled statistics, not trade results.
+- Even with this framing, public investment-related posts can be "investment recommendations" under ESMA/Finanstilsynet guidance — keep methodology, timestamps, sources, and risk disclosure attached to every post, and keep X posting human-reviewed.
+- Data licensing: Yahoo Finance public chart API and RSS/social ingestion are used under their public terms; commercial redistribution terms must be re-verified before charging for derived feeds.
+
+### Known gaps / next steps
+
+- Weekly (`1w`) outcomes for young events are pending by design; the tape fills them as time passes.
+- Waitlist has no double opt-in email yet (no mail sender configured).
+- X preview is manual; do not wire auto-posting without a fresh compliance review.
+- Backtests in `docs/backtests/` are research artifacts, not a verifiable track record; the tape is the track record.
