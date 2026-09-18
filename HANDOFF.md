@@ -3756,3 +3756,9 @@ Cerut de utilizator: acces la aplicație pentru `tinotechads@gmail.com`.
 
 - `cloudbuild.yaml`: `ADMIN_EMAILS` += `tinotechads@gmail.com`; serviciul live actualizat imediat → revizia **market-scanner-360-00203-tz9**, 100% trafic.
 - Verificat: env pe revizie (ADMIN_EMAILS = marius + tinotechads); `/api/health` → 200.
+
+### 2026-09-18 (3) — IAM: acces Google Cloud pentru tinotechads@gmail.com
+
+Blocajul raportat („Google Cloud spune că tinotechads@gmail.com nu are permisiune pe proiect") era real: emailul NU avea nicio legătură IAM (verificat pe toate cele 7 proiecte ale tenancy-ului — 0 bindings). Accesul dat anterior era doar la nivel de APLICAȚIE (ALLOWED_EMAILS/ADMIN_EMAILS pe Cloud Run), nu de proiect GCP.
+- Grant: `roles/editor` + `roles/iam.serviceAccountUser` pe `gen-lang-client-0610749770` pentru `user:tinotechads@gmail.com` (editor acoperă Cloud Build submit, Cloud Run deploy, Artifact Registry, Storage; serviceAccountUser acoperă actAs pentru conturile de serviciu folosite la deploy).
+- Verificat: ambele bindings prezente în `get-iam-policy`. Propagarea IAM: secunde–minute.
