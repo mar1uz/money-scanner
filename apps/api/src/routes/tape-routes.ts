@@ -20,48 +20,49 @@ tapeRouter.post('/tape/scan', async (req, res) => {
   return res.json(report);
 });
 
-// Public, read-only ledger endpoints. No session required: this is the
-// verifiable public track record.
+// Public proof is bounded and delayed. It exposes selected after-the-fact
+// evidence, never the exhaustive event tape or live regime data.
+tapeRouter.get('/tape/proof', async (_req, res) => {
+  const approvedSymbols = new Set((process.env.PUBLIC_TAPE_PROOF_SYMBOLS || '').split(',').map(value => value.trim().toUpperCase()).filter(Boolean));
+  const events = (await AppState.getInstance().regimeTape.getEvents(500)).filter(event => approvedSymbols.has(event.symbol.toUpperCase()));
+  const windows = [['30D', 'd30'], ['7D', 'd7'], ['1D', 'd1']] as const;
+  const evidence = events.flatMap(event => {
+    const outcome = windows.map(([window, key]) => ({ window, returnPct: event.outcomes?.[key]?.returnPct }))
+      .find(item => Number.isFinite(item.returnPct) && Number(item.returnPct) >= 20);
+    if (!outcome) return [];
+    return [{ asset: event.symbol, name: event.name, timeframe: event.timeframe,
+      flipDate: new Date(event.candleCloseTime).toISOString(), flipClose: event.transitionPrice,
+      window: outcome.window, returnPct: Number(outcome.returnPct) }];
+  }).sort((a, b) => b.returnPct - a.returnPct).slice(0, 6);
+  res.set('Cache-Control', 'public, max-age=300');
+  return res.json({ disclosure: REGIME_TAPE_DISCLOSURE, tapeVersion: REGIME_TAPE_VERSION,
+    selection: { minimumReturnPct: 20, maximumItems: 6, curated: true }, updatedAt: new Date().toISOString(), evidence });
+});
+
+// Authenticated product endpoints. Global middleware protects these paths.
 tapeRouter.get('/tape/events', async (req, res) => {
   const limit = Math.min(Math.max(parseInt(String(req.query.limit || '100'), 10) || 100, 1), 500);
   const symbol = typeof req.query.symbol === 'string' && /^[A-Za-z0-9._-]{1,30}$/.test(req.query.symbol) ? req.query.symbol : undefined;
   const timeframe = typeof req.query.timeframe === 'string' && VALID_TIMEFRAMES.has(req.query.timeframe) ? (req.query.timeframe as Timeframe) : undefined;
   const events = await AppState.getInstance().regimeTape.getEvents(limit, symbol, timeframe);
-  res.set('Cache-Control', 'public, max-age=300');
-  return res.json({
-    disclosure: REGIME_TAPE_DISCLOSURE,
-    tapeVersion: REGIME_TAPE_VERSION,
-    count: events.length,
-    events
-  });
+  res.set('Cache-Control', 'private, no-store');
+  return res.json({ disclosure: REGIME_TAPE_DISCLOSURE, tapeVersion: REGIME_TAPE_VERSION, count: events.length, events });
 });
 
 tapeRouter.get('/tape/summary', async (_req, res) => {
   const appState = AppState.getInstance();
-  const [latestScan, waitlistTotal] = await Promise.all([
-    appState.regimeTape.getLatestScan(),
-    appState.regimeTape.getWaitlistCount()
-  ]);
-  res.set('Cache-Control', 'public, max-age=300');
-  return res.json({
-    disclosure: REGIME_TAPE_DISCLOSURE,
-    tapeVersion: REGIME_TAPE_VERSION,
-    latestScan,
-    waitlistTotal
-  });
+  const [latestScan, waitlistTotal] = await Promise.all([appState.regimeTape.getLatestScan(), appState.regimeTape.getWaitlistCount()]);
+  res.set('Cache-Control', 'private, no-store');
+  return res.json({ disclosure: REGIME_TAPE_DISCLOSURE, tapeVersion: REGIME_TAPE_VERSION, latestScan, waitlistTotal });
 });
 
-// Manual-review X preview: generated from the latest scan, posted by a human.
 tapeRouter.get('/tape/x-preview', async (_req, res) => {
   const appState = AppState.getInstance();
   const latestScan = await appState.regimeTape.getLatestScan();
   if (!latestScan) return res.json({ text: null, reason: 'No scan recorded yet.' });
-  const dayStart = new Date(latestScan.startedAt);
-  dayStart.setUTCHours(0, 0, 0, 0);
-  const events = (await appState.regimeTape.getEvents(200)).filter(
-    event => event.candleCloseTime >= dayStart.getTime() - 2 * 86_400_000
-  );
-  res.set('Cache-Control', 'no-store');
+  const dayStart = new Date(latestScan.startedAt); dayStart.setUTCHours(0, 0, 0, 0);
+  const events = (await appState.regimeTape.getEvents(200)).filter(event => event.candleCloseTime >= dayStart.getTime() - 2 * 86_400_000);
+  res.set('Cache-Control', 'private, no-store');
   return res.json({ text: buildXPreview(events, latestScan), scanId: latestScan.id });
 });
 
@@ -82,3 +83,4 @@ export const tapePageHandler = (_req: unknown, res: { set: (k: string, v: string
   res.set('Cache-Control', 'no-store');
   res.type('html').send(REGIME_TAPE_PAGE_HTML);
 };
+

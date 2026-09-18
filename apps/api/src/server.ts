@@ -52,9 +52,7 @@ export function createServer() {
       || req.path === '/ai/publish-content'
       || req.path === '/scanner/warm'
       || req.path === '/tape/scan'
-      || req.path === '/tape/events'
-      || req.path === '/tape/summary'
-      || req.path === '/tape/x-preview'
+      || req.path === '/tape/proof'
       || req.path === '/tape/waitlist'
       || req.path.startsWith('/auth/')
     ) {
@@ -115,3 +113,4 @@ export function createServer() {
 
   return app;
 }
+
