@@ -477,7 +477,7 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
       {/* ── Top Detailed List / Table (Optimized for Mobile & Desktop) ── */}
       <div className="rounded-[30px] border border-white/[0.08] bg-[var(--t-surface-raised)] shadow-xl overflow-hidden">
         {/* Subheader & Search */}
-        <div className="p-4 sm:p-5 border-b border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-white/[0.02] to-transparent">
+        <div className="p-4 sm:p-5 border-b border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[var(--t-surface)]">
           <div>
             <div className="flex items-center gap-2">
               <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold uppercase border ${

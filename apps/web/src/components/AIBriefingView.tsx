@@ -3,6 +3,7 @@ import {
   CryptoCriteriaFilter,
   CryptoCriteriaStatus,
   CryptoFourCriteriaScan,
+  CryptoFourCriteriaAsset,
   StockCriteriaFilter,
   StockCriteriaStatus,
   StockBusinessQualityScan,
@@ -13,6 +14,7 @@ import {
 import {
   askAIAnalyst,
   fetchCryptoFourCriteriaScan,
+  lookupCryptoFourCriteria,
   fetchStockBusinessQualityScan,
   fetchMarketIntelligence,
   fetchXPosts
@@ -137,6 +139,17 @@ function renderMarkdown(text: string): string {
   return `<p>${html}</p>`;
 }
 
+const looksLikeTokenAddress = (query: string) => {
+  const value = query.trim();
+  return /^0x[a-fA-F0-9]{40}$/.test(value) || /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value);
+};
+
+const shouldLookupOnDexScreener = (query: string, localMatchCount: number) => {
+  const normalized = query.trim();
+  if (normalized.length < 2) return false;
+  return looksLikeTokenAddress(normalized) || localMatchCount === 0;
+};
+
 /* ─── Main Component ─── */
 export const AIBriefingView: React.FC = () => {
   const { language } = useLanguage();
@@ -159,6 +172,9 @@ export const AIBriefingView: React.FC = () => {
   const [criteriaScanError, setCriteriaScanError] = useState<string | null>(null);
   const [criteriaFilter, setCriteriaFilter] = useState<CryptoCriteriaFilter>('leaders');
   const [criteriaSearch, setCriteriaSearch] = useState('');
+  const [dexLookupAssets, setDexLookupAssets] = useState<CryptoFourCriteriaAsset[]>([]);
+  const [loadingDexLookup, setLoadingDexLookup] = useState(false);
+  const [dexLookupError, setDexLookupError] = useState<string | null>(null);
 
   const [stockCriteriaScan, setStockCriteriaScan] = useState<StockBusinessQualityScan | null>(null);
   const [loadingStockCriteriaScan, setLoadingStockCriteriaScan] = useState(false);
@@ -217,6 +233,42 @@ export const AIBriefingView: React.FC = () => {
       setLoadingCriteriaScan(false);
     }
   }, [language, loadingCriteriaScan]);
+
+  useEffect(() => {
+    const query = criteriaSearch.trim();
+    const localMatchCount = (criteriaScan?.assets || []).filter(asset => {
+      const haystack = `${asset.symbol} ${asset.name}`.toLowerCase();
+      return haystack.includes(query.toLowerCase());
+    }).length;
+    if (!shouldLookupOnDexScreener(query, localMatchCount)) {
+      setDexLookupAssets([]);
+      setDexLookupError(null);
+      setLoadingDexLookup(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingDexLookup(true);
+    setDexLookupError(null);
+    const timer = window.setTimeout(() => {
+      void lookupCryptoFourCriteria(query)
+        .then(assets => {
+          if (!cancelled) setDexLookupAssets(assets);
+        })
+        .catch(error => {
+          if (!cancelled) {
+            setDexLookupAssets([]);
+            setDexLookupError(error instanceof Error ? error.message : 'DexScreener lookup failed');
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingDexLookup(false);
+        });
+    }, 450);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [criteriaSearch, criteriaScan]);
 
   const loadStockCriteriaScan = useCallback(async (forceRefresh = false) => {
     if (loadingStockCriteriaScan) return;
@@ -548,11 +600,17 @@ export const AIBriefingView: React.FC = () => {
     }
 
     const normalizedSearch = criteriaSearch.trim().toLowerCase();
-    const matchingAssets = criteriaScan.assets.filter(asset => {
-      if (criteriaFilter === 'all-four' && asset.classification !== 'all-four') return false;
-      if (criteriaFilter === 'first-three' && !['all-four', 'first-three'].includes(asset.classification)) return false;
+    const localMatches = (criteriaScan.assets || []).filter(asset => {
+      if (!normalizedSearch) {
+        if (criteriaFilter === 'all-four' && asset.classification !== 'all-four') return false;
+        if (criteriaFilter === 'first-three' && !['all-four', 'first-three'].includes(asset.classification)) return false;
+      }
       return !normalizedSearch || asset.symbol.toLowerCase().includes(normalizedSearch) || asset.name.toLowerCase().includes(normalizedSearch);
     });
+    const remoteMatches = dexLookupAssets.filter(asset =>
+      !localMatches.some(local => local.symbol === asset.symbol && local.name.toLowerCase() === asset.name.toLowerCase())
+    );
+    const matchingAssets = normalizedSearch ? [...remoteMatches, ...localMatches] : localMatches;
     const visibleAssets = matchingAssets.slice(0, normalizedSearch ? 50 : 30);
     const statusIcon = (status: CryptoCriteriaStatus) => status === 'pass'
       ? <CheckCircle2 className="w-3 h-3" />
@@ -601,7 +659,7 @@ export const AIBriefingView: React.FC = () => {
     ];
 
     return (
-      <section className="rounded-[30px] border border-cyan-500/20 bg-gradient-to-br from-cyan-500/[0.06] via-[#12151A] to-purple-500/[0.04] p-4 sm:p-5 space-y-4">
+      <section className="rounded-[30px] border border-cyan-500/20 bg-[var(--t-surface)] p-4 sm:p-5 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <button
             type="button"
@@ -648,7 +706,7 @@ export const AIBriefingView: React.FC = () => {
                 ['4 / 4', criteriaScan.allFourCount, 'text-emerald-300'],
                 [language === 'ro' ? 'Primele 3' : 'First 3', criteriaScan.firstThreeCount, 'text-amber-300']
               ].map(([label, value, tone]) => (
-                <div key={String(label)} className="rounded-xl border border-white/[0.07] bg-black/10 p-3">
+                <div key={String(label)} className="rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] p-3">
                   <span className="block text-[9px] font-mono uppercase text-slate-600">{label}</span>
                   <span className={`block mt-1 text-xl font-mono font-black ${tone}`}>{value}</span>
                 </div>
@@ -656,7 +714,7 @@ export const AIBriefingView: React.FC = () => {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-2">
-              <div className="flex items-center rounded-xl border border-white/[0.07] bg-black/10 p-1 overflow-x-auto">
+              <div className="flex items-center rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] p-1 overflow-x-auto">
                 {([
                   ['leaders', language === 'ro' ? 'Top scor' : 'Top score'],
                   ['all-four', '4 / 4'],
@@ -667,9 +725,9 @@ export const AIBriefingView: React.FC = () => {
                   </button>
                 ))}
               </div>
-              <div className="flex-1 flex items-center gap-2 rounded-xl border border-white/[0.07] bg-black/10 px-3">
-                <Search className="w-3.5 h-3.5 text-slate-600" />
-                <input value={criteriaSearch} onChange={event => setCriteriaSearch(event.target.value)} placeholder={language === 'ro' ? 'Caută în top 200…' : 'Search the top 200…'} className="w-full bg-transparent py-2 text-xs text-slate-200 placeholder-slate-600 outline-none" />
+              <div className="flex-1 flex items-center gap-2 rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] px-3">
+                <Search className={`w-3.5 h-3.5 ${loadingDexLookup ? 'animate-pulse text-cyan-300' : 'text-slate-600'}`} />
+                <input value={criteriaSearch} onChange={event => setCriteriaSearch(event.target.value)} placeholder={language === 'ro' ? 'Ticker sau adresă (DexScreener)…' : 'Ticker or contract (DexScreener)…'} className="w-full bg-transparent py-2 text-xs text-slate-200 placeholder-slate-600 outline-none" />
               </div>
             </div>
 
@@ -688,7 +746,7 @@ export const AIBriefingView: React.FC = () => {
                         navigateAsset({ symbol: asset.symbol, marketClass: 'crypto', coinGeckoId: asset.coinGeckoId });
                       }
                     }}
-                    className="cursor-pointer rounded-xl border border-white/[0.07] bg-black/10 p-3 sm:p-4 transition-colors hover:border-cyan-500/30"
+                    className="cursor-pointer rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] p-3 sm:p-4 transition-colors hover:border-cyan-500/30"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-2.5 min-w-0">
@@ -696,7 +754,7 @@ export const AIBriefingView: React.FC = () => {
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-bold text-slate-100">${asset.symbol}</span>
-                            <span className="text-[10px] font-mono text-slate-600">#{asset.marketCapRank}</span>
+                            <span className="text-[10px] font-mono text-slate-600">{asset.marketCapRank > 0 ? `#${asset.marketCapRank}` : asset.id.startsWith('dex:') ? 'DexScreener' : ''}</span>
                           </div>
                           <span className="block text-[10px] text-slate-500 truncate">{asset.name}</span>
                         </div>
@@ -716,7 +774,7 @@ export const AIBriefingView: React.FC = () => {
                               {statusIcon(item.status)}
                             </div>
                             <span className="block mt-1.5 text-[11px] font-mono text-slate-200">{localizedValue(item.value)}</span>
-                            <p className="mt-1 text-[9px] leading-relaxed text-slate-500">{language === 'ro' ? item.explanation : englishExplanations[item.status][index]}</p>
+                            <p className="mt-1 text-[9px] leading-relaxed text-slate-500">{language === 'ro' || asset.id.startsWith('dex:') ? item.explanation : englishExplanations[item.status][index]}</p>
                           </div>
                         );
                       })}
@@ -724,7 +782,9 @@ export const AIBriefingView: React.FC = () => {
                   </article>
                 );
               })}
-              {visibleAssets.length === 0 && <p className="py-5 text-center text-xs text-slate-500">{language === 'ro' ? 'Nicio monedă nu îndeplinește filtrul în datele curente.' : 'No coin matches this filter in current data.'}</p>}
+              {loadingDexLookup && <p className="py-3 text-center text-xs text-cyan-300">{language === 'ro' ? 'Caut pe DexScreener și evaluez cele 4 criterii…' : 'Searching DexScreener and scoring the 4 criteria…'}</p>}
+              {dexLookupError && !loadingDexLookup && <p className="py-3 text-center text-xs text-rose-300">{dexLookupError}</p>}
+              {visibleAssets.length === 0 && !loadingDexLookup && <p className="py-5 text-center text-xs text-slate-500">{normalizedSearch ? (language === 'ro' ? 'Nicio monedă găsită în top 200 sau pe DexScreener.' : 'No coin found in the top 200 or on DexScreener.') : (language === 'ro' ? 'Nicio monedă nu îndeplinește filtrul în datele curente.' : 'No coin matches this filter in current data.')}</p>}
             </div>
 
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3 pt-2 border-t border-white/[0.06]">
@@ -801,7 +861,7 @@ export const AIBriefingView: React.FC = () => {
           : 'border-white/[0.08] bg-white/[0.02] text-slate-400';
 
     return (
-      <section className="rounded-[30px] border border-purple-500/25 bg-gradient-to-br from-purple-500/[0.08] via-[#12151A] to-cyan-500/[0.04] p-4 sm:p-5 space-y-4">
+      <section className="rounded-[30px] border border-purple-500/25 bg-[var(--t-surface)] p-4 sm:p-5 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <button
             type="button"
@@ -848,7 +908,7 @@ export const AIBriefingView: React.FC = () => {
                 [language === 'ro' ? 'Marje & ROE Ridicat' : 'High Margins & ROE', stockCriteriaScan.highProfitabilityCount, 'text-cyan-300'],
                 [language === 'ro' ? 'Creștere & FCF' : 'Growth & FCF', stockCriteriaScan.growthFcfCount, 'text-amber-300']
               ].map(([label, value, tone]) => (
-                <div key={String(label)} className="rounded-xl border border-white/[0.07] bg-black/10 p-3">
+                <div key={String(label)} className="rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] p-3">
                   <span className="block text-[9px] font-mono uppercase text-slate-500">{label}</span>
                   <span className={`block mt-1 text-xl font-mono font-black ${tone}`}>{value}</span>
                 </div>
@@ -856,7 +916,7 @@ export const AIBriefingView: React.FC = () => {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-2">
-              <div className="flex items-center rounded-xl border border-white/[0.07] bg-black/10 p-1 overflow-x-auto">
+              <div className="flex items-center rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] p-1 overflow-x-auto">
                 {([
                   ['top-pick', language === 'ro' ? '🟢 Top Recomandate AI' : '🟢 Top AI Picks'],
                   ['all-passed', language === 'ro' ? '🌟 Toate (6/6)' : '🌟 All 6/6'],
@@ -877,7 +937,7 @@ export const AIBriefingView: React.FC = () => {
                   </button>
                 ))}
               </div>
-              <div className="flex-1 flex items-center gap-2 rounded-xl border border-white/[0.07] bg-black/10 px-3">
+              <div className="flex-1 flex items-center gap-2 rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] px-3">
                 <Search className="w-3.5 h-3.5 text-slate-500" />
                 <input
                   value={stockCriteriaSearch}
@@ -905,7 +965,7 @@ export const AIBriefingView: React.FC = () => {
                         navigateAsset({ symbol: asset.symbol, marketClass: 'stocks' });
                       }
                     }}
-                    className="cursor-pointer rounded-xl border border-white/[0.07] bg-black/15 p-3 sm:p-4 transition-all hover:border-purple-500/40 hover:bg-white/[0.02]"
+                    className="cursor-pointer rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] p-3 sm:p-4 transition-all hover:border-purple-500/40 hover:bg-white/[0.02]"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-2.5 min-w-0">
@@ -961,7 +1021,7 @@ export const AIBriefingView: React.FC = () => {
                         { label: 'Fwd P/E', val: asset.metrics.forwardPE !== undefined ? `${asset.metrics.forwardPE.toFixed(1)}x` : 'N/A' },
                         { label: 'PEG', val: asset.metrics.pegRatio !== undefined ? asset.metrics.pegRatio.toFixed(2) : 'N/A' }
                       ].map((m, i) => (
-                        <div key={i} className="p-1.5 rounded-md bg-black/30 border border-white/[0.04]">
+                        <div key={i} className="p-1.5 rounded-md bg-[var(--t-surface-raised)] border border-white/[0.04]">
                           <span className="block text-[8px] font-mono text-slate-500 uppercase truncate">{m.label}</span>
                           <span className="block text-[10px] font-mono font-bold text-slate-200">{m.val}</span>
                         </div>
@@ -1052,9 +1112,8 @@ export const AIBriefingView: React.FC = () => {
 
     return (
       <div className={`space-y-6 transition-opacity ${loadingIntelligence ? 'opacity-60' : 'opacity-100'}`}>
-        <section className="relative overflow-hidden rounded-[30px] border border-purple-500/20 bg-gradient-to-br from-purple-500/[0.10] via-[#12151A] to-cyan-500/[0.05] p-4 sm:p-6">
-          <div className="absolute -right-12 -top-12 w-40 h-40 rounded-full bg-purple-500/10 blur-3xl" />
-          <div className="relative space-y-4">
+        <section className="rounded-[30px] border border-purple-500/20 bg-[var(--t-surface)] p-4 sm:p-6">
+          <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-[10px] sm:text-xs font-mono uppercase tracking-wider">
                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${intelligence.mode === 'ai-grounded' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : intelligence.mode === 'ai-sources' ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-300' : 'border-amber-500/30 bg-amber-500/10 text-amber-300'}`}>
@@ -1140,7 +1199,7 @@ export const AIBriefingView: React.FC = () => {
                       const hasChange = typeof change24h === 'number' && Number.isFinite(change24h);
                       const isUp = (change24h ?? 0) >= 0;
                       return (
-                        <AssetLink key={`${asset}_${assetIdx}`} symbol={assetSymbol} marketClass={scope} className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-black/20 text-[10px] font-mono text-slate-200">
+                        <AssetLink key={`${asset}_${assetIdx}`} symbol={assetSymbol} marketClass={scope} className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[var(--t-surface-raised)] text-[10px] font-mono text-slate-200">
                           <span>{asset.startsWith('$') || asset.startsWith('#') ? asset : `$${asset}`}</span>
                           {hasChange && (
                             <span className={`font-bold ${isUp ? 'text-emerald-300' : 'text-rose-300'}`}>
@@ -1226,7 +1285,7 @@ export const AIBriefingView: React.FC = () => {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {intelligence.sources.map(source => (
-                <a key={source.id} href={source.url} target="_blank" rel="noopener noreferrer" className="group flex items-start gap-2 rounded-lg border border-white/[0.06] bg-black/10 p-2.5 hover:border-cyan-500/25 transition-all">
+                <a key={source.id} href={source.url} target="_blank" rel="noopener noreferrer" className="group flex items-start gap-2 rounded-lg border border-white/[0.06] bg-[var(--t-surface-raised)] p-2.5 hover:border-cyan-500/25 transition-all">
                   <ExternalLink className="w-3 h-3 text-cyan-400 mt-0.5 shrink-0" />
                   <span className="min-w-0">
                     <span className="block text-[11px] text-slate-300 group-hover:text-cyan-200 line-clamp-2">{source.title}</span>
@@ -1256,10 +1315,10 @@ export const AIBriefingView: React.FC = () => {
         {/* Logo Area */}
         <div className="px-4 py-4 border-b border-white/[0.06]">
           <div className="flex items-center gap-2 mb-3">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-purple-500/30 to-cyan-500/30 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-purple-500/20 flex items-center justify-center">
               <BrainCircuit className="w-4 h-4 text-purple-400" />
             </div>
-            <span className="font-semibold text-sm bg-gradient-to-r from-purple-300 to-cyan-300 bg-clip-text text-transparent">
+            <span className="font-semibold text-sm text-purple-300">
               AI Briefing
             </span>
           </div>
@@ -1426,7 +1485,7 @@ export const AIBriefingView: React.FC = () => {
               {msg.sender === 'user' ? (
                 /* User message — right-aligned purple bubble */
                 <div className="flex justify-end">
-                  <div className="max-w-[70%] bg-gradient-to-r from-purple-600/30 to-violet-600/25 border border-purple-500/30 rounded-[30px] rounded-tr-sm px-5 py-3">
+                  <div className="max-w-[70%] bg-purple-500/20 border border-purple-500/30 rounded-[30px] rounded-tr-sm px-5 py-3">
                     <p className="text-[13.5px] text-slate-100 leading-relaxed">{msg.text}</p>
                   </div>
                 </div>
@@ -1480,7 +1539,7 @@ export const AIBriefingView: React.FC = () => {
             <button
               onClick={() => handleAskQuestion()}
               disabled={askingAI || !inputQuestion.trim()}
-              className="w-10 h-10 rounded-xl bg-gradient-to-r from-purple-500 to-violet-500 text-white flex items-center justify-center hover:opacity-90 disabled:opacity-40 transition-all shadow-lg shadow-purple-500/20 shrink-0"
+              className="w-10 h-10 min-h-0 rounded-xl bg-purple-500 text-white flex items-center justify-center hover:opacity-90 disabled:opacity-40 transition-all shrink-0"
             >
               <Send className="w-4 h-4" />
             </button>

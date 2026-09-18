@@ -152,7 +152,7 @@ export const CryptoBusinessQualityCard: React.FC<CryptoBusinessQualityCardProps>
   // ── Error state — non-blocking ──
   if (error) {
     return (
-      <div className="p-3.5 rounded-[30px] bg-rose-950/10 border border-rose-500/15 flex items-center gap-2.5">
+      <div className="p-3.5 rounded-[30px] bg-rose-500/10 border border-rose-500/15 flex items-center gap-2.5">
         <AlertCircle className="w-4 h-4 text-rose-400/60 shrink-0" />
         <span className="text-xs text-slate-400 font-mono">
           {isRo ? 'Eroare la încărcarea datelor de calitate crypto' : 'Error loading crypto quality data'}
@@ -216,7 +216,7 @@ export const CryptoBusinessQualityCard: React.FC<CryptoBusinessQualityCardProps>
     : null;
 
   return (
-    <div className="rounded-[30px] bg-gradient-to-b from-[#151A21] to-[#0D1015] border border-cyan-500/20 shadow-lg overflow-hidden">
+    <div className="rounded-[30px] bg-[var(--t-surface)] border border-cyan-500/20 shadow-lg overflow-hidden">
       {/* ── Compact Header (always visible) ── */}
       <button
         onClick={() => setExpanded(prev => !prev)}

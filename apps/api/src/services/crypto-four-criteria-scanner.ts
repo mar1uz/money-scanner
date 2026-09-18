@@ -116,6 +116,100 @@ const runRateChange = (total7d: number, total30d: number): number | undefined =>
   return ((total7d * (30 / 7)) / total30d - 1) * 100;
 };
 
+export interface FourCriteriaCoinInput {
+  id: string;
+  coinGeckoId?: string;
+  symbol: string;
+  name: string;
+  image?: string;
+  marketCapRank: number;
+  marketCap: number;
+}
+
+export function evaluateCryptoFourCriteriaAsset(
+  coin: FourCriteriaCoinInput,
+  protocol: ProtocolAggregate | undefined,
+  fees: NumericAggregate,
+  revenue: NumericAggregate,
+  holderRevenue: NumericAggregate
+): CryptoFourCriteriaAsset {
+  const tvlChange7d = protocol && protocol.tvlWithChange > 0
+    ? protocol.weightedTvlChange7d / protocol.tvlWithChange
+    : undefined;
+  const feeTrend = runRateChange(fees.total7d, fees.total30d);
+  const revenueTrend = runRateChange(revenue.total7d, revenue.total30d);
+  const bestGrowth = Math.max(tvlChange7d ?? Number.NEGATIVE_INFINITY, feeTrend ?? Number.NEGATIVE_INFINITY);
+  const hasUsageObservation = Boolean(protocol?.matchedRows || fees.total30d > 0);
+
+  const growth = !hasUsageObservation || !Number.isFinite(bestGrowth)
+    ? criterion('unknown', 'Creștere', 'Date insuficiente', 'Nu există o serie gratuită comparabilă pentru utilizatori/activitate.')
+    : bestGrowth >= 5
+      ? criterion('pass', 'Creștere', formatPercent(bestGrowth), 'TVL sau ritmul anualizat al fees accelerează cu minimum 5%.')
+      : bestGrowth >= 0
+        ? criterion('watch', 'Creștere', formatPercent(bestGrowth), 'Activitatea este stabilă sau crește lent; necesită monitorizare.')
+        : criterion('fail', 'Creștere', formatPercent(bestGrowth), 'Proxy-ul de activitate este în contracție față de perioada comparabilă.');
+
+  const networkEvidence = fees.total30d >= 100_000 && ((protocol?.tvl || 0) >= 10_000_000 || (protocol?.chains.size || 0) >= 2);
+  const networkEffect = networkEvidence
+    ? criterion('pass', 'Efect de rețea', `${formatUsd(fees.total30d)} fees / 30z`, 'Activitate economică relevantă plus TVL sau distribuție multi-chain; acesta este un proxy, nu număr de utilizatori.')
+    : fees.total30d > 0 || (protocol?.tvl || 0) > 0
+      ? criterion('watch', 'Efect de rețea', fees.total30d > 0 ? `${formatUsd(fees.total30d)} fees / 30z` : `${formatUsd(protocol?.tvl || 0)} TVL`, 'Există utilizare măsurabilă, dar pragul proxy pentru efect de rețea nu este încă îndeplinit.')
+      : criterion('unknown', 'Efect de rețea', 'Date insuficiente', 'Sursa gratuită nu oferă dovadă comparabilă de utilizare pentru acest token.');
+
+  const revenueContinuity = revenue.total30d > 0 ? (revenue.total7d * (30 / 7)) / revenue.total30d : 0;
+  const sustainableRevenue = revenue.total30d >= 100_000 && revenue.total7d > 0 && revenue.total24h > 0 && revenueContinuity >= 0.5
+    ? criterion('pass', 'Venit sustenabil', `${formatUsd(revenue.total30d)} / 30z`, 'Venitul este material și apare în ferestrele de 24h, 7z și 30z.')
+    : revenue.total30d > 0
+      ? criterion('watch', 'Venit sustenabil', `${formatUsd(revenue.total30d)} / 30z`, 'Există venit, dar este prea mic, neregulat sau recent pentru confirmare.')
+      : hasUsageObservation
+        ? criterion('fail', 'Venit sustenabil', '$0 observat', 'Activitatea urmărită nu produce revenue reținut de protocol în această fereastră.')
+        : criterion('unknown', 'Venit sustenabil', 'Date insuficiente', 'Nu există observații DefiLlama comparabile pentru acest token.');
+
+  const holderValue = holderRevenue.total30d >= 10_000 && holderRevenue.total7d > 0
+    ? criterion('pass', 'Valoare către holderi', `${formatUsd(holderRevenue.total30d)} / 30z`, 'DefiLlama raportează buyback/burn, distribuții sau staking finanțat din revenue.')
+    : holderRevenue.total30d > 0
+      ? criterion('watch', 'Valoare către holderi', `${formatUsd(holderRevenue.total30d)} / 30z`, 'Mecanismul există, dar valoarea observată este încă redusă sau neregulată.')
+      : revenue.total30d > 0
+        ? criterion('fail', 'Valoare către holderi', '$0 observat', 'Există revenue, dar nu este raportat un transfer de valoare către token holderi.')
+        : criterion('unknown', 'Valoare către holderi', 'Date insuficiente', 'Fără revenue observat nu se poate confirma fee switch-ul sau distribuția.');
+
+  const statuses = [growth.status, networkEffect.status, sustainableRevenue.status, holderValue.status];
+  const passedCriteria = statuses.filter(status => status === 'pass').length;
+  const firstThreePass = statuses.slice(0, 3).every(status => status === 'pass');
+  const allFourPass = firstThreePass && holderValue.status === 'pass';
+  const classification: CryptoFourCriteriaAsset['classification'] = allFourPass
+    ? 'all-four'
+    : firstThreePass
+      ? 'first-three'
+      : statuses.every(status => status === 'unknown')
+        ? 'insufficient-data'
+        : 'partial';
+
+  return {
+    id: coin.id,
+    coinGeckoId: coin.coinGeckoId,
+    symbol: coin.symbol.toUpperCase(),
+    name: coin.name,
+    image: coin.image,
+    marketCapRank: Math.round(finitePositive(coin.marketCapRank)),
+    marketCap: finitePositive(coin.marketCap),
+    score: statuses.reduce((sum, status) => sum + scoreForStatus(status), 0),
+    passedCriteria,
+    classification,
+    criteria: { growth, networkEffect, sustainableRevenue, holderValue },
+    metrics: {
+      tvl: protocol?.tvl || undefined,
+      tvlChange7d,
+      fees30d: fees.total30d || undefined,
+      feeRunRateChange: feeTrend,
+      revenue30d: revenue.total30d || undefined,
+      revenueRunRateChange: revenueTrend,
+      holdersRevenue30d: holderRevenue.total30d || undefined,
+      chainCount: protocol?.chains.size || 0
+    }
+  };
+}
+
 const addMetric = (target: NumericAggregate, row: DefiLlamaMetricRow) => {
   target.total24h += finitePositive(row.total24h);
   target.total7d += finitePositive(row.total7d);
@@ -203,81 +297,15 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
     const fees = feeByCoin.get(coin.id) || { total24h: 0, total7d: 0, total30d: 0 };
     const revenue = revenueByCoin.get(coin.id) || { total24h: 0, total7d: 0, total30d: 0 };
     const holderRevenue = holderRevenueByCoin.get(coin.id) || { total24h: 0, total7d: 0, total30d: 0 };
-    const tvlChange7d = protocol && protocol.tvlWithChange > 0
-      ? protocol.weightedTvlChange7d / protocol.tvlWithChange
-      : undefined;
-    const feeTrend = runRateChange(fees.total7d, fees.total30d);
-    const revenueTrend = runRateChange(revenue.total7d, revenue.total30d);
-    const bestGrowth = Math.max(tvlChange7d ?? Number.NEGATIVE_INFINITY, feeTrend ?? Number.NEGATIVE_INFINITY);
-    const hasUsageObservation = Boolean(protocol?.matchedRows || fees.total30d > 0);
-
-    const growth = !hasUsageObservation || !Number.isFinite(bestGrowth)
-      ? criterion('unknown', 'Creștere', 'Date insuficiente', 'Nu există o serie gratuită comparabilă pentru utilizatori/activitate.')
-      : bestGrowth >= 5
-        ? criterion('pass', 'Creștere', formatPercent(bestGrowth), 'TVL sau ritmul anualizat al fees accelerează cu minimum 5%.')
-        : bestGrowth >= 0
-          ? criterion('watch', 'Creștere', formatPercent(bestGrowth), 'Activitatea este stabilă sau crește lent; necesită monitorizare.')
-          : criterion('fail', 'Creștere', formatPercent(bestGrowth), 'Proxy-ul de activitate este în contracție față de perioada comparabilă.');
-
-    const networkEvidence = fees.total30d >= 100_000 && ((protocol?.tvl || 0) >= 10_000_000 || (protocol?.chains.size || 0) >= 2);
-    const networkEffect = networkEvidence
-      ? criterion('pass', 'Efect de rețea', `${formatUsd(fees.total30d)} fees / 30z`, 'Activitate economică relevantă plus TVL sau distribuție multi-chain; acesta este un proxy, nu număr de utilizatori.')
-      : fees.total30d > 0 || (protocol?.tvl || 0) > 0
-        ? criterion('watch', 'Efect de rețea', fees.total30d > 0 ? `${formatUsd(fees.total30d)} fees / 30z` : `${formatUsd(protocol?.tvl || 0)} TVL`, 'Există utilizare măsurabilă, dar pragul proxy pentru efect de rețea nu este încă îndeplinit.')
-        : criterion('unknown', 'Efect de rețea', 'Date insuficiente', 'Sursa gratuită nu oferă dovadă comparabilă de utilizare pentru acest token.');
-
-    const revenueContinuity = revenue.total30d > 0 ? (revenue.total7d * (30 / 7)) / revenue.total30d : 0;
-    const sustainableRevenue = revenue.total30d >= 100_000 && revenue.total7d > 0 && revenue.total24h > 0 && revenueContinuity >= 0.5
-      ? criterion('pass', 'Venit sustenabil', `${formatUsd(revenue.total30d)} / 30z`, 'Venitul este material și apare în ferestrele de 24h, 7z și 30z.')
-      : revenue.total30d > 0
-        ? criterion('watch', 'Venit sustenabil', `${formatUsd(revenue.total30d)} / 30z`, 'Există venit, dar este prea mic, neregulat sau recent pentru confirmare.')
-        : hasUsageObservation
-          ? criterion('fail', 'Venit sustenabil', '$0 observat', 'Activitatea urmărită nu produce revenue reținut de protocol în această fereastră.')
-          : criterion('unknown', 'Venit sustenabil', 'Date insuficiente', 'Nu există observații DefiLlama comparabile pentru acest token.');
-
-    const holderValue = holderRevenue.total30d >= 10_000 && holderRevenue.total7d > 0
-      ? criterion('pass', 'Valoare către holderi', `${formatUsd(holderRevenue.total30d)} / 30z`, 'DefiLlama raportează buyback/burn, distribuții sau staking finanțat din revenue.')
-      : holderRevenue.total30d > 0
-        ? criterion('watch', 'Valoare către holderi', `${formatUsd(holderRevenue.total30d)} / 30z`, 'Mecanismul există, dar valoarea observată este încă redusă sau neregulată.')
-        : revenue.total30d > 0
-          ? criterion('fail', 'Valoare către holderi', '$0 observat', 'Există revenue, dar nu este raportat un transfer de valoare către token holderi.')
-          : criterion('unknown', 'Valoare către holderi', 'Date insuficiente', 'Fără revenue observat nu se poate confirma fee switch-ul sau distribuția.');
-
-    const statuses = [growth.status, networkEffect.status, sustainableRevenue.status, holderValue.status];
-    const passedCriteria = statuses.filter(status => status === 'pass').length;
-    const firstThreePass = statuses.slice(0, 3).every(status => status === 'pass');
-    const allFourPass = firstThreePass && holderValue.status === 'pass';
-    const classification: CryptoFourCriteriaAsset['classification'] = allFourPass
-      ? 'all-four'
-      : firstThreePass
-        ? 'first-three'
-        : statuses.every(status => status === 'unknown')
-          ? 'insufficient-data'
-          : 'partial';
-
-    return {
+    return evaluateCryptoFourCriteriaAsset({
       id: coin.id,
       coinGeckoId: coin.coin_gecko_id,
-      symbol: coin.symbol.toUpperCase(),
+      symbol: coin.symbol,
       name: coin.name,
       image: coin.image,
       marketCapRank: Math.round(finitePositive(coin.market_cap_rank)),
-      marketCap: finitePositive(coin.market_cap),
-      score: statuses.reduce((sum, status) => sum + scoreForStatus(status), 0),
-      passedCriteria,
-      classification,
-      criteria: { growth, networkEffect, sustainableRevenue, holderValue },
-      metrics: {
-        tvl: protocol?.tvl || undefined,
-        tvlChange7d,
-        fees30d: fees.total30d || undefined,
-        feeRunRateChange: feeTrend,
-        revenue30d: revenue.total30d || undefined,
-        revenueRunRateChange: revenueTrend,
-        holdersRevenue30d: holderRevenue.total30d || undefined,
-        chainCount: protocol?.chains.size || 0
-      }
-    };
+      marketCap: finitePositive(coin.market_cap)
+    }, protocol, fees, revenue, holderRevenue);
   }).sort((left, right) =>
     right.passedCriteria - left.passedCriteria ||
     right.score - left.score ||

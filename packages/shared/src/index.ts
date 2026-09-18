@@ -4,6 +4,7 @@ export * from './types/social.js';
 export * from './types/news.js';
 export * from './types/ai.js';
 export * from './types/alerts.js';
+export * from './types/daily-sma-reclaim.js';
 export * from './types/auth.js';
 export * from './types/backtest.js';
 export * from './types/macro.js';

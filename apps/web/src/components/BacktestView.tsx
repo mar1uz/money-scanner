@@ -138,7 +138,7 @@ export const BacktestView: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-8">
-      <section className="rounded-[30px] border border-cyan-500/25 bg-gradient-to-br from-cyan-500/[0.08] via-background-card to-violet-500/[0.06] p-4 sm:p-6">
+      <section className="rounded-[30px] border border-cyan-500/25 bg-[var(--t-surface)] p-4 sm:p-6">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div className="max-w-3xl">
             <div className="flex items-center gap-2 text-cyan-300">
@@ -480,7 +480,7 @@ const ComparisonTable: React.FC<{ comparison: BacktestComparisonResult }> = ({ c
 );
 
 const MiniStat: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div className="rounded-lg border border-white/[0.05] bg-black/10 p-2.5"><div className="text-[8px] font-bold uppercase tracking-wider text-slate-600">{label}</div><div className="mt-1 font-mono text-xs font-bold text-violet-200">{value}</div></div>
+  <div className="rounded-lg border border-white/[0.05] bg-[var(--t-surface-raised)] p-2.5"><div className="text-[8px] font-bold uppercase tracking-wider text-slate-600">{label}</div><div className="mt-1 font-mono text-xs font-bold text-violet-200">{value}</div></div>
 );
 
 const TradeLog: React.FC<{ result: BacktestResult }> = ({ result }) => (

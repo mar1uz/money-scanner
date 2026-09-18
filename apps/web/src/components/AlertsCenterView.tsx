@@ -20,7 +20,7 @@ import {
   Zap
 } from 'lucide-react';
 import { AssetScannerRow, Timeframe } from '../types.js';
-import { TRADING_360_ASSETS } from '@money-scanner/shared';
+import { DailySmaReclaimResult, DailySmaReclaimResultStatus, TRADING_360_ASSETS } from '@money-scanner/shared';
 import {
   ActiveAlertDashboardItem,
   AlertsDashboardResponse,
@@ -42,6 +42,47 @@ interface AlertsCenterViewProps {
 }
 
 const ALERT_STORAGE_PREFIX = 'moneyline-bullish-alert:';
+export const ALERTS_COVERAGE_OPEN_KEY = 'ms-alerts-coverage-open';
+export const ALERTS_SMA_OPEN_KEY = 'ms-alerts-sma-open';
+
+type FlagStorage = Pick<Storage, 'getItem' | 'setItem'>;
+
+export function readPersistedOpen(key: string, fallback = true, storage?: FlagStorage | null): boolean {
+  try {
+    const store = storage === undefined ? globalThis.localStorage : storage;
+    if (!store) return fallback;
+    const raw = store.getItem(key);
+    if (raw === '0') return false;
+    if (raw === '1') return true;
+  } catch {
+    // private mode / missing storage
+  }
+  return fallback;
+}
+
+export function writePersistedOpen(key: string, open: boolean, storage?: FlagStorage | null): void {
+  try {
+    const store = storage === undefined ? globalThis.localStorage : storage;
+    store?.setItem(key, open ? '1' : '0');
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
+let alertsDashboardCache: AlertsDashboardResponse | null = null;
+
+export function peekAlertsDashboardCache(): AlertsDashboardResponse | null {
+  return alertsDashboardCache;
+}
+
+export function rememberAlertsDashboard(data: AlertsDashboardResponse | null): void {
+  alertsDashboardCache = data;
+}
+
+/** Re-entering Alerts must not refetch/rescan when a snapshot already exists. */
+export function shouldAutoLoadAlertsDashboard(cache: AlertsDashboardResponse | null = alertsDashboardCache): boolean {
+  return cache == null;
+}
 
 const catalogNameBySymbol = new Map<string, string>(
   TRADING_360_ASSETS.map(asset => [asset.symbol.toUpperCase(), asset.name])
@@ -206,8 +247,8 @@ export function filterConfirmedFlips(
 }
 
 export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets, watchlist, onOpenAsset }) => {
-  const [data, setData] = useState<AlertsDashboardResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<AlertsDashboardResponse | null>(() => peekAlertsDashboardCache());
+  const [loading, setLoading] = useState(() => shouldAutoLoadAlertsDashboard());
   const [error, setError] = useState('');
   const [scanScope, setScanScope] = useState<ManualAlertScanScope | null>(null);
   const [scanMessage, setScanMessage] = useState('');
@@ -218,6 +259,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
   const [confirmedOpen, setConfirmedOpen] = useState(true);
   const [candidatesOpen, setCandidatesOpen] = useState(true);
   const [activeAlertsOpen, setActiveAlertsOpen] = useState(true);
+  const [coverageOpen, setCoverageOpen] = useState(() => readPersistedOpen(ALERTS_COVERAGE_OPEN_KEY, true));
   const [candidateFilter, setCandidateFilter] = useState<'ALL' | 'BULLISH' | 'BEARISH'>('ALL');
   const [candidateTimeframe, setCandidateTimeframe] = useState<'ALL' | '4h' | '8h' | '1d' | '1w'>('ALL');
   const [candidateMarketClass, setCandidateMarketClass] = useState<CandidateMarketClassFilter>('ALL');
@@ -231,31 +273,52 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
   const [confirmedSearch, setConfirmedSearch] = useState('');
   const restoredBrowserRules = useRef(false);
 
-  const loadDashboard = useCallback(async () => {
-    setLoading(true);
-    setError('');
+  const applyDashboard = useCallback((next: AlertsDashboardResponse) => {
+    rememberAlertsDashboard(next);
+    setData(next);
+  }, []);
+
+  const loadDashboard = useCallback(async (mode: 'auto' | 'manual' | 'poll' = 'manual') => {
+    if (mode === 'auto' && !shouldAutoLoadAlertsDashboard()) {
+      const cached = peekAlertsDashboardCache();
+      if (cached) setData(cached);
+      setLoading(false);
+      return;
+    }
+    if (mode !== 'poll') setLoading(true);
+    if (mode !== 'poll') setError('');
     try {
-      setData(await fetchAlertsDashboard());
+      applyDashboard(await fetchAlertsDashboard());
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Nu am putut încărca alertele.');
+      if (mode !== 'poll') {
+        setError(loadError instanceof Error ? loadError.message : 'Nu am putut încărca alertele.');
+      }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [applyDashboard]);
 
   useEffect(() => {
-    void loadDashboard();
-    const timer = window.setInterval(() => void loadDashboard(), 60_000);
-    return () => window.clearInterval(timer);
+    // First visit fetches once. Re-entering Alerts reuses the last snapshot.
+    // Live prices refresh only via the manual „Actualizează” button or while a scan runs.
+    void loadDashboard('auto');
   }, [loadDashboard]);
 
   useEffect(() => {
     if (!data?.manualScan.running || scanScope) return;
     const timer = window.setInterval(() => {
-      void fetchAlertsDashboard().then(setData).catch(() => undefined);
+      void fetchAlertsDashboard().then(applyDashboard).catch(() => undefined);
     }, 2_500);
     return () => window.clearInterval(timer);
-  }, [data?.manualScan.running, scanScope]);
+  }, [applyDashboard, data?.manualScan.running, scanScope]);
+
+  const toggleCoverageOpen = () => {
+    setCoverageOpen(prev => {
+      const next = !prev;
+      writePersistedOpen(ALERTS_COVERAGE_OPEN_KEY, next);
+      return next;
+    });
+  };
 
   // Existing alert choices live in the browser as a recovery layer. Restore
   // missing server rules after a Cloud Run revision change, then refresh the
@@ -384,7 +447,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
       return { symbol: normalizedSymbol, marketClass };
     });
     const pollTimer = window.setInterval(() => {
-      void fetchAlertsDashboard().then(setData).catch(() => undefined);
+      void fetchAlertsDashboard().then(applyDashboard).catch(() => undefined);
     }, 2_500);
 
     try {
@@ -600,7 +663,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
 
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden rounded-[30px] border border-cyan-500/20 bg-gradient-to-br from-cyan-500/[0.08] via-background-card to-violet-500/[0.05] p-4 sm:p-6">
+      <section className="overflow-hidden rounded-[30px] border border-cyan-500/20 bg-[var(--t-surface)] p-4 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="mb-2 flex items-center gap-2 text-cyan-300">
@@ -693,15 +756,29 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
           )}
         </div>
 
-        <details className="mt-4 rounded-xl border border-white/[0.08] bg-white/[0.025] p-3" open>
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-bold text-slate-200">
-            <span className="flex items-center gap-2"><Radar className="h-4 w-4 text-cyan-300" /> Acoperirea ultimei scanări</span>
-            <span className="font-mono text-[10px] text-cyan-300">
+        <div className="mt-4 rounded-xl border border-white/[0.08] bg-white/[0.025]">
+          <button
+            type="button"
+            onClick={toggleCoverageOpen}
+            aria-expanded={coverageOpen}
+            title={coverageOpen ? 'Compactează acoperirea' : 'Extinde acoperirea'}
+            className="flex w-full items-center justify-between gap-3 p-3 text-left text-xs font-bold text-slate-200"
+          >
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg border border-cyan-500/25 bg-cyan-500/10 text-cyan-300">
+                <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${coverageOpen ? '' : '-rotate-90'}`} />
+              </span>
+              <Radar className="h-4 w-4 shrink-0 text-cyan-300" />
+              <span className="truncate">Acoperirea ultimei scanări</span>
+            </span>
+            <span className="shrink-0 font-mono text-[10px] text-cyan-300">
               {data?.dailyRegimeScan.coverage?.scannedAssets ?? data?.scanCoverage?.length ?? 0}/
               {data?.dailyRegimeScan.coverage?.totalAssets ?? 0} active
             </span>
-          </summary>
-          <p className="mt-2 text-[11px] leading-5 text-slate-500">
+          </button>
+          {coverageOpen && (
+          <div className="px-3 pb-3">
+          <p className="text-[11px] leading-5 text-slate-500">
             Fiecare activ din univers este raportat, inclusiv cele fără setup sau cu date indisponibile. Astfel vezi exact ce a fost analizat.
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
@@ -716,7 +793,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                   title={isActive ? 'Renunță la filtru' : `Filtrează: ${coverageStatusMeta[status].label}`}
                   className={`rounded-lg border px-2 py-1.5 text-left transition ${isActive
                     ? coverageStatusMeta[status].tone
-                    : 'border-white/[0.06] bg-black/10 hover:border-cyan-500/30 hover:bg-white/[0.04]'}`}
+                    : 'border-white/[0.06] bg-[var(--t-surface-raised)] hover:border-cyan-500/30 hover:bg-white/[0.04]'}`}
                 >
                   <div className={`flex items-center justify-between gap-1 text-[9px] uppercase tracking-wide ${isActive ? 'opacity-90' : 'text-slate-500'}`}>
                     <span className="truncate">{coverageStatusMeta[status].label}</span>
@@ -743,7 +820,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                       type="button"
                       onClick={() => onOpenAsset(item.symbol, item.marketClass, '1w')}
                       title={`Deschide analiza Money Line pentru ${item.symbol}`}
-                      className="rounded-lg border border-white/[0.06] bg-black/10 px-2.5 py-2 text-left transition hover:border-cyan-500/35 hover:bg-cyan-500/[0.06]"
+                      className="rounded-lg border border-white/[0.06] bg-[var(--t-surface-raised)] px-2.5 py-2 text-left transition hover:border-cyan-500/35 hover:bg-cyan-500/[0.06]"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="truncate text-[11px] font-bold text-slate-200">{item.symbol}</span>
@@ -765,7 +842,9 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
               )}
             </>
           )}
-        </details>
+          </div>
+          )}
+        </div>
       </section>
 
       {scanMessage && (
@@ -779,6 +858,11 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
           <AlertTriangle className="h-4 w-4 shrink-0" /> {error}
         </div>
       )}
+
+      <DailySmaReclaimSection
+        report={data?.dailySmaReclaim}
+        onOpenAsset={onOpenAsset}
+      />
 
       {/* Filter Tabs */}
       <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.06] pb-3">
@@ -940,7 +1024,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
               </div>
             </button>
             <div className="flex items-center gap-2">
-              <span className="hidden font-mono text-[10px] text-slate-600 sm:inline">AUTO REFRESH 60S</span>
+              <span className="hidden font-mono text-[10px] text-slate-600 sm:inline">Doar refresh manual</span>
               <button
                 type="button"
                 onClick={() => void clearAlertGroup('active')}
@@ -987,6 +1071,110 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
     </div>
   );
 };
+
+const smaReclaimStatusMeta: Record<DailySmaReclaimResultStatus, { label: string; tone: string }> = {
+  NEW_SIGNAL: { label: 'Semnal nou', tone: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/25' },
+  ABOVE_BOTH: { label: 'Deja peste medii', tone: 'text-cyan-300 bg-cyan-500/10 border-cyan-500/25' },
+  NO_SIGNAL: { label: 'Fără semnal', tone: 'text-slate-400 bg-white/[0.04] border-white/[0.08]' },
+  INSUFFICIENT_HISTORY: { label: 'Istoric insuficient', tone: 'text-amber-300 bg-amber-500/10 border-amber-500/25' },
+  STALE_DATA: { label: 'Date neactualizate', tone: 'text-amber-200 bg-amber-500/10 border-amber-500/25' },
+  ERROR: { label: 'Eroare', tone: 'text-rose-300 bg-rose-500/10 border-rose-500/25' }
+};
+
+const formatSmaDistance = (value?: number) => value === undefined || !Number.isFinite(value) ? 'indisponibil' : `${value.toFixed(2)} ATR`;
+
+const DailySmaReclaimSection: React.FC<{
+  report: import('@money-scanner/shared').DailySmaReclaimReport | null | undefined;
+  onOpenAsset: AlertsCenterViewProps['onOpenAsset'];
+}> = ({ report, onOpenAsset }) => {
+  const [open, setOpen] = useState(() => readPersistedOpen(ALERTS_SMA_OPEN_KEY, true));
+  const toggleOpen = () => {
+    setOpen(prev => {
+      const next = !prev;
+      writePersistedOpen(ALERTS_SMA_OPEN_KEY, next);
+      return next;
+    });
+  };
+  const headerButton = (
+    <button
+      type="button"
+      onClick={toggleOpen}
+      aria-expanded={open}
+      title={open ? 'Compactează Recuperare SMA 50 + 200' : 'Extinde Recuperare SMA 50 + 200'}
+      className="flex w-full items-start justify-between gap-3 text-left"
+    >
+      <span className="flex min-w-0 items-start gap-2.5">
+        <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-lg border border-cyan-500/25 bg-cyan-500/10 text-cyan-300">
+          <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${open ? '' : '-rotate-90'}`} />
+        </span>
+        <span className="min-w-0">
+          <span className="flex flex-wrap items-center gap-2 text-cyan-300">
+            <Radar className="h-5 w-5" />
+            <h2 className="text-base font-bold text-white sm:text-lg">Recuperare SMA 50 + 200 · 1D</h2>
+            <span className="rounded-md border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px]">DAILY_SMA50_200_RECLAIM</span>
+          </span>
+          {!open && report && (
+            <span className="mt-1 block text-[11px] text-slate-500">
+              {report.totals.newSignals} semnale noi · acoperire {report.totals.scanned}/{report.totals.total} · {report.analyzedDay}
+            </span>
+          )}
+        </span>
+      </span>
+      {report && (
+        <span className="shrink-0 text-right">
+          <span className="block font-mono text-[10px] uppercase tracking-wider text-slate-500">Zi confirmare</span>
+          <span className="mt-1 block font-mono text-sm font-bold text-cyan-200">{report.analyzedDay}</span>
+          <span className="mt-1 block text-[10px] text-slate-500">08:00 Europe/Oslo · {report.status}</span>
+        </span>
+      )}
+    </button>
+  );
+
+  if (!report) {
+    return (
+      <section className="rounded-[30px] border border-dashed border-cyan-500/20 bg-cyan-500/[0.03] p-5">
+        {headerButton}
+        {open && <p className="mt-3 text-xs leading-5 text-slate-500">Nu există încă un raport. Universul va fi evaluat zilnic la 08:00 Europe/Oslo.</p>}
+      </section>
+    );
+  }
+  const signals = report.results.filter(result => result.status === 'NEW_SIGNAL' && result.signal);
+  const ordered = report.results.slice().sort((left, right) => (left.rank ?? 9999) - (right.rank ?? 9999) || left.symbol.localeCompare(right.symbol));
+  return (
+    <section className="space-y-4 rounded-[30px] border border-cyan-500/20 bg-[var(--t-surface)] p-4 sm:p-6">
+      {headerButton}
+      {open && (
+      <>
+      <p className="max-w-3xl text-xs leading-5 text-slate-400">Semnale bullish pe ultima lumânare UTC complet închisă. Universul este cel eligibil al proiectului: până la 150 de monede ordonate după CoinGecko, cu sursă de lumânări disponibilă și fără stablecoins; nu reprezintă automat primele 150 CoinGecko fără excluderi.</p>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+        <SummaryCard icon={Zap} label="Semnale noi" value={report.totals.newSignals} tone="emerald" />
+        <SummaryCard icon={TrendingUp} label="Peste ambele" value={report.totals.alreadyAboveBoth} tone="cyan" />
+        <SummaryCard icon={ScanSearch} label="Fără semnal" value={report.totals.noSignal} tone="slate" />
+        <SummaryCard icon={Clock3} label="Insuficient" value={report.totals.insufficientHistory} tone="amber" />
+        <SummaryCard icon={AlertTriangle} label="Neactualizat" value={report.totals.staleData} tone="amber" />
+        <SummaryCard icon={AlertTriangle} label="Erori" value={report.totals.errors} tone="rose" />
+        <SummaryCard icon={CheckCircle2} label="Acoperire" value={`${report.totals.scanned}/${report.totals.total}`} tone="slate" />
+      </div>
+      <div className="rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] px-3 py-2 text-[10px] text-slate-500">Sursă: {report.source} · execuție {report.durationMs}ms · {report.telegram ? `Telegram ${report.telegram.deliveredParts}/${report.telegram.parts} părți livrate` : 'Telegram neprocesat'}</div>
+      {signals.length ? <div className="grid gap-3 lg:grid-cols-2">{signals.map(result => <DailySmaSignalCard key={result.symbol} result={result} onOpen={() => onOpenAsset(result.symbol, 'crypto', '1d')} />)}</div> : <div className="rounded-xl border border-dashed border-white/[0.08] px-4 py-5 text-center text-xs text-slate-500">Nu există traversări noi în ziua analizată. Monedele deja peste medii rămân vizibile în acoperirea de mai jos.</div>}
+      <details className="rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)]" open>
+        <summary className="cursor-pointer list-none px-3 py-2 text-xs font-bold text-slate-300">Acoperire completă ({ordered.length})</summary>
+        <div className="grid max-h-80 gap-1.5 overflow-y-auto border-t border-white/[0.06] p-3 sm:grid-cols-2 lg:grid-cols-3">{ordered.map(result => <button key={result.symbol} type="button" onClick={() => onOpenAsset(result.symbol, 'crypto', '1d')} className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-2.5 py-2 text-left transition hover:border-cyan-500/30"><div className="flex items-center justify-between gap-2"><span className="font-mono text-[11px] font-bold text-slate-200">{result.symbol}</span><span className="font-mono text-[9px] text-slate-500">{result.rank ? `#${result.rank}` : '—'}</span></div><div className="mt-1 flex items-center justify-between gap-2"><span className={`rounded border px-1.5 py-0.5 text-[9px] font-bold ${smaReclaimStatusMeta[result.status].tone}`}>{smaReclaimStatusMeta[result.status].label}</span><span className="truncate text-[9px] text-slate-600" title={result.reason}>{result.source}</span></div></button>)}</div>
+      </details>
+      </>
+      )}
+    </section>
+  );
+};
+
+const DailySmaSignalCard: React.FC<{ result: DailySmaReclaimResult; onOpen: () => void }> = ({ result, onOpen }) => {
+  const signal = result.signal!;
+  const dailyMl = signal.dailyMoneyLine;
+  const weeklyMl = signal.weeklyMoneyLine;
+  return <article className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.05] p-4"><div className="flex items-start justify-between gap-3"><button type="button" onClick={onOpen} className="min-w-0 text-left"><div className="flex flex-wrap items-center gap-2"><strong className="font-mono text-lg text-white">${result.symbol}</strong><span className="truncate text-xs font-semibold text-slate-300">{result.name}</span><span className="rounded border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-200">{result.rank ? `CoinGecko #${result.rank}` : 'CoinGecko —'}</span></div><div className="mt-1 text-[10px] text-slate-500">Confirmare: {reportDate(result.analyzedDay)}</div></button><span className="rounded border border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-300">▲ SEMNAL NOU</span></div><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4"><LevelBox label="Închidere confirmare" value={formatPrice(signal.confirmationPrice)} tone="emerald" /><LevelBox label="Preț curent" value={formatPrice(result.currentPrice)} tone="cyan" /><LevelBox label="SMA 50 / 200" value={`${formatPrice(signal.sma50)} / ${formatPrice(signal.sma200)}`} tone="slate" /><LevelBox label="Distanță media superioară" value={formatSmaDistance(signal.distanceToUpperSmaAtr)} tone={signal.distanceLabel === 'EXTENDED' ? 'amber' : 'cyan'} /></div><div className="mt-3 flex flex-wrap gap-1.5 text-[9px] font-bold uppercase tracking-wide"><span className={`rounded border px-2 py-1 ${signal.rvolHighlighted ? 'border-amber-500/30 bg-amber-500/10 text-amber-200' : 'border-white/[0.07] text-slate-500'}`}>RVOL {signal.rvol?.toFixed(2) ?? 'indisponibil'}x</span><span className="rounded border border-white/[0.07] px-2 py-1 text-slate-500">SMA50 {signal.sma50Direction.toLowerCase()}</span><span className="rounded border border-white/[0.07] px-2 py-1 text-slate-500">SMA200 {signal.sma200Direction.toLowerCase()}</span><span className={`rounded border px-2 py-1 ${dailyMl.bullish ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300' : 'border-white/[0.07] text-slate-500'}`}>ML 1D {dailyMl.bullish ? 'bullish' : 'indisponibil/nebullish'}</span><span className={`rounded border px-2 py-1 ${weeklyMl?.bullish ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300' : 'border-white/[0.07] text-slate-500'}`}>ML 1W {weeklyMl?.bullish ? 'bullish' : 'indisponibil/nebullish'}</span></div><button type="button" onClick={onOpen} className="mt-3 flex w-full items-center justify-between border-t border-white/[0.06] pt-3 text-[11px] font-semibold text-cyan-300">Deschide graficul <ChevronRight className="h-3.5 w-3.5" /></button></article>;
+};
+
+const reportDate = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString('ro-RO', { dateStyle: 'medium' });
 
 const SummaryCard: React.FC<{ icon: React.ElementType; label: string; value: number | string; tone: 'cyan' | 'amber' | 'emerald' | 'rose' | 'slate' }> = ({ icon: Icon, label, value, tone }) => {
   const tones = {
@@ -1265,7 +1453,7 @@ const ActiveAlertCard: React.FC<{ alert: ActiveAlertDashboardItem; removing: boo
       </div>
 
       {alert.lastPlan && (
-        <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl border border-white/[0.06] bg-black/10 p-2.5">
+        <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl border border-white/[0.06] bg-[var(--t-surface-raised)] p-2.5">
           <div className="flex items-center gap-2"><Target className="h-3.5 w-3.5 text-cyan-400" /><div><div className="text-[9px] uppercase text-slate-600">Ultimul entry</div><div className="font-mono text-[11px] text-cyan-300">{formatPrice(alert.lastPlan.suggestedEntry)}</div></div></div>
           <div className="flex items-center gap-2"><ShieldAlert className="h-3.5 w-3.5 text-rose-400" /><div><div className="text-[9px] uppercase text-slate-600">Ultimul SL</div><div className="font-mono text-[11px] text-rose-300">{formatPrice(alert.lastPlan.stopLoss)}</div></div></div>
           <div className="flex items-center gap-2"><TrendingUp className="h-3.5 w-3.5 text-emerald-400" /><div><div className="text-[9px] uppercase text-slate-600">Ultimul TP2</div><div className="font-mono text-[11px] text-emerald-300">{formatPrice(alert.lastPlan.target2)}</div></div></div>

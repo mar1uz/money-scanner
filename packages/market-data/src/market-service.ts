@@ -4,7 +4,6 @@ import {
   Timeframe,
   MarketOverviewSummary,
   BALANCED_CRYPTO_ASSETS,
-  CRYPTO_SPOT_ASSETS,
   TRADING_360_ASSETS,
   AssetInfo,
   AssetMarketClass,
@@ -339,7 +338,10 @@ export class MarketDataService {
       this.topCryptoAssetsCache = { values: collected.assets, updatedAt: Date.now() };
       return collected.assets.slice(0, limit);
     } catch {
-      return CRYPTO_SPOT_ASSETS.slice(0, limit);
+      // Do not fabricate a CoinGecko-ranked alert universe from the static
+      // catalog. Callers that need a verified ranked list must handle the
+      // empty result as unavailable and expose it as partial/failed coverage.
+      return [];
     }
   }
 

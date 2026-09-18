@@ -32,7 +32,7 @@
   --t-shadow-card: 0 8px 24px rgba(0,0,0,.16);
   --t-shadow-hover: 0 10px 28px rgba(0,0,0,.2);
   --t-dock-shadow: inset 0 1px 1px rgba(255,255,255,.06), 0 16px 40px rgba(0,0,0,.5), 0 2px 5px rgba(0,0,0,.12);
-  --t-brief-gradient: linear-gradient(145deg, rgba(28,33,44,.35), rgba(15,18,24,.78));
+  --t-brief-gradient: #12151A;
   --glass-fill: #12151A;
   --glass-edge: #232A35;
   --glass-shadow: 0 8px 24px rgba(0,0,0,.16);
@@ -101,7 +101,7 @@ html[data-theme='l1'] { color-scheme: light; }
 html[data-theme='l1'] {
   /* L1 · Paper */
   --t-bg: #F5F7FA;
-  --t-bg-image: radial-gradient(1000px 480px at 84% -8%, rgba(200,241,105,.16), transparent 60%),radial-gradient(840px 560px at -6% 44%, rgba(111,199,255,.12), transparent 60%),radial-gradient(920px 640px at 66% 110%, rgba(167,139,250,.09), transparent 62%);
+  --t-bg-image: none;
   --t-accent-soft: #4E6B0D;
   --t-surface: #FFFFFF;
   --t-surface-2: #FFFFFF;
@@ -126,7 +126,7 @@ html[data-theme='l1'] {
   --t-shadow-card: 0 12px 28px -20px rgba(23,32,46,.22);
   --t-shadow-hover: 0 14px 32px -20px rgba(23,32,46,.28);
   --t-dock-shadow: 0 16px 40px -18px rgba(23,32,46,.35), 0 2px 5px rgba(23,32,46,.08);
-  --t-brief-gradient: linear-gradient(145deg, rgba(255,255,255,.9), rgba(241,244,248,.9));
+  --t-brief-gradient: #FFFFFF;
   --glass-fill: #FFFFFF;
   --glass-edge: #E3E8EF;
   --glass-shadow: 0 12px 28px -20px rgba(23,32,46,.22);
@@ -194,7 +194,7 @@ html[data-theme='l2'] { color-scheme: light; }
 html[data-theme='l2'] {
   /* L2 · Ivory */
   --t-bg: #F7F4EC;
-  --t-bg-image: radial-gradient(1000px 480px at 84% -8%, rgba(200,241,105,.15), transparent 60%),radial-gradient(840px 560px at -6% 44%, rgba(255,194,75,.10), transparent 60%),radial-gradient(920px 640px at 66% 110%, rgba(200,241,105,.08), transparent 62%);
+  --t-bg-image: none;
   --t-accent-soft: #5C6B0E;
   --t-surface: #FFFDF9;
   --t-surface-2: #FFFFFF;
@@ -219,7 +219,7 @@ html[data-theme='l2'] {
   --t-shadow-card: 0 12px 28px -20px rgba(60,50,30,.20);
   --t-shadow-hover: 0 14px 32px -20px rgba(60,50,30,.26);
   --t-dock-shadow: 0 16px 40px -18px rgba(60,50,30,.32), 0 2px 5px rgba(60,50,30,.08);
-  --t-brief-gradient: linear-gradient(145deg, rgba(255,255,255,.9), rgba(243,239,228,.9));
+  --t-brief-gradient: #FFFDF9;
   --glass-fill: #FFFDF9;
   --glass-edge: #E9E2D3;
   --glass-shadow: 0 12px 28px -20px rgba(60,50,30,.20);
@@ -287,7 +287,7 @@ html[data-theme='l3'] { color-scheme: light; }
 html[data-theme='l3'] {
   /* L3 · Sky */
   --t-bg: #ECF3FA;
-  --t-bg-image: radial-gradient(940px 480px at 86% -8%, rgba(111,199,255,.34), transparent 58%),radial-gradient(780px 580px at -8% 40%, rgba(200,241,105,.16), transparent 60%),radial-gradient(880px 640px at 62% 112%, rgba(167,139,250,.14), transparent 62%);
+  --t-bg-image: none;
   --t-accent-soft: #4E6B0D;
   --t-surface: #FFFFFF;
   --t-surface-2: #FFFFFF;
@@ -312,7 +312,7 @@ html[data-theme='l3'] {
   --t-shadow-card: 0 12px 28px -20px rgba(30,50,80,.24);
   --t-shadow-hover: 0 14px 32px -20px rgba(30,50,80,.30);
   --t-dock-shadow: 0 16px 40px -18px rgba(30,50,80,.32), 0 2px 5px rgba(30,50,80,.08);
-  --t-brief-gradient: linear-gradient(145deg, #FFFFFF, #EFF5FB);
+  --t-brief-gradient: #FFFFFF;
   --glass-fill: #FFFFFF;
   --glass-edge: #D9E5F2;
   --glass-shadow: 0 12px 28px -20px rgba(30,50,80,.24);
@@ -380,7 +380,7 @@ html[data-theme='l4'] { color-scheme: light; }
 html[data-theme='l4'] {
   /* L4 · Mint */
   --t-bg: #E9F5EE;
-  --t-bg-image: radial-gradient(900px 460px at 82% -8%, rgba(18,161,102,.18), transparent 60%),radial-gradient(760px 560px at -8% 44%, rgba(16,185,129,.14), transparent 62%),radial-gradient(820px 620px at 64% 112%, rgba(200,241,105,.12), transparent 62%);
+  --t-bg-image: none;
   --t-accent-soft: #4E6B0D;
   --t-surface: #FFFFFF;
   --t-surface-2: #FFFFFF;
@@ -405,7 +405,7 @@ html[data-theme='l4'] {
   --t-shadow-card: 0 12px 28px -20px rgba(16,120,70,.28);
   --t-shadow-hover: 0 14px 32px -20px rgba(16,120,70,.34);
   --t-dock-shadow: 0 16px 40px -18px rgba(16,120,70,.35), 0 2px 5px rgba(16,120,70,.08);
-  --t-brief-gradient: linear-gradient(145deg, rgba(255,255,255,.92), rgba(227,243,232,.9));
+  --t-brief-gradient: #FFFFFF;
   --glass-fill: #FFFFFF;
   --glass-edge: #D8EDDF;
   --glass-shadow: 0 12px 28px -20px rgba(16,120,70,.28);
@@ -473,7 +473,7 @@ html[data-theme='l5'] { color-scheme: light; }
 html[data-theme='l5'] {
   /* L5 · Sorbet */
   --t-bg: #F4F1FA;
-  --t-bg-image: radial-gradient(860px 440px at 86% -8%, rgba(167,139,250,.30), transparent 58%),radial-gradient(760px 540px at -8% 40%, rgba(61,220,151,.22), transparent 60%),radial-gradient(840px 600px at 60% 112%, rgba(255,176,120,.26), transparent 62%),linear-gradient(120deg,#F6F0FF 0%,#ECF7F1 48%,#FFF3E8 100%);
+  --t-bg-image: none;
   --t-accent-soft: #4E6B0D;
   --t-surface: #FFFFFF;
   --t-surface-2: #FFFFFF;
@@ -498,7 +498,7 @@ html[data-theme='l5'] {
   --t-shadow-card: 0 16px 36px -24px rgba(70,50,120,.30);
   --t-shadow-hover: 0 20px 42px -24px rgba(70,50,120,.36);
   --t-dock-shadow: 0 16px 40px -18px rgba(70,50,120,.32), 0 2px 5px rgba(70,50,120,.08);
-  --t-brief-gradient: linear-gradient(145deg, rgba(255,255,255,.85), rgba(244,239,252,.75));
+  --t-brief-gradient: #FFFFFF;
   --glass-fill: #FFFFFF;
   --glass-edge: #E7E1F3;
   --glass-shadow: 0 16px 36px -24px rgba(70,50,120,.30);
@@ -575,16 +575,10 @@ html[data-theme^='l'] .market-overview .card-base {
   background-image: none;
 }
 html[data-theme^='l'] .market-overview .card-base:first-child {
-  background-image: linear-gradient(135deg, rgba(200,241,105,.18), rgba(200,241,105,.035) 72%);
-  border-color: rgba(150,178,66,.35);
+  background-image: none;
+  background-color: var(--t-surface);
+  border-color: var(--t-line-strong);
 }
-html[data-theme='l3'] .market-overview .card-base:first-child {
-  background-image: linear-gradient(135deg, #EAF3FD, #FBFDFF 62%);
-  border-color: rgba(120,160,210,.4);
-}
-html[data-theme='l5'] .market-overview .card-base:nth-child(1) { background-image: linear-gradient(135deg, #EFE8FC, #FBF9FF 62%); }
-html[data-theme='l5'] .market-overview .card-base:nth-child(2) { background-image: linear-gradient(135deg, #E6F6EE, #FAFFFC 62%); }
-html[data-theme='l5'] .market-overview .card-base:nth-child(3) { background-image: linear-gradient(135deg, #FDEEDF, #FFFBF6 62%); }
 html[data-theme^='l'] .brand-mark { box-shadow: 0 6px 18px -8px rgba(120,160,20,.45); }
 html[data-theme^='l'] .scanner-section table th { color: var(--t-muted); }
 html[data-theme^='l'] .mobile-nav-lens { box-shadow: inset 0 1px 1px rgba(255,255,255,.5), 0 2px 8px rgba(23,32,46,.12); }

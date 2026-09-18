@@ -74,7 +74,7 @@ export const NewsFeedView: React.FC = () => {
       </div>
 
       {/* Grounded synthesis: every clickable statement maps to a server-verified source URL. */}
-      <section className="relative overflow-hidden rounded-[30px] border border-purple-500/25 bg-gradient-to-br from-purple-950/35 via-background-card to-cyan-950/25 p-5 shadow-2xl">
+      <section className="relative overflow-hidden rounded-[30px] border border-purple-500/25 bg-[var(--t-surface)] p-5">
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-purple-400/70 to-transparent" />
         <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
           <div className="flex items-start gap-3">
@@ -128,7 +128,7 @@ export const NewsFeedView: React.FC = () => {
                 return (
                   <div
                     key={`${citedSources[0]!.id}_${index}`}
-                    className="flex items-start gap-2.5 rounded-xl border border-slate-700/70 bg-slate-950/35 px-3.5 py-3 text-xs leading-relaxed text-slate-300 transition-all hover:border-purple-400/45 hover:bg-purple-500/5 hover:text-slate-100"
+                    className="flex items-start gap-2.5 rounded-xl border border-slate-700/70 bg-[var(--t-surface-raised)] px-3.5 py-3 text-xs leading-relaxed text-slate-300 transition-all hover:border-purple-400/45 hover:bg-purple-500/5 hover:text-slate-100"
                   >
                     <Link2 className="w-3.5 h-3.5 mt-0.5 shrink-0 text-purple-400" />
                     <p className="min-w-0 flex-1">

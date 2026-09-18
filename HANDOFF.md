@@ -3669,3 +3669,77 @@ Public bundle: assets/index-DKwhbiRu.js (conține «Niciun activ pentru filtrul 
 Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
 Health check (/api/health): HTTP 200 OK
 ```
+
+### 2026-09-18 — Compactare acoperire/SMA + fără re-scan la revenirea pe Alerte
+
+Cerut: buton de retragere/compactare pe „Acoperirea ultimei scanări” și „Recuperare SMA 50 + 200 · 1D”; la ieșirea din Alerte și revenire să rămână ultima variantă scanată, actualizare doar la refresh manual.
+
+- Acoperirea și SMA au același header cu ChevronDown ca Flipuri/Candidați (`aria-expanded`, titlu Compactează/Extinde). Starea open/closed e persistată în `localStorage` (`ms-alerts-coverage-open`, `ms-alerts-sma-open`).
+- Tab-ul Alerte rămâne montat după prima vizită (`alertsVisited` + `hidden` în `App.tsx`). Snapshot-ul dashboard e ținut în cache de modul (`rememberAlertsDashboard`); re-intrarea nu mai apelează `GET /alerts/dashboard` (care re-cotează prețuri live și părea o scanare). Intervalul AUTO REFRESH 60s a fost scos. Refresh doar pe „Actualizează” sau cât timp rulează o scanare manuală.
+- Teste web 78/0, tsc clean. Bundle public `assets/index-B4NrCa5i.js` conține stringurile de compactare.
+
+```text
+Cloud Build ID: d925ee30-3fb3-4c75-8eca-4c5c10d41c09 (SUCCESS)
+COMMIT_SHA: alerts-collapse-20260918
+Cloud Run revision: market-scanner-360-00198-l24
+Traffic: 100%
+Public bundle: assets/index-B4NrCa5i.js
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health check (/api/health): HTTP 200 OK
+```
+
+### 2026-09-18 — AI Briefing: fără gradient, suprafețe solide
+
+Cerut: „nu-mi place designul gradient din pagina AI briefing… nu vreau gradient nicăieri în toată pagina”.
+
+- `AIBriefingView`: scoase toate `bg-gradient-*`, textul `bg-clip-text`, orb-ul `blur-3xl` și stop-urile `via-[#12151A]`. Cardurile Briefing / Crypto Quality / Stock Quality folosesc `bg-[var(--t-surface)]`; titlul, bula user și butonul Send sunt pline, fără fade.
+- Test: `ai-briefing-no-gradient.test.ts`.
+
+```text
+Cloud Build ID: 14e37e8d-ac37-448f-9776-b9c1ad25b395 (SUCCESS)
+COMMIT_SHA: ai-briefing-solid-20260918
+Cloud Run revision: market-scanner-360-00199-pmp
+Traffic: 100%
+Public bundle: assets/index-Cxnn01Ac.js
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health check (/api/health): HTTP 200 OK
+```
+
+### 2026-09-18 — Crypto Business Quality: căutare DexScreener (ticker/adresă)
+
+Cerut: bara de căutare din „4 Selection Criteria” să găsească orice monedă de pe DexScreener după adresă sau ticker și să evalueze cele 4 criterii.
+
+- `GET /ai/crypto-four-criteria/lookup?q=` — DexScreener tokens (CA) sau search (ticker); scor DefiLlama dacă protocolul e unic, altfel proxy volum/lichiditate DexScreener (fără revenue inventat).
+- UI: placeholder „Ticker sau adresă (DexScreener)…”, debounce 450ms, badge DexScreener pe rezultate în afara top 200.
+
+```text
+Cloud Build ID: 04ae3c3b-e6bb-49c9-9acb-f8299fe19f8a (SUCCESS)
+COMMIT_SHA: dex-criteria-lookup-20260918
+Cloud Run revision: market-scanner-360-00200-7lp
+Traffic: 100%
+Public bundle: assets/index-DFpZwt7g.js
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health check (/api/health): HTTP 200 OK
+```
+
+### 2026-09-18 — Teme: carduri solide, contrast pe light și dark
+
+Cerut: Analiză AI pe deep-dive era neagră pe temă light (text invizibil); totul light trebuie light, totul dark trebuie dark, fără transparență/gradient pe carduri, notat în memorie.
+
+- Cardurile AI Analysis / Asset Profile / Quality / Alerts etc. folosesc `bg-[var(--t-surface)]`, nu hex graphite. Inner `bg-black/30` și `*-950` → surface-raised / tint 500/10.
+- Teme light: `--t-bg-image: none`, fără sheen/gradient pe `.card-base`. Regulă canonică: `preference/ui-theme-surfaces`.
+
+```text
+Cloud Build ID: 06b8ae32-642e-44d1-bb7f-787c99af4534 (SUCCESS)
+COMMIT_SHA: theme-solid-contrast-20260918
+Cloud Run revision: market-scanner-360-00201-wwk
+Traffic: 100%
+Public bundle: assets/index-Y5Ziw_Xf.js
+Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Health check (/api/health): HTTP 200 OK
+```
+
+### 2026-09-18 — Repo urcat pe GitHub
+
+- Sursă urcată pe GitHub: https://github.com/mar1uz/money-scanner (privat). Remote `origin` = acel URL. `.env` rămâne local (gitignore); pe GitHub e doar `.env.example`.
+

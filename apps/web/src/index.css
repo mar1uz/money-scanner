@@ -369,7 +369,7 @@ button, a, input, select, summary { outline-offset: 4px; }
 .intro-count { background: var(--accent); color: #10140A; border-radius: 50%; min-width: 24px; height: 24px; display: grid; place-items: center; font-size: 11px; }
 .market-overview > div:first-child { background: transparent; border: 0; padding: 0 0 16px; border-bottom: 1px solid var(--t-line); border-radius: 0; }
 .market-overview .card-base { padding: 24px; min-height: 166px; border: 1px solid var(--t-line); background: var(--t-surface-raised); }
-.market-overview .card-base:first-child { background: linear-gradient(135deg, rgba(200,241,105,.10), rgba(200,241,105,.02)); border-color: rgba(200,241,105,.25); }
+.market-overview .card-base:first-child { background: var(--t-surface-raised); border-color: var(--t-line-strong); }
 .market-overview .card-base h3 { font-size: 18px; font-weight: 500; }
 .sector-disclosure { border-block: 1px solid var(--t-line); }
 .sector-disclosure summary { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 20px 0; cursor: pointer; font-size: 14px; color: var(--t-text); list-style: none; }
@@ -430,7 +430,7 @@ body { background: var(--t-bg); }
   transition: border-color .25s ease, background-color .25s ease;
 }
 .card-base:hover { box-shadow: var(--glass-shadow); border-color: var(--t-line-strong); }
-.market-overview .card-base:first-child { background: linear-gradient(135deg, rgba(200,241,105,.10), rgba(200,241,105,.02)); border-color: rgba(200,241,105,.25); }
+.market-overview .card-base:first-child { background: var(--t-surface-raised); border-color: var(--t-line-strong); }
 .app-header { background: var(--t-header-bg); border-bottom: 1px solid var(--glass-edge); backdrop-filter: blur(14px) saturate(150%); -webkit-backdrop-filter: blur(14px) saturate(150%); box-shadow: 0 1px 0 var(--t-overlay-04); }
 .app-header button, .app-header input { border-radius: 999px; }
 .app-sidebar { background: var(--t-surface); border-color: var(--glass-edge); }
@@ -629,14 +629,15 @@ body,
 }
 .card-base, .card-elevated, .cyber-glass {
   border-radius: 30px;
-  background-image: linear-gradient(180deg, var(--t-sheen), rgba(255,255,255,0) 46%);
+  background-image: none;
 }
 .market-overview .card-base {
   border-radius: 30px;
-  background-image: linear-gradient(180deg, var(--t-sheen), rgba(255,255,255,0) 46%);
+  background-image: none;
 }
 .market-overview .card-base:first-child {
-  background-image: linear-gradient(135deg, rgba(200,241,105,.10), rgba(200,241,105,.02));
+  background-image: none;
+  background-color: var(--t-surface-raised);
 }
 .sidebar-nav-item { border-radius: 999px; padding: 12px 16px; }
 .sidebar-nav-item.is-active { background: linear-gradient(135deg, rgba(200,241,105,.16), rgba(200,241,105,.04)); box-shadow: none; color: var(--t-nav-active-text); }

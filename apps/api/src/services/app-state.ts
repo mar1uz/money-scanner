@@ -38,6 +38,8 @@ import {
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { evaluateDailyStrategyAlerts, StrategyAlertEvaluation } from './strategy-alert-service.js';
+import { DailySmaReclaimRunner } from './daily-sma-reclaim-runner.js';
+import { DailySmaReclaimReport } from '@money-scanner/shared';
 
 export interface BullishCloudAlertRule {
   id: string;
@@ -249,6 +251,7 @@ export class AppState {
   public ai = new AIMarketAnalystService();
   public alertDispatcher = new AlertDispatcher();
   public telegramBot = new TelegramBotHandler();
+  public dailySmaReclaim = new DailySmaReclaimRunner(this.marketData, this.telegramBot);
 
   public cachedSignals: Map<string, MoneyLineSignal> = new Map(); // key: `${symbol}_${timeframe}`
   public alertHistory: DispatchedAlert[] = [];
@@ -581,6 +584,7 @@ export class AppState {
 
   public async getAlertsDashboard(userId: string) {
     await this.restoreDailyRegimeState();
+    const dailySmaReclaim = await this.getDailySmaReclaimReport();
     const rules = this.listBullishCloudAlerts(userId);
     const activeAlerts = [];
     const concurrency = 4;
@@ -624,6 +628,7 @@ export class AppState {
       activeAlerts,
       history,
       dailyRegimeScan: { ...this.dailyRegimeScanStatus },
+      dailySmaReclaim,
       manualScan: this.getManualAlertScanStatus(userId),
       flipCandidates: this.flipCandidates.map(candidate => ({ ...candidate })),
       confirmedFlips: this.confirmedFlips.map(candidate => ({ ...candidate })),
@@ -636,6 +641,14 @@ export class AppState {
 
   public getDailyRegimeScanStatus() {
     return { ...this.dailyRegimeScanStatus };
+  }
+
+  public runDailySmaReclaimScan(now = Date.now()): Promise<DailySmaReclaimReport> {
+    return this.dailySmaReclaim.run(now);
+  }
+
+  public getDailySmaReclaimReport(): Promise<DailySmaReclaimReport | null> {
+    return this.dailySmaReclaim.getLatest();
   }
 
   public async clearAlerts(userId: string, target: 'active' | 'history' | 'all') {

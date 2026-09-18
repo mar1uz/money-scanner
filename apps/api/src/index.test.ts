@@ -198,6 +198,7 @@ describe('API Server Integration Tests', () => {
     assert.ok(Array.isArray(dashboard.flipCandidates));
     assert.ok(Array.isArray(dashboard.confirmedFlips));
     assert.ok(Array.isArray(dashboard.strategySetups));
+    assert.ok('dailySmaReclaim' in dashboard);
     assert.equal(typeof dashboard.telegramConfigured, 'boolean');
     assert.equal(dashboard.dailyRegimeScan.enabled, true);
     assert.equal(dashboard.dailyRegimeScan.timezone, 'UTC');
@@ -218,6 +219,16 @@ describe('API Server Integration Tests', () => {
     const res = await fetch(`http://127.0.0.1:${port}/api/alerts/daily-regime-scan`, { method: 'POST' });
     assert.equal(res.status, 401);
 
+    await new Promise<void>(resolve => server.close(() => resolve()));
+  });
+
+  it('protects the dedicated daily SMA reclaim scheduler endpoint', async () => {
+    const app = createServer();
+    const server = http.createServer(app);
+    await new Promise<void>(resolve => server.listen(0, resolve));
+    const port = (server.address() as any).port;
+    const res = await fetch(`http://127.0.0.1:${port}/api/alerts/daily-sma-reclaim/scheduled`, { method: 'POST' });
+    assert.equal(res.status, 401);
     await new Promise<void>(resolve => server.close(() => resolve()));
   });
 

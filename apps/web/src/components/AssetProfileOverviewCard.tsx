@@ -31,7 +31,7 @@ export const AssetProfileOverviewCard: React.FC<AssetProfileOverviewCardProps> =
   const keyPoints = isRo ? profile.keyPointsRo : profile.keyPointsEn;
 
   return (
-    <div className="p-4 sm:p-5 rounded-[30px] bg-gradient-to-b from-[#161B24] via-[#12151A] to-[#0D1015] border border-cyan-500/35 shadow-2xl space-y-4">
+    <div className="p-4 sm:p-5 rounded-[30px] bg-[var(--t-surface)] border border-cyan-500/35 shadow-2xl space-y-4">
       {/* ── Header ── */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/[0.06]">
         <div className="flex items-center gap-3">
@@ -66,7 +66,7 @@ export const AssetProfileOverviewCard: React.FC<AssetProfileOverviewCardProps> =
       </div>
 
       {/* ── Headline Summary ── */}
-      <div className="p-3.5 rounded-xl bg-cyan-950/25 border border-cyan-500/20 text-xs sm:text-sm text-cyan-200 leading-relaxed font-sans flex items-start gap-2.5">
+      <div className="p-3.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-xs sm:text-sm text-cyan-200 leading-relaxed font-sans flex items-start gap-2.5">
         <Sparkles className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
         <span className="font-medium">{headline}</span>
       </div>
@@ -115,7 +115,7 @@ export const AssetProfileOverviewCard: React.FC<AssetProfileOverviewCardProps> =
 
       {/* ── Key Highlights (3 Bullet points) ── */}
       {keyPoints && keyPoints.length > 0 && (
-        <div className="p-3.5 rounded-xl bg-black/30 border border-white/[0.05] space-y-2">
+        <div className="p-3.5 rounded-xl bg-[var(--t-surface-raised)] border border-white/[0.05] space-y-2">
           <span className="text-[11px] font-mono font-bold text-slate-400 uppercase tracking-wider block">
             {isRo ? 'Puncte Cheie de Reținut' : 'Key Highlights'}
           </span>

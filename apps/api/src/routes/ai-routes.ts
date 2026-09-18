@@ -19,6 +19,7 @@ import {
   XPostItem
 } from '@money-scanner/shared';
 import { scanCryptoFourCriteria } from '../services/crypto-four-criteria-scanner.js';
+import { lookupCryptoFourCriteria, normalizeLookupQuery } from '../services/crypto-four-criteria-lookup.js';
 import { scanStockBusinessQuality } from '../services/stock-business-quality-scanner.js';
 import { readPersistentAICache, writePersistentAICache } from '../services/ai-cache-store.js';
 import { validateScheduledRequestToken } from '../services/scheduler-auth.js';
@@ -478,6 +479,20 @@ const getCryptoCriteriaReport = async (requestedRefresh = false): Promise<Crypto
   }
   return cryptoCriteriaInFlight;
 };
+
+aiRouter.get('/ai/crypto-four-criteria/lookup', async (req, res) => {
+  const query = normalizeLookupQuery(String(req.query.q || ''));
+  if (query.length < 2) {
+    return res.status(400).json({ error: 'Căutarea trebuie să aibă între 2 și 80 de caractere.' });
+  }
+  try {
+    const assets = await lookupCryptoFourCriteria(query);
+    res.set('Cache-Control', 'private, max-age=30');
+    res.json({ query, assets });
+  } catch (err: any) {
+    res.status(502).json({ error: 'DexScreener lookup failed', details: err.message });
+  }
+});
 
 aiRouter.get('/ai/crypto-four-criteria', async (req, res) => {
   try {

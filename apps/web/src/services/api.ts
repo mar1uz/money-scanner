@@ -12,6 +12,7 @@ import {
   MarketIntelligenceReport,
   MarketIntelligenceScope,
   CryptoFourCriteriaScan,
+  CryptoFourCriteriaAsset,
   StockBusinessQualityScan,
   BacktestResult,
   BacktestComparisonResult,
@@ -19,7 +20,8 @@ import {
   BacktestStrategy,
   AssetMarketClass,
   StrategyAlertSnapshot,
-  SymbolSearchResult
+  SymbolSearchResult,
+  DailySmaReclaimReport
 } from '@money-scanner/shared';
 import { AssetDetailResponse } from '../types.js';
 import { requestCsrfToken } from './firebase-auth.js';
@@ -214,6 +216,16 @@ export async function fetchCryptoFourCriteriaScan(refresh = false): Promise<Cryp
   const payload = await res.json().catch(() => ({})) as CryptoFourCriteriaScan & { error?: string; details?: string };
   if (!res.ok) throw new Error(payload.details || payload.error || `HTTP ${res.status}: Crypto scan failed`);
   return payload;
+}
+
+export async function lookupCryptoFourCriteria(query: string): Promise<CryptoFourCriteriaAsset[]> {
+  const params = new URLSearchParams({ q: query.trim() });
+  const res = await fetchWithDeadline(`${API_BASE}/ai/crypto-four-criteria/lookup?${params.toString()}`, {
+    cache: 'no-store'
+  }, 20_000);
+  const payload = await res.json().catch(() => ({})) as { assets?: CryptoFourCriteriaAsset[]; error?: string; details?: string };
+  if (!res.ok) throw new Error(payload.details || payload.error || `HTTP ${res.status}: DexScreener lookup failed`);
+  return Array.isArray(payload.assets) ? payload.assets : [];
 }
 
 export async function fetchStockBusinessQualityScan(refresh = false): Promise<StockBusinessQualityScan> {
@@ -511,12 +523,19 @@ export interface AlertsDashboardResponse {
   confirmedFlips: FlipCandidateDashboardItem[];
   scanCoverage: FlipScanCoverageItem[];
   strategySetups: StrategyAlertSnapshot[];
+  dailySmaReclaim: DailySmaReclaimReport | null;
   updatedAt: number;
 }
 
 export async function fetchAlertsDashboard(): Promise<AlertsDashboardResponse> {
   const res = await fetchWithDeadline(`${API_BASE}/alerts/dashboard`, { cache: 'no-store' }, 45_000);
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch alerts dashboard`);
+  return res.json();
+}
+
+export async function fetchDailySmaReclaimReport(): Promise<DailySmaReclaimReport | null> {
+  const res = await fetchWithDeadline(`${API_BASE}/alerts/daily-sma-reclaim`, { cache: 'no-store' }, 30_000);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch daily SMA reclaim report`);
   return res.json();
 }
 

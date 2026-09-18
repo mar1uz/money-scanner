@@ -400,6 +400,15 @@ telegramRouter.get('/alerts/dashboard', async (req: AuthenticatedRequest, res) =
   res.json(dashboard);
 });
 
+// Dedicated read endpoint for the daily SMA reclaim report. Browser access is
+// protected by the normal Firebase session middleware.
+telegramRouter.get('/alerts/daily-sma-reclaim', async (req: AuthenticatedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
+  const report = await AppState.getInstance().getDailySmaReclaimReport();
+  res.set('Cache-Control', 'no-store');
+  return res.json(report);
+});
+
 telegramRouter.post('/alerts/manual-scan', async (req: AuthenticatedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
   if (!validateCsrfToken(req)) {
@@ -465,6 +474,17 @@ telegramRouter.post('/alerts/daily-regime-scan', async (req, res) => {
   const status = await AppState.getInstance().runDailyRegimeScan();
   res.set('Cache-Control', 'no-store');
   res.json(status);
+});
+
+// Dedicated Cloud Scheduler target. It deliberately does not share the
+// existing regime-scan execution or its state machine.
+telegramRouter.post('/alerts/daily-sma-reclaim/scheduled', async (req, res) => {
+  if (!validateScheduledRequestToken(req.get('x-daily-scan-token'))) {
+    return res.status(401).json({ error: 'Invalid daily scan token.' });
+  }
+  const report = await AppState.getInstance().runDailySmaReclaimScan();
+  res.set('Cache-Control', 'no-store');
+  return res.json(report);
 });
 
 telegramRouter.get('/alerts/history', (req: AuthenticatedRequest, res) => {

@@ -146,7 +146,7 @@ export const StockBusinessQualityCard: React.FC<StockBusinessQualityCardProps> =
   // ── Error state — non-blocking ──
   if (error) {
     return (
-      <div className="p-3.5 rounded-[30px] bg-rose-950/10 border border-rose-500/15 flex items-center gap-2.5">
+      <div className="p-3.5 rounded-[30px] bg-rose-500/10 border border-rose-500/15 flex items-center gap-2.5">
         <AlertCircle className="w-4 h-4 text-rose-400/60 shrink-0" />
         <span className="text-xs text-slate-400 font-mono">
           {isRo ? 'Eroare la încărcarea datelor de calitate a acțiunilor' : 'Error loading stock quality data'}
@@ -202,7 +202,7 @@ export const StockBusinessQualityCard: React.FC<StockBusinessQualityCardProps> =
     : null;
 
   return (
-    <div className="rounded-[30px] bg-gradient-to-b from-[#161B24] via-[#12151A] to-[#0D1015] border border-purple-500/25 shadow-lg overflow-hidden">
+    <div className="rounded-[30px] bg-[var(--t-surface)] border border-purple-500/25 shadow-lg overflow-hidden">
       {/* ── Compact Header (always visible) ── */}
       <button
         onClick={() => setExpanded(prev => !prev)}
@@ -306,7 +306,7 @@ export const StockBusinessQualityCard: React.FC<StockBusinessQualityCardProps> =
                 { label: 'Forward P/E', val: asset.metrics.forwardPE !== undefined ? `${asset.metrics.forwardPE.toFixed(1)}x` : 'N/A', tone: 'text-slate-200' },
                 { label: 'PEG Ratio', val: asset.metrics.pegRatio !== undefined ? asset.metrics.pegRatio.toFixed(2) : 'N/A', tone: (asset.metrics.pegRatio || 0) <= 2.0 ? 'text-emerald-300' : 'text-amber-300' }
               ].map((item, idx) => (
-                <div key={idx} className="p-2 rounded-lg bg-black/20 border border-white/[0.06]">
+                <div key={idx} className="p-2 rounded-lg bg-[var(--t-surface-raised)] border border-white/[0.06]">
                   <span className="block text-[9px] font-mono text-slate-500 uppercase">{item.label}</span>
                   <span className={`block mt-0.5 text-xs font-mono font-bold ${item.tone}`}>{item.val}</span>
                 </div>

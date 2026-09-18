@@ -40,6 +40,7 @@ export function createServer() {
       || req.path === '/health'
       || req.path === '/telegram/webhook'
       || req.path === '/alerts/daily-regime-scan'
+      || req.path === '/alerts/daily-sma-reclaim/scheduled'
       || req.path === '/ai/daily-warmup'
       || req.path.startsWith('/auth/')
     ) {

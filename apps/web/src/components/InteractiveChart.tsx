@@ -2321,7 +2321,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="âš ï¸
             </button>
           </div>
 
-          <div className="relative bg-slate-950 p-4 rounded-xl border border-slate-800 text-emerald-400/90 max-h-80 overflow-y-auto select-all">
+          <div className="relative bg-[var(--t-surface-inset)] p-4 rounded-xl border border-[var(--t-line)] text-emerald-400/90 max-h-80 overflow-y-auto select-all">
             <pre className="text-[11px] leading-relaxed whitespace-pre-wrap">{pineScriptCode}</pre>
           </div>
 

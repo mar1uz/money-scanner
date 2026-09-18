@@ -585,7 +585,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
                 {explanation ? (
                   <>
                     {/* 1. 🎯 GHID DE INVESTIȚIE & VERDICT STRATEGIC */}
-                    <div className="p-4 sm:p-5 rounded-[30px] bg-gradient-to-b from-[#151A21] to-[#0D1015] border border-cyan-500/30 shadow-xl space-y-4">
+                    <div className="p-4 sm:p-5 rounded-[30px] bg-[var(--t-surface)] border border-cyan-500/30 shadow-xl space-y-4">
                       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/[0.06]">
                         <div className="flex items-center gap-2.5">
                           <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300">
@@ -627,7 +627,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
 
                       {/* Recommended Action Card */}
                       {explanation.investmentGuidance?.recommendedAction && (
-                        <div className="p-3.5 rounded-xl bg-cyan-950/30 border border-cyan-500/20 text-xs text-cyan-200 leading-relaxed font-sans flex items-start gap-2.5">
+                        <div className="p-3.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-xs text-cyan-200 leading-relaxed font-sans flex items-start gap-2.5">
                           <Lightbulb className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
                           <div>
                             <strong className="text-cyan-300">Recomandare Acțiune: </strong>
@@ -639,7 +639,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
                       {/* 2 Columns: Why Invest vs Key Risks */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
                         {/* Why Invest */}
-                        <div className="p-3.5 rounded-xl bg-emerald-950/15 border border-emerald-500/20 space-y-2.5">
+                        <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 space-y-2.5">
                           <h4 className="text-xs font-bold text-emerald-400 flex items-center gap-1.5 font-mono">
                             <CheckCircle2 className="w-4 h-4" /> De ce merită investit (Catalizatori)
                           </h4>
@@ -654,7 +654,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
                         </div>
 
                         {/* Key Risks */}
-                        <div className="p-3.5 rounded-xl bg-rose-950/15 border border-rose-500/20 space-y-2.5">
+                        <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 space-y-2.5">
                           <h4 className="text-xs font-bold text-rose-400 flex items-center gap-1.5 font-mono">
                             <AlertTriangle className="w-4 h-4" /> Riscuri Specifice de Monitorizat
                           </h4>
@@ -683,7 +683,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
                           </span>
                         </div>
 
-                        <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans bg-black/20 p-3.5 rounded-xl border border-white/[0.04]">
+                        <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans bg-[var(--t-surface-raised)] p-3.5 rounded-xl border border-white/[0.04]">
                           {explanation.economicForward.industryOutlook}
                         </p>
 
@@ -751,7 +751,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
 
                         <div className="space-y-3">
                           {explanation.recentReports.map((report: any, idx: number) => (
-                            <div key={idx} className="p-3.5 rounded-xl bg-black/30 border border-white/[0.05] space-y-3">
+                            <div key={idx} className="p-3.5 rounded-xl bg-[var(--t-surface-raised)] border border-white/[0.05] space-y-3">
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <h4 className="text-xs font-bold text-slate-100 font-mono flex items-center gap-1.5">
                                   <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
@@ -806,7 +806,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
                       </p>
 
                       {/* S/R Inline Widget */}
-                      <div className="flex flex-wrap items-center justify-between gap-2 py-2.5 px-3.5 rounded-xl bg-black/40 border border-white/[0.05] font-mono text-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-2 py-2.5 px-3.5 rounded-xl bg-[var(--t-surface-raised)] border border-white/[0.05] font-mono text-xs">
                         <div className="flex items-center gap-3">
                           <div className="flex items-center gap-1.5">
                             <span className="text-emerald-400/70">S2</span>

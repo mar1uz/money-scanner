@@ -82,7 +82,7 @@ export const CryptoMarketOnlyView: React.FC<{
       )}
       <button onClick={onRefresh} disabled={loading} className="rounded-xl border border-white/10 p-2.5 text-cyan-300" aria-label="Reîncarcă datele"><RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} /></button>
     </div>
-    <div className="rounded-[30px] border border-white/10 bg-slate-950/40 p-5 sm:p-6">
+    <div className="rounded-[30px] border border-white/10 bg-[var(--t-surface)] p-5 sm:p-6">
       <div className="flex flex-wrap items-baseline gap-3">
         <span className="text-3xl font-bold text-white">{money(quote.price)}</span>
         <span className={change !== null && change >= 0 ? 'text-emerald-300' : 'text-rose-300'}>
@@ -119,7 +119,7 @@ export const CryptoMarketOnlyView: React.FC<{
       </dl>
       <p className="mt-4 truncate font-mono text-[10px] text-slate-500" title={dex.contractAddress}>Contract: {dex.contractAddress}</p>
     </div>}
-    <div className="rounded-[30px] border border-white/10 bg-slate-950/40 p-5 sm:p-6">
+    <div className="rounded-[30px] border border-white/10 bg-[var(--t-surface)] p-5 sm:p-6">
       <h2 className="font-semibold text-white">{dex?.candles?.length ? `Grafic OHLCV DEX · ${timeframe.toUpperCase()}` : 'Istoric de preț · ultimele 30 de zile disponibile'}</h2>
       <p className="mt-1 text-xs text-slate-400">{dex?.candles?.length
         ? `Lumânări reale USD din pool-ul selectat de DEX Screener, furnizate de ${dex.candleSource}. Ultima lumânare poate fi încă deschisă.`

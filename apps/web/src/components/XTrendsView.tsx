@@ -168,7 +168,7 @@ export const XTrendsView: React.FC<XTrendsViewProps> = ({ onSelectAsset }) => {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Top Hero: AI Intelligence Radar Banner */}
-      <div className="relative overflow-hidden rounded-[30px] border border-cyan-500/30 bg-gradient-to-r from-cyan-950/40 via-background-card to-blue-950/40 p-6 shadow-2xl backdrop-blur-xl">
+      <div className="relative overflow-hidden rounded-[30px] border border-cyan-500/30 bg-[var(--t-surface)] p-6">
         <div className="relative z-10 flex flex-wrap items-center justify-between gap-6">
           <div className="space-y-2 max-w-2xl">
             <div className="flex items-center gap-2.5">
@@ -368,7 +368,7 @@ export const XTrendsView: React.FC<XTrendsViewProps> = ({ onSelectAsset }) => {
               }}
               className={`cyber-glass rounded-[30px] p-5 border transition-all cursor-pointer flex flex-col justify-between space-y-4 group hover:-translate-y-1 hover:shadow-2xl ${
                 isBreaking
-                  ? 'border-rose-500/40 bg-gradient-to-b from-rose-950/20 via-background-card to-background-card hover:border-rose-500/70 shadow-glow-ruby'
+                  ? 'border-rose-500/40 bg-[var(--t-surface)] hover:border-rose-500/70'
                   : 'border-background-border hover:border-cyan-500/50 hover:shadow-glow-cyan'
               }`}
             >
@@ -417,7 +417,7 @@ export const XTrendsView: React.FC<XTrendsViewProps> = ({ onSelectAsset }) => {
                     className="flex items-center gap-2.5 group/author hover:opacity-90"
                     title={`Vezi toate tweet-urile recente de la ${post.authorHandle}`}
                   >
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 flex items-center justify-center font-bold text-xs text-cyan-300 font-mono shrink-0 group-hover/author:border-cyan-400">
+                    <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center font-bold text-xs text-cyan-300 font-mono shrink-0 group-hover/author:border-cyan-400">
                       {post.authorHandle.replace('@', '').slice(0, 2).toUpperCase()}
                     </div>
                     <div>
@@ -441,7 +441,7 @@ export const XTrendsView: React.FC<XTrendsViewProps> = ({ onSelectAsset }) => {
 
                 {/* AI Romanian Quick Context / TL;DR Box */}
                 {post.aiSummaryRo && (
-                  <div className="p-3 rounded-xl bg-gradient-to-r from-cyan-950/50 via-slate-900/80 to-blue-950/40 border border-cyan-500/30 space-y-1">
+                  <div className="p-3 rounded-xl bg-[var(--t-surface-raised)] border border-cyan-500/30 space-y-1">
                     <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase font-bold text-cyan-300">
                       <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
                       <span>Context &amp; Implicație Piață (AI)</span>

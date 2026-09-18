@@ -85,6 +85,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
   const [selectedNarrative, setSelectedNarrative] = useState<MarketNarrativeId | 'ALL'>('ALL');
   const [inspectedNarrative, setInspectedNarrative] = useState<NarrativeSummary | null>(null);
   const [watchlistOnly, setWatchlistOnly] = useState(initialDeepLink.watchlistOnly);
+  const [alertsVisited, setAlertsVisited] = useState(initialDeepLink.tab === 'alerts');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
       return localStorage.getItem('money_scanner_sidebar_collapsed') === 'true';
@@ -159,6 +160,10 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
     const interval = setInterval(refreshData, 300000); 
     return () => clearInterval(interval);
   }, [timeframe, selectedMarketCategory]);
+
+  useEffect(() => {
+    if (activeTab === 'alerts') setAlertsVisited(true);
+  }, [activeTab]);
 
   useEffect(() => {
     try {
@@ -498,13 +503,16 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
               {/* Tab 5: AI Market Briefing & Interactive Chat */}
               {activeTab === 'ai' && <AIBriefingView />}
 
-              {/* Tab 6: Backtest Engine */}
-              {activeTab === 'alerts' && (
-                <AlertsCenterView
-                  knownAssets={scannerRows}
-                  watchlist={watchlist}
-                  onOpenAsset={(symbol, marketClass, selectedTimeframe) => openAsset(symbol, marketClass, selectedTimeframe)}
-                />
+              {/* Tab 6: Alerts — stay mounted after first visit so the last
+                  scan snapshot is not refetched when leaving and coming back. */}
+              {alertsVisited && (
+                <div className={activeTab === 'alerts' ? undefined : 'hidden'} aria-hidden={activeTab !== 'alerts'}>
+                  <AlertsCenterView
+                    knownAssets={scannerRows}
+                    watchlist={watchlist}
+                    onOpenAsset={(symbol, marketClass, selectedTimeframe) => openAsset(symbol, marketClass, selectedTimeframe)}
+                  />
+                </div>
               )}
 
               {/* Tab 7: Backtest Engine */}

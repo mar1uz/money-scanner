@@ -155,7 +155,7 @@ export const CryptoBubbleView: React.FC<CryptoBubbleViewProps> = ({ onSelectAsse
         )}
       </div>
 
-      <div className="overflow-hidden rounded-[30px] border border-white/[0.07] bg-slate-950/40">
+      <div className="overflow-hidden rounded-[30px] border border-white/[0.07] bg-[var(--t-surface)]">
         <div className="border-b border-white/[0.06] px-4 py-5 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-white">Top 100 · Creștere în ultimele 24h</h2>

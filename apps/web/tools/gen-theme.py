@@ -28,14 +28,12 @@ THEMES = {
    'nav_active_text': '#E9EDF3',
    'shadow_card': '0 8px 24px rgba(0,0,0,.16)', 'shadow_hover': '0 10px 28px rgba(0,0,0,.2)',
    'dock_shadow': 'inset 0 1px 1px rgba(255,255,255,.06), 0 16px 40px rgba(0,0,0,.5), 0 2px 5px rgba(0,0,0,.12)',
-   'brief_gradient': 'linear-gradient(145deg, rgba(28,33,44,.35), rgba(15,18,24,.78))',
+   'brief_gradient': '#12151A',
    'accent_soft': '#4E6B0D', 'scheme': 'dark',
  },
  'l1': {
    'label': 'L1 · Paper', 'swatch': '#F5F7FA', 'sun': True,
-   'bg': '#F5F7FA', 'bg_image': ("radial-gradient(1000px 480px at 84% -8%, rgba(200,241,105,.16), transparent 60%),"
-     "radial-gradient(840px 560px at -6% 44%, rgba(111,199,255,.12), transparent 60%),"
-     "radial-gradient(920px 640px at 66% 110%, rgba(167,139,250,.09), transparent 62%)"),
+   'bg': '#F5F7FA', 'bg_image': 'none',
    'surface': '#FFFFFF', 'surface2': '#FFFFFF', 'surface_raised': '#F7F9FB', 'surface_inset': '#F1F4F8',
    'line': '#E3E8EF', 'line_strong': '#C9D3DF', 'hover': '#F1F4F8',
    'text': '#10151C', 'text2': '#39424E', 'muted': '#5D6874', 'faint': '#6B7684',
@@ -47,14 +45,12 @@ THEMES = {
    'nav_active_text': '#1A2205',
    'shadow_card': '0 12px 28px -20px rgba(23,32,46,.22)', 'shadow_hover': '0 14px 32px -20px rgba(23,32,46,.28)',
    'dock_shadow': '0 16px 40px -18px rgba(23,32,46,.35), 0 2px 5px rgba(23,32,46,.08)',
-   'brief_gradient': 'linear-gradient(145deg, rgba(255,255,255,.9), rgba(241,244,248,.9))',
+   'brief_gradient': '#FFFFFF',
    'accent_soft': '#4E6B0D', 'accent_soft': '#5C6B0E', 'accent_soft': '#4E6B0D', 'accent_soft': '#4E6B0D', 'accent_soft': '#4E6B0D', 'accent_soft': '#4E6B0D', 'scheme': 'light',
  },
  'l2': {
    'label': 'L2 · Ivory', 'swatch': '#F7F4EC',
-   'bg': '#F7F4EC', 'bg_image': ("radial-gradient(1000px 480px at 84% -8%, rgba(200,241,105,.15), transparent 60%),"
-     "radial-gradient(840px 560px at -6% 44%, rgba(255,194,75,.10), transparent 60%),"
-     "radial-gradient(920px 640px at 66% 110%, rgba(200,241,105,.08), transparent 62%)"),
+   'bg': '#F7F4EC', 'bg_image': 'none',
    'surface': '#FFFDF9', 'surface2': '#FFFFFF', 'surface_raised': '#FAF6EC', 'surface_inset': '#F3EFE4',
    'line': '#E9E2D3', 'line_strong': '#D6CCB6', 'hover': '#F3EFE4',
    'text': '#1C1810', 'text2': '#4A4436', 'muted': '#6B6455', 'faint': '#756E5F',
@@ -66,14 +62,12 @@ THEMES = {
    'nav_active_text': '#22270A',
    'shadow_card': '0 12px 28px -20px rgba(60,50,30,.20)', 'shadow_hover': '0 14px 32px -20px rgba(60,50,30,.26)',
    'dock_shadow': '0 16px 40px -18px rgba(60,50,30,.32), 0 2px 5px rgba(60,50,30,.08)',
-   'brief_gradient': 'linear-gradient(145deg, rgba(255,255,255,.9), rgba(243,239,228,.9))',
+   'brief_gradient': '#FFFDF9',
    'accent_soft': '#5C6B0E', 'scheme': 'light',
  },
  'l3': {
    'label': 'L3 · Sky', 'swatch': '#ECF3FA',
-   'bg': '#ECF3FA', 'bg_image': ("radial-gradient(940px 480px at 86% -8%, rgba(111,199,255,.34), transparent 58%),"
-     "radial-gradient(780px 580px at -8% 40%, rgba(200,241,105,.16), transparent 60%),"
-     "radial-gradient(880px 640px at 62% 112%, rgba(167,139,250,.14), transparent 62%)"),
+   'bg': '#ECF3FA', 'bg_image': 'none',
    'surface': '#FFFFFF', 'surface2': '#FFFFFF', 'surface_raised': '#F3F8FD', 'surface_inset': '#E8F1F9',
    'line': '#D9E5F2', 'line_strong': '#BCD2E8', 'hover': '#EFF5FB',
    'text': '#101A26', 'text2': '#3C4A5C', 'muted': '#5B6B7E', 'faint': '#66788C',
@@ -85,14 +79,12 @@ THEMES = {
    'nav_active_text': '#1A2205',
    'shadow_card': '0 12px 28px -20px rgba(30,50,80,.24)', 'shadow_hover': '0 14px 32px -20px rgba(30,50,80,.30)',
    'dock_shadow': '0 16px 40px -18px rgba(30,50,80,.32), 0 2px 5px rgba(30,50,80,.08)',
-   'brief_gradient': 'linear-gradient(145deg, #FFFFFF, #EFF5FB)',
+   'brief_gradient': '#FFFFFF',
    'accent_soft': '#4E6B0D', 'scheme': 'light',
  },
  'l4': {
    'label': 'L4 · Mint', 'swatch': '#E9F5EE',
-   'bg': '#E9F5EE', 'bg_image': ("radial-gradient(900px 460px at 82% -8%, rgba(18,161,102,.18), transparent 60%),"
-     "radial-gradient(760px 560px at -8% 44%, rgba(16,185,129,.14), transparent 62%),"
-     "radial-gradient(820px 620px at 64% 112%, rgba(200,241,105,.12), transparent 62%)"),
+   'bg': '#E9F5EE', 'bg_image': 'none',
    'surface': '#FFFFFF', 'surface2': '#FFFFFF', 'surface_raised': '#F0F8F3', 'surface_inset': '#E3F3E8',
    'line': '#D8EDDF', 'line_strong': '#B9DCC6', 'hover': '#E3F3E8',
    'text': '#0E1F16', 'text2': '#2F4A38', 'muted': '#5B7A68', 'faint': '#556F60',
@@ -104,15 +96,12 @@ THEMES = {
    'nav_active_text': '#1A2205',
    'shadow_card': '0 12px 28px -20px rgba(16,120,70,.28)', 'shadow_hover': '0 14px 32px -20px rgba(16,120,70,.34)',
    'dock_shadow': '0 16px 40px -18px rgba(16,120,70,.35), 0 2px 5px rgba(16,120,70,.08)',
-   'brief_gradient': 'linear-gradient(145deg, rgba(255,255,255,.92), rgba(227,243,232,.9))',
+   'brief_gradient': '#FFFFFF',
    'accent_soft': '#4E6B0D', 'scheme': 'light',
  },
  'l5': {
    'label': 'L5 · Sorbet', 'swatch': '#F6F0FF',
-   'bg': '#F4F1FA', 'bg_image': ("radial-gradient(860px 440px at 86% -8%, rgba(167,139,250,.30), transparent 58%),"
-     "radial-gradient(760px 540px at -8% 40%, rgba(61,220,151,.22), transparent 60%),"
-     "radial-gradient(840px 600px at 60% 112%, rgba(255,176,120,.26), transparent 62%),"
-     "linear-gradient(120deg,#F6F0FF 0%,#ECF7F1 48%,#FFF3E8 100%)"),
+   'bg': '#F4F1FA', 'bg_image': 'none',
    'surface': '#FFFFFF', 'surface2': '#FFFFFF', 'surface_raised': '#F6F2FC', 'surface_inset': '#EFE9F9',
    'line': '#E7E1F3', 'line_strong': '#D3C9EA', 'hover': '#F3EEFB',
    'text': '#17122A', 'text2': '#4A4358', 'muted': '#6E6688', 'faint': '#6E6688',
@@ -124,7 +113,7 @@ THEMES = {
    'nav_active_text': '#1A2205',
    'shadow_card': '0 16px 36px -24px rgba(70,50,120,.30)', 'shadow_hover': '0 20px 42px -24px rgba(70,50,120,.36)',
    'dock_shadow': '0 16px 40px -18px rgba(70,50,120,.32), 0 2px 5px rgba(70,50,120,.08)',
-   'brief_gradient': 'linear-gradient(145deg, rgba(255,255,255,.85), rgba(244,239,252,.75))',
+   'brief_gradient': '#FFFFFF',
    'accent_soft': '#4E6B0D', 'scheme': 'light',
  },
 }
@@ -273,16 +262,10 @@ html[data-theme^='l'] .market-overview .card-base {
   background-image: none;
 }
 html[data-theme^='l'] .market-overview .card-base:first-child {
-  background-image: linear-gradient(135deg, rgba(200,241,105,.18), rgba(200,241,105,.035) 72%);
-  border-color: rgba(150,178,66,.35);
+  background-image: none;
+  background-color: var(--t-surface);
+  border-color: var(--t-line-strong);
 }
-html[data-theme='l3'] .market-overview .card-base:first-child {
-  background-image: linear-gradient(135deg, #EAF3FD, #FBFDFF 62%);
-  border-color: rgba(120,160,210,.4);
-}
-html[data-theme='l5'] .market-overview .card-base:nth-child(1) { background-image: linear-gradient(135deg, #EFE8FC, #FBF9FF 62%); }
-html[data-theme='l5'] .market-overview .card-base:nth-child(2) { background-image: linear-gradient(135deg, #E6F6EE, #FAFFFC 62%); }
-html[data-theme='l5'] .market-overview .card-base:nth-child(3) { background-image: linear-gradient(135deg, #FDEEDF, #FFFBF6 62%); }
 html[data-theme^='l'] .brand-mark { box-shadow: 0 6px 18px -8px rgba(120,160,20,.45); }
 html[data-theme^='l'] .scanner-section table th { color: var(--t-muted); }
 html[data-theme^='l'] .mobile-nav-lens { box-shadow: inset 0 1px 1px rgba(255,255,255,.5), 0 2px 8px rgba(23,32,46,.12); }

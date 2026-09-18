@@ -396,7 +396,7 @@ export const USAStatusView: React.FC = () => {
         </div>
 
         {/* Executive Summary Card */}
-        <div className="p-5 rounded-[30px] bg-gradient-to-r from-cyan-500/10 via-background-surface to-emerald-500/10 border border-cyan-500/30 space-y-2">
+        <div className="p-5 rounded-[30px] bg-[var(--t-surface)] border border-cyan-500/30 space-y-2">
           <div className="flex items-center gap-2 font-mono text-xs font-bold text-cyan-300">
             <Zap className="w-4 h-4 text-cyan-400" />
             <span>{data.aiGuidance.regimeTitle}</span>

@@ -70,7 +70,7 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
         {/* Modal Header */}
         <div className="flex items-center justify-between p-6 border-b border-background-border bg-background-surface/40">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-cyan-500/20 to-emerald-500/20 border border-cyan-500/30 flex items-center justify-center text-xl font-bold font-mono text-cyan-400 shadow-glow-cyan">
+            <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-xl font-bold font-mono text-cyan-400 shadow-glow-cyan">
               ${symbol}
             </div>
             <div>

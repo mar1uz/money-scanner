@@ -346,7 +346,7 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
       <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-white via-slate-200 to-cyan-300 bg-clip-text text-transparent">
+            <h1 className="text-xl sm:text-2xl font-bold text-white">
               Crypto Radar
             </h1>
             <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
