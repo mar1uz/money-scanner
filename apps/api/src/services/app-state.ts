@@ -591,6 +591,52 @@ export class AppState {
     return Array.from(this.bullishCloudAlerts.values()).filter(rule => rule.userId === userId && rule.isEnabled);
   }
 
+  public async getPublicTapeProof(approvedSymbols: Set<string>, minimumReturnPct = 20, maximumItems = 6) {
+    await this.restoreDailyRegimeState();
+    const approved = this.confirmedFlips.filter(candidate =>
+      approvedSymbols.has(candidate.symbol.toUpperCase())
+      && candidate.status === 'CONFIRMED'
+      && candidate.direction === 'BULLISH'
+      && Number.isFinite(candidate.confirmationPrice)
+      && Number(candidate.confirmationPrice) > 0
+      && Number.isFinite(candidate.confirmedAt)
+    );
+    const assets = Array.from(new Map(approved.map(candidate => [
+      `${candidate.marketClass}:${candidate.symbol}`,
+      { symbol: candidate.symbol, marketClass: candidate.marketClass }
+    ])).values());
+    const currentPriceByAsset = new Map<string, number>();
+    const concurrency = 4;
+    for (let index = 0; index < assets.length; index += concurrency) {
+      const batch = assets.slice(index, index + concurrency);
+      const settled = await Promise.allSettled(
+        batch.map(asset => this.marketData.getPriceQuote(asset.symbol, asset.marketClass))
+      );
+      settled.forEach((result, batchIndex) => {
+        if (result.status !== 'fulfilled' || !Number.isFinite(result.value.price) || result.value.price <= 0) return;
+        const asset = batch[batchIndex];
+        currentPriceByAsset.set(`${asset.marketClass}:${asset.symbol}`, result.value.price);
+      });
+    }
+    const strongestBySymbol = new Map<string, {
+      asset: string; name?: string; timeframe: FlipCandidate['timeframe'];
+      flipDate: string; flipClose: number; window: 'CURRENT'; returnPct: number;
+    }>();
+    approved.forEach(candidate => {
+      const currentPrice = currentPriceByAsset.get(`${candidate.marketClass}:${candidate.symbol}`);
+      if (!currentPrice) return;
+      const flipClose = Number(candidate.confirmationPrice);
+      const returnPct = flipPriceMovePercent(flipClose, currentPrice);
+      if (!Number.isFinite(returnPct) || returnPct < minimumReturnPct) return;
+      const evidence = { asset: candidate.symbol, name: candidate.name, timeframe: candidate.timeframe,
+        flipDate: new Date(Number(candidate.confirmedAt)).toISOString(), flipClose,
+        window: 'CURRENT' as const, returnPct: Number(returnPct.toFixed(2)) };
+      const prior = strongestBySymbol.get(candidate.symbol.toUpperCase());
+      if (!prior || evidence.returnPct > prior.returnPct) strongestBySymbol.set(candidate.symbol.toUpperCase(), evidence);
+    });
+    return Array.from(strongestBySymbol.values()).sort((a, b) => b.returnPct - a.returnPct).slice(0, maximumItems);
+  }
+
   public async getAlertsDashboard(userId: string) {
     await this.restoreDailyRegimeState();
     const dailySmaReclaim = await this.getDailySmaReclaimReport();
@@ -2782,3 +2828,4 @@ export class AppState {
     }).filter(summary => summary.assetCount > 0);
   }
 }
+
