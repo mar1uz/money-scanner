@@ -3751,3 +3751,8 @@ Cerut de utilizator: acces la aplicație pentru `tinotechads@gmail.com`.
 - Serviciul live actualizat imediat: `gcloud run services update --update-env-vars '^|^ALLOWED_EMAILS=…'` → revizia **market-scanner-360-00202-bn6**, 100% trafic.
 - Verificat: env pe revizie conține emailul; `/api/health` → 200. Mecanism: Firebase Auth (Google) + middleware `isAllowedEmail` (403 pentru emailuri nepermise).
 - Rol implicit nou utilizator: **Viewer** (nu Administrator — se adaugă în ADMIN_EMAILS doar la cerere).
+
+### 2026-09-18 (2) — Rol Administrator pentru tinotechads@gmail.com
+
+- `cloudbuild.yaml`: `ADMIN_EMAILS` += `tinotechads@gmail.com`; serviciul live actualizat imediat → revizia **market-scanner-360-00203-tz9**, 100% trafic.
+- Verificat: env pe revizie (ADMIN_EMAILS = marius + tinotechads); `/api/health` → 200.
