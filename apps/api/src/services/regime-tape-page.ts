@@ -40,6 +40,11 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
   .boundary strong { color:var(--text); }
   .live:before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 5px rgba(200,241,105,.08), 0 0 14px rgba(200,241,105,.45); }
   .hero { padding: 76px 0 44px; display: grid; grid-template-columns: minmax(0,1fr) 360px; gap: 56px; align-items: end; }
+  .hero-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:26px; }
+  .cta { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:0 18px; border-radius:10px; border:1px solid var(--lime); background:var(--lime); color:#071006; font:700 11px 'JetBrains Mono'; letter-spacing:.08em; text-transform:uppercase; text-decoration:none; }
+  .cta.secondary { background:transparent; color:var(--text); border-color:var(--line); }
+  .trust-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+  .trust-pill { padding:7px 10px; border:1px solid var(--line); border-radius:999px; color:var(--muted); font:600 9px 'JetBrains Mono'; letter-spacing:.06em; text-transform:uppercase; }
   .eyebrow { color: var(--lime); font: 600 11px/1 'JetBrains Mono'; letter-spacing: .16em; text-transform: uppercase; margin-bottom: 18px; }
   h1 { font-size: clamp(40px, 6vw, 72px); line-height: .98; letter-spacing: -.045em; margin: 0; max-width: 750px; }
   h1 span { color: var(--lime); }
@@ -144,7 +149,7 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
     <div>
       <div class="eyebrow">Verified performance / public proof</div>
       <h1>The signal came first.<br><span>The result came after.</span></h1>
-      <p class="sub">Selected Money Scanner calls, published with the original flip date and close so the performance can be checked after the fact.</p>
+      <p class="sub">Selected Money Scanner calls, published with the original flip date and close so the performance can be checked after the fact.</p><div class="hero-actions"><a class="cta" href="/">Open Money Scanner</a><a class="cta secondary" href="https://x.com/marketscan_360" target="_blank" rel="noopener">Follow live proof on X</a></div><div class="trust-row"><span class="trust-pill">5 curated winners</span><span class="trust-pill">20%+ verified</span><span class="trust-pill">No cherry-picked live entries</span></div>
     </div>
     <div class="hero-note"><strong>Proof without giving away the product.</strong>This page shows selected completed outcomes. Live signals, the full active regime list, scores and operational scanner data stay inside Money Scanner.</div>
   </section>
@@ -160,7 +165,7 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
   <section class="lower-grid">
     <div class="panel">
       <div class="eyebrow" style="margin-bottom:10px">Daily signal</div><h3>Get the regime digest</h3>
-      <p>Product updates and selected verified performance recaps. Live scanner intelligence stays private. No payment is collected today.</p>
+      <p>Product updates and selected verified performance recaps. Live scanner intelligence stays private. No payment is collected today.</p><p><a class="cta" href="/">Launch the scanner</a></p>
       <div class="digest-form"><input id="wlemail" type="email" placeholder="you@example.com"><button onclick="joinWaitlist()">Join</button><select id="wlprice"><option value="">Just notify me</option><option value="19">I'd consider 19 EUR/mo for Pro</option><option value="39">I'd consider 39 EUR/mo for Pro</option></select></div>
       <p id="wlmsg"></p>
     </div>
@@ -197,3 +202,4 @@ loadProof();
 </script>
 </body>
 </html>`;
+
