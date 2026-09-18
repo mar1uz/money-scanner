@@ -3743,3 +3743,11 @@ Health check (/api/health): HTTP 200 OK
 
 - Sursă urcată pe GitHub: https://github.com/mar1uz/money-scanner (privat). Remote `origin` = acel URL. `.env` rămâne local (gitignore); pe GitHub e doar `.env.example`.
 
+
+### 2026-09-18 — Acces: adăugat tinotechads@gmail.com în ALLOWED_EMAILS (Viewer)
+
+Cerut de utilizator: acces la aplicație pentru `tinotechads@gmail.com`.
+- `cloudbuild.yaml`: ALLOWED_EMAILS += `tinotechads@gmail.com` (persistă la deploy-urile viitoare); `ADMIN_EMAILS` neschimbat.
+- Serviciul live actualizat imediat: `gcloud run services update --update-env-vars '^|^ALLOWED_EMAILS=…'` → revizia **market-scanner-360-00202-bn6**, 100% trafic.
+- Verificat: env pe revizie conține emailul; `/api/health` → 200. Mecanism: Firebase Auth (Google) + middleware `isAllowedEmail` (403 pentru emailuri nepermise).
+- Rol implicit nou utilizator: **Viewer** (nu Administrator — se adaugă în ADMIN_EMAILS doar la cerere).
