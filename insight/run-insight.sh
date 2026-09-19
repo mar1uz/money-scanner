@@ -49,9 +49,20 @@ case "${1:-}" in
   --run)
     mkdir "$LOCK" 2>/dev/null || { log "SKIP already-running"; exit 0; }
     trap 'rmdir "$LOCK" 2>/dev/null' EXIT
+    # Request files are pure triggers. Only two allowlisted name prefixes decide
+    # the fixed mode; everything else is deleted and audited, never read.
     shopt -s nullglob
-    reqs=("$REQ_DIR"/*)
-    [ ${#reqs[@]} -gt 0 ] && rm -f "${reqs[@]}"
+    modes=()
+    for req in "$REQ_DIR"/*; do
+      base=$(basename "$req")
+      case "$base" in
+        reclaim|reclaim-*) modes+=("reclaim") ;;
+        run|run-*) modes+=("default") ;;
+        *) log "IGNORED bad-request-name $base" ;;
+      esac
+      rm -f "$req"
+    done
+    [ ${#modes[@]} -eq 0 ] && modes=("default")
     set -a
     # shellcheck disable=SC1090
     . "$ENV_FILE" 2>/dev/null
@@ -61,7 +72,20 @@ case "${1:-}" in
       write_status "scheduled-or-requested" 1 "blocked:no-ai-gateway-key"
       exit 1
     fi
-    run_pipeline "scheduled-or-requested"
+    rc=0
+    for mode in $(printf '%s\n' "${modes[@]}" | sort -u); do
+      if [ "$mode" = "reclaim" ]; then
+        if [ -f "$REPO/tmp/scans/reclaim-latest.json" ]; then
+          run_pipeline "requested-reclaim" --scan tmp/scans/reclaim-latest.json || rc=$?
+        else
+          log "FAIL reclaim-scan-missing (tmp/scans/reclaim-latest.json)"
+          rc=1
+        fi
+      else
+        run_pipeline "scheduled-or-requested" || rc=$?
+      fi
+    done
+    exit $rc
     ;;
   --dry-run)
     cd "$REPO" || { echo "repo missing: $REPO"; exit 1; }

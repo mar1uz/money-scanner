@@ -124,7 +124,9 @@ export function buildCohortEntry(scanEntry, deterministic) {
       sma200Aligned: scanEntry.sma200Aligned,
       weeklyAligned: scanEntry.weeklyAligned,
       candleTimestamp: scanEntry.candleTimestamp,
-      scannedAt: scanEntry.scannedAt
+      scannedAt: scanEntry.scannedAt,
+      marketCapRank: scanEntry.marketCapRank ?? null,
+      ...(scanEntry.reclaim ? { reclaim: scanEntry.reclaim } : {})
     },
     deterministic: deterministic ?? null,
     missingData: missing
@@ -143,6 +145,56 @@ export function buildCohortEntry(scanEntry, deterministic) {
   }
   missing.push('fundamentals/on-chain/narrative/mindshare: not provided by the deterministic pipeline');
   return entry;
+}
+
+
+/**
+ * Adapt a DAILY_SMA50_200_RECLAIM report (local reproduction shape) to cohort
+ * scan rows. Only NEW_SIGNAL results enter the cohort; every reclaim-specific
+ * field rides along under scan.reclaim for audit.
+ */
+export function reclaimToScanEntries(report) {
+  return (report.results ?? [])
+    .filter(r => r.status === 'NEW_SIGNAL' && r.signal)
+    .map(r => {
+      const s = r.signal;
+      const upperSma = Math.max(s.sma50, s.sma200);
+      return {
+        id: `reclaim:${r.symbol}:1d:BULLISH`,
+        symbol: r.symbol,
+        name: r.name ?? r.symbol,
+        marketClass: 'crypto',
+        timeframe: '1d',
+        direction: 'BULLISH',
+        status: 'NEW_SIGNAL',
+        currentPrice: r.currentPrice ?? s.confirmationPrice,
+        triggerPrice: upperSma,
+        distancePercent: (s.confirmationPrice / upperSma - 1) * 100,
+        distanceAtr: s.distanceToUpperSmaAtr ?? null,
+        rvol: s.rvol ?? null,
+        moneyLineTier: s.dailyMoneyLine?.tier ?? null,
+        moneyLineScore: s.dailyMoneyLine?.score ?? null,
+        weeklyTier: s.weeklyMoneyLine?.tier ?? null,
+        weeklyScore: s.weeklyMoneyLine?.score ?? null,
+        sma50Aligned: s.confirmationPrice > s.sma50,
+        sma200Aligned: s.confirmationPrice > s.sma200,
+        weeklyAligned: s.weeklyMoneyLine?.bullish ?? false,
+        candleTimestamp: r.analyzedDayTimestamp,
+        scannedAt: report.reproducedAt ?? null,
+        marketCapRank: r.rank ?? null,
+        reclaim: {
+          ruleId: r.ruleId, eventId: r.eventId ?? null, source: r.source, pair: r.pair, rank: r.rank ?? null,
+          confirmationPrice: s.confirmationPrice, previousClose: s.previousClose,
+          sma50: s.sma50, sma200: s.sma200,
+          sma50Direction: s.sma50Direction, sma200Direction: s.sma200Direction,
+          atr14: s.atr14 ?? null, distanceToUpperSmaAtr: s.distanceToUpperSmaAtr ?? null,
+          distanceLabel: s.distanceLabel ?? null,
+          rvol: s.rvol ?? null, rvolHighlighted: s.rvolHighlighted ?? false,
+          dailyMoneyLine: s.dailyMoneyLine ?? null,
+          weeklyMoneyLine: s.weeklyMoneyLine ?? null
+        }
+      };
+    });
 }
 
 /** Keys the insight JSON must never contain: no invented probabilities. */

@@ -26,7 +26,7 @@ import { round } from './paper-trade-logger.mjs';
 import {
   JEV_MODEL, TIERS, QUESTIONS, pickTier, fallbackDecision, numberOrNull,
   isCryptoEntry, buildCohortEntry, buildPrompt, validateInsight,
-  estimateCostUsd, renderMarkdown, CALIBRATION_STATEMENT
+  estimateCostUsd, renderMarkdown, CALIBRATION_STATEMENT, reclaimToScanEntries
 } from './jev-insight-lib.mjs';
 
 const DAY_MS = 86_400_000;
@@ -196,7 +196,10 @@ async function main() {
     scanPath = join(dir, readdirSync(dir).filter(f => /^scan-.*\.json$/.test(f)).sort().at(-1));
   }
   const scan = JSON.parse(readFileSync(scanPath, 'utf8'));
-  const rows = (scan.upcomingCandidates ?? []).slice(0, top);
+  const isReclaim = scan.ruleId === 'DAILY_SMA50_200_RECLAIM';
+  const rows = isReclaim
+    ? reclaimToScanEntries(scan).slice(0, Number(arg('--top', 1000)))
+    : (scan.upcomingCandidates ?? []).slice(0, top);
   console.log(`scan ${scanPath} (${scan.generatedAt}), cohort ${rows.length}`);
 
   const cohort = [];
@@ -218,8 +221,9 @@ async function main() {
     generatedAt: new Date().toISOString(),
     status: 'ok',
     pipeline: {
-      scanFile: scanPath, scanGeneratedAt: scan.generatedAt ?? null,
+      scanFile: scanPath, scanGeneratedAt: (isReclaim ? scan.reproducedAt : scan.generatedAt) ?? null,
       scanMethod: scan.method ?? null,
+      ...(isReclaim ? { ruleId: scan.ruleId, analyzedDay: scan.analyzedDay, cohortRule: 'NEW_SIGNAL' } : {}),
       universeCount: scan.universeCount ?? null, scannedCount: scan.scannedCount ?? null,
       cohortSize: rows.length, topRequested: 10,
       timeframes: ['1d', '1w'], lastClosedDaily, lastClosedWeekly
@@ -282,8 +286,9 @@ async function main() {
 
   mkdirSync(outDir, { recursive: true });
   const day = new Date().toLocaleDateString('en-CA'); // local calendar day (Europe/Oslo on this machine)
-  const jsonPath = join(outDir, `jev-insight-${day}.json`);
-  const mdPath = join(outDir, `jev-insight-${day}.md`);
+  const base = isReclaim ? `jev-insight-reclaim-${scan.analyzedDay}` : `jev-insight-${day}`;
+  const jsonPath = join(outDir, `${base}.json`);
+  const mdPath = join(outDir, `${base}.md`);
   writeFileSync(jsonPath, JSON.stringify(report, null, 2), 'utf8');
   writeFileSync(mdPath, renderMarkdown(report), 'utf8');
   if (report.routing) {

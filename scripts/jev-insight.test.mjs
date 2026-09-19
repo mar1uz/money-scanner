@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   TIERS, pickTier, fallbackDecision, buildCohortEntry, validateInsight,
   findForbiddenKeys, buildPrompt, estimateCostUsd, renderMarkdown,
-  CONFIDENCE_LABELS, CALIBRATION_STATEMENT
+  CONFIDENCE_LABELS, CALIBRATION_STATEMENT, reclaimToScanEntries
 } from './jev-insight-lib.mjs';
 
 const SYMBOLS = ['AAA', 'BBB', 'CCC', 'DDD', 'EEE', 'FFF', 'GGG', 'HHH', 'III', 'JJJ',
@@ -158,4 +158,34 @@ test('renderMarkdown banners blocked reports and keeps packet intact', () => {
   });
   assert.match(md, /BLOCKED: 429 free tier/);
   assert.match(md, /Not trading advice\./);
+});
+
+test('reclaimToScanEntries keeps only NEW_SIGNAL rows with full reclaim evidence', () => {
+  const report = {
+    ruleId: 'DAILY_SMA50_200_RECLAIM', analyzedDay: '2026-09-18', reproducedAt: '2026-09-20T01:14:00Z',
+    results: [
+      { symbol: 'ADA', name: 'Cardano', status: 'NEW_SIGNAL', ruleId: 'DAILY_SMA50_200_RECLAIM', source: 'binance_spot', pair: 'ADAUSDT', rank: 18, analyzedDayTimestamp: 1789689600000, eventId: 'evt',
+        signal: { confirmationPrice: 0.2244, previousClose: 0.21, sma50: 0.200468, sma200: 0.214805, sma50Direction: 'RISING', sma200Direction: 'FALLING', atr14: 0.01, distanceToUpperSmaAtr: 0.72, rvol: 1.73, rvolHighlighted: true, dailyMoneyLine: { tier: 'Bullish', score: 40, bullish: false }, weeklyMoneyLine: { tier: 'Neutral', score: 5, bullish: false } } },
+      { symbol: 'BBB', status: 'ABOVE_BOTH', signal: { confirmationPrice: 2, sma50: 1, sma200: 1.5 } },
+      { symbol: 'CCC', status: 'NO_SIGNAL' }
+    ]
+  };
+  const rows = reclaimToScanEntries(report);
+  assert.equal(rows.length, 1);
+  const row = rows[0];
+  assert.equal(row.symbol, 'ADA');
+  assert.equal(row.direction, 'BULLISH');
+  assert.equal(row.status, 'NEW_SIGNAL');
+  assert.equal(row.triggerPrice, 0.214805); // upper of SMA50/SMA200
+  assert.equal(row.distanceAtr, 0.72);
+  assert.equal(row.moneyLineTier, 'Bullish');
+  assert.equal(row.weeklyTier, 'Neutral');
+  assert.equal(row.marketCapRank, 18);
+  assert.equal(row.reclaim.confirmationPrice, 0.2244);
+  assert.equal(row.reclaim.sma50Direction, 'RISING');
+  assert.equal(row.reclaim.rvolHighlighted, true);
+
+  const entry = buildCohortEntry(row, { '1d': { tier: 'Bullish', sma50: 1, sma200: 1, rvol: 1.5 }, '1w': { tier: 'Neutral', sma50: 1, sma200: 1, rvol: 1 } });
+  assert.equal(entry.scan.reclaim.confirmationPrice, 0.2244);
+  assert.equal(entry.scan.marketCapRank, 18);
 });
