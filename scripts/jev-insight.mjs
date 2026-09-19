@@ -28,6 +28,8 @@ import {
   ATH_WEIGHTS, MOMENTUM_WEIGHTS, COMBINED_WEIGHTS,
   computeAthFeatures, scoreAthPotential, computeMomentumScore, combineRankings
 } from './ath-context-lib.mjs';
+import { buildFourAxesContext } from './four-axes.mjs';
+import { AXES_WEIGHTS, scoreFundamentals, scoreOnchain, scoreNarrative, combineFourAxes } from './four-axes-lib.mjs';
 import {
   JEV_MODEL, TIERS, QUESTIONS, pickTier, fallbackDecision, numberOrNull,
   isCryptoEntry, buildCohortEntry, buildPrompt, validateInsight,
@@ -222,6 +224,7 @@ async function main() {
   // scores per asset, visible weights, two rankings + combined.
   let rankings = null;
   let athLayer = null;
+  let fourAxes = null;
   if (isReclaim || process.argv.includes('--ath')) {
     const ctx = await buildAthContext(cohort);
     athLayer = { sources: ctx.sources, fetchErrors: ctx.errors, weights: { ath: ATH_WEIGHTS, momentum: MOMENTUM_WEIGHTS, combined: COMBINED_WEIGHTS } };
@@ -241,6 +244,31 @@ async function main() {
       Object.fromEntries(cohort.map(c => [c.symbol, c.ath?.momentum])),
       Object.fromEntries(cohort.map(c => [c.symbol, c.ath?.potential]))
     );
+    // Four-axis classification: setup + ATH + fundamentals + on-chain + narrative.
+    const axCtx = await buildFourAxesContext(cohort.filter(c => c.marketClass === 'crypto').map(c => c.symbol));
+    fourAxes = { weights: AXES_WEIGHTS, sources: axCtx.sources, fetchedAt: axCtx.fetchedAt, fetchErrors: [...ctx.errors, ...axCtx.errors] };
+    for (const entry of cohort) {
+      if (entry.marketClass !== 'crypto') continue;
+      const a = axCtx.perSymbol[entry.symbol] ?? {};
+      const llama = ctx.perSymbol[entry.symbol]?.llama ?? null;
+      const fundamentals = scoreFundamentals(a);
+      const onchain = scoreOnchain({
+        symbol: entry.symbol,
+        tvl: a.chainTvl ?? llama?.tvl ?? null,
+        tvlChange30dPct: a.chainTvl != null ? a.chainTvlChange30dPct : (llama?.change_1m != null ? llama.change_1m * 100 : null)
+      });
+      const narrative = scoreNarrative(a);
+      entry.axes = { fundamentals, onchain, narrative, fees: { fees30d: a.fees30d ?? null, feesPrev30d: a.feesPrev30d ?? null, matched: a.matchedName ?? null }, trendingRank: a.trendingRank ?? null };
+      entry.final = combineFourAxes({
+        momentumScore: entry.ath?.momentum?.score, athScore: entry.ath?.potential?.score,
+        fundamentals, onchain, narrative
+      });
+      console.log(`axes ${entry.symbol}: final ${entry.final.score} (setup ${entry.ath?.momentum?.score} / ath ${entry.ath?.potential?.score} / fund ${fundamentals.score} / onchain ${onchain.score} / narrative ${narrative.score})`);
+    }
+    fourAxes.ranking = cohort
+      .filter(c => c.final)
+      .map(c => ({ symbol: c.symbol, score: c.final.score, parts: c.final.parts, flags: [...(c.final.flags ?? []), ...(c.axes?.fundamentals?.flags ?? []), ...(c.axes?.onchain?.flags ?? []), ...(c.axes?.narrative?.flags ?? [])] }))
+      .sort((a, b) => b.score - a.score);
   }
   const lastClosedDaily = cohort.map(c => c.deterministic?.['1d']?.asOf).filter(Boolean).sort().at(-1) ?? null;
   const lastClosedWeekly = cohort.map(c => c.deterministic?.['1w']?.asOf).filter(Boolean).sort().at(-1) ?? null;
@@ -259,7 +287,7 @@ async function main() {
     },
     routing: null, cohort,
     insight: null, validation: null, usage: null,
-    ...(athLayer ? { athLayer } : {}), ...(rankings ? { rankings } : {}),
+    ...(athLayer ? { athLayer } : {}), ...(rankings ? { rankings } : {}), ...(fourAxes ? { fourAxes } : {}),
     calibration: { probabilityFieldsPresent: false, statement: CALIBRATION_STATEMENT }
   };
 

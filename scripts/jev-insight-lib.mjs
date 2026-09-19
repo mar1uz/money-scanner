@@ -360,6 +360,17 @@ export function renderMarkdown(report) {
       lines.push('');
     }
   }
+  if (report.fourAxes?.ranking) {
+    const w = report.fourAxes.weights;
+    lines.push(`## Four-axis final (setup ${w.technicalSetup} / ATH ${w.athPotential} / fundamentals ${w.fundamentals} / on-chain ${w.onchain} / narrative ${w.narrative})`);
+    lines.push(`Sources: DefiLlama fees overview + v2/chains + historicalChainTvl, CoinGecko trending. Fetched ${report.fourAxes.fetchedAt}.`);
+    lines.push('');
+    lines.push('Final top 10: ' + report.fourAxes.ranking.slice(0, 10).map(r => `${r.symbol} ${r.score}`).join(' | '));
+    for (const r of report.fourAxes.ranking.slice(0, 10)) {
+      lines.push(`- ${r.symbol}: setup ${r.parts.technicalSetup ?? 'n/a'} / ath ${r.parts.athPotential ?? 'n/a'} / fund ${r.parts.fundamentals ?? 'n/a'} / onchain ${r.parts.onchain ?? 'n/a'} / narrative ${r.parts.narrative ?? 'n/a'}${r.flags.length ? ` [${[...new Set(r.flags)].join(', ')}]` : ''}`);
+    }
+    lines.push('');
+  }
   if (report.insight?.top10) {
     lines.push('## Top 10 (1D x 1W combined)');
     lines.push('');
