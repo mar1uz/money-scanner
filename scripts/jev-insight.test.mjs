@@ -189,3 +189,20 @@ test('reclaimToScanEntries keeps only NEW_SIGNAL rows with full reclaim evidence
   assert.equal(entry.scan.reclaim.confirmationPrice, 0.2244);
   assert.equal(entry.scan.marketCapRank, 18);
 });
+
+test('buildPrompt includes a symbol ledger and compact ATH fields', () => {
+  const cohort = [
+    { symbol: 'AAA', marketClass: 'crypto', deterministic: {}, ath: { features: { distToAthPct: 50, daysSinceAth: 100, componentBreakdown: 'verbose' }, potential: { score: 70, flags: [] }, momentum: { score: 55 } } },
+    { symbol: 'BBB', marketClass: 'crypto', deterministic: {} }
+  ];
+  const { user } = buildPrompt({ scanMeta: { source: 't' }, cohort });
+  const parsed = JSON.parse(user);
+  assert.deepEqual(parsed.symbolLedger.symbols, ['AAA', 'BBB']);
+  assert.equal(parsed.symbolLedger.count, 2);
+  assert.ok(parsed.symbolLedger.rule.includes('exactly once'));
+  assert.equal(parsed.cohort[0].ath.potentialScore, 70);
+  assert.equal(parsed.cohort[0].ath.momentumScore, 55);
+  assert.equal(parsed.cohort[0].ath.distToAthPct, 50);
+  assert.equal(parsed.cohort[0].ath.features, undefined);
+  assert.equal(parsed.cohort[1].ath, undefined);
+});

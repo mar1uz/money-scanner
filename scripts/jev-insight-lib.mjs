@@ -279,10 +279,39 @@ export function buildPrompt({ scanMeta, cohort }) {
     '"invalidation":"...","resistance":"...","confidence":"medium","timeframes1d1w":"confirm"}],',
     '"eliminated":[{"symbol":"BBB","reason":"..."}],"notes":"..."}'
   ].join('\n');
+  // Compact ATH summary for the prompt: keeps the decision inputs, drops the verbose
+  // component breakdown so small models keep symbol coverage straight.
+  const compactAth = (entry) => {
+    if (!entry?.ath) return entry;
+    const f = entry.ath.features ?? {};
+    return {
+      ...entry,
+      ath: {
+        distToAthPct: f.distToAthPct ?? null,
+        daysSinceAth: f.daysSinceAth ?? null,
+        mcapMultipleToAth: f.mcapMultipleToAth ?? null,
+        rsVsBtc30Pct: f.rsVsBtc30Pct ?? null,
+        fdvToMcap: f.fdvToMcap ?? null,
+        circulatingPct: f.circulatingPct ?? null,
+        tvlChange30dPct: f.tvlChange30dPct ?? null,
+        missingData: f.missingData ?? [],
+        potentialScore: entry.ath.potential?.score ?? null,
+        potentialFlags: entry.ath.potential?.flags ?? [],
+        momentumScore: entry.ath.momentum?.score ?? null
+      }
+    };
+  };
+  const promptCohort = cohort.map(compactAth);
+  const symbols = cohort.map(c => c.symbol);
   const user = JSON.stringify({
     task: 'Rank the top 10 of this near-flip cohort for upside, combining 1D and 1W.',
     scan: scanMeta,
-    cohort
+    cohort: promptCohort,
+    symbolLedger: {
+      count: symbols.length,
+      symbols,
+      rule: 'top10 (10 symbols) + eliminated must partition this exact list: every symbol exactly once, no symbol outside it, none missing. Copy symbols verbatim.'
+    }
   });
   return { system, user };
 }
