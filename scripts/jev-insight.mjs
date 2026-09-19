@@ -28,7 +28,9 @@ import {
   ATH_WEIGHTS, MOMENTUM_WEIGHTS, COMBINED_WEIGHTS,
   computeAthFeatures, scoreAthPotential, computeMomentumScore, combineRankings
 } from './ath-context-lib.mjs';
-import { QC_WEIGHTS, loadFourCriteriaScan, matchCriteriaAsset, summarizeCriteria, combineWithQuality } from './four-criteria-lib.mjs';
+import { FINAL_WEIGHTS, loadFourCriteriaScan, matchCriteriaAsset, summarizeCriteria, combineFinal } from './four-criteria-lib.mjs';
+import { fetchTrendingRanks } from './four-axes.mjs';
+import { scoreNarrative } from './four-axes-lib.mjs';
 import {
   JEV_MODEL, TIERS, QUESTIONS, pickTier, fallbackDecision, numberOrNull,
   isCryptoEntry, buildCohortEntry, buildPrompt, validateInsight,
@@ -250,20 +252,31 @@ async function main() {
     try { qcScan = loadFourCriteriaScan(qcPath); } catch { console.log(`four-criteria scan not found at ${qcPath} - protocolQuality axis skipped`); }
     fourAxes = null;
     if (qcScan) {
-      protocolQuality = { weights: QC_WEIGHTS, source: qcScan.method, generatedAt: qcScan.generatedAt };
+      protocolQuality = { weights: FINAL_WEIGHTS, source: qcScan.method, generatedAt: qcScan.generatedAt };
+      const trending = await fetchTrendingRanks(cohort.filter(c => c.marketClass === 'crypto').map(c => c.symbol));
+      protocolQuality.narrativeSource = trending.source;
+      protocolQuality.narrativeFetchedAt = trending.fetchedAt;
+      protocolQuality.fetchErrors = trending.errors;
       for (const entry of cohort) {
         if (entry.marketClass !== 'crypto') continue;
         const asset = matchCriteriaAsset(qcScan, entry.symbol);
         const qc = summarizeCriteria(asset);
+        const narrative = scoreNarrative({ trendingRank: trending.rankBySymbol[entry.symbol] ?? null });
         entry.protocolQuality = qc;
-        entry.final = combineWithQuality({
-          momentumScore: entry.ath?.momentum?.score, athScore: entry.ath?.potential?.score, qc
+        entry.narrative = narrative;
+        entry.final = combineFinal({
+          momentumScore: entry.ath?.momentum?.score, athScore: entry.ath?.potential?.score, qc, narrative
         });
-        console.log(`qc ${entry.symbol}: final ${entry.final.score} (setup ${entry.ath?.momentum?.score} / ath ${entry.ath?.potential?.score} / qc ${qc.score ?? 'n/a'} ${qc.passedCriteria != null ? qc.passedCriteria + '/4' : 'not-covered'})${qc.flags.length ? ' flags=' + qc.flags.join(',') : ''}`);
+        console.log(`final ${entry.symbol}: ${entry.final.score} (setup ${entry.ath?.momentum?.score} / ath ${entry.ath?.potential?.score} / qc ${qc.score ?? 'n/a'} ${qc.passedCriteria != null ? qc.passedCriteria + '/4' : 'not-covered'} / narr ${narrative.score})${entry.final.flags.length ? ' flags=' + entry.final.flags.join(',') : ''}`);
       }
       protocolQuality.ranking = cohort
         .filter(c => c.final)
-        .map(c => ({ symbol: c.symbol, score: c.final.score, parts: c.final.parts, qc: { score: c.protocolQuality.score, passedCriteria: c.protocolQuality.passedCriteria, classification: c.protocolQuality.classification }, flags: c.final.flags }))
+        .map(c => ({
+          symbol: c.symbol, score: c.final.score, parts: c.final.parts,
+          qc: { score: c.protocolQuality.score, passedCriteria: c.protocolQuality.passedCriteria, classification: c.protocolQuality.classification, gates: c.protocolQuality.gates },
+          athComponents: c.ath?.potential?.components ? Object.fromEntries(Object.entries(c.ath.potential.components).map(([k, v]) => [k, v.score])) : null,
+          flags: c.final.flags
+        }))
         .sort((a, b) => b.score - a.score);
     }
   }

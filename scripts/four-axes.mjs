@@ -74,3 +74,15 @@ export async function buildFourAxesContext(cohortSymbols) {
   }
   return { perSymbol, errors, sources: AXES_SOURCES, fetchedAt: new Date().toISOString() };
 }
+
+/** Lean trending-rank fetch (narrative axis only, no double-counted TVL/fees). */
+export async function fetchTrendingRanks(symbols) {
+  const errors = [];
+  const coins = await getJson(AXES_SOURCES.trending).then(j => j.coins ?? []).catch(e => { errors.push(`trending: ${e.message}`); return []; });
+  const rankBySymbol = {};
+  coins.forEach((c, i) => {
+    const sym = c.item?.symbol?.toUpperCase();
+    if (sym && !(sym in rankBySymbol)) rankBySymbol[sym] = i + 1;
+  });
+  return { rankBySymbol, errors, fetchedAt: new Date().toISOString(), source: AXES_SOURCES.trending };
+}

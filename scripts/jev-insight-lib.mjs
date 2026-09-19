@@ -362,13 +362,19 @@ export function renderMarkdown(report) {
   }
   if (report.protocolQuality?.ranking) {
     const w = report.protocolQuality.weights;
-    lines.push(`## Protocol-quality final (setup ${w.technicalSetup} / ATH ${w.athPotential} / 4x200 ${w.protocolQuality})`);
+    lines.push(`## Final composite (setup ${w.technicalSetup} / ATH ${w.athPotential} / 4x200 ${w.protocolQuality} / narrative ${w.narrative})`);
+    lines.push('No double counting: TVL/fees/revenue only inside 4x200; tokenomics/FDV, liquidity and RS vs BTC are inside ATH potential and shown per asset; supplemental on-chain extras (holder concentration, exchange/bridge flows, staking) have no comparable free source and are flagged, never estimated.');
     lines.push(`4x200 evaluator: app crypto-four-criteria-scanner, local run. ${report.protocolQuality.source ?? ''} Generated ${report.protocolQuality.generatedAt ?? 'n/a'}.`);
     lines.push('');
     lines.push('Final top 10: ' + report.protocolQuality.ranking.slice(0, 10).map(r => `${r.symbol} ${r.score}`).join(' | '));
     for (const r of report.protocolQuality.ranking.slice(0, 10)) {
-      const qcText = r.qc.score != null ? `qc ${r.qc.score} (${r.qc.passedCriteria}/4 pass, ${r.qc.classification})` : 'qc not covered';
-      lines.push(`- ${r.symbol}: setup ${r.parts.technicalSetup ?? 'n/a'} / ath ${r.parts.athPotential ?? 'n/a'} / ${qcText}${r.flags.length ? ` [${[...new Set(r.flags)].join(', ')}]` : ''}`);
+      const qcText = r.qc.score != null ? `qc ${r.qc.score} (${r.qc.passedCriteria}/4 pass)` : 'qc not covered';
+      const athC = r.athComponents ? ` [ATH internals: supply ${r.athComponents.supplyOverhang ?? 'n/a'} / liq ${r.athComponents.liquidity ?? 'n/a'} / RS ${r.athComponents.relativeStrengthVsBtc ?? 'n/a'}]` : '';
+      lines.push(`- ${r.symbol}: setup ${r.parts.technicalSetup ?? 'n/a'} / ath ${r.parts.athPotential ?? 'n/a'} / ${qcText} / narr ${r.parts.narrative ?? 'n/a'}${athC}${r.flags.length ? ` {${[...new Set(r.flags)].join(', ')}}` : ''}`);
+      if (r.qc.gates) {
+        const g = r.qc.gates;
+        lines.push(`  gates: growth ${g.growth?.status ?? '?'} ${g.growth?.value ?? ''} | network ${g.networkEffect?.status ?? '?'} ${g.networkEffect?.value ?? ''} | revenue ${g.sustainableRevenue?.status ?? '?'} ${g.sustainableRevenue?.value ?? ''} | holders ${g.holderValue?.status ?? '?'} ${g.holderValue?.value ?? ''}`);
+      }
     }
     lines.push('');
   }

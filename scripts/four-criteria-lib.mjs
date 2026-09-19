@@ -61,3 +61,33 @@ export function combineWithQuality({ momentumScore, athScore, qc }) {
   );
   return { score, parts, weights: QC_WEIGHTS, flags };
 }
+
+/**
+ * Final composite: setup + ATH + 4x200 + narrative.
+ * No double counting: TVL/fees/revenue live ONLY in protocolQuality (4x200);
+ * tokenomics/FDV, liquidity and relative-strength-vs-BTC are scored inside
+ * athPotential (visible components supplyOverhang/liquidity/relativeStrengthVsBtc)
+ * and are surfaced in reports, not re-weighted here. Supplemental on-chain
+ * extras (holder concentration, exchange/bridge flows, staking) have no
+ * comparable free source - they are flagged in reports, never estimated.
+ */
+export const FINAL_WEIGHTS = { technicalSetup: 0.30, athPotential: 0.30, protocolQuality: 0.25, narrative: 0.15 };
+
+export function combineFinal({ momentumScore, athScore, qc, narrative }) {
+  const flags = [...(qc?.flags ?? []), ...(narrative?.flags ?? [])];
+  const parts = {
+    technicalSetup: num(momentumScore),
+    athPotential: num(athScore),
+    protocolQuality: num(qc?.score) ?? 0, // app semantics: unknown gates score 0, flagged
+    narrative: num(narrative?.score) ?? 40
+  };
+  if (num(qc?.score) == null) flags.push('qc-score-missing');
+  if (num(narrative?.score) == null) flags.push('narrative-missing');
+  const score = round1(
+    (parts.technicalSetup ?? 40) * FINAL_WEIGHTS.technicalSetup +
+    (parts.athPotential ?? 40) * FINAL_WEIGHTS.athPotential +
+    parts.protocolQuality * FINAL_WEIGHTS.protocolQuality +
+    parts.narrative * FINAL_WEIGHTS.narrative
+  );
+  return { score, parts, weights: FINAL_WEIGHTS, flags };
+}
