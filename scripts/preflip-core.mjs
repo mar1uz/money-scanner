@@ -186,3 +186,66 @@ export function trainLogreg(rows, names, yFn, lambda = 1, iters = 2500, lr = 0.2
   };
   return { rawLogit, prob: r => 1 / (1 + Math.exp(-rawLogit(r))), w };
 }
+
+// ---- Trade quality (Marius's RR refinement, 2026-09-19) ----
+// Setup quality, not just pump probability. All inputs use data <= evalIndex
+// (candidate day for planning, confirm day for backtest). No future data.
+
+/** Most recent swing low within `look` bars ending at i (inclusive). */
+function recentSwingLow(candles, i, look) {
+  const from = Math.max(0, i - look + 1);
+  let lo = Infinity;
+  for (let j = from; j <= i; j++) lo = Math.min(lo, candles[j].low);
+  return lo;
+}
+
+/**
+ * Hypothetical trade plan evaluated at `i` (candidate or confirm day).
+ * entryProxy: price we'd realistically pay (trigger line if still below it,
+ * else current close). Stop = 0.25 ATR below the most defensible NEARBY
+ * invalidation: the highest level below entry among flip line, SMA50,
+ * 30d base low, 10d swing low. Resistance = nearest 90d swing high >= 2%
+ * above entry (else 90d high). Returns null if no level sits below entry.
+ */
+export function tradeQuality(candles, atr14, cloud, i) {
+  const close = candles[i].close;
+  const a = atr14[i];
+  if (!Number.isFinite(a) || a <= 0) return null;
+  const line = cloud.lineSlow[i];
+  const sma50v = cloud.sma50?.[i];
+  const entry = Number.isFinite(line) && line > close ? line : close;
+  const levels = [
+    ['flip-threshold', Number.isFinite(line) && line < entry ? line : null],
+    ['sma50', Number.isFinite(sma50v) && sma50v < entry ? sma50v : null],
+    ['base-low-30d', recentSwingLow(candles, i, 30)],
+    ['higher-low-10d', recentSwingLow(candles, i, 10)]
+  ].filter(([, v]) => Number.isFinite(v) && v < entry);
+  if (!levels.length) return null;
+  levels.sort((x, y) => y[1] - x[1]);
+  const [stopBasis, stopLevel] = levels[0];
+  const stop = stopLevel - 0.25 * a;
+  if (stop >= entry) return null;
+  const highs = candles.slice(Math.max(0, i - 89), i + 1).map(c => c.high);
+  const above = highs.filter(h => h >= entry * 1.02);
+  const resistance = above.length ? Math.min(...above) : Math.max(...highs);
+  const risk = entry - stop;
+  const stopDistPct = risk / entry * 100;
+  const resDistPct = (resistance - entry) / entry * 100;
+  return {
+    evalDate: new Date(candles[i].timestamp).toISOString().slice(0, 10),
+    entry, stop, stopBasis, stopLevel, stopDistPct,
+    resistance, resDistPct,
+    rr: risk > 0 ? (resistance - entry) / risk : 0,
+    extSma50: Number.isFinite(sma50v) ? (entry - sma50v) / sma50v : 0,
+    atr: a
+  };
+}
+
+/** Transparent composite: probability x trade quality. quality in [0.5, 1.1]. */
+export function compositeScore(p1, tq) {
+  if (!tq) return p1 * 0.5;
+  const rrPart = Math.min(Math.max(tq.rr, 0), 2.5) / 2.5;      // 0..1
+  const extPenalty = Math.min(Math.max(tq.extSma50, 0), 0.4);  // far above SMA50 hurts
+  const quality = 0.5 + 0.6 * rrPart - extPenalty;
+  return p1 * Math.max(0.1, quality);
+}

@@ -12,7 +12,8 @@ import { calculateMoneyLineCloud } from '../packages/money-line/dist/cloud-super
 import { round } from './paper-trade-logger.mjs';
 import {
   detectCandidateEpisodes, stage1Outcome, stage2Outcome, candidateFeatures,
-  trainLogreg, PREFLIP_FEATURES, CHAIN_TVL_MAP, CANDIDATE_ZONE_ATR, DAY_MS
+  trainLogreg, PREFLIP_FEATURES, CHAIN_TVL_MAP, CANDIDATE_ZONE_ATR, DAY_MS,
+  tradeQuality, compositeScore
 } from './preflip-core.mjs';
 import { CRYPTO_SYMBOLS, fetchBinanceDaily, fetchFunding } from './trend-ranking-core.mjs';
 import { mkdirSync, appendFileSync } from 'node:fs';
@@ -196,8 +197,10 @@ async function run() {
     e.p1 = round(m1.prob(e), 3);
     e.p2 = m2 ? round(m2.prob(e), 3) : null;
     e.joint = e.p2 == null ? null : round(e.p1 * e.p2, 3);
+    e.plan = tradeQuality(perAsset.get(e.symbol).candles, perAsset.get(e.symbol).atr14, perAsset.get(e.symbol).cloud, e.index);
+    e.composite = round(compositeScore(e.p1, e.plan), 3);
   }
-  cands.sort((a, b) => (b.p1 - a.p1) || ((b.joint ?? 0) - (a.joint ?? 0)));
+  cands.sort((a, b) => (b.composite - a.composite) || (b.p1 - a.p1));
   const top5 = cands.slice(0, 5);
 
   // User-grounded screenshot examples (2026-09-18/19, app 1W candidate list +
@@ -232,7 +235,14 @@ async function run() {
       symbol: e.symbol, candidateDate: e.candidateDate, close: e.close,
       triggerPrice: round(e.triggerPrice, 6), distPct: round(e.features.distPct, 2),
       distAtr: round(e.features.distAtr, 2), baseDays: e.features.baseDays,
-      pConfirm: e.p1, pProfitGivenConfirm: e.p2, joint: e.joint
+      pConfirm: e.p1, pProfitGivenConfirm: e.p2, joint: e.joint,
+      composite: e.composite,
+      plan: e.plan ? {
+        entryProxy: round(e.plan.entry, 6), stop: round(e.plan.stop, 6),
+        stopBasis: e.plan.stopBasis, stopDistPct: round(e.plan.stopDistPct, 2),
+        resistance: round(e.plan.resistance, 6), resDistPct: round(e.plan.resDistPct, 2),
+        rr: round(e.plan.rr, 2)
+      } : null
     })),
     top5: top5.map(e => e.symbol),
     trackedExamples
@@ -247,7 +257,9 @@ async function run() {
   top5.forEach((e, idx) => {
     const f = e.features;
     console.log(`\n#${idx + 1} ${e.symbol}  P(confirm 14d)=${e.p1}  P(+20% before -10% | confirm)=${e.p2 ?? 'n/a'}  joint=${e.joint ?? 'n/a'}`);
-    console.log(`   trigger: daily close above ${round(e.triggerPrice, 6)} (${round(f.distPct, 2)}% / ${round(f.distAtr, 2)} ATR away)`);
+    console.log(`   trigger: daily close above ${round(e.triggerPrice, 6)} (${round(f.distPct, 2)}% / ${round(f.distAtr, 2)} ATR away)  composite=${e.composite}`);
+    if (e.plan) console.log(`   hypothetical plan: entry ~${round(e.plan.entry, 6)}, stop ${round(e.plan.stop, 6)} (below ${e.plan.stopBasis}, ${round(e.plan.stopDistPct, 2)}%), resistance ${round(e.plan.resistance, 6)} (${round(e.plan.resDistPct, 2)}%), RR ${round(e.plan.rr, 2)}`);
+    else console.log('   hypothetical plan: none (no defensible stop below entry)');
     console.log(`   evidence: ${evidenceLine(e)}`);
     console.log(`   risks: ${riskLine(e)}`);
   });

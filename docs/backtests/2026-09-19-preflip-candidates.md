@@ -101,3 +101,35 @@ to Bybit spot for such symbols.
 probabilities to `tmp/paper-trades/preflip-watchlist.jsonl` (append-only) and prints
 the top 5 with evidence, risks and the exact confirmation trigger (price + %/ATR
 distance). Forward-only from 2026-09-19; no retroactive edits.
+
+## Round 4b - setup quality / risk-reward refinement (Marius, 2026-09-19)
+
+Hypothesis: candidates near SMA50/base allow tight logical stops (below flip
+threshold/SMA/base/higher-low), improving expectancy and drawdown vs a generic
+1.25 ATR stop.
+
+Method: `tradeQuality()` anchors the stop 0.25 ATR below the nearest defensible
+level under entry (flip line, SMA50, 30d base low, 10d higher low), resistance =
+nearest 90d swing high >=2% above entry; everything uses data <= confirm day.
+466 confirmed candidate events, chronological 60/20/20.
+
+| split | ATR 1.25 stop | logical anchor stop | stop <=8% | near SMA50 (<=5%) |
+|---|---|---|---|---|
+| train (279) | +0.145R PF 1.25 | +0.233R PF 1.50 | +0.231R | +0.122R |
+| val (93) | +0.075R PF 1.13 | **-0.091R PF 0.82** | -0.376R | -0.598R |
+| test (94) | -0.277R PF 0.61 | -0.413R PF 0.36 | -0.480R | -0.442R |
+
+Verdict: NOT validated. The logical anchor stop beats the ATR stop only in train
+and degrades out-of-sample; tighter stops (<=8%) and near-SMA50 entries are
+worse out-of-sample - tight stops get harvested by noise in this strategy's
+exit management. Planned RR >= 1.5 was almost never available (2/1/1 events)
+because grounded resistance is usually close. Keep the ATR stop for research
+sims; the watchlist still DISPLAYS the hypothetical plan (trigger, stop basis,
+stop distance, resistance, RR) as decision support, and ranks on
+`compositeScore = P1 x quality(RR, extension)` - transparent but unvalidated,
+same forward-test protocol as the rest.
+
+MON forward-freeze: 2026-09-19 close 0.02468, trigger 0.029065 (+17.77% /
+2.16 ATR - outside the 1 ATR candidate zone, tracked as an early example).
+STRK/AI/SYRUP/XPL already confirmed (above their lines). The jsonl log freezes
+both states daily for the candidate->confirm discrimination check.

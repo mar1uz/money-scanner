@@ -108,3 +108,53 @@ test('trainLogreg: separates a trivially separable set', () => {
   assert.ok(m.prob({ features: { x: 1 } }) > 0.9);
   assert.ok(m.prob({ features: { x: -1 } }) < 0.1);
 });
+
+import { tradeQuality, compositeScore } from './preflip-core.mjs';
+
+test('tradeQuality: anchors stop below the nearest defensible level, no future data', () => {
+  // 120 bars drifting down then flat; flip line 96, SMA50 94; price closes 95 (below line)
+  const closes = Array.from({ length: 120 }, (_, i) => (i < 90 ? 100 - i * 0.05 : 95.5));
+  const candles = makeCandles(closes);
+  const cloud = flatCloud(120, { line: 96 });
+  cloud.sma50 = new Array(120).fill(94);
+  cloud.sma200 = new Array(120).fill(90);
+  const a14 = new Array(120).fill(2);
+  const tq = tradeQuality(candles, a14, cloud, 119);
+  assert.ok(tq);
+  // entry proxy = flip line 96 (above close); nearest level below = sma50 94 vs base low ~93.56 vs swing ~93.56
+  assert.equal(tq.entry, 96);
+  assert.equal(tq.stopBasis, 'base-low-30d'); // 94.545 base low sits above sma50 94 -> nearer
+  assert.ok(Math.abs(tq.stop - (95.5 * 0.99 - 0.5)) < 1e-9);
+  assert.ok(tq.stopDistPct > 0 && tq.stopDistPct < 5);
+  // truncation: same result without the (nonexistent here) future; test cutoff by evaluating identical prefixes
+  const tq2 = tradeQuality(candles.slice(0, 120), a14.slice(0, 120), { ...cloud, lineSlow: cloud.lineSlow.slice(0, 120), sma50: cloud.sma50.slice(0, 120) }, 119);
+  assert.deepEqual(tq, tq2);
+});
+
+test('tradeQuality: price above line -> entry = close, stop at nearest defensible level', () => {
+  // closes 100, lows 99: base low 99 sits above flip line 98 and is nearer -> tighter stop
+  const candles = makeCandles(Array.from({ length: 60 }, () => 100));
+  const cloud = flatCloud(60, { line: 98 });
+  cloud.sma50 = new Array(60).fill(97);
+  const tq = tradeQuality(candles, new Array(60).fill(2), cloud, 59);
+  assert.equal(tq.entry, 100);
+  assert.equal(tq.stopBasis, 'base-low-30d');
+  assert.ok(Math.abs(tq.stop - (99 - 0.5)) < 1e-9);
+  assert.ok(tq.rr > 0);
+  // with every other level deeper, the flip threshold becomes the anchor
+  const candles2 = makeCandles(Array.from({ length: 60 }, (_, i) => (i < 40 ? 96 : 100)));
+  const cloud2 = flatCloud(60, { line: 99.5 });
+  cloud2.sma50 = new Array(60).fill(95);
+  const tq2 = tradeQuality(candles2, new Array(60).fill(2), cloud2, 59);
+  assert.equal(tq2.stopBasis, 'flip-threshold');
+  assert.ok(Math.abs(tq2.stop - (99.5 - 0.5)) < 1e-9);
+});
+
+test('compositeScore: better RR scores higher, extension penalized', () => {
+  const near = { rr: 2, extSma50: 0.02 };
+  const extended = { rr: 2, extSma50: 0.4 };
+  const badRr = { rr: 0.3, extSma50: 0.02 };
+  assert.ok(compositeScore(0.6, near) > compositeScore(0.6, extended));
+  assert.ok(compositeScore(0.6, near) > compositeScore(0.6, badRr));
+  assert.ok(compositeScore(0.6, null) < compositeScore(0.6, near));
+});
