@@ -58,6 +58,7 @@ case "${1:-}" in
       case "$base" in
         reclaim|reclaim-*) modes+=("reclaim") ;;
         run|run-*) modes+=("default") ;;
+        nearflip|nearflip-*) modes+=("nearflip") ;;
         *) log "IGNORED bad-request-name $base" ;;
       esac
       rm -f "$req"
@@ -74,7 +75,14 @@ case "${1:-}" in
     fi
     rc=0
     for mode in $(printf '%s\n' "${modes[@]}" | sort -u); do
-      if [ "$mode" = "reclaim" ]; then
+      if [ "$mode" = "nearflip" ]; then
+        if [ -f "$REPO/tmp/scans/nearflip-latest.json" ]; then
+          run_pipeline "requested-nearflip" --scan tmp/scans/nearflip-latest.json --ath || rc=$?
+        else
+          log "FAIL nearflip-scan-missing (tmp/scans/nearflip-latest.json)"
+          rc=1
+        fi
+      elif [ "$mode" = "reclaim" ]; then
         if [ -f "$REPO/tmp/scans/reclaim-latest.json" ]; then
           run_pipeline "requested-reclaim" --scan tmp/scans/reclaim-latest.json || rc=$?
         else
