@@ -16,7 +16,7 @@ import {
   tradeQuality, compositeScore
 } from './preflip-core.mjs';
 import { CRYPTO_SYMBOLS, fetchBinanceDaily, fetchFunding } from './trend-ranking-core.mjs';
-import { mkdirSync, appendFileSync } from 'node:fs';
+import { mkdirSync, appendFileSync, readFileSync, existsSync } from 'node:fs';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const LOG_PATH = 'tmp/paper-trades/preflip-watchlist.jsonl';
@@ -248,8 +248,18 @@ async function run() {
     trackedExamples
   };
   mkdirSync('tmp/paper-trades', { recursive: true });
-  appendFileSync(LOG_PATH, JSON.stringify(record) + '\n');
-  console.log(`frozen ${cands.length} candidates -> ${LOG_PATH}`);
+  // exactly one snapshot per closed daily candle (UTC day)
+  const today = scanDate.slice(0, 10);
+  let already = false;
+  if (existsSync(LOG_PATH)) {
+    const last = readFileSync(LOG_PATH, 'utf8').trim().split('\n').filter(Boolean).at(-1);
+    if (last) { try { already = JSON.parse(last).scanDate?.slice(0, 10) === today; } catch { /* keep */ } }
+  }
+  if (already) console.log(`snapshot for ${today} already frozen - not appending`);
+  else {
+    appendFileSync(LOG_PATH, JSON.stringify(record) + '\n');
+    console.log(`frozen ${cands.length} candidates -> ${LOG_PATH}`);
+  }
 
   console.log('\n=== PRE-FLIP WATCHLIST (UNVALIDATED PROTOTYPE) ===');
   console.log(`scan ${scanDate} | universe ${perAsset.size} | candidates ${cands.length}`);
