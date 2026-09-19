@@ -1,0 +1,7 @@
+audit.log
+last-run.json
+last-run.log
+dry-run.log
+launchd.log
+requests/
+.lock/
