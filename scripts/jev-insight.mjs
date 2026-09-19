@@ -28,8 +28,7 @@ import {
   ATH_WEIGHTS, MOMENTUM_WEIGHTS, COMBINED_WEIGHTS,
   computeAthFeatures, scoreAthPotential, computeMomentumScore, combineRankings
 } from './ath-context-lib.mjs';
-import { buildFourAxesContext } from './four-axes.mjs';
-import { AXES_WEIGHTS, scoreFundamentals, scoreOnchain, scoreNarrative, combineFourAxes } from './four-axes-lib.mjs';
+import { QC_WEIGHTS, loadFourCriteriaScan, matchCriteriaAsset, summarizeCriteria, combineWithQuality } from './four-criteria-lib.mjs';
 import {
   JEV_MODEL, TIERS, QUESTIONS, pickTier, fallbackDecision, numberOrNull,
   isCryptoEntry, buildCohortEntry, buildPrompt, validateInsight,
@@ -225,6 +224,7 @@ async function main() {
   let rankings = null;
   let athLayer = null;
   let fourAxes = null;
+  let protocolQuality = null;
   if (isReclaim || process.argv.includes('--ath')) {
     const ctx = await buildAthContext(cohort);
     athLayer = { sources: ctx.sources, fetchErrors: ctx.errors, weights: { ath: ATH_WEIGHTS, momentum: MOMENTUM_WEIGHTS, combined: COMBINED_WEIGHTS } };
@@ -244,31 +244,28 @@ async function main() {
       Object.fromEntries(cohort.map(c => [c.symbol, c.ath?.momentum])),
       Object.fromEntries(cohort.map(c => [c.symbol, c.ath?.potential]))
     );
-    // Four-axis classification: setup + ATH + fundamentals + on-chain + narrative.
-    const axCtx = await buildFourAxesContext(cohort.filter(c => c.marketClass === 'crypto').map(c => c.symbol));
-    fourAxes = { weights: AXES_WEIGHTS, sources: axCtx.sources, fetchedAt: axCtx.fetchedAt, fetchErrors: [...ctx.errors, ...axCtx.errors] };
-    for (const entry of cohort) {
-      if (entry.marketClass !== 'crypto') continue;
-      const a = axCtx.perSymbol[entry.symbol] ?? {};
-      const llama = ctx.perSymbol[entry.symbol]?.llama ?? null;
-      const fundamentals = scoreFundamentals(a);
-      const onchain = scoreOnchain({
-        symbol: entry.symbol,
-        tvl: a.chainTvl ?? llama?.tvl ?? null,
-        tvlChange30dPct: a.chainTvl != null ? a.chainTvlChange30dPct : (llama?.change_1m != null ? llama.change_1m * 100 : null)
-      });
-      const narrative = scoreNarrative(a);
-      entry.axes = { fundamentals, onchain, narrative, fees: { fees30d: a.fees30d ?? null, feesPrev30d: a.feesPrev30d ?? null, matched: a.matchedName ?? null }, trendingRank: a.trendingRank ?? null };
-      entry.final = combineFourAxes({
-        momentumScore: entry.ath?.momentum?.score, athScore: entry.ath?.potential?.score,
-        fundamentals, onchain, narrative
-      });
-      console.log(`axes ${entry.symbol}: final ${entry.final.score} (setup ${entry.ath?.momentum?.score} / ath ${entry.ath?.potential?.score} / fund ${fundamentals.score} / onchain ${onchain.score} / narrative ${narrative.score})`);
+    // Protocol-quality (4x200): the app's exact evaluator, run locally via tsx.
+    const qcPath = process.argv.find((a, i) => process.argv[i - 1] === '--four-criteria') ?? 'tmp/scans/four-criteria-latest.json';
+    let qcScan = null;
+    try { qcScan = loadFourCriteriaScan(qcPath); } catch { console.log(`four-criteria scan not found at ${qcPath} - protocolQuality axis skipped`); }
+    fourAxes = null;
+    if (qcScan) {
+      protocolQuality = { weights: QC_WEIGHTS, source: qcScan.method, generatedAt: qcScan.generatedAt };
+      for (const entry of cohort) {
+        if (entry.marketClass !== 'crypto') continue;
+        const asset = matchCriteriaAsset(qcScan, entry.symbol);
+        const qc = summarizeCriteria(asset);
+        entry.protocolQuality = qc;
+        entry.final = combineWithQuality({
+          momentumScore: entry.ath?.momentum?.score, athScore: entry.ath?.potential?.score, qc
+        });
+        console.log(`qc ${entry.symbol}: final ${entry.final.score} (setup ${entry.ath?.momentum?.score} / ath ${entry.ath?.potential?.score} / qc ${qc.score ?? 'n/a'} ${qc.passedCriteria != null ? qc.passedCriteria + '/4' : 'not-covered'})${qc.flags.length ? ' flags=' + qc.flags.join(',') : ''}`);
+      }
+      protocolQuality.ranking = cohort
+        .filter(c => c.final)
+        .map(c => ({ symbol: c.symbol, score: c.final.score, parts: c.final.parts, qc: { score: c.protocolQuality.score, passedCriteria: c.protocolQuality.passedCriteria, classification: c.protocolQuality.classification }, flags: c.final.flags }))
+        .sort((a, b) => b.score - a.score);
     }
-    fourAxes.ranking = cohort
-      .filter(c => c.final)
-      .map(c => ({ symbol: c.symbol, score: c.final.score, parts: c.final.parts, flags: [...(c.final.flags ?? []), ...(c.axes?.fundamentals?.flags ?? []), ...(c.axes?.onchain?.flags ?? []), ...(c.axes?.narrative?.flags ?? [])] }))
-      .sort((a, b) => b.score - a.score);
   }
   const lastClosedDaily = cohort.map(c => c.deterministic?.['1d']?.asOf).filter(Boolean).sort().at(-1) ?? null;
   const lastClosedWeekly = cohort.map(c => c.deterministic?.['1w']?.asOf).filter(Boolean).sort().at(-1) ?? null;
@@ -287,7 +284,7 @@ async function main() {
     },
     routing: null, cohort,
     insight: null, validation: null, usage: null,
-    ...(athLayer ? { athLayer } : {}), ...(rankings ? { rankings } : {}), ...(fourAxes ? { fourAxes } : {}),
+    ...(athLayer ? { athLayer } : {}), ...(rankings ? { rankings } : {}), ...(fourAxes ? { fourAxes } : {}), ...(protocolQuality ? { protocolQuality } : {}),
     calibration: { probabilityFieldsPresent: false, statement: CALIBRATION_STATEMENT }
   };
 

@@ -360,6 +360,18 @@ export function renderMarkdown(report) {
       lines.push('');
     }
   }
+  if (report.protocolQuality?.ranking) {
+    const w = report.protocolQuality.weights;
+    lines.push(`## Protocol-quality final (setup ${w.technicalSetup} / ATH ${w.athPotential} / 4x200 ${w.protocolQuality})`);
+    lines.push(`4x200 evaluator: app crypto-four-criteria-scanner, local run. ${report.protocolQuality.source ?? ''} Generated ${report.protocolQuality.generatedAt ?? 'n/a'}.`);
+    lines.push('');
+    lines.push('Final top 10: ' + report.protocolQuality.ranking.slice(0, 10).map(r => `${r.symbol} ${r.score}`).join(' | '));
+    for (const r of report.protocolQuality.ranking.slice(0, 10)) {
+      const qcText = r.qc.score != null ? `qc ${r.qc.score} (${r.qc.passedCriteria}/4 pass, ${r.qc.classification})` : 'qc not covered';
+      lines.push(`- ${r.symbol}: setup ${r.parts.technicalSetup ?? 'n/a'} / ath ${r.parts.athPotential ?? 'n/a'} / ${qcText}${r.flags.length ? ` [${[...new Set(r.flags)].join(', ')}]` : ''}`);
+    }
+    lines.push('');
+  }
   if (report.fourAxes?.ranking) {
     const w = report.fourAxes.weights;
     lines.push(`## Four-axis final (setup ${w.technicalSetup} / ATH ${w.athPotential} / fundamentals ${w.fundamentals} / on-chain ${w.onchain} / narrative ${w.narrative})`);
