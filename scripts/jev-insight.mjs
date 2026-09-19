@@ -23,6 +23,11 @@ import { MoneyLineEngine } from '../packages/money-line/dist/engine.js';
 import { calculateMoneyLineCloud } from '../packages/money-line/dist/cloud-supertrend.js';
 import { atr, sma } from './backtest-tight-risk-breakout.mjs';
 import { round } from './paper-trade-logger.mjs';
+import { buildAthContext } from './ath-context.mjs';
+import {
+  ATH_WEIGHTS, MOMENTUM_WEIGHTS, COMBINED_WEIGHTS,
+  computeAthFeatures, scoreAthPotential, computeMomentumScore, combineRankings
+} from './ath-context-lib.mjs';
 import {
   JEV_MODEL, TIERS, QUESTIONS, pickTier, fallbackDecision, numberOrNull,
   isCryptoEntry, buildCohortEntry, buildPrompt, validateInsight,
@@ -213,6 +218,30 @@ async function main() {
     }
     cohort.push(buildCohortEntry(row, det));
   }
+  // ATH-potential layer (reclaim cohorts or --ath): deterministic features +
+  // scores per asset, visible weights, two rankings + combined.
+  let rankings = null;
+  let athLayer = null;
+  if (isReclaim || process.argv.includes('--ath')) {
+    const ctx = await buildAthContext(cohort);
+    athLayer = { sources: ctx.sources, fetchErrors: ctx.errors, weights: { ath: ATH_WEIGHTS, momentum: MOMENTUM_WEIGHTS, combined: COMBINED_WEIGHTS } };
+    for (const entry of cohort) {
+      if (entry.marketClass !== 'crypto') continue;
+      const det1d = entry.deterministic?.['1d'];
+      const det1w = entry.deterministic?.['1w'];
+      const c = ctx.perSymbol[entry.symbol] ?? {};
+      const features = computeAthFeatures({
+        coingecko: c.coingecko, det1d, det1w, btcRet30: c.btcRet30, llama: c.llama
+      });
+      entry.ath = { features, potential: scoreAthPotential(features), momentum: computeMomentumScore(det1d, det1w) };
+      console.log(`ath ${entry.symbol}: potential ${entry.ath.potential.score} momentum ${entry.ath.momentum.score}${entry.ath.potential.flags.length ? ` flags=${entry.ath.potential.flags.join(',')}` : ''}`);
+    }
+    rankings = combineRankings(
+      cohort.map(c => c.symbol),
+      Object.fromEntries(cohort.map(c => [c.symbol, c.ath?.momentum])),
+      Object.fromEntries(cohort.map(c => [c.symbol, c.ath?.potential]))
+    );
+  }
   const lastClosedDaily = cohort.map(c => c.deterministic?.['1d']?.asOf).filter(Boolean).sort().at(-1) ?? null;
   const lastClosedWeekly = cohort.map(c => c.deterministic?.['1w']?.asOf).filter(Boolean).sort().at(-1) ?? null;
 
@@ -230,6 +259,7 @@ async function main() {
     },
     routing: null, cohort,
     insight: null, validation: null, usage: null,
+    ...(athLayer ? { athLayer } : {}), ...(rankings ? { rankings } : {}),
     calibration: { probabilityFieldsPresent: false, statement: CALIBRATION_STATEMENT }
   };
 

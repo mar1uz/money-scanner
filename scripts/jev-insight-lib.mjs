@@ -317,6 +317,20 @@ export function renderMarkdown(report) {
     lines.push(`> BLOCKED: ${report.blockedReason ?? report.status}. Deterministic packet and routing record are intact in the JSON twin of this file.`);
     lines.push('');
   }
+  if (report.rankings?.combined) {
+    const w = report.rankings.weights;
+    lines.push(`## Rankings (deterministic, weights: momentum ${w.momentum} / ATH potential ${w.athPotential})`);
+    lines.push('');
+    lines.push('Combined top 10: ' + report.rankings.combined.slice(0, 10).map(r => `${r.symbol} ${r.combined} (m ${r.momentumScore ?? 'n/a'} / ath ${r.athScore ?? 'n/a'})`).join(' | '));
+    lines.push('ATH potential: ' + report.rankings.athPotential.slice(0, 10).map(r => `${r.symbol} ${r.athScore}`).join(' | '));
+    lines.push('Momentum: ' + report.rankings.momentum.slice(0, 10).map(r => `${r.symbol} ${r.momentumScore}`).join(' | '));
+    lines.push('');
+    const flagged = (report.cohort ?? []).filter(c => c.ath?.potential?.flags?.length);
+    if (flagged.length) {
+      lines.push('Flags: ' + flagged.map(c => `${c.symbol} [${c.ath.potential.flags.join(', ')}]`).join('; '));
+      lines.push('');
+    }
+  }
   if (report.insight?.top10) {
     lines.push('## Top 10 (1D x 1W combined)');
     lines.push('');
