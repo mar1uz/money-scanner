@@ -327,12 +327,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
           onTimeframeChange={setTimeframe}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
-          onOpenAlerts={() => {
-            setSelectedAssetSymbol(null);
-            setSelectedAssetMarketClass(undefined);
-            setSelectedAssetCoinGeckoId(undefined);
-            setActiveTab('alerts');
-          }}
+          onOpenAlerts={() => handleTabChange('alerts')}
           isStale={overview?.providerStatus?.staleAssetsCount ? overview.providerStatus.staleAssetsCount > 0 : false}
           allAssets={scannerRows}
           onSelectAsset={(sym) => {
