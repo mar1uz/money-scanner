@@ -645,3 +645,51 @@ export async function fetchChartMarket(symbol: string, marketClass?: string): Pr
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to resolve chart market for ${symbol}`);
   return res.json();
 }
+
+export interface PriceAlertRule {
+  id: string;
+  symbol: string;
+  marketClass: string;
+  targetPrice: number;
+  direction: 'above' | 'below';
+  isEnabled: boolean;
+  createdAt: number;
+  triggeredAt?: number;
+  lastPrice?: number;
+  lastError?: string;
+}
+
+export interface PriceAlertListResponse {
+  rules: PriceAlertRule[];
+  telegramConfigured?: boolean;
+}
+
+/** Lists the signed-in user's price alerts, optionally scoped to one asset. */
+export async function fetchPriceAlerts(symbol: string, marketClass?: string): Promise<PriceAlertListResponse> {
+  const params = new URLSearchParams({ symbol });
+  if (marketClass) params.set('marketClass', marketClass);
+  const res = await fetch(`${API_BASE}/alerts/price?${params.toString()}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch price alerts`);
+  return res.json();
+}
+
+/** Creates a one-shot Telegram price alert on the resolved exchange pair. */
+export async function createPriceAlert(
+  symbol: string,
+  marketClass: string,
+  price: number,
+  direction: 'above' | 'below'
+): Promise<{ rule: PriceAlertRule }> {
+  const res = await fetch(`${API_BASE}/alerts/price`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ symbol, marketClass, price, direction })
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to create price alert`);
+  return res.json();
+}
+
+export async function deletePriceAlert(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/alerts/price/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to delete price alert`);
+}

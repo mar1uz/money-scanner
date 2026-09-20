@@ -8,6 +8,7 @@ const app = createServer();
 const state = AppState.getInstance();
 state.refreshSignals('1h', 'crypto').catch(err => console.error('Initial scan error:', err));
 state.startBullishAlertMonitor();
+state.priceAlerts.startMonitor();
 
 app.listen(PORT, () => {
   console.log(`🚀 Money Scanner API Server running on port ${PORT}`);

@@ -38,7 +38,7 @@ import {
   BellRing
 } from 'lucide-react';
 import { useLanguage } from '../i18n.js';
-import { fetchBullishAlertStatus, setBullishAlert, fetchChartMarket } from '../services/api.js';
+import { fetchBullishAlertStatus, setBullishAlert, fetchChartMarket, fetchPriceAlerts, createPriceAlert, deletePriceAlert, type PriceAlertRule } from '../services/api.js';
 import { calculateMoneyLineCloud } from '@money-scanner/money-line/cloud-supertrend';
 
 interface InteractiveChartProps {
@@ -125,6 +125,11 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   const [bullishAlertSaving, setBullishAlertSaving] = useState(false);
   const [telegramConfigured, setTelegramConfigured] = useState(false);
   const [bullishAlertError, setBullishAlertError] = useState('');
+  const [priceAlerts, setPriceAlerts] = useState<PriceAlertRule[]>([]);
+  const [priceAlertPrice, setPriceAlertPrice] = useState('');
+  const [priceAlertDirection, setPriceAlertDirection] = useState<'above' | 'below'>('above');
+  const [priceAlertSaving, setPriceAlertSaving] = useState(false);
+  const [priceAlertError, setPriceAlertError] = useState('');
   const [latestState, setLatestState] = useState<{
     status: string;
     fastLine: number;
@@ -350,6 +355,40 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
 
     return () => { cancelled = true; };
   }, [symbol, activeInterval, normalizedAlertMarketClass]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchPriceAlerts(symbol, normalizedAlertMarketClass)
+      .then(result => { if (!cancelled) setPriceAlerts(result.rules.filter(rule => rule.isEnabled)); })
+      .catch(() => { if (!cancelled) setPriceAlerts([]); });
+    return () => { cancelled = true; };
+  }, [symbol, normalizedAlertMarketClass]);
+
+  const handleCreatePriceAlert = async () => {
+    const parsed = Number(String(priceAlertPrice).replace(',', '.'));
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setPriceAlertError(language === 'ro' ? 'Introdu un preț valid.' : 'Enter a valid price.');
+      return;
+    }
+    setPriceAlertSaving(true);
+    setPriceAlertError('');
+    try {
+      const result = await createPriceAlert(symbol, normalizedAlertMarketClass, parsed, priceAlertDirection);
+      setPriceAlerts(prev => [...prev.filter(rule => rule.id !== result.rule.id), result.rule]);
+      setPriceAlertPrice('');
+    } catch (error) {
+      setPriceAlertError(error instanceof Error ? error.message : 'Nu am putut salva alerta de preț.');
+    } finally {
+      setPriceAlertSaving(false);
+    }
+  };
+
+  const handleDeletePriceAlert = async (id: string) => {
+    try {
+      await deletePriceAlert(id);
+      setPriceAlerts(prev => prev.filter(rule => rule.id !== id));
+    } catch {}
+  };
 
   const handleToggleBullishAlert = async () => {
     const alertTimeframe = activeInterval.toLowerCase() as Timeframe;
@@ -1294,6 +1333,48 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
                 <BellRing className={`w-3.5 h-3.5 ${bullishAlertSaving ? 'animate-pulse' : ''}`} />
                 <span>{bullishAlertActive ? (language === 'ro' ? 'Plan activ' : 'Plan on') : (language === 'ro' ? 'Alertă plan' : 'Plan alert')}</span>
               </button>
+
+              {/* Price alert: set a target price on the resolved pair, Telegram message on hit */}
+              <span className="inline-flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setPriceAlertDirection(prev => prev === 'above' ? 'below' : 'above')}
+                  className="px-1.5 py-1 rounded-lg border text-[10px] font-bold bg-cyan-500/10 text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/20 transition-all"
+                  title={language === 'ro' ? 'Comută direcția alertei (peste/sub țintă)' : 'Toggle alert direction (above/below target)'}
+                >
+                  {priceAlertDirection === 'above' ? '≥' : '≤'}
+                </button>
+                <input
+                  value={priceAlertPrice}
+                  onChange={event => setPriceAlertPrice(event.target.value)}
+                  placeholder={language === 'ro' ? 'Preț' : 'Price'}
+                  inputMode="decimal"
+                  className="w-20 px-2 py-1 rounded-lg border text-[10px] font-mono bg-white/[0.03] text-slate-200 border-white/[0.08] focus:border-cyan-500/50 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleCreatePriceAlert}
+                  disabled={priceAlertSaving}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-bold transition-all disabled:opacity-60 bg-cyan-500/10 text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/20"
+                  title={priceAlertError || (language === 'ro' ? 'Setează alerta de preț pe Telegram' : 'Set the Telegram price alert')}
+                >
+                  <BellRing className={`w-3.5 h-3.5 ${priceAlertSaving ? 'animate-pulse' : ''}`} />
+                  <span>{language === 'ro' ? 'Alertă preț' : 'Price alert'}</span>
+                </button>
+              </span>
+              {priceAlerts.map(rule => (
+                <span key={rule.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-mono bg-emerald-500/10 text-emerald-300 border-emerald-500/30">
+                  {rule.direction === 'above' ? '≥' : '≤'} {rule.targetPrice}
+                  <button
+                    type="button"
+                    onClick={() => handleDeletePriceAlert(rule.id)}
+                    className="text-slate-400 hover:text-rose-300 transition-colors"
+                    title={language === 'ro' ? 'Șterge alerta' : 'Delete alert'}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
               <span>Margine Nor (Slow): <strong className="text-slate-300">${latestState?.slowLine ? latestState.slowLine.toFixed(2) : '-'}</strong></span>
 
               {/* SMA 50 Toggle & Status (Yellow, Thin 1.5px) */}

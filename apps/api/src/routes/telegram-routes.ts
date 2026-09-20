@@ -393,6 +393,60 @@ telegramRouter.put('/alerts/bullish', async (req: AuthenticatedRequest, res) => 
   });
 });
 
+const validPriceAlertDirections = new Set(['above', 'below']);
+
+telegramRouter.get('/alerts/price', async (req: AuthenticatedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
+  const appState = AppState.getInstance();
+  const symbol = String(req.query.symbol || '').replace(/^[$#]/, '').trim().toUpperCase();
+  const marketClass = String(req.query.marketClass || '') as AssetMarketClass;
+  await appState.priceAlerts.loadPersistedRules();
+  res.json({
+    rules: appState.priceAlerts.listRules(
+      req.user.id,
+      symbol || undefined,
+      validMarketClasses.has(marketClass) ? marketClass : undefined
+    ),
+    ...appState.telegramBot.getDeliveryConfiguration()
+  });
+});
+
+telegramRouter.post('/alerts/price', async (req: AuthenticatedRequest, res) => {
+  const appState = AppState.getInstance();
+  const symbol = String(req.body?.symbol || '').replace(/^[$#]/, '').trim().toUpperCase();
+  const marketClass = String(req.body?.marketClass || 'crypto') as AssetMarketClass;
+  const price = Number(req.body?.price);
+  const direction = String(req.body?.direction || '') as 'above' | 'below';
+  if (
+    !req.user ||
+    !/^[A-Z0-9._-]{1,30}$/.test(symbol) ||
+    !validMarketClasses.has(marketClass) ||
+    !Number.isFinite(price) ||
+    price <= 0 ||
+    !validPriceAlertDirections.has(direction)
+  ) {
+    return res.status(400).json({ error: 'Date invalide pentru alerta de preț.' });
+  }
+  try {
+    const rule = await appState.priceAlerts.createRule({
+      userId: req.user.id,
+      symbol,
+      marketClass,
+      targetPrice: price,
+      direction
+    });
+    res.json({ rule, ...appState.telegramBot.getDeliveryConfiguration() });
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : 'Nu am putut salva alerta de preț.' });
+  }
+});
+
+telegramRouter.delete('/alerts/price/:id', async (req: AuthenticatedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
+  const removed = await AppState.getInstance().priceAlerts.deleteRule(req.user.id, String(req.params.id || ''));
+  res.json({ ok: removed });
+});
+
 telegramRouter.get('/alerts/dashboard', async (req: AuthenticatedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
   const dashboard = await AppState.getInstance().getAlertsDashboard(req.user.id);

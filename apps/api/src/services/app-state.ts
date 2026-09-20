@@ -38,6 +38,7 @@ import {
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { evaluateDailyStrategyAlerts, StrategyAlertEvaluation } from './strategy-alert-service.js';
+import { PriceAlertService } from './price-alert-service.js';
 import { DailySmaReclaimRunner } from './daily-sma-reclaim-runner.js';
 import { DailySmaReclaimReport } from '@money-scanner/shared';
 
@@ -252,6 +253,7 @@ export class AppState {
   public alertDispatcher = new AlertDispatcher();
   public telegramBot = new TelegramBotHandler();
   public dailySmaReclaim = new DailySmaReclaimRunner(this.marketData, this.telegramBot);
+  public priceAlerts = new PriceAlertService(this.marketData, this.telegramBot);
 
   public cachedSignals: Map<string, MoneyLineSignal> = new Map(); // key: `${symbol}_${timeframe}`
   public alertHistory: DispatchedAlert[] = [];
