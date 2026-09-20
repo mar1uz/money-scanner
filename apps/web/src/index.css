@@ -514,6 +514,10 @@ body { background: var(--t-bg); }
 .intelligence-filter-group button:hover, .intelligence-filter-group button:focus-visible, .intelligence-actions button:hover, .intelligence-actions button:focus-visible { color: var(--t-text); border-color: rgba(200, 241, 105, 0.36); outline: none; }
 .intelligence-filter-group button.is-selected { color: var(--t-accent-soft); border-color: rgba(200, 241, 105, 0.42); background: rgba(168, 217, 63, 0.16); }
 .intelligence-brief { padding: clamp(1.1rem, 3vw, 2rem); border: 1px solid rgba(200, 241, 105, 0.22); border-radius: 1rem; background: var(--t-brief-gradient); }
+.intelligence-ai-take { margin-bottom: 1rem; padding: 0.9rem 1rem; border: 1px solid rgba(103, 232, 249, 0.3); border-radius: 0.75rem; background: rgba(103, 232, 249, 0.06); }
+.intelligence-ai-take-label { font-size: 0.65rem; font-family: ui-monospace, monospace; text-transform: uppercase; letter-spacing: 0.08em; color: #67e8f9; margin-bottom: 0.35rem; }
+.intelligence-ai-take p { margin: 0.4rem 0 0; font-size: 0.85rem; line-height: 1.5; color: var(--t-text-secondary, #cbd5e1); }
+.intelligence-ai-take ul { margin: 0.4rem 0 0; padding-left: 1.1rem; font-size: 0.85rem; color: var(--t-text-secondary, #cbd5e1); }
 .intelligence-summary { max-width: 74rem; margin: 0; color: var(--t-text-2); font-size: clamp(1rem, 1.3vw, 1.16rem); line-height: 1.7; }
 .intelligence-summary:not(.is-expanded) { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 10; }
 .intelligence-summary a { color: var(--t-accent-soft); text-decoration: underline; text-decoration-color: rgba(200, 241, 105, 0.6); text-underline-offset: 0.16em; }

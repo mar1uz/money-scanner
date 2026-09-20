@@ -46,11 +46,22 @@ export interface IntelligenceBriefFilters {
   source: IntelligenceSourceFilter;
 }
 
+/** AI take written by the local Mac executor through the AI Gateway (JEV grant). */
+export interface AIContentTake {
+  headline: string;
+  paragraphs: string[];
+  bullets?: string[];
+  model: string;
+  generatedAt: number;
+  source: 'ai-gateway';
+}
+
 export interface IntelligenceBriefPayload extends NewsSynthesisPayload {
   fullText: string;
   sourceCount: number;
   latestSourceAt: number | null;
   filters: IntelligenceBriefFilters;
+  aiTake?: AIContentTake;
 }
 
 export interface AIAnalysisPayload {
@@ -69,6 +80,7 @@ export interface AIAnalysisPayload {
   evidenceCitations: EvidenceLink[];
   generatedAt: number;
   dataFreshness: string;
+  aiTake?: AIContentTake;
 }
 
 export type MarketIntelligenceScope = 'crypto' | 'stocks' | 'metals';
@@ -135,6 +147,7 @@ export interface MarketIntelligenceReport {
    * Absent keys mean no verified quote exists; the UI must not invent a value.
    */
   assetChanges?: Record<string, number>;
+  aiTake?: AIContentTake;
 }
 
 export interface MarketIntelligenceAssetSnapshot {

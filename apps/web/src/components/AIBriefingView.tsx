@@ -1139,6 +1139,24 @@ export const AIBriefingView: React.FC = () => {
               <h2 className="text-xl sm:text-2xl font-bold text-slate-50 leading-tight">{intelligence.headline}</h2>
               <p className="mt-3 text-sm text-slate-300 leading-relaxed max-w-5xl">{intelligence.executiveSummary}</p>
             </div>
+            {intelligence.aiTake && (
+              <div className="mt-4 rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-4 max-w-5xl">
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles className="w-4 h-4 text-cyan-300" />
+                  <span className="text-xs font-mono text-cyan-300 uppercase tracking-wider">AI Gateway · {intelligence.aiTake.model}</span>
+                </div>
+                <h3 className="text-base font-bold text-slate-50">{intelligence.aiTake.headline}</h3>
+                {intelligence.aiTake.paragraphs.map((paragraph, index) => (
+                  <p key={index} className="mt-2 text-sm text-slate-300 leading-relaxed">{paragraph}</p>
+                ))}
+                {intelligence.aiTake.bullets && (
+                  <ul className="mt-2 list-disc pl-5 text-sm text-slate-300 space-y-1">
+                    {intelligence.aiTake.bullets.map((bullet, index) => <li key={index}>{bullet}</li>)}
+                  </ul>
+                )}
+              </div>
+            )}
+
           </div>
         </section>
 

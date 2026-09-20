@@ -44,6 +44,7 @@ export function createServer() {
       || req.path === '/alerts/ma-cross/scheduled'
       || req.path === '/alerts/structure-scanner/scheduled'
       || req.path === '/ai/daily-warmup'
+      || req.path === '/ai/publish-content'
       || req.path.startsWith('/auth/')
     ) {
       return next();

@@ -169,6 +169,14 @@ export const IntelligenceView: React.FC<IntelligenceViewProps> = ({ initialSourc
           <div className="intelligence-state">{ro ? 'Nu există surse suficiente pentru filtrele alese.' : 'There are not enough sources for the selected filters.'}</div>
         ) : (
           <>
+            {brief.aiTake && (
+              <div className="intelligence-ai-take">
+                <div className="intelligence-ai-take-label">AI Gateway · {brief.aiTake.model}</div>
+                <strong>{brief.aiTake.headline}</strong>
+                {brief.aiTake.paragraphs.map((paragraph, index) => <p key={index}>{paragraph}</p>)}
+                {brief.aiTake.bullets && <ul>{brief.aiTake.bullets.map((bullet, index) => <li key={index}>{bullet}</li>)}</ul>}
+              </div>
+            )}
             <p className={`intelligence-summary ${showFullText ? 'is-expanded' : ''}`}>
               {visibleSegments.map((segment, index) => {
                 const source = segment.sourceIds.map(id => sourceById.get(id)).find(Boolean);
