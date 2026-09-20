@@ -136,4 +136,36 @@ export class HyperliquidMarketAdapter {
       isStale: false
     };
   }
+
+  /** Earliest daily candle timestamp (ms), probed from genesis. */
+  public async firstDailyCandleTs(symbol: string): Promise<number | null> {
+    try {
+      const raw = await this.request<HyperliquidCandle[]>({
+        type: 'candleSnapshot',
+        req: { coin: symbol.toUpperCase(), interval: '1d', startTime: 0, endTime: Date.now() }
+      });
+      if (!raw.length) return null;
+      return Math.min(...raw.map(candle => Number(candle.t)));
+    } catch {
+      return null;
+    }
+  }
+
+  /** 24h notional (USD) volume from metaAndAssetCtxs. */
+  public async quoteVolume24h(symbol: string): Promise<number | null> {
+    try {
+      const [meta, ctxs] = await this.request<[
+        { universe?: Array<{ name?: string }> },
+        Array<{ dayNtlVlm?: string }>
+      ]>({ type: 'metaAndAssetCtxs' });
+      const index = (meta.universe || []).findIndex(
+        coin => String(coin.name || '').toUpperCase() === symbol.toUpperCase()
+      );
+      if (index < 0) return null;
+      const volume = Number(ctxs?.[index]?.dayNtlVlm);
+      return Number.isFinite(volume) ? volume : null;
+    } catch {
+      return null;
+    }
+  }
 }

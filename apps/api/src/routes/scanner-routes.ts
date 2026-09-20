@@ -385,6 +385,35 @@ scannerRouter.get('/assets/:symbol/candles', async (req, res) => {
   }
 });
 
+scannerRouter.get('/assets/:symbol/chart-market', async (req, res) => {
+  try {
+    const symbol = req.params.symbol.toUpperCase();
+    const requestedClassRaw = String(req.query.marketClass || '');
+    if (requestedClassRaw && requestedClassRaw !== 'crypto') {
+      return res.json({ symbol, tvSymbol: null, reason: 'non-crypto' });
+    }
+    if (symbol.includes('.') || symbol.includes(':') || symbol.startsWith('TOTAL')) {
+      return res.json({ symbol, tvSymbol: null, reason: 'non-spot-symbol' });
+    }
+    const resolution = await AppState.getInstance().marketData.resolveChartMarket(symbol);
+    if (!resolution || !resolution.tv?.tvSymbol) {
+      return res.json({ symbol, tvSymbol: null, reason: 'no-market' });
+    }
+    res.json({
+      symbol,
+      tvSymbol: resolution.tv.tvSymbol,
+      exchange: resolution.tv.exchange,
+      quoteCurrency: resolution.tv.quoteCurrency,
+      listingStart: resolution.tv.listingStart,
+      candleSource: resolution.candle?.source || null,
+      candleExchange: resolution.candle?.exchange || null,
+      resolvedAt: resolution.resolvedAt
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to resolve chart market', details: err.message });
+  }
+});
+
 scannerRouter.get('/assets/:symbol', async (req, res) => {
   try {
     const symbol = req.params.symbol.toUpperCase();
