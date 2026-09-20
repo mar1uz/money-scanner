@@ -3789,3 +3789,10 @@ Instalat `~/.hermes-connector` (LaunchAgent `local.hermes-connector`) pentru Ins
 - `structure-scanner-runner.ts`: rulează pe închiderile de 4H/8H/1D (la fiecare 4h UTC, timer în AppState) + endpoint `POST /api/alerts/structure-scanner/scheduled`. Poartă JEV: regimul zilnic al activului + confluența BTC (eticheta `passesJev` pe fiecare log). Loguri: Firestore `structure-scanner-logs` (dedupe per simbol/timeframe/side/oră), rapoarte `structure-scanner-reports`. Forward-testing înainte de orice alertare live.
 
 Teste: 17 noi (10 MA 2x2 + 7 structure scanner); suita API completă 155/155 verde; `tsc --noEmit` curat.
+
+## Step 89 — Continut AI real pe paginile AI Briefing + Intelligence (2026-09-21, 01:10 CEST)
+- Revizie live: market-scanner-360-00216-5pz (build 1e3ef0b4, commit 6ee07b8). Tip partajat AIContentTake + aiTake optional pe payload-uri; POST /api/ai/publish-content (token daily-scan); endpoint-urile ataseaza take-ul daca e proaspat (<36h); AIBriefingView + IntelligenceView randeaza blocul (antet Sparkles 'AI Gateway · model').
+- Writer local: scripts/ai-content-writer.mjs — citeste cheia AI Gateway prin process.loadEnvFile din ../jev-router/.env.local (niciodata afisata), input CoinGecko + ultimul JEV Insight, genereaza 2 take-uri (market-intelligence, intelligence-brief) cu inception/mercury-2.5 prin AI SDK (createGateway din node_modules jev-router, ca jev-insight.mjs). Token-ul de publish citit la runtime din Cloud Scheduler (money-scanner-regime-tape-scan), neafisat.
+- Declansare: insight/run-insight.sh — mod nou 'aicontent' (allowlist) + writer-ul ruleaza dupa trecerea zilnica de 07:45. Log: insight/ai-content.log; audit: insight/audit.log.
+- Capcana: mercury-2.5 intoarce text gol daca maxOutputTokens e prea mic (2000); trebuie 6000 + AbortSignal.timeout(180000), ca in jev-insight.mjs.
+- Verificat: ambele documente in Firestore (operations/ai-cache-ai-content-*, db money-scanner-360), continut real in romana (01:07). Suita: api 155/155, web 80/81 (singurul esec = binarul Playwright lipsa pe Mac, pre-existent).

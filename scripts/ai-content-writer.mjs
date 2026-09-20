@@ -15,8 +15,20 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
+
+async function loadAiSdk() {
+  const require = createRequire(JEV_ROUTER_PKG);
+  const [ai, gateway] = await Promise.all([
+    import(pathToFileURL(require.resolve('ai')).href),
+    import(pathToFileURL(require.resolve('@ai-sdk/gateway')).href)
+  ]);
+  return { generateText: ai.generateText, createGateway: gateway.createGateway };
+}
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const JEV_ROUTER_PKG = join(ROOT, '..', 'jev-router', 'package.json');
 const BASE_URL = process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app';
 const MODEL_PAID = 'anthropic/claude-opus-4.6';
 const MODEL_FREE = 'inception/mercury-2.5';
@@ -80,28 +92,23 @@ async function hasPaidAccess() {
   } catch { return false; }
 }
 
-async function generateTake(model, pageInstruction, inputs) {
-  const res = await fetch('https://ai-gateway.vercel.sh/v1/chat/completions', {
-    method: 'POST',
-    headers: { authorization: `Bearer ${process.env.AI_GATEWAY_API_KEY}`, 'content-type': 'application/json' },
-    body: JSON.stringify({
-      model,
-      temperature: 0.3,
-      max_tokens: 1200,
-      messages: [
-        { role: 'system', content: 'Ești analyst-ul de piață al aplicației Money Scanner. Scrii în română, concis, factual, fără recomandări de cumpărare/vânzare și fără probabilități inventate. Răspunzi NUMAI cu JSON valid: {"headline": string (max 200 chars), "paragraphs": string[1-4] (fiecare max 600 chars), "bullets": string[0-5] (fiecare max 200 chars)}.' },
-        { role: 'user', content: `${pageInstruction}\n\nDate de piață curente:\n${inputs}` }
-      ]
-    }),
-    signal: AbortSignal.timeout(120_000)
+async function generateTake(gateway, model, pageInstruction, inputs) {
+  const system = 'Ești analyst-ul de piață al aplicației Money Scanner. Scrii în română, concis, factual, fără recomandări de cumpărare/vânzare și fără probabilități inventate. Răspunzi NUMAI cu JSON valid: {"headline": string (max 200 chars), "paragraphs": string[1-4] (fiecare max 600 chars), "bullets": string[0-5] (fiecare max 200 chars)}.';
+  const result = await callGateway(gateway, model, system, `${pageInstruction}\n\nDate de piață curente:\n${inputs}`);
+  const match = result.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error(`modelul nu a returnat JSON [${model}]: ${result.slice(0, 200)}`);
+  return { ...JSON.parse(match[0]), model, generatedAt: Date.now() };
+}
+
+async function callGateway(gateway, model, system, prompt) {
+  const { generateText } = await loadAiSdk();
+  const result = await generateText({
+    model: gateway.languageModel(model),
+    system, prompt, maxOutputTokens: 6000, temperature: 0.2,
+    abortSignal: AbortSignal.timeout(180_000),
+    abortSignal: AbortSignal.timeout(180_000)
   });
-  if (!res.ok) throw new Error(`AI Gateway HTTP ${res.status}`);
-  const data = await res.json();
-  const text = data.choices?.[0]?.message?.content || '';
-  const match = text.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error('modelul nu a returnat JSON');
-  const parsed = JSON.parse(match[0]);
-  return { ...parsed, model, generatedAt: Date.now() };
+  return result.text || '';
 }
 
 async function publish(token, key, take) {
@@ -123,14 +130,16 @@ async function main() {
   const fullInputs = jev ? `${inputs}\n\nCel mai recent raport JEV Insight (top selecții zilnice):\n${jev}` : inputs;
   const paid = await hasPaidAccess();
   const model = paid ? MODEL_PAID : MODEL_FREE;
+  const { createGateway } = await loadAiSdk();
+  const gateway = createGateway({ apiKey: process.env.AI_GATEWAY_API_KEY });
 
-  const briefTake = await generateTake(model,
+  const briefTake = await generateTake(gateway, model,
     'Scrie blocul "AI take" pentru pagina AI Briefing (raport de inteligență de piață): titlu + 2-3 paragrafe de context macro/cripto pentru astăzi + 3-5 bullets cu ce merită urmărit. Ton: clar, la obiect.',
     fullInputs);
   await publish(token, 'market-intelligence', briefTake);
   console.log(`published market-intelligence via ${model}`);
 
-  const intelTake = await generateTake(model,
+  const intelTake = await generateTake(gateway, model,
     'Scrie blocul "AI take" pentru pagina Intelligence (rezumat de știri și social): titlu + 1-2 paragrafe cu temele zilei + 3-5 bullets cu narațiunile active. Ton: clar, la obiect.',
     inputs);
   await publish(token, 'intelligence-brief', intelTake);

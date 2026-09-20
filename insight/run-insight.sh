@@ -101,6 +101,7 @@ case "${1:-}" in
         nearflip|nearflip-*) modes+=("nearflip") ;;
         siglab-reclaim|siglab-reclaim-*) modes+=("siglab-reclaim") ;;
         siglab-crypto|siglab-crypto-*) modes+=("siglab-crypto") ;;
+        aicontent|aicontent-*) modes+=("aicontent") ;;
         *) log "IGNORED bad-request-name $base" ;;
       esac
       rm -f "$req"
@@ -155,6 +156,11 @@ print(len(c))
           log "WARN siglab-crypto only $CNT crypto in UI Top-20 (<10) - mixed-cohort fallback"
           run_pipeline "requested-siglab-crypto-fallback" --scan tmp/scans/nearflip-latest.json --ath || rc=$?
         fi
+      elif [ "$mode" = "aicontent" ]; then
+        # AI content for the Briefing/Intelligence pages via the AI Gateway.
+        # Publishes through the token-protected /api/ai/publish-content endpoint.
+        (cd "$REPO" && node scripts/ai-content-writer.mjs) >> "$DIR/ai-content.log" 2>&1
+        log "aicontent exit=$?"
       elif [ "$mode" = "reclaim" ]; then
         if [ -f "$REPO/tmp/scans/reclaim-latest.json" ]; then
           run_pipeline "requested-reclaim" --scan tmp/scans/reclaim-latest.json || rc=$?
@@ -171,6 +177,8 @@ print(len(c))
             run_pipeline "requested-nearflip" --scan tmp/scans/nearflip-latest.json --ath || rc=$?
           else
             run_pipeline "scheduled-or-requested" --scan tmp/scans/nearflip-latest.json --ath || rc=$?
+            # Refresh the AI Briefing/Intelligence page content after the daily run.
+            (node scripts/ai-content-writer.mjs) >> "$DIR/ai-content.log" 2>&1 && log "aicontent ok" || log "WARN aicontent failed"
           fi
         else
           log "FAIL nearflip-scan-missing (tmp/scans/nearflip-latest.json) - generic default fallback"
