@@ -1,0 +1,13 @@
+# Build context hygiene: keep secrets and scratch out of Cloud Build.
+node_modules
+dist
+.git
+.DS_Store
+*.log
+coverage
+tmp
+scratch
+.agents
+.instinct-tmp
+.env
+.env.*
