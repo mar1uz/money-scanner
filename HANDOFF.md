@@ -3776,3 +3776,16 @@ Instalat `~/.hermes-connector` (LaunchAgent `local.hermes-connector`) pentru Ins
 - Revizie live: market-scanner-360-00214-hmm (europe-west3), scanner.relayhub.no.
 - Verificat in browser (sesiune Google tinotechads@gmail.com): tab TradingView extern randeaza BYBIT:GRASSUSDT 1W cu grafic real (nu mai apare 'simbolul nu exista'); link extern -> tradingview.com/chart/?symbol=BYBIT:GRASSUSDT; iconita Deschide Tab TradingView in bara de taburi; control Alerta pret functional (regula GRASS >= 0.35 creata din UI, a fost consumata one-shot = a tras); back-nav alerte -> asset -> back -> ?tab=alerts (fix confirmat).
 - Nota: 'Data refresh error: Failed to fetch' observat o singura data in timpul swap-ului de revizie (min-instances=0, cold start) - tranzitoriu, nu regresie.
+
+### 2026-09-21 — Sistem alerte MA 2x2 + Structure Scanner (paper)
+
+**Sistemul de alerte MA 2x2** (`MA_2X2_CROSS_RETEST`, commit 7355794):
+- `apps/api/src/services/ma-cross-alert-service.ts`: evaluator pur, non-repainting, pe lumânări închise. Etape: daily stage 1 🔔🟡 (închidere trece peste SMA50 cu SMA50>SMA200), daily stage 2 🔔🟢 (retest SMA50 care ține, aliniere bullish, FĂRĂ cerință de cross recent), weekly stage 1 🚨🟡 (închidere peste SMA50+SMA200 săptămânale), weekly stage 2 🚨🟢 (retestul mediei săptămânale superioare ține; confirmare la închiderea săptămânii).
+- `apps/api/src/services/ma-cross-alert-runner.ts`: o singură trecere zilnică la **08:00 Europe/Oslo** (timer în AppState, pattern-ul scanării de regim) + endpoint `POST /api/alerts/ma-cross/scheduled` (token daily-scan). Filtru anti-spam: market cap > $100M, stablecoin-uri excluse, top 150. Cross-urile stage 1 se batchează într-un SINGUR digest (top 5, ordonare JEV: scor MoneyLine, apoi rank). Retesturile rămân individuale, cu bloc setup factual (zonă entry, stop 0.5xATR sub min(low,SMA50), invalidare, mișcare de la flip-ul confirmat, RVOL 20) — fără limbaj de semnal de cumpărare. Fiecare mesaj include regimul BTC (aliniere SMA + scor ML). One-shot per activ pe retest cu re-arm doar după pierderea mediei. Persistență: Firestore `money-scanner-360` (`ma-cross-alert-*`, retenție 90 zile), dedupe pe livrări ca la reclaim runner.
+- Regim BTC: `computeBtcRegime` (SMA50/200 1D + scor/tier MoneyLine).
+
+**Structure Scanner** (`STRUCTURE_SCANNER_PAPER`, commit 3e25e6c) — **PAPER/LOGGING-ONLY, tier 🔵, NICIUN mesaj Telegram**:
+- `structure-scanner-service.ts`: detector geometric — pivoturi swing (lățime 3), clustere de zone S/R (toleranță max(0.75xATR, 0.4%)), canal de regresie liniară (120 bare, ±2σ), confluență = preț la zonă (<0.5 ATR) + jumătatea potrivită a canalului (|σ|≥0.5).
+- `structure-scanner-runner.ts`: rulează pe închiderile de 4H/8H/1D (la fiecare 4h UTC, timer în AppState) + endpoint `POST /api/alerts/structure-scanner/scheduled`. Poartă JEV: regimul zilnic al activului + confluența BTC (eticheta `passesJev` pe fiecare log). Loguri: Firestore `structure-scanner-logs` (dedupe per simbol/timeframe/side/oră), rapoarte `structure-scanner-reports`. Forward-testing înainte de orice alertare live.
+
+Teste: 17 noi (10 MA 2x2 + 7 structure scanner); suita API completă 155/155 verde; `tsc --noEmit` curat.
