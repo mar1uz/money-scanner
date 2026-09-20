@@ -541,6 +541,16 @@ telegramRouter.post('/alerts/daily-sma-reclaim/scheduled', async (req, res) => {
   return res.json(report);
 });
 
+// Dedicated Cloud Scheduler target for the 2x2 MA cross/retest daily pass.
+telegramRouter.post('/alerts/ma-cross/scheduled', async (req, res) => {
+  if (!validateScheduledRequestToken(req.get('x-daily-scan-token'))) {
+    return res.status(401).json({ error: 'Invalid daily scan token.' });
+  }
+  const report = await AppState.getInstance().runMaCrossAlertScan();
+  res.set('Cache-Control', 'no-store');
+  return res.json(report);
+});
+
 telegramRouter.get('/alerts/history', (req: AuthenticatedRequest, res) => {
   const appState = AppState.getInstance();
   if (!req.user) return res.status(401).json({ error: 'Authentication required.' });

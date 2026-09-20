@@ -40,6 +40,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { evaluateDailyStrategyAlerts, StrategyAlertEvaluation } from './strategy-alert-service.js';
 import { PriceAlertService } from './price-alert-service.js';
 import { DailySmaReclaimRunner } from './daily-sma-reclaim-runner.js';
+import { MaCrossAlertRunner } from './ma-cross-alert-runner.js';
 import { DailySmaReclaimReport } from '@money-scanner/shared';
 
 export interface BullishCloudAlertRule {
@@ -253,6 +254,7 @@ export class AppState {
   public alertDispatcher = new AlertDispatcher();
   public telegramBot = new TelegramBotHandler();
   public dailySmaReclaim = new DailySmaReclaimRunner(this.marketData, this.telegramBot);
+  public maCrossAlerts = new MaCrossAlertRunner(this.marketData, this.telegramBot);
   public priceAlerts = new PriceAlertService(this.marketData, this.telegramBot);
 
   public cachedSignals: Map<string, MoneyLineSignal> = new Map(); // key: `${symbol}_${timeframe}`
@@ -647,6 +649,10 @@ export class AppState {
 
   public runDailySmaReclaimScan(now = Date.now()): Promise<DailySmaReclaimReport> {
     return this.dailySmaReclaim.run(now);
+  }
+
+  public runMaCrossAlertScan(now = Date.now()) {
+    return this.maCrossAlerts.run(now);
   }
 
   public getDailySmaReclaimReport(): Promise<DailySmaReclaimReport | null> {
@@ -2430,6 +2436,7 @@ export class AppState {
   }
 
   private lastScheduledScanDateBucharest?: string;
+  private lastMaCrossScanDateOslo?: string;
 
   public startBullishAlertMonitor(intervalMs = 60_000) {
     if (this.bullishAlertTimer) return;
@@ -2452,6 +2459,23 @@ export class AppState {
         if (hour === 8 && minute <= 5 && this.lastScheduledScanDateBucharest !== datePart && !this.dailyRegimeScanStatus.running) {
           this.lastScheduledScanDateBucharest = datePart;
           this.runDailyRegimeScan().catch(error => console.error('Automated 08:00 AM scan failed:', error));
+        }
+
+        // Automated daily 08:00 Europe/Oslo 2x2 MA cross/retest alert pass
+        const osloTime = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Europe/Oslo',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        }).format(new Date());
+        const [osloDate, osloTimePart] = osloTime.split(', ');
+        const [osloHour, osloMinute] = (osloTimePart || '').split(':').map(Number);
+        if (osloHour === 8 && osloMinute <= 5 && this.lastMaCrossScanDateOslo !== osloDate) {
+          this.lastMaCrossScanDateOslo = osloDate;
+          this.runMaCrossAlertScan().catch(error => console.error('Automated 08:00 Europe/Oslo MA cross scan failed:', error));
         }
       } catch (err) {
         console.warn('Scheduled daily scan check error:', err);
