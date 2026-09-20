@@ -68,11 +68,28 @@ refresh_nearflip_inputs() {
   return $rc
 }
 
+refresh_reclaim_input() {
+  # Fixed deterministic refresh of the Daily SMA50+200 reclaim scan for the
+  # last closed UTC day, using the exact app evaluator on public exchange data.
+  local day
+  day=$(date -u -v-1d '+%Y-%m-%d')
+  (cd "$REPO/apps/api" && ../../node_modules/.bin/tsx scripts/reclaim-scan-local.ts "$day") >> "$DIR/last-run.log" 2>&1 || { log "WARN refresh reclaim-scan failed day=$day (using last good)"; return 1; }
+  if [ -f "$REPO/tmp/scans/reclaim-$day.json" ]; then
+    cp "$REPO/tmp/scans/reclaim-$day.json" "$REPO/tmp/scans/reclaim-latest.json"
+    local n
+    n=$(python3 -c "import json; print(sum(1 for r in json.load(open('$REPO/tmp/scans/reclaim-latest.json')).get('results', []) if r.get('status') == 'NEW_SIGNAL'))" 2>/dev/null || echo '?')
+    log "refresh reclaim-day=$day new-signals=$n"
+  else
+    log "WARN refresh reclaim output missing day=$day (using last good)"
+    return 1
+  fi
+}
+
 case "${1:-}" in
   --run)
     mkdir "$LOCK" 2>/dev/null || { log "SKIP already-running"; exit 0; }
     trap 'rmdir "$LOCK" 2>/dev/null' EXIT
-    # Request files are pure triggers. Only two allowlisted name prefixes decide
+    # Request files are pure triggers. Only allowlisted name prefixes decide
     # the fixed mode; everything else is deleted and audited, never read.
     shopt -s nullglob
     modes=()
@@ -82,6 +99,8 @@ case "${1:-}" in
         reclaim|reclaim-*) modes+=("reclaim") ;;
         run|run-*) modes+=("default") ;;
         nearflip|nearflip-*) modes+=("nearflip") ;;
+        siglab-reclaim|siglab-reclaim-*) modes+=("siglab-reclaim") ;;
+        siglab-crypto|siglab-crypto-*) modes+=("siglab-crypto") ;;
         *) log "IGNORED bad-request-name $base" ;;
       esac
       rm -f "$req"
@@ -98,7 +117,45 @@ case "${1:-}" in
     fi
     rc=0
     for mode in $(printf '%s\n' "${modes[@]}" | sort -u); do
-      if [ "$mode" = "reclaim" ]; then
+      if [ "$mode" = "siglab-reclaim" ]; then
+        # Signal Lab: Daily SMA50+200 New Signals cohort, fresh scan for the
+        # last closed UTC day. The ATH layer is automatic for reclaim cohorts.
+        # Writes jev-insight-reclaim-<analyzedDay>.* (never touches the daily file).
+        refresh_reclaim_input
+        if [ -f "$REPO/tmp/scans/reclaim-latest.json" ]; then
+          run_pipeline "requested-siglab-reclaim" --scan tmp/scans/reclaim-latest.json || rc=$?
+        else
+          log "FAIL siglab-reclaim scan-missing (tmp/scans/reclaim-latest.json)"
+          rc=1
+        fi
+      elif [ "$mode" = "siglab-crypto" ]; then
+        # Signal Lab: UI Top-20 near-flip cohort filtered to crypto. The
+        # validated top-10 schema needs at least 10 crypto names; otherwise
+        # fall back to the standard mixed near-flip report with a WARN.
+        # Output goes to tmp/insights-signallab so the daily file is untouched.
+        refresh_nearflip_inputs
+        CNT=0
+        if [ -f "$REPO/tmp/scans/nearflip-latest.json" ]; then
+          CNT=$(python3 -c "
+import json
+d = json.load(open('$REPO/tmp/scans/nearflip-latest.json'))
+c = [x for x in d.get('upcomingCandidates', []) if x.get('marketClass') == 'crypto']
+d['upcomingCandidates'] = c
+d['method'] = d.get('method', '') + ' | filtered to crypto for Signal Lab'
+d['ruleId'] = 'NEAR_FLIP_UI_TOP20_CRYPTO'
+json.dump(d, open('$REPO/tmp/scans/nearflip-crypto-latest.json', 'w'), indent=2)
+print(len(c))
+" 2>>"$DIR/last-run.log" || echo 0)
+        fi
+        log "siglab-crypto crypto-count=$CNT"
+        if [ "$CNT" -ge 10 ]; then
+          mkdir -p "$REPO/tmp/insights-signallab"
+          run_pipeline "requested-siglab-crypto" --scan tmp/scans/nearflip-crypto-latest.json --ath --top 10 --out-dir tmp/insights-signallab || rc=$?
+        else
+          log "WARN siglab-crypto only $CNT crypto in UI Top-20 (<10) - mixed-cohort fallback"
+          run_pipeline "requested-siglab-crypto-fallback" --scan tmp/scans/nearflip-latest.json --ath || rc=$?
+        fi
+      elif [ "$mode" = "reclaim" ]; then
         if [ -f "$REPO/tmp/scans/reclaim-latest.json" ]; then
           run_pipeline "requested-reclaim" --scan tmp/scans/reclaim-latest.json || rc=$?
         else
