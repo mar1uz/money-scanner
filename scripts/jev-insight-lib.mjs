@@ -223,12 +223,14 @@ export function validateInsight(insight, cohortSymbols) {
   if (!insight || typeof insight !== 'object') return { ok: false, errors: ['insight is not an object'] };
   const unique = [...new Set(cohortSymbols)];
 
+  const requiredTop = Math.min(10, unique.length);
   const top10 = insight.top10;
-  if (!Array.isArray(top10) || top10.length !== 10) {
-    errors.push('top10 must be an array of exactly 10 entries');
+  if (!Array.isArray(top10) || top10.length !== requiredTop) {
+    errors.push(`top10 must be an array of exactly ${requiredTop} entries`);
   } else {
     const ranks = top10.map(e => e?.rank).sort((a, b) => a - b);
-    if (JSON.stringify(ranks) !== JSON.stringify([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])) errors.push(`top10 ranks must be 1..10, got ${JSON.stringify(ranks)}`);
+    const expectedRanks = Array.from({ length: requiredTop }, (_, i) => i + 1);
+    if (JSON.stringify(ranks) !== JSON.stringify(expectedRanks)) errors.push(`top10 ranks must be 1..${requiredTop}, got ${JSON.stringify(ranks)}`);
     top10.forEach((e, i) => {
       if (!e || typeof e !== 'object') { errors.push(`top10[${i}] not an object`); return; }
       if (!unique.includes(e.symbol)) errors.push(`top10[${i}] symbol ${JSON.stringify(e.symbol)} not in cohort`);
@@ -261,9 +263,10 @@ export function validateInsight(insight, cohortSymbols) {
 }
 
 export function buildPrompt({ scanMeta, cohort }) {
+  const nTop = Math.min(10, new Set((cohort ?? []).map(c => c.symbol)).size);
   const system = [
     'You are the insight layer of a deterministic market scanner. You receive a precomputed',
-    '1D+1W technical packet for a fixed cohort of near-flip assets and rank the best ten',
+    `1D+1W technical packet for a fixed cohort of near-flip assets and rank the best ${nTop}`,
     'for upside from here. Rules, in order of importance:',
     '1. Use ONLY the supplied data. If a kind of evidence is not in the packet (fundamentals,',
     '   on-chain, narrative, mindshare), say "not_provided" instead of inventing it.',
