@@ -625,3 +625,23 @@ export async function searchUniversalAssets(query: string, signal?: AbortSignal)
   if (!res.ok) return [];
   return res.json();
 }
+
+export interface ChartMarketResponse {
+  symbol: string;
+  tvSymbol: string | null;
+  exchange?: string;
+  quoteCurrency?: string;
+  listingStart?: number | null;
+  candleSource?: string | null;
+  candleExchange?: string | null;
+  reason?: string;
+}
+
+/** Server-resolved best exchange pair / TradingView symbol for a crypto asset. */
+export async function fetchChartMarket(symbol: string, marketClass?: string): Promise<ChartMarketResponse> {
+  const params = new URLSearchParams();
+  if (marketClass) params.set('marketClass', marketClass);
+  const res = await fetch(`${API_BASE}/assets/${encodeURIComponent(symbol)}/chart-market?${params.toString()}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to resolve chart market for ${symbol}`);
+  return res.json();
+}

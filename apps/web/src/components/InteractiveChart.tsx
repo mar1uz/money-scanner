@@ -38,7 +38,7 @@ import {
   BellRing
 } from 'lucide-react';
 import { useLanguage } from '../i18n.js';
-import { fetchBullishAlertStatus, setBullishAlert } from '../services/api.js';
+import { fetchBullishAlertStatus, setBullishAlert, fetchChartMarket } from '../services/api.js';
 import { calculateMoneyLineCloud } from '@money-scanner/money-line/cloud-supertrend';
 
 interface InteractiveChartProps {
@@ -288,6 +288,27 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   const isStockOrMetal = marketClass === 'stocks' || marketClass === 'metals' || ['SPACEX', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'PLTR', 'AMD', 'MSTR', 'COIN', 'SPY', 'QQQ', 'XAU', 'XAG', 'OIL', 'COPPER', 'DXY', 'DYXY', 'VIX', 'EURUSD', 'GBPUSD', 'USDJPY', 'BRENT', 'NATGAS', 'SILVER', 'GOLD', 'PLATINUM', 'PALLADIUM', 'JPM', 'V', 'MA', 'LLY', 'XOM', 'BA'].includes(symbol.toUpperCase());
   const quoteCurrency = assetQuoteCurrency || (isDominanceOrRatio ? '%' : (isStockOrMetal ? 'USD' : 'USDT'));
   const tvSymbol = getTradingViewSymbol(symbol);
+
+  // Server-resolved chart market for crypto spot symbols: the resolver checks
+  // which major exchange lists the asset and returns the TradingView symbol
+  // with the longest history / highest volume. Until the check completes we
+  // keep the local mapping; when no market exists we degrade gracefully.
+  const [tvResolution, setTvResolution] = useState<{ status: 'local' | 'resolved' | 'unavailable'; tvSymbol: string | null; exchange?: string }>({ status: 'local', tvSymbol: null });
+  useEffect(() => {
+    let cancelled = false;
+    const isCryptoSpot = marketClass === 'crypto' && !symbol.includes(':') && !symbol.includes('.') && !symbol.startsWith('TOTAL') && !isDominanceOrRatio;
+    setTvResolution({ status: 'local', tvSymbol: null });
+    if (!isCryptoSpot) return;
+    fetchChartMarket(symbol, marketClass)
+      .then(result => {
+        if (cancelled) return;
+        if (result.tvSymbol) setTvResolution({ status: 'resolved', tvSymbol: result.tvSymbol, exchange: result.exchange });
+        else setTvResolution({ status: 'unavailable', tvSymbol: null });
+      })
+      .catch(() => { if (!cancelled) setTvResolution({ status: 'local', tvSymbol: null }); });
+    return () => { cancelled = true; };
+  }, [symbol, marketClass]);
+  const effectiveTvSymbol = tvResolution.status === 'resolved' ? tvResolution.tvSymbol : tvResolution.status === 'unavailable' ? null : tvSymbol;
   const normalizedAlertMarketClass: 'crypto' | 'stocks' | 'metals' =
     marketClass === 'stocks' || marketClass === 'metals' || marketClass === 'crypto'
       ? marketClass
@@ -671,7 +692,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
 
   // 2. Official TradingView Embed Widget (when tv_embed tab is selected)
   useEffect(() => {
-    if (activeTab !== 'tv_embed' || !tvWidgetContainerRef.current) {
+    if (activeTab !== 'tv_embed' || !tvWidgetContainerRef.current || !effectiveTvSymbol) {
       return;
     }
 
@@ -685,7 +706,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       if ((window as any).TradingView) {
         new (window as any).TradingView.widget({
           autosize: true,
-          symbol: tvSymbol,
+          symbol: effectiveTvSymbol,
           interval: tvInterval,
           timezone: 'Etc/UTC',
           theme: (document.documentElement.dataset.theme || 'dark').startsWith('l') ? 'light' : 'dark',
@@ -727,7 +748,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     } else {
       initWidget();
     }
-  }, [activeTab, symbol, activeInterval, tvSymbol, language]);
+  }, [activeTab, symbol, activeInterval, effectiveTvSymbol, language]);
 
   // --- SVG Drawing Coordinate Projection Helpers ---
   const getCoordinatesForPoint = (timeIndex: number, price: number): { x: number; y: number } | null => {
@@ -1190,21 +1211,24 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
               <Code className="w-3.5 h-3.5 text-purple-400" />
               <span>Pine Script v6 Code</span>
             </button>
+
+            {effectiveTvSymbol && (
+              <a
+                href={`https://www.tradingview.com/chart/?symbol=${effectiveTvSymbol}&interval=${
+                  activeInterval === '1h' ? '60' : (activeInterval === '4h' ? '240' : (activeInterval === '8h' ? '480' : (activeInterval === '1d' ? 'D' : (activeInterval === '1w' ? 'W' : 'M'))))
+                }`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Deschide ${effectiveTvSymbol} în TradingView Oficial`}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all text-cyan-300 hover:text-cyan-200 border border-cyan-500/30 hover:border-cyan-400/50 bg-cyan-500/10"
+              >
+                <BarChart2 className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="hidden sm:inline">Deschide Tab TradingView</span>
+                <ExternalLink className="w-3 h-3 text-slate-400" />
+              </a>
+            )}
           </div>
 
-          <a
-            href={`https://www.tradingview.com/chart/?symbol=${tvSymbol}&interval=${
-              activeInterval === '1h' ? '60' : (activeInterval === '4h' ? '240' : (activeInterval === '8h' ? '480' : (activeInterval === '1d' ? 'D' : (activeInterval === '1w' ? 'W' : 'M'))))
-            }`}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={`Deschide ${tvSymbol} în TradingView Oficial`}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 transition-all shadow-sm"
-          >
-            <BarChart2 className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="hidden sm:inline">Deschide Tab TradingView</span>
-            <ExternalLink className="w-3 h-3 text-slate-400" />
-          </a>
         </div>
 
         {/* Timeframe Interval Controls (1H -> 1M) */}
@@ -2218,7 +2242,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
           {/* Top Real-Time MoneyLine & Indicators Status Bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2.5 bg-background-card/90 rounded-xl border border-background-border text-xs font-mono">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="font-bold text-slate-100 text-sm">{tvSymbol} ({activeInterval.toUpperCase()})</span>
+              <span className="font-bold text-slate-100 text-sm">{effectiveTvSymbol || symbol} ({activeInterval.toUpperCase()})</span>
               <span className="px-2.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/40 text-[10px] font-bold shadow-glow-cyan">
                 Platforma Oficială TradingView v6
               </span>
@@ -2279,7 +2303,15 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
 
           {/* Official TradingView Container with Full Native Toolbars */}
           <div className="w-full rounded-[30px] overflow-hidden bg-background-card border border-background-border shadow-2xl">
-            <div ref={tvWidgetContainerRef} className="w-full h-[620px]" />
+            {effectiveTvSymbol ? (
+              <div ref={tvWidgetContainerRef} className="w-full h-[620px]" />
+            ) : (
+              <div className="w-full h-[620px] flex flex-col items-center justify-center gap-3 text-slate-400 font-mono text-sm px-6 text-center">
+                <BarChart2 className="w-8 h-8 text-slate-500" />
+                <span>Nu există un grafic TradingView pentru <strong className="text-slate-200">${symbol}</strong> pe exchange-urile majore (Binance, Bybit, OKX, Coinbase, Kraken).</span>
+                <span className="text-[11px] text-slate-500">Graficul MoneyLine Cloud din primul tab folosește datele reale ale assetului și rămâne disponibil.</span>
+              </div>
+            )}
           </div>
 
           {/* Guidance Banner */}
