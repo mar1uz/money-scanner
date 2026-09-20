@@ -3769,3 +3769,10 @@ Blocajul raportat („Google Cloud spune că tinotechads@gmail.com nu are permis
 ### 2026-09-19 — Instinct local pilot (Hermes connector) pe Mac
 
 Instalat `~/.hermes-connector` (LaunchAgent `local.hermes-connector`) pentru Instinct: MCP pe `127.0.0.1:8765`. Upgrade 2026-09-19: root aprobat = `/Users/marius/antigravity` + `project_terminal` (argv-only, sandbox-exec). Token pairing, Serve, deny-globs, expirare neschimbate. Browser dedicat pe CDP **9323** (nu 9223 — Cloak). Serve tailnet only pe `https://mariuss-macbook-air.tail452b0a.ts.net/` → 127.0.0.1:8765. Stop: `bash ~/.hermes-connector/stop.sh`. Pilot expiră 2026-10-03. Backup: `~/.hermes-connector/backups/pre-terminal-20260919-133354`.
+
+## Step 88 — Deploy + verificare vizuala finala (2026-09-20, 23:03 CEST)
+- Build Cloud Build 4a9b9c45 (manual, cu --substitutions=COMMIT_SHA=<short> pentru ca COMMIT_SHA nu exista la submit manual; la trigger builds e setat automat).
+- Adaugat .gcloudignore (e00c9ba): .env* si scratch NU mai intra in contextul de build (seatbelt-ul local bloca citirea .env.example si gcloud crasa; plus igiena secretilor).
+- Revizie live: market-scanner-360-00214-hmm (europe-west3), scanner.relayhub.no.
+- Verificat in browser (sesiune Google tinotechads@gmail.com): tab TradingView extern randeaza BYBIT:GRASSUSDT 1W cu grafic real (nu mai apare 'simbolul nu exista'); link extern -> tradingview.com/chart/?symbol=BYBIT:GRASSUSDT; iconita Deschide Tab TradingView in bara de taburi; control Alerta pret functional (regula GRASS >= 0.35 creata din UI, a fost consumata one-shot = a tras); back-nav alerte -> asset -> back -> ?tab=alerts (fix confirmat).
+- Nota: 'Data refresh error: Failed to fetch' observat o singura data in timpul swap-ului de revizie (min-instances=0, cold start) - tranzitoriu, nu regresie.
