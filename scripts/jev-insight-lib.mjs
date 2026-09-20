@@ -267,7 +267,13 @@ export function buildPrompt({ scanMeta, cohort }) {
   const system = [
     'You are the insight layer of a deterministic market scanner. You receive a precomputed',
     `1D+1W technical packet for a fixed cohort of near-flip assets and rank the best ${nTop}`,
-    'for upside from here. Rules, in order of importance:',
+    'for upside from here. Rank by these priorities, in strict order:',
+    'P1. Weekly Money Line bullish or very near a bullish flip (weeklyTier/weeklyScore, distance to flip).',
+    'P2. Daily already above SMA50 and SMA200 (sma50Aligned/sma200Aligned, deterministic 1D trend).',
+    'P3. Weekly close to crossing upward rather than structurally bearish.',
+    'P4. Confluence with the Bitcoin market regime (btcRet30Pct, rsVsBtc30Pct): a bearish BTC suppresses alt performance.',
+    'P5. Fundamentals (4x200 gates) only rank or break ties among assets that pass the chart/regime filters.',
+    'Never let strong fundamentals rescue a bearish chart. Process rules, in order of importance:',
     '1. Use ONLY the supplied data. If a kind of evidence is not in the packet (fundamentals,',
     '   on-chain, narrative, mindshare), say "not_provided" instead of inventing it.',
     '2. NEVER output probabilities, percentages of success, chance, likelihood, win rates,',
@@ -294,6 +300,7 @@ export function buildPrompt({ scanMeta, cohort }) {
         daysSinceAth: f.daysSinceAth ?? null,
         mcapMultipleToAth: f.mcapMultipleToAth ?? null,
         rsVsBtc30Pct: f.rsVsBtc30Pct ?? null,
+        btcRet30Pct: f.btcRet30 ?? null,
         fdvToMcap: f.fdvToMcap ?? null,
         circulatingPct: f.circulatingPct ?? null,
         tvlChange30dPct: f.tvlChange30dPct ?? null,
@@ -307,13 +314,13 @@ export function buildPrompt({ scanMeta, cohort }) {
   const promptCohort = cohort.map(compactAth);
   const symbols = cohort.map(c => c.symbol);
   const user = JSON.stringify({
-    task: 'Rank the top 10 of this near-flip cohort for upside, combining 1D and 1W.',
+    task: `Rank the top ${nTop} of this near-flip cohort for upside, combining 1D and 1W.`,
     scan: scanMeta,
     cohort: promptCohort,
     symbolLedger: {
       count: symbols.length,
       symbols,
-      rule: 'top10 (10 symbols) + eliminated must partition this exact list: every symbol exactly once, no symbol outside it, none missing. Copy symbols verbatim.'
+      rule: `top10 (${nTop} symbols) + eliminated must partition this exact list: every symbol exactly once, no symbol outside it, none missing. Copy symbols verbatim.`
     }
   });
   return { system, user };

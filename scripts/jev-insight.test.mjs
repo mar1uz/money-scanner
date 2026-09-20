@@ -121,7 +121,7 @@ test('buildPrompt forbids probabilities and embeds scan meta + cohort', () => {
   const payload = JSON.parse(user);
   assert.equal(payload.scan.scanGeneratedAt, '2026-09-19T16:33:11.491Z');
   assert.equal(payload.cohort[0].symbol, 'AAA');
-  assert.match(payload.task, /top 10/);
+  assert.match(payload.task, /top 1/); // task scales to cohort size (nTop)
 });
 
 test('estimateCostUsd uses tier pricing', () => {
@@ -205,4 +205,13 @@ test('buildPrompt includes a symbol ledger and compact ATH fields', () => {
   assert.equal(parsed.cohort[0].ath.distToAthPct, 50);
   assert.equal(parsed.cohort[0].ath.features, undefined);
   assert.equal(parsed.cohort[1].ath, undefined);
+});
+
+test('buildPrompt encodes the chart-first ranking priorities (Marius 2026-09-20)', () => {
+  const { system } = buildPrompt({ scanMeta: {}, cohort: [] });
+  assert.match(system, /Weekly Money Line bullish or very near a bullish flip/);
+  assert.match(system, /above SMA50 and SMA200/);
+  assert.match(system, /Bitcoin market regime/);
+  assert.match(system, /Fundamentals.*only rank or break ties/);
+  assert.match(system, /Never let strong fundamentals rescue a bearish chart/);
 });

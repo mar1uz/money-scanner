@@ -109,6 +109,7 @@ export function computeAthFeatures({ coingecko, det1d, det1w, btcRet30, llama, n
     weeklyTier: det1w?.tier ?? null, weeklyScore: det1w?.score ?? null, weeklyStatus: det1w?.status ?? null,
     distSma200wPct: det1w?.distSma200Pct ?? null,
     rsVsBtc30Pct: det1d?.ret30 != null && btcRet30 != null ? Math.round((det1d.ret30 - btcRet30) * 10) / 10 : null,
+    btcRet30: btcRet30 ?? null,
     fdvToMcap: coingecko?.fully_diluted_valuation && coingecko?.market_cap
       ? Math.round((coingecko.fully_diluted_valuation / coingecko.market_cap) * 100) / 100 : null,
     circulatingPct: coingecko?.circulating_supply && (coingecko.max_supply || coingecko.total_supply)
