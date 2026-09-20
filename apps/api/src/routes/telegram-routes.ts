@@ -541,6 +541,16 @@ telegramRouter.post('/alerts/daily-sma-reclaim/scheduled', async (req, res) => {
   return res.json(report);
 });
 
+// Paper-only structure scanner pass (4H/8H/1D closes). Logs to Firestore, never sends Telegram.
+telegramRouter.post('/alerts/structure-scanner/scheduled', async (req, res) => {
+  if (!validateScheduledRequestToken(req.get('x-daily-scan-token'))) {
+    return res.status(401).json({ error: 'Invalid daily scan token.' });
+  }
+  const report = await AppState.getInstance().runStructureScannerScan();
+  res.set('Cache-Control', 'no-store');
+  return res.json(report);
+});
+
 // Dedicated Cloud Scheduler target for the 2x2 MA cross/retest daily pass.
 telegramRouter.post('/alerts/ma-cross/scheduled', async (req, res) => {
   if (!validateScheduledRequestToken(req.get('x-daily-scan-token'))) {

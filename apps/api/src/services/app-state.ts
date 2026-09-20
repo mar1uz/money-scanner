@@ -41,6 +41,7 @@ import { evaluateDailyStrategyAlerts, StrategyAlertEvaluation } from './strategy
 import { PriceAlertService } from './price-alert-service.js';
 import { DailySmaReclaimRunner } from './daily-sma-reclaim-runner.js';
 import { MaCrossAlertRunner } from './ma-cross-alert-runner.js';
+import { StructureScannerRunner } from './structure-scanner-runner.js';
 import { DailySmaReclaimReport } from '@money-scanner/shared';
 
 export interface BullishCloudAlertRule {
@@ -255,6 +256,7 @@ export class AppState {
   public telegramBot = new TelegramBotHandler();
   public dailySmaReclaim = new DailySmaReclaimRunner(this.marketData, this.telegramBot);
   public maCrossAlerts = new MaCrossAlertRunner(this.marketData, this.telegramBot);
+  public structureScanner = new StructureScannerRunner(this.marketData);
   public priceAlerts = new PriceAlertService(this.marketData, this.telegramBot);
 
   public cachedSignals: Map<string, MoneyLineSignal> = new Map(); // key: `${symbol}_${timeframe}`
@@ -653,6 +655,10 @@ export class AppState {
 
   public runMaCrossAlertScan(now = Date.now()) {
     return this.maCrossAlerts.run(now);
+  }
+
+  public runStructureScannerScan(now = Date.now()) {
+    return this.structureScanner.run(now);
   }
 
   public getDailySmaReclaimReport(): Promise<DailySmaReclaimReport | null> {
@@ -2437,6 +2443,7 @@ export class AppState {
 
   private lastScheduledScanDateBucharest?: string;
   private lastMaCrossScanDateOslo?: string;
+  private lastStructureScanKey?: string;
 
   public startBullishAlertMonitor(intervalMs = 60_000) {
     if (this.bullishAlertTimer) return;
@@ -2476,6 +2483,14 @@ export class AppState {
         if (osloHour === 8 && osloMinute <= 5 && this.lastMaCrossScanDateOslo !== osloDate) {
           this.lastMaCrossScanDateOslo = osloDate;
           this.runMaCrossAlertScan().catch(error => console.error('Automated 08:00 Europe/Oslo MA cross scan failed:', error));
+        }
+
+        // Paper structure scanner on 4H/8H/1D candle closes (every 4h UTC boundary)
+        const utcNow = new Date();
+        const structureKey = utcNow.toISOString().slice(0, 13);
+        if (utcNow.getUTCHours() % 4 === 0 && utcNow.getUTCMinutes() <= 5 && this.lastStructureScanKey !== structureKey) {
+          this.lastStructureScanKey = structureKey;
+          this.runStructureScannerScan().catch(error => console.error('Structure scanner scan failed:', error));
         }
       } catch (err) {
         console.warn('Scheduled daily scan check error:', err);
