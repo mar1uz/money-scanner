@@ -3,6 +3,7 @@ import { Scale, RefreshCw, ExternalLink, Coins, Info } from 'lucide-react';
 import { fetchCryptoFourCriteriaScan } from '../services/api.js';
 import type { CryptoCriteriaStatus, CryptoFourCriteriaScan, CryptoUndervaluedEntry } from '@money-scanner/shared';
 import { useLanguage } from '../i18n.js';
+import { useAssetNavigation } from './AssetNavigation.js';
 
 const statusTone = (status: CryptoCriteriaStatus): string =>
   status === 'pass'
@@ -26,6 +27,7 @@ const fmtUsd = (value?: number): string => {
 
 export const BusinessQualityView: React.FC = () => {
   const { language } = useLanguage();
+  const navigateAsset = useAssetNavigation();
   const isRo = language === 'ro';
   const [scan, setScan] = useState<CryptoFourCriteriaScan | null>(null);
   const [loading, setLoading] = useState(true);
@@ -138,7 +140,13 @@ export const BusinessQualityView: React.FC = () => {
         {scan && (
           <div className="space-y-2">
             {(scan.undervalued || []).slice(0, 100).map((entry, position) => (
-              <article key={entry.assetId} className="rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] p-3 sm:p-4">
+              <article
+                key={entry.assetId}
+                role="button"
+                tabIndex={0}
+                onClick={() => navigateAsset({ symbol: entry.symbol, marketClass: 'crypto', coinGeckoId: entry.assetId })}
+                onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); navigateAsset({ symbol: entry.symbol, marketClass: 'crypto', coinGeckoId: entry.assetId }); } }}
+                className="cursor-pointer rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] p-3 sm:p-4 transition-colors hover:border-cyan-500/30">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <span className={`w-7 text-center text-sm font-mono font-black ${position < 3 ? 'text-emerald-300' : 'text-slate-500'}`}>{position + 1}</span>
