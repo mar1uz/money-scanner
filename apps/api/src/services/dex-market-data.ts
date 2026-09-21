@@ -105,16 +105,26 @@ export function aggregateDexCandles(candles: Candle[], timeframe: Timeframe, now
   });
 }
 
+const normalizeTokenName = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+
 export function selectExactMostLiquidPair(rows: unknown, profile: CryptoMarketProfile, contractAddress: string): any | null {
   if (!Array.isArray(rows)) return null;
+  const profileName = normalizeTokenName(profile.name);
+  const profileSymbol = normalizeTokenName(profile.symbol);
+  // The contract address (from CoinGecko's own platform entry) plus the exact
+  // symbol already bind the pair to the asset; the name check only guards
+  // against symbol collisions, so accept normalized containment ("Graphite"
+  // vs "Graphite Protocol") instead of demanding string equality.
+  const nameMatches = (rawName: unknown): boolean => {
+    const base = normalizeTokenName(String(rawName || ''));
+    if (!base) return false;
+    if (base === profileName || base === profileSymbol) return true;
+    return base.length >= 3 && profileName.length >= 3 && (base.includes(profileName) || profileName.includes(base));
+  };
   const exact = rows.filter((pair: any) => {
-    const baseName = String(pair?.baseToken?.name || '').trim().toLowerCase();
-    const profileName = profile.name.trim().toLowerCase();
-    const profileSymbol = profile.symbol.trim().toLowerCase();
-    const nameMatches = baseName === profileName || baseName === profileSymbol;
     return sameAddress(pair?.baseToken?.address, contractAddress)
       && String(pair?.baseToken?.symbol || '').toUpperCase() === profile.symbol
-      && nameMatches
+      && nameMatches(pair?.baseToken?.name)
       && safeSegment(pair?.chainId) && safeSegment(pair?.pairAddress) && typeof pair?.url === 'string' && /^https:\/\/dexscreener\.com\//.test(pair.url);
   });
   return exact.sort((left: any, right: any) =>
