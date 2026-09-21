@@ -186,6 +186,10 @@ export interface CryptoFourCriteriaAsset {
   image?: string;
   marketCapRank: number;
   marketCap: number;
+  /** Price change % over the last 24h at scan time (CoinGecko markets). */
+  priceChange24h?: number;
+  /** Price change % over the last 7d at scan time (CoinGecko markets). */
+  priceChange7d?: number;
   score: number;
   passedCriteria: number;
   classification: 'all-four' | 'first-three' | 'partial' | 'insufficient-data';
@@ -214,6 +218,10 @@ export interface CryptoUndervaluedEntry {
   image?: string;
   marketCapRank: number;
   marketCap: number;
+  /** Price change % over the last 24h at scan time (CoinGecko markets). */
+  priceChange24h?: number;
+  /** Price change % over the last 7d at scan time (CoinGecko markets). */
+  priceChange7d?: number;
   factorStatuses: {
     networkEffect: CryptoCriteriaStatus;
     sustainableRevenue: CryptoCriteriaStatus;

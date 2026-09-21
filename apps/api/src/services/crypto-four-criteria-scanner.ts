@@ -6,8 +6,8 @@ import {
   CryptoUndervaluedEntry
 } from '@money-scanner/shared';
 
-const COINGECKO_MARKETS_URL = 'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false';
-const COINGECKO_MARKETS_BY_IDS_URL = 'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&sparkline=false&ids=';
+const COINGECKO_MARKETS_URL = 'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=24h,7d';
+const COINGECKO_MARKETS_BY_IDS_URL = 'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&sparkline=false&price_change_percentage=24h,7d&ids=';
 const COINPAPRIKA_MARKETS_URL = 'https://api.coinpaprika.com/v1/tickers?quotes=USD&limit=200';
 const DEFILLAMA_PROTOCOLS_URL = 'https://api.llama.fi/protocols';
 const DEFILLAMA_FEES_URL = 'https://api.llama.fi/overview/fees?excludeTotalDataChart=true&excludeTotalDataChartBreakdown=true&dataType=dailyFees';
@@ -22,6 +22,8 @@ interface CoinGeckoMarketRow {
   image?: string;
   market_cap_rank?: number;
   market_cap?: number;
+  price_change_percentage_24h?: number;
+  price_change_percentage_7d_in_currency?: number;
 }
 
 interface CoinPaprikaMarketRow {
@@ -80,6 +82,9 @@ export interface CryptoScannerInput {
   candidateIds?: Set<string>;
   generatedAt?: number;
 }
+
+const finiteNumber = (value: unknown): number | undefined =>
+  typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 
 const finitePositive = (value: unknown): number => {
   const numberValue = Number(value);
@@ -160,7 +165,9 @@ const buildUndervaluedRanking = (assets: CryptoFourCriteriaAsset[]): { undervalu
         },
         qualityScore,
         valuationRatio,
-        valuationBasis: basis
+        valuationBasis: basis,
+        priceChange24h: asset.priceChange24h,
+        priceChange7d: asset.priceChange7d
       };
     })
     .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
@@ -385,7 +392,7 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
     const fees = feeByCoin.get(coin.id) || { total24h: 0, total7d: 0, total30d: 0 };
     const revenue = revenueByCoin.get(coin.id) || { total24h: 0, total7d: 0, total30d: 0 };
     const holderRevenue = holderRevenueByCoin.get(coin.id) || { total24h: 0, total7d: 0, total30d: 0 };
-    return evaluateCryptoFourCriteriaAsset({
+    const evaluated = evaluateCryptoFourCriteriaAsset({
       id: coin.id,
       coinGeckoId: coin.coin_gecko_id,
       symbol: coin.symbol,
@@ -394,6 +401,9 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
       marketCapRank: Math.round(finitePositive(coin.market_cap_rank)),
       marketCap: finitePositive(coin.market_cap)
     }, protocol, fees, revenue, holderRevenue, chainCoinIds.has(coin.id));
+    evaluated.priceChange24h = finiteNumber(coin.price_change_percentage_24h);
+    evaluated.priceChange7d = finiteNumber(coin.price_change_percentage_7d_in_currency);
+    return evaluated;
   }).sort((left, right) =>
     right.passedCriteria - left.passedCriteria ||
     right.score - left.score ||

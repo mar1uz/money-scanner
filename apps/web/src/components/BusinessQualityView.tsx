@@ -64,6 +64,30 @@ export const BusinessQualityView: React.FC = () => {
     ));
   };
 
+  const plChips = (entry: CryptoUndervaluedEntry) => {
+    const items: Array<{ label: string; full: string; value?: number }> = [
+      { label: '24H', full: isRo ? 'P/L ultimele 24 de ore' : 'P/L last 24 hours', value: entry.priceChange24h },
+      { label: isRo ? '7Z' : '7D', full: isRo ? 'P/L ultimele 7 zile' : 'P/L last 7 days', value: entry.priceChange7d }
+    ];
+    return items
+      .filter(item => item.value !== undefined && Number.isFinite(item.value))
+      .map(item => {
+        const value = item.value as number;
+        const tone = value >= 0
+          ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+          : 'border-rose-500/40 bg-rose-500/10 text-rose-300';
+        return (
+          <span
+            key={item.label}
+            title={`${item.full}: ${value >= 0 ? '+' : ''}${value.toFixed(2)}%`}
+            className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[8px] font-bold tracking-wide ${tone}`}
+          >
+            {item.label} {value >= 0 ? '+' : ''}{value.toFixed(1)}%
+          </span>
+        );
+      });
+  };
+
   const methodology = isRo ? (scan?.methodology || []) : [
     'Growth: 7-day TVL change or fee acceleration (7d run-rate versus 30d).',
     'Network effect: conservative proxy based on fees, TVL and multi-chain reach; it does not claim exact active users.',
@@ -173,6 +197,7 @@ export const BusinessQualityView: React.FC = () => {
                 </div>
                 <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                   {factorChips(entry)}
+                  {plChips(entry)}
                   <span className="ml-auto text-[9px] font-mono text-slate-500">
                     {isRo ? 'calitate' : 'quality'} {entry.qualityScore}/75 · {isRo ? 'pct' : 'pct'} {entry.qualityPercentile} · {isRo ? 'ieftin' : 'cheap'} {100 - entry.expensivenessPercentile}%
                   </span>
