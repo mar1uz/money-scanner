@@ -1,6 +1,6 @@
 export * from '@money-scanner/shared';
 export { TOP_50_CRYPTO_ASSETS } from '@money-scanner/shared';
-import type { Candle } from '@money-scanner/shared';
+import type { AIContentTake, Candle } from '@money-scanner/shared';
 
 export type AppTab = 
   | 'market'
@@ -24,6 +24,7 @@ export interface AssetDetailResponse {
   news: any[];
   xTrends: any[];
   aiExplanation: any;
+  investmentGuide?: { ro?: AIContentTake; en?: AIContentTake };
   lastUpdated: number;
   dataAvailability?: 'aggregated-price-only' | 'dex-fallback';
   priceHistory?: number[][];

@@ -3,6 +3,7 @@ import { AssetDetailResponse, Timeframe } from '../types.js';
 import { TRADING_360_ASSETS } from '@money-scanner/shared';
 import { fetchAssetDetail, fetchHistoricalCandles, triggerTestAlert } from '../services/api.js';
 import { InteractiveChart } from './InteractiveChart.js';
+import { useLanguage } from '../i18n.js';
 import { CryptoBusinessQualityCard } from './CryptoBusinessQualityCard.js';
 import { StockBusinessQualityCard } from './StockBusinessQualityCard.js';
 import { AssetProfileOverviewCard } from './AssetProfileOverviewCard.js';
@@ -134,6 +135,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   const [alertSent, setAlertSent] = useState(false);
   const [activeInfoTab, setActiveInfoTab] = useState<InfoTab>('ai');
   const [chartTab, setChartTab] = useState<'chart' | 'tv_embed' | 'pinescript'>('chart');
+  const { language } = useLanguage();
   const [showFlipTooltip, setShowFlipTooltip] = useState(false);
   const [loadingOlderHistory, setLoadingOlderHistory] = useState(false);
   const [hasMoreHistory, setHasMoreHistory] = useState(true);
@@ -321,6 +323,11 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   const catalogAsset = TRADING_360_ASSETS.find(a => a.symbol.toUpperCase() === symbol.toUpperCase() && (!infoClass || a.marketClass === infoClass));
   const effectiveMarketCap = data?.info?.marketCap || catalogAsset?.marketCap || (data?.quote as any)?.marketCap || 0;
   const rawRank = resolveRankInput(data?.info?.rank, catalogAsset?.rank, infoClass);
+  // Instinct-authored guide take (outbox contract), language-matched with
+  // fallback to the other language.
+  const guideTake = language === 'en'
+    ? (data?.investmentGuide?.en || data?.investmentGuide?.ro)
+    : (data?.investmentGuide?.ro || data?.investmentGuide?.en);
   const marketCapRank = getMarketCapRank(symbol, infoClass, rawRank, effectiveMarketCap);
 
   return (
@@ -631,6 +638,23 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
                           )}
                         </div>
                       </div>
+
+                      {guideTake && (
+                        <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.08] space-y-2">
+                          <p className="text-[10px] font-mono text-slate-500">
+                            {guideTake.source === 'instinct-agent' ? 'Instinct' : 'AI Gateway'} · {guideTake.model} · {new Date(guideTake.generatedAt).toLocaleDateString(language === 'ro' ? 'ro-RO' : 'en-GB')}
+                          </p>
+                          <h4 className="text-sm font-bold text-slate-50 font-sans">{guideTake.headline}</h4>
+                          {guideTake.paragraphs.map((paragraph, index) => (
+                            <p key={index} className="text-xs text-slate-300 leading-relaxed font-sans">{paragraph}</p>
+                          ))}
+                          {guideTake.bullets && guideTake.bullets.length > 0 && (
+                            <ul className="list-disc pl-4 space-y-1 text-xs text-slate-300 font-sans">
+                              {guideTake.bullets.map((bullet, index) => <li key={index}>{bullet}</li>)}
+                            </ul>
+                          )}
+                        </div>
+                      )}
 
                       {/* Recommended Action Card */}
                       {explanation.investmentGuidance?.recommendedAction && (

@@ -15,6 +15,8 @@ import {
 } from '@money-scanner/shared';
 import { calculateMTFConfluence } from '@money-scanner/money-line';
 import { aggregatedCryptoDetail, cryptoMarketProfiles } from '../services/crypto-market-profile.js';
+import { readPersistentAICache } from '../services/ai-cache-store.js';
+import type { AIContentTake } from '@money-scanner/shared';
 
 export const scannerRouter = Router();
 
@@ -654,6 +656,18 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       aiExplanation = await appState.ai.generateAssetExplanation(symbol, quote.price, activeSignal, trendingTopics, news);
     }
 
+    // Instinct-authored per-asset investment guide (outbox contract, 36h
+    // freshness). Undefined until the generation agent publishes one.
+    const GUIDE_MAX_AGE_MS = 36 * 60 * 60_000;
+    const readGuideTake = async (guideLanguage: 'ro' | 'en') => {
+      const entry = await readPersistentAICache<AIContentTake>(`ai-content-investment-guide-${symbol}-${guideLanguage}`);
+      return entry && Date.now() - entry.updatedAt <= GUIDE_MAX_AGE_MS ? entry.payload : undefined;
+    };
+    const [guideRo, guideEn] = await Promise.all([readGuideTake('ro'), readGuideTake('en')]);
+    const investmentGuide = guideRo || guideEn
+      ? { ...(guideRo ? { ro: guideRo } : {}), ...(guideEn ? { en: guideEn } : {}) }
+      : undefined;
+
     res.json({
       info: assetInfo,
       quote,
@@ -665,6 +679,7 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       xPosts,
       xTrends: trendingTopics.filter(t => t.cashtag === `$${symbol}`),
       aiExplanation,
+      investmentGuide,
       lastUpdated: Date.now()
     });
   } catch (err: any) {

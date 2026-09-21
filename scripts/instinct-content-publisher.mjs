@@ -31,6 +31,8 @@ const OUTBOX = join(ROOT, 'tmp', 'ai-content-outbox');
 const SENT = join(OUTBOX, 'sent');
 const BASE_URL = process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app';
 const KEYS = new Set(['capital-rotation', 'briefing', 'intelligence-brief', 'market-intelligence']);
+// Per-asset Instinct investment guides: investment-guide-<SYMBOL>.
+const KEY_PATTERN = /^investment-guide-[A-Z0-9][A-Z0-9.-]{0,19}$/;
 
 function schedulerToken() {
   const out = execFileSync('gcloud', [
@@ -69,7 +71,7 @@ async function main() {
   let published = 0;
   for (const file of files) {
     const doc = JSON.parse(readFileSync(join(OUTBOX, file), 'utf8'));
-    if (!KEYS.has(doc.key) || (doc.language !== 'en' && doc.language !== 'ro') || !validTake(doc.take)) {
+    if ((!KEYS.has(doc.key) && !KEY_PATTERN.test(doc.key)) || (doc.language !== 'en' && doc.language !== 'ro') || !validTake(doc.take)) {
       console.error(`invalid outbox file, left in place: ${file}`);
       process.exitCode = 1;
       continue;

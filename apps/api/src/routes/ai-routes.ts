@@ -53,6 +53,9 @@ const SOURCE_REFRESH_TIMEOUT_MS = 15_000;
 const intelligencePersistentKey = (cacheKey: string) => `market-intelligence-${cacheKey.replace(':', '-')}`;
 
 const AI_CONTENT_KEYS = new Set(['briefing', 'intelligence-brief', 'market-intelligence', 'capital-rotation']);
+// Per-asset Instinct investment guides: investment-guide-<SYMBOL>.
+const AI_CONTENT_KEY_PATTERN = /^investment-guide-[A-Z0-9][A-Z0-9.-]{0,19}$/;
+const isAllowedContentKey = (key: string) => AI_CONTENT_KEYS.has(key) || AI_CONTENT_KEY_PATTERN.test(key);
 const AI_CONTENT_MAX_AGE_MS = 36 * 60 * 60_000;
 
 /** AI take written by the local Mac executor via the AI Gateway or by the
@@ -590,7 +593,7 @@ aiRouter.post('/ai/publish-content', async (req, res) => {
   }
   const key = String(req.body?.key || '');
   const take = req.body?.take;
-  if (!AI_CONTENT_KEYS.has(key) || !validTake(take)) {
+  if (!isAllowedContentKey(key) || !validTake(take)) {
     return res.status(400).json({ error: 'Invalid AI content payload.' });
   }
   const language = req.body?.language === 'en' || req.body?.language === 'ro' ? req.body.language : null;
