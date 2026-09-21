@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { formatPrice } from '../utils/price.js';
 import { Candle, Timeframe } from '../types.js';
 import {
   createChart,
@@ -1343,7 +1344,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
             </div>
 
             <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-300">
-              <span>Baza Nor (Fast): <strong className="text-emerald-400">${latestState?.fastLine ? latestState.fastLine.toFixed(2) : '-'}</strong></span>
+              <span>Baza Nor (Fast): <strong className="text-emerald-400">${formatPrice(latestState?.fastLine)}</strong></span>
               <button
                 type="button"
                 onClick={handleToggleBullishAlert}
@@ -1404,7 +1405,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
                   </button>
                 </span>
               ))}
-              <span>Margine Nor (Slow): <strong className="text-slate-300">${latestState?.slowLine ? latestState.slowLine.toFixed(2) : '-'}</strong></span>
+              <span>Margine Nor (Slow): <strong className="text-slate-300">${formatPrice(latestState?.slowLine)}</strong></span>
 
               {/* SMA 50 Toggle & Status (Yellow, Thin 1.5px) */}
               <button
@@ -1418,7 +1419,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
                 title={showSma50 ? 'Ascunde linia SMA 50 (Galbenă, subțire)' : 'Afișează linia SMA 50 (Galbenă, subțire)'}
               >
                 <span className={`w-2.5 h-0.5 rounded-full ${showSma50 ? 'bg-amber-400' : 'bg-slate-500'}`}></span>
-                <span>SMA 50: <strong className={showSma50 ? 'text-amber-300' : 'text-slate-400'}>${latestState?.sma50 ? (latestState.sma50 < 1 ? latestState.sma50.toFixed(4) : latestState.sma50.toLocaleString(undefined, { minimumFractionDigits: 2 })) : '-'}</strong></span>
+                <span>SMA 50: <strong className={showSma50 ? 'text-amber-300' : 'text-slate-400'}>${formatPrice(latestState?.sma50)}</strong></span>
                 {showSma50 && (
                   <span className={`text-[9px] px-1 py-0.2 rounded font-bold border ${
                     latestState?.isAboveSma50
@@ -1442,7 +1443,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
                 title={showSma200 ? 'Ascunde linia SMA 200 (Albă, groasă)' : 'Afișează linia SMA 200 (Albă, groasă)'}
               >
                 <span className={`w-3 h-1 rounded-full ${showSma200 ? 'bg-white shadow-[0_0_8px_#ffffff]' : 'bg-slate-500'}`}></span>
-                <span>SMA 200: <strong className={showSma200 ? 'text-white font-bold' : 'text-slate-400'}>${latestState?.sma200 ? (latestState.sma200 < 1 ? latestState.sma200.toFixed(4) : latestState.sma200.toLocaleString(undefined, { minimumFractionDigits: 2 })) : '-'}</strong></span>
+                <span>SMA 200: <strong className={showSma200 ? 'text-white font-bold' : 'text-slate-400'}>${formatPrice(latestState?.sma200)}</strong></span>
                 {showSma200 && (
                   <span className={`text-[9px] px-1 py-0.2 rounded font-bold border ${
                     latestState?.isAboveSma200
@@ -1570,7 +1571,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
                   <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                     <span className="text-cyan-400 font-bold">📏 Rezultat:</span>
                     <span className={`font-black ${stats.isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {stats.isUp ? `+${stats.pct.toFixed(2)}%` : `${stats.pct.toFixed(2)}%`} ({stats.priceDiff > 0 ? `+${stats.priceDiff.toFixed(2)}` : stats.priceDiff.toFixed(2)})
+                      {stats.isUp ? `+${stats.pct.toFixed(2)}%` : `${stats.pct.toFixed(2)}%`} ({stats.priceDiff > 0 ? `+${formatPrice(stats.priceDiff)}` : formatPrice(stats.priceDiff)})
                     </span>
                     <span className="text-slate-300">
                       • ⏱️ <strong className="text-amber-300">{stats.timeFormatted}</strong> ({stats.barsCount} bare)
@@ -1924,7 +1925,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
                         fontSize="10"
                         fontWeight="bold"
                       >
-                        ${d.p1.price < 1 ? d.p1.price.toFixed(4) : d.p1.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        ${formatPrice(d.p1.price)}
                       </text>
                     </g>
                   );
@@ -2009,7 +2010,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
                               fontSize="10"
                               fontWeight="bold"
                             >
-                              {fib.label} — ${levelPrice < 1 ? levelPrice.toFixed(4) : levelPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              {fib.label} — ${formatPrice(levelPrice)}
                             </text>
                           </g>
                         );
@@ -2145,7 +2146,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
                         fontSize="11"
                         fontWeight="bold"
                       >
-                        {stats.isUp ? `+${stats.pct.toFixed(2)}%` : `${stats.pct.toFixed(2)}%`} ({stats.priceDiff > 0 ? `+${stats.priceDiff.toFixed(2)}` : stats.priceDiff.toFixed(2)})
+                        {stats.isUp ? `+${stats.pct.toFixed(2)}%` : `${stats.pct.toFixed(2)}%`} ({stats.priceDiff > 0 ? `+${formatPrice(stats.priceDiff)}` : formatPrice(stats.priceDiff)})
                       </text>
                       {/* Row 2: Elapsed Time in Days & Bars Count */}
                       <text
@@ -2292,7 +2293,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
                                 fontSize="10"
                                 fontWeight="bold"
                               >
-                                {stats.pct >= 0 ? '+' : ''}{stats.pct.toFixed(2)}% ({stats.priceDiff >= 0 ? '+' : ''}{stats.priceDiff.toFixed(2)})
+                                {stats.pct >= 0 ? '+' : ''}{stats.pct.toFixed(2)}% ({stats.priceDiff >= 0 ? '+' : ''}{formatPrice(stats.priceDiff)})
                               </text>
                               <text
                                 x={bX + badgeW / 2}
@@ -2382,7 +2383,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
                 </span>
                 <span className="flex items-center gap-1 text-amber-300 font-bold font-mono">
                   <span className="w-2 h-0.5 rounded-full bg-amber-400"></span>
-                  SMA 50: ${latestState.sma50.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  SMA 50: ${formatPrice(latestState.sma50)}
                 </span>
                 <span className="flex items-center gap-1 text-white font-bold font-mono">
                   <span className="w-2.5 h-1 rounded-full bg-white shadow-[0_0_6px_#fff]"></span>

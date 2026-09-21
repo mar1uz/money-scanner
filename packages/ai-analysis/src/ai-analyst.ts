@@ -1177,7 +1177,7 @@ export class AIMarketAnalystService {
       downsideRisks: [
         'Sensibilitate la ciclurile economice generale.',
         'Presiuni pe marjele de profit în cazul creșterii costurilor.',
-        `Risc de testare a suportului tehnic la $${Number((price * 0.95).toFixed(2))}.`
+        `Risc de testare a suportului tehnic la $${Number((price * 0.95).toPrecision(4))}.`
       ]
     };
   }
@@ -1241,10 +1241,10 @@ export class AIMarketAnalystService {
 
     // Dynamic support & resistance calculation
     const atr = signal.rawIndicators.atr14 || (price * 0.03);
-    const s1 = Number((price - atr * 1.5).toFixed(4));
-    const s2 = Number((price - atr * 3.0).toFixed(4));
-    const r1 = Number((price + atr * 1.5).toFixed(4));
-    const r2 = Number((price + atr * 3.0).toFixed(4));
+    const s1 = Number((price - atr * 1.5).toPrecision(4));
+    const s2 = Number((price - atr * 3.0).toPrecision(4));
+    const r1 = Number((price + atr * 1.5).toPrecision(4));
+    const r2 = Number((price + atr * 3.0).toPrecision(4));
 
     // Resolve tailored economic outlook, financial reports and investment guidance
     const intel = this.resolveAssetIntelligence(symbol, price, signal);

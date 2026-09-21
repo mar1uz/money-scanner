@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { formatPrice } from '../utils/price.js';
 import {
   Search,
   X,
@@ -415,7 +416,7 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
                         {item.price > 0 && (
                           <div className="flex flex-col items-end text-right">
                             <span className="text-xs font-bold text-slate-200">
-                              ${item.price < 1 ? item.price.toFixed(4) : item.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              ${formatPrice(item.price)}
                             </span>
                             <div className="flex items-center gap-1.5 text-[10px]">
                               <span className={isPos ? 'text-emerald-400' : 'text-rose-400'}>

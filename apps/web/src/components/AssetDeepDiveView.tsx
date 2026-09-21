@@ -6,6 +6,7 @@ import { InteractiveChart } from './InteractiveChart.js';
 import { useLanguage } from '../i18n.js';
 import { OnchainDataCard } from './OnchainDataCard.js';
 import { BusinessQualityAssetCard } from './BusinessQualityAssetCard.js';
+import { formatPrice } from '../utils/price.js';
 import { CryptoBusinessQualityCard } from './CryptoBusinessQualityCard.js';
 import { StockBusinessQualityCard } from './StockBusinessQualityCard.js';
 import { AssetProfileOverviewCard } from './AssetProfileOverviewCard.js';
@@ -370,7 +371,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
                 {data?.info?.name || symbol}
               </span>
               <span className="text-sm font-bold text-slate-100 font-mono shrink-0">
-                ${quote?.price < 1 ? quote?.price?.toFixed(4) : quote?.price?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                ${formatPrice(quote?.price)}
               </span>
               <span className={`text-xs font-bold font-mono shrink-0 ${quote?.change24h >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {quote?.change24h >= 0 ? `+${quote?.change24h}%` : `${quote?.change24h}%`}
@@ -604,7 +605,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
 
                 <OnchainDataCard data={data?.onchain} />
 
-                {data?.businessQuality && <BusinessQualityAssetCard businessQuality={data.businessQuality} language={language} />}
+                {data?.businessQuality && !(explanation && resolvedMarketClass === 'crypto') && <BusinessQualityAssetCard businessQuality={data.businessQuality} language={language} />}
 
                 {explanation ? (
                   <>
@@ -862,7 +863,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
 
                         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-500/15 border border-cyan-500/30">
                           <span className="text-cyan-300 font-bold">
-                            Preț: ${quote?.price < 1 ? quote?.price?.toFixed(4) : quote?.price?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            Preț: ${formatPrice(quote?.price)}
                           </span>
                         </div>
 

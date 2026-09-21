@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { formatPrice } from '../utils/price.js';
 import {
   Search,
   X,
@@ -337,7 +338,7 @@ export const Header: React.FC<HeaderProps> = ({
                           <div className="flex items-center gap-2 mt-0.5 text-[11px] font-mono">
                             {asset.price > 0 && (
                               <span className="text-slate-300 font-semibold">
-                                ${asset.price < 1 ? asset.price.toFixed(4) : asset.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                ${formatPrice(asset.price)}
                               </span>
                             )}
                             {asset.matchReason && (

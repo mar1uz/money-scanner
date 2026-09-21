@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { formatPrice } from '../utils/price.js';
 import { NarrativeSummary, AssetScannerRow, Timeframe } from '../types.js';
 import {
   X,
@@ -263,7 +264,7 @@ export const NarrativeDetailModal: React.FC<NarrativeDetailModalProps> = ({
                     {/* Middle: Market Cap & Price */}
                     <div className="hidden sm:flex flex-col items-end font-mono">
                       <span className="text-xs font-semibold text-slate-200">
-                        ${asset.price < 1 ? asset.price.toFixed(4) : asset.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        ${formatPrice(asset.price)}
                       </span>
                       <span className="text-[10px] text-slate-500">
                         Cap: {formatMarketCap(asset.marketCap)}

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { formatPrice } from '../utils/price.js';
 import {
   AssetScannerRow,
   MoneyLineTier,
@@ -928,7 +929,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
 
                     {/* Price */}
                     <td data-col="price" className="py-3.5 px-4 font-mono font-medium">
-                      ${row.price < 1 ? row.price.toFixed(4) : row.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      ${formatPrice(row.price)}
                     </td>
 
                     {/* Expand/Collapse Column indicator/spacer */}
