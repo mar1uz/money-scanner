@@ -465,6 +465,31 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       symbol, timeframe, reference, undefined, undefined,
       (assetSymbol, assetTimeframe, candles) => appState.moneyLine.calculateLatest(assetSymbol, assetTimeframe, candles)
     );
+    // Business-quality lookup is path-independent: both the aggregated and
+    // the exchange response carry it so a resolver fallback never loses it.
+    const computeBusinessQuality = async () => {
+      try {
+        const scan = await getCryptoCriteriaReport(false, false);
+        const idNeedle = (cryptoReference.coinGeckoId || '').toLowerCase();
+        const qualityAsset = scan?.assets?.find(entry => idNeedle && String(entry.coinGeckoId || entry.id).toLowerCase() === idNeedle)
+          || scan?.assets?.find(entry => entry.symbol.toUpperCase() === symbol);
+        const measured = Boolean(qualityAsset)
+          && ((qualityAsset!.metrics.fees30d || 0) > 0 || (qualityAsset!.metrics.revenue30d || 0) > 0 || (qualityAsset!.metrics.holdersRevenue30d || 0) > 0);
+        const readNarrativeTake = async (narrativeLanguage: 'ro' | 'en') => {
+          const entry = await readPersistentAICache<AIContentTake>(`ai-content-business-quality-${symbol}-${narrativeLanguage}`);
+          return entry && Date.now() - entry.updatedAt <= GUIDE_MAX_AGE_MS ? entry.payload : undefined;
+        };
+        const [narrativeRo, narrativeEn] = await Promise.all([readNarrativeTake('ro'), readNarrativeTake('en')]);
+        const narrative = narrativeRo || narrativeEn
+          ? { ...(narrativeRo ? { ro: narrativeRo } : {}), ...(narrativeEn ? { en: narrativeEn } : {}) }
+          : undefined;
+        return {
+          status: (!scan ? 'unavailable' : measured ? 'measured' : 'insufficient-data') as 'measured' | 'insufficient-data' | 'unavailable',
+          ...(measured && qualityAsset ? { asset: qualityAsset } : {}),
+          ...(narrative ? { narrative } : {})
+        };
+      } catch { return undefined; }
+    };
     // Verify the provider's name as well as its ticker before selecting an
     // exchange route. Most catalog entries predate exact CoinGecko IDs.
     if (isCryptoSpot && (cryptoReference.coinPaprikaId || cryptoReference.coinGeckoId)) {
@@ -475,7 +500,7 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
         ? catalog.coinGeckoId === cryptoReference.coinGeckoId
         : names.some(name => name.trim().toLowerCase() === profile.name.trim().toLowerCase());
       if (!matchesCatalog && !(await matchesLiveExchangeAsset(symbol, profile.name))) {
-        return res.json(await loadAggregated());
+        return res.json({ ...(await loadAggregated()), businessQuality: await computeBusinessQuality() });
       }
     }
 
@@ -698,34 +723,7 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
     // Business-quality card: 4-criteria numbers from the cached DefiLlama scan
     // plus the Instinct-authored revenue narrative (business-quality-<SYMBOL>).
     // Read-only: never triggers a rescan from an asset page load.
-    let businessQuality: {
-      status: 'measured' | 'insufficient-data' | 'unavailable';
-      asset?: import('@money-scanner/shared').CryptoFourCriteriaAsset;
-      narrative?: { ro?: AIContentTake; en?: AIContentTake };
-    } | undefined;
-    if (resolvedMarketClass === 'crypto') {
-      try {
-        const scan = await getCryptoCriteriaReport(false, false);
-        const idNeedle = (assetInfo.coinGeckoId || cryptoReference.coinGeckoId || '').toLowerCase();
-        const qualityAsset = scan?.assets?.find(entry => idNeedle && String(entry.coinGeckoId || entry.id).toLowerCase() === idNeedle)
-          || scan?.assets?.find(entry => entry.symbol.toUpperCase() === symbol);
-        const measured = Boolean(qualityAsset)
-          && ((qualityAsset!.metrics.fees30d || 0) > 0 || (qualityAsset!.metrics.revenue30d || 0) > 0 || (qualityAsset!.metrics.holdersRevenue30d || 0) > 0);
-        const readNarrativeTake = async (narrativeLanguage: 'ro' | 'en') => {
-          const entry = await readPersistentAICache<AIContentTake>(`ai-content-business-quality-${symbol}-${narrativeLanguage}`);
-          return entry && Date.now() - entry.updatedAt <= GUIDE_MAX_AGE_MS ? entry.payload : undefined;
-        };
-        const [narrativeRo, narrativeEn] = await Promise.all([readNarrativeTake('ro'), readNarrativeTake('en')]);
-        const narrative = narrativeRo || narrativeEn
-          ? { ...(narrativeRo ? { ro: narrativeRo } : {}), ...(narrativeEn ? { en: narrativeEn } : {}) }
-          : undefined;
-        businessQuality = {
-          status: !scan ? 'unavailable' : measured ? 'measured' : 'insufficient-data',
-          ...(measured && qualityAsset ? { asset: qualityAsset } : {}),
-          ...(narrative ? { narrative } : {})
-        };
-      } catch { businessQuality = undefined; }
-    }
+    const businessQuality = resolvedMarketClass === 'crypto' ? await computeBusinessQuality() : undefined;
 
     // Decision-relevant on-chain metrics (CoinGecko supply/ATH data plus
     // DefiLlama TVL/fees where the protocol is listed). Crypto only.
