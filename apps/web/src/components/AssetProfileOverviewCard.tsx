@@ -1,6 +1,7 @@
 import React from 'react';
 import { BookOpen, CheckCircle2, Globe, Layers, ShieldCheck, Sparkles } from 'lucide-react';
 import { getAssetProfile } from '@money-scanner/shared';
+import type { AIContentTake } from '@money-scanner/shared';
 import { useLanguage } from '../i18n.js';
 
 interface AssetProfileOverviewCardProps {
@@ -9,6 +10,9 @@ interface AssetProfileOverviewCardProps {
   category?: string;
   marketClass?: string;
   coinGeckoId?: string;
+  /** Instinct-authored profile take (outbox contract), shown above the
+      template profile when published. */
+  instinctTake?: AIContentTake;
 }
 
 export const AssetProfileOverviewCard: React.FC<AssetProfileOverviewCardProps> = ({
@@ -16,7 +20,8 @@ export const AssetProfileOverviewCard: React.FC<AssetProfileOverviewCardProps> =
   name,
   category,
   marketClass,
-  coinGeckoId
+  coinGeckoId,
+  instinctTake
 }) => {
   const { language } = useLanguage();
   const isRo = language === 'ro';
@@ -64,6 +69,23 @@ export const AssetProfileOverviewCard: React.FC<AssetProfileOverviewCardProps> =
           </span>
         </div>
       </div>
+
+      {instinctTake && (
+        <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.08] space-y-2">
+          <p className="text-[10px] font-mono text-slate-500">
+            {instinctTake.source === 'instinct-agent' ? 'Instinct' : 'AI Gateway'} · {instinctTake.model} · {new Date(instinctTake.generatedAt).toLocaleDateString(isRo ? 'ro-RO' : 'en-GB')}
+          </p>
+          <h4 className="text-sm font-bold text-slate-50 font-sans">{instinctTake.headline}</h4>
+          {instinctTake.paragraphs.map((paragraph, index) => (
+            <p key={index} className="text-xs text-slate-300 leading-relaxed font-sans">{paragraph}</p>
+          ))}
+          {instinctTake.bullets && instinctTake.bullets.length > 0 && (
+            <ul className="list-disc pl-4 space-y-1 text-xs text-slate-300 font-sans">
+              {instinctTake.bullets.map((bullet, index) => <li key={index}>{bullet}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* ── Headline Summary ── */}
       <div className="p-3.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-xs sm:text-sm text-cyan-200 leading-relaxed font-sans flex items-start gap-2.5">

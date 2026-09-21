@@ -54,7 +54,7 @@ const intelligencePersistentKey = (cacheKey: string) => `market-intelligence-${c
 
 const AI_CONTENT_KEYS = new Set(['briefing', 'intelligence-brief', 'market-intelligence', 'capital-rotation']);
 // Per-asset Instinct investment guides: investment-guide-<SYMBOL>.
-const AI_CONTENT_KEY_PATTERN = /^investment-guide-[A-Z0-9][A-Z0-9.-]{0,19}$/;
+const AI_CONTENT_KEY_PATTERN = /^(?:investment-guide|asset-profile)-[A-Z0-9][A-Z0-9.-]{0,19}$/;
 const isAllowedContentKey = (key: string) => AI_CONTENT_KEYS.has(key) || AI_CONTENT_KEY_PATTERN.test(key);
 const AI_CONTENT_MAX_AGE_MS = 36 * 60 * 60_000;
 

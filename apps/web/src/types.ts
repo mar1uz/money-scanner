@@ -25,6 +25,13 @@ export interface AssetDetailResponse {
   xTrends: any[];
   aiExplanation: any;
   investmentGuide?: { ro?: AIContentTake; en?: AIContentTake };
+  assetProfile?: { ro?: AIContentTake; en?: AIContentTake };
+  onchain?: {
+    source?: string;
+    supplyCirculating?: number; supplyTotal?: number; supplyMax?: number; pctUnlocked?: number;
+    athPrice?: number; athDistancePct?: number; atlPrice?: number; atlDistancePct?: number;
+    volumeMcapPct?: number; tvlUsd?: number; tvlToMcapPct?: number; fees24hUsd?: number;
+  };
   lastUpdated: number;
   dataAvailability?: 'aggregated-price-only' | 'dex-fallback';
   priceHistory?: number[][];

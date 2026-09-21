@@ -472,11 +472,13 @@ export function translateText(value: string, language: Language): string {
   if (language === 'en') {
     output = output
       .replace(/Afișate (\d+) din (\d+) active/g, 'Showing $1 of $2 assets')
+      .replace(/acum (\d+) zil?e? și (\d+) or[ăe]/g, '$1 days and $2 hours ago')
+      .replace(/acum (\d+) or[ăe] și (\d+) minute?/g, '$1 hours and $2 minutes ago')
       .replace(/acum (\d+)z(?: (\d+)h)?/g, (_, days, hours) => `${days}d${hours ? ` ${hours}h` : ''} ago`)
       .replace(/acum (\d+)h(?: (\d+)m)?/g, (_, hours, mins) => `${hours}h${mins ? ` ${mins}m` : ''} ago`)
       .replace(/acum (\d+) minute?/g, '$1 minutes ago')
-      .replace(/acum (\d+) ore?/g, '$1 hours ago')
-      .replace(/acum (\d+) zile?/g, '$1 days ago');
+      .replace(/acum (\d+) or[ăe]/g, '$1 hours ago')
+      .replace(/acum (\d+) zil?e?/g, '$1 days ago');
   }
 
   return output;

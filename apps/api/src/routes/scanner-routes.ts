@@ -16,6 +16,7 @@ import {
 import { calculateMTFConfluence } from '@money-scanner/money-line';
 import { aggregatedCryptoDetail, cryptoMarketProfiles } from '../services/crypto-market-profile.js';
 import { readPersistentAICache } from '../services/ai-cache-store.js';
+import { onchainMetrics } from '../services/onchain-metrics.js';
 import type { AIContentTake } from '@money-scanner/shared';
 
 export const scannerRouter = Router();
@@ -679,9 +680,24 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       const entry = await readPersistentAICache<AIContentTake>(`ai-content-investment-guide-${symbol}-${guideLanguage}`);
       return entry && Date.now() - entry.updatedAt <= GUIDE_MAX_AGE_MS ? entry.payload : undefined;
     };
-    const [guideRo, guideEn] = await Promise.all([readGuideTake('ro'), readGuideTake('en')]);
+    const readProfileTake = async (profileLanguage: 'ro' | 'en') => {
+      const entry = await readPersistentAICache<AIContentTake>(`ai-content-asset-profile-${symbol}-${profileLanguage}`);
+      return entry && Date.now() - entry.updatedAt <= GUIDE_MAX_AGE_MS ? entry.payload : undefined;
+    };
+    const [guideRo, guideEn, profileTakeRo, profileTakeEn] = await Promise.all([
+      readGuideTake('ro'), readGuideTake('en'), readProfileTake('ro'), readProfileTake('en')
+    ]);
     const investmentGuide = guideRo || guideEn
       ? { ...(guideRo ? { ro: guideRo } : {}), ...(guideEn ? { en: guideEn } : {}) }
+      : undefined;
+    const assetProfile = profileTakeRo || profileTakeEn
+      ? { ...(profileTakeRo ? { ro: profileTakeRo } : {}), ...(profileTakeEn ? { en: profileTakeEn } : {}) }
+      : undefined;
+
+    // Decision-relevant on-chain metrics (CoinGecko supply/ATH data plus
+    // DefiLlama TVL/fees where the protocol is listed). Crypto only.
+    const onchain = resolvedMarketClass === 'crypto' && assetInfo.coinGeckoId
+      ? await onchainMetrics.forAsset(symbol, assetInfo.coinGeckoId).catch(() => undefined)
       : undefined;
 
     res.json({
@@ -696,6 +712,8 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       xTrends: trendingTopics.filter(t => t.cashtag === `$${symbol}`),
       aiExplanation,
       investmentGuide,
+      assetProfile,
+      onchain,
       lastUpdated: Date.now()
     });
   } catch (err: any) {

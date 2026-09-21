@@ -4,6 +4,7 @@ import { TRADING_360_ASSETS } from '@money-scanner/shared';
 import { fetchAssetDetail, fetchHistoricalCandles, triggerTestAlert } from '../services/api.js';
 import { InteractiveChart } from './InteractiveChart.js';
 import { useLanguage } from '../i18n.js';
+import { OnchainDataCard } from './OnchainDataCard.js';
 import { CryptoBusinessQualityCard } from './CryptoBusinessQualityCard.js';
 import { StockBusinessQualityCard } from './StockBusinessQualityCard.js';
 import { AssetProfileOverviewCard } from './AssetProfileOverviewCard.js';
@@ -328,6 +329,9 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   const guideTake = language === 'en'
     ? (data?.investmentGuide?.en || data?.investmentGuide?.ro)
     : (data?.investmentGuide?.ro || data?.investmentGuide?.en);
+  const profileTake = language === 'en'
+    ? (data?.assetProfile?.en || data?.assetProfile?.ro)
+    : (data?.assetProfile?.ro || data?.assetProfile?.en);
   const marketCapRank = getMarketCapRank(symbol, infoClass, rawRank, effectiveMarketCap);
 
   return (
@@ -594,7 +598,10 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
                   category={data?.info?.category || explanation?.sectorOrNarrative}
                   marketClass={resolvedMarketClass}
                   coinGeckoId={resolvedCoinGeckoId}
+                  instinctTake={profileTake}
                 />
+
+                <OnchainDataCard data={data?.onchain} />
 
                 {explanation ? (
                   <>
