@@ -42,6 +42,8 @@ function makeScan(assets: CryptoFourCriteriaAsset[]): CryptoFourCriteriaScan {
     allFourCount: assets.filter(a => a.classification === 'all-four').length,
     firstThreeCount: assets.filter(a => a.classification === 'first-three').length,
     assets,
+    undervalued: [],
+    unrankedCount: 0,
     generatedAt: Date.now(),
     dataFreshness: 'test',
     methodology: ['test methodology'],

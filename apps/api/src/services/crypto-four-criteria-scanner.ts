@@ -2,7 +2,8 @@ import {
   CryptoCriterionResult,
   CryptoCriteriaStatus,
   CryptoFourCriteriaAsset,
-  CryptoFourCriteriaScan
+  CryptoFourCriteriaScan,
+  CryptoUndervaluedEntry
 } from '@money-scanner/shared';
 
 const COINGECKO_MARKETS_URL = 'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=200&page=1&sparkline=false';
@@ -109,6 +110,59 @@ const scoreForStatus = (status: CryptoCriteriaStatus): number => {
   if (status === 'pass') return 25;
   if (status === 'watch') return 12;
   return 0;
+};
+
+/** Percentile (0-100) of value inside an ascending-sorted array. */
+const percentileOf = (sortedAsc: number[], value: number): number => {
+  if (sortedAsc.length <= 1) return 50;
+  let below = 0;
+  for (const item of sortedAsc) if (item < value) below += 1;
+  return (below / (sortedAsc.length - 1)) * 100;
+};
+
+/**
+ * Undervaluation ranking on Marius's 3 factors: quality (network effect +
+ * sustainable revenue + holder value, same thresholds) versus expensiveness
+ * (mcap / annualized revenue, fees as fallback for L1s without revenue).
+ * Index = quality percentile - expensiveness percentile, most undervalued
+ * first. Assets without any observable fees/revenue are never ranked.
+ */
+const buildUndervaluedRanking = (assets: CryptoFourCriteriaAsset[]): { undervalued: CryptoUndervaluedEntry[]; unrankedCount: number } => {
+  const candidates = assets
+    .map(asset => {
+      const revenue30d = asset.metrics.revenue30d || 0;
+      const fees30d = asset.metrics.fees30d || 0;
+      const basis: 'revenue' | 'fees' | null = revenue30d > 0 ? 'revenue' : fees30d > 0 ? 'fees' : null;
+      if (!basis || asset.marketCap <= 0) return undefined;
+      const annualized = (basis === 'revenue' ? revenue30d : fees30d) * 12;
+      const valuationRatio = annualized > 0 ? asset.marketCap / annualized : undefined;
+      if (!valuationRatio || !Number.isFinite(valuationRatio)) return undefined;
+      const qualityScore = scoreForStatus(asset.criteria.networkEffect.status)
+        + scoreForStatus(asset.criteria.sustainableRevenue.status)
+        + scoreForStatus(asset.criteria.holderValue.status);
+      return { asset, qualityScore, valuationRatio, valuationBasis: basis };
+    })
+    .filter((entry): entry is { asset: CryptoFourCriteriaAsset; qualityScore: number; valuationRatio: number; valuationBasis: 'revenue' | 'fees' } => Boolean(entry));
+
+  const qualityValues = candidates.map(entry => entry.qualityScore).sort((a, b) => a - b);
+  const logRatios = candidates.map(entry => Math.log(entry.valuationRatio)).sort((a, b) => a - b);
+
+  const undervalued: CryptoUndervaluedEntry[] = candidates.map(entry => {
+    const qualityPercentile = Math.round(percentileOf(qualityValues, entry.qualityScore));
+    const expensivenessPercentile = Math.round(percentileOf(logRatios, Math.log(entry.valuationRatio)));
+    return {
+      ...entry,
+      qualityPercentile,
+      expensivenessPercentile,
+      undervaluationIndex: qualityPercentile - expensivenessPercentile
+    };
+  }).sort((left, right) =>
+    right.undervaluationIndex - left.undervaluationIndex ||
+    right.qualityScore - left.qualityScore ||
+    left.valuationRatio - right.valuationRatio
+  );
+
+  return { undervalued, unrankedCount: assets.length - undervalued.length };
 };
 
 const runRateChange = (total7d: number, total30d: number): number | undefined => {
@@ -314,19 +368,25 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
   );
 
   const coveredCount = assets.filter(asset => asset.classification !== 'insufficient-data').length;
+  const { undervalued, unrankedCount } = buildUndervaluedRanking(assets);
   return {
     scannedCount: coins.length,
     coveredCount,
     allFourCount: assets.filter(asset => asset.classification === 'all-four').length,
     firstThreeCount: assets.filter(asset => asset.classification === 'all-four' || asset.classification === 'first-three').length,
     assets,
+    undervalued,
+    unrankedCount,
     generatedAt: input.generatedAt || Date.now(),
     dataFreshness: 'CoinGecko/CoinPaprika + DefiLlama live; cache 30 minute',
     methodology: [
       'Creștere: schimbarea TVL pe 7 zile sau accelerarea fees (ritm 7z vs 30z).',
       'Efect de rețea: proxy conservator bazat pe fees, TVL și prezență multi-chain; nu pretinde utilizatori activi exacți.',
       'Venit sustenabil: revenue material și prezent concomitent în ferestrele 24h, 7z și 30z.',
-      'Valoare către holderi: holders revenue raportat ca buyback/burn, distribuție directă sau staking finanțat din venit.'
+      'Valoare către holderi: holders revenue raportat ca buyback/burn, distribuție directă sau staking finanțat din venit.',
+      'Model de subevaluare (tab Calitate Business): scor calitate 0-75 = Efect de rețea + Venit sustenabil + Valoare către holderi, aceleași praguri.',
+      'Evaluare: P/R = market cap / (revenue 30z × 12); dacă revenue lipsește dar fees există, P/F = market cap / (fees 30z × 12).',
+      'Index subevaluare = percentila calității − percentila scumpirii (log P/R) în universul acoperit; activele fără fees/revenue nu sunt clasate.'
     ],
     sources: [
       { id: 'video', title: 'Criteriile din interviu (30:03–30:35)', url: 'https://youtu.be/oZWS5eB5YsQ?t=1803', domain: 'youtube.com' },
@@ -335,7 +395,7 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
       { id: 'defillama', title: 'TVL, Fees, Revenue & Holders Revenue', url: 'https://defillama.com/metrics', domain: 'defillama.com' },
       { id: 'definitions', title: 'Definițiile metrice DefiLlama', url: 'https://defillama.com/data-definitions', domain: 'defillama.com' }
     ],
-    disclaimer: 'Scanner fundamental de cercetare, nu semnal de cumpărare. „Pass” înseamnă că pragul proxy este îndeplinit în datele curente, nu că investiția va fi profitabilă.'
+    disclaimer: 'Scanner fundamental de cercetare, nu semnal de cumpărare. „Pass” înseamnă că pragul proxy este îndeplinit în datele curente; indexul de subevaluare este un model euristic pe percentile, nu o estimare de valoare justă.'
   };
 }
 

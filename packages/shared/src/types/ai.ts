@@ -207,12 +207,31 @@ export interface CryptoFourCriteriaAsset {
   };
 }
 
+export interface CryptoUndervaluedEntry {
+  asset: CryptoFourCriteriaAsset;
+  /** 0-75: networkEffect + sustainableRevenue + holderValue scores. */
+  qualityScore: number;
+  /** 0-100 percentile of qualityScore across ranked assets. */
+  qualityPercentile: number;
+  /** marketCap / annualized revenue (or fees when revenue is missing). */
+  valuationRatio: number;
+  valuationBasis: 'revenue' | 'fees';
+  /** 0-100 percentile of log(valuationRatio): higher means more expensive. */
+  expensivenessPercentile: number;
+  /** qualityPercentile - expensivenessPercentile, range -100..+100. */
+  undervaluationIndex: number;
+}
+
 export interface CryptoFourCriteriaScan {
   scannedCount: number;
   coveredCount: number;
   allFourCount: number;
   firstThreeCount: number;
   assets: CryptoFourCriteriaAsset[];
+  /** Ranked most-undervalued first; only assets with observable fees/revenue. */
+  undervalued: CryptoUndervaluedEntry[];
+  /** Assets that could not be ranked (no fees/revenue or market cap). */
+  unrankedCount: number;
   generatedAt: number;
   dataFreshness: string;
   methodology: string[];

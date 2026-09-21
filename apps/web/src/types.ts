@@ -7,6 +7,7 @@ export type AppTab =
   | 'crypto_radar'
   | 'crypto_bubbles'
   | 'crypto_heatmap'
+  | 'business_quality'
   | 'usa_status'
   | 'intelligence'
   | 'ai'
