@@ -3796,3 +3796,6 @@ Teste: 17 noi (10 MA 2x2 + 7 structure scanner); suita API completă 155/155 ver
 - Declansare: insight/run-insight.sh — mod nou 'aicontent' (allowlist) + writer-ul ruleaza dupa trecerea zilnica de 07:45. Log: insight/ai-content.log; audit: insight/audit.log.
 - Capcana: mercury-2.5 intoarce text gol daca maxOutputTokens e prea mic (2000); trebuie 6000 + AbortSignal.timeout(180000), ca in jev-insight.mjs.
 - Verificat: ambele documente in Firestore (operations/ai-cache-ai-content-*, db money-scanner-360), continut real in romana (01:07). Suita: api 155/155, web 80/81 (singurul esec = binarul Playwright lipsa pe Mac, pre-existent).
+
+### Step 89b — al treilea take: briefing (2026-09-21, 07:33 CEST)
+- /api/ai/briefing cauta cheia 'briefing', dar writer-ul publica doar 'market-intelligence' si 'intelligence-brief' -> blocul nu aparea pe pagina AI Briefing. Adaugat a treia generare in scripts/ai-content-writer.mjs (cheie 'briefing', prompt pentru briefing zilnic). Republicat 07:26: toate cele 3 endpoint-uri atașeaza take-ul. Verificat vizual (sesiune Google): bloc 'AI Gateway · inception/mercury-2.5' randat pe AI Briefing si Intelligence.

@@ -144,6 +144,12 @@ async function main() {
     inputs);
   await publish(token, 'intelligence-brief', intelTake);
   console.log(`published intelligence-brief via ${model}`);
+
+  const pageBriefTake = await generateTake(gateway, model,
+    'Scrie blocul "AI take" pentru pagina AI Briefing (briefing zilnic de piață): titlu + 2-3 paragrafe despre regimul actual al pieței, driverii principali și riscurile zilei + 3-5 bullets cu activele și temele de urmărit astăzi. Ton: clar, la obiect.',
+    fullInputs);
+  await publish(token, 'briefing', pageBriefTake);
+  console.log(`published briefing via ${model}`);
 }
 
 main().catch(e => { console.error(String(e?.message || e).slice(0, 300)); process.exit(1); });
