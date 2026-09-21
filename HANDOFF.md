@@ -3995,3 +3995,10 @@ Cadence: rotate pillars so the feed never becomes a monotonous ticker stream —
 - Verified live: GET /tape -> 200 "Money Scanner Performance Tape" (public, EN); GET /api/tape/proof -> 200 with 5 curated evidence rows computed live from confirmedFlips + live quotes (min +20%, max 6, env PUBLIC_TAPE_PROOF_SYMBOLS). /api/tape/events + /api/tape/summary are auth-gated by design.
 - NOTE: Cloud Scheduler money-scanner-regime-tape-scan (07:30 Oslo) was already enabled and will start recording tape scan events now that /api/tape/scan exists.
 - Proof data independently verified vs Binance klines: RAY flip close 0.6355 at 2026-08-19 20:00 UTC exact match.
+
+## 104. P/L 24h+7d chips on Business Quality undervalued cards (2026-09-21, rev 00236-swl, commit 54bdd73)
+- Owner request (2026-09-21 20:38): P/L daily + weekly percent on the Crypto Business Quality undervalued ranking cards, green for gain, red for loss.
+- API: CoinGecko markets URLs now request price_change_percentage=24h,7d; CryptoFourCriteriaAsset + CryptoUndervaluedEntry carry priceChange24h/priceChange7d (new finiteNumber helper for signed values); carried through buildUndervaluedRanking.
+- Web: BusinessQualityView renders 24H + 7D (7Z in RO) chips next to the factor chips; emerald for >=0, rose for <0; chip hidden when the field is missing (CoinPaprika fallback rows carry no price change).
+- Verified live: /api/ai/crypto-four-criteria?refresh=1 -> 265/268 undervalued entries carry both fields with real values; desktop + mobile screenshots show the green/red chips, no layout breakage.
+- Values refresh with each four-criteria scan (30-min cache, Rescan button, insight executor refresh), not tick-by-tick.
