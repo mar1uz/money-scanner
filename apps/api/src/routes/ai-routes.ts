@@ -54,7 +54,7 @@ const intelligencePersistentKey = (cacheKey: string) => `market-intelligence-${c
 
 const AI_CONTENT_KEYS = new Set(['briefing', 'intelligence-brief', 'market-intelligence', 'capital-rotation']);
 // Per-asset Instinct investment guides: investment-guide-<SYMBOL>.
-const AI_CONTENT_KEY_PATTERN = /^(?:investment-guide|asset-profile)-[A-Z0-9][A-Z0-9.-]{0,19}$/;
+const AI_CONTENT_KEY_PATTERN = /^(?:investment-guide|asset-profile|business-quality)-[A-Z0-9][A-Z0-9.-]{0,19}$/;
 const isAllowedContentKey = (key: string) => AI_CONTENT_KEYS.has(key) || AI_CONTENT_KEY_PATTERN.test(key);
 const AI_CONTENT_MAX_AGE_MS = 36 * 60 * 60_000;
 
@@ -505,7 +505,7 @@ const generateCryptoCriteriaReport = async (): Promise<CryptoCriteriaPayload> =>
   return payload;
 };
 
-const getCryptoCriteriaReport = async (requestedRefresh = false): Promise<CryptoCriteriaPayload> => {
+export const getCryptoCriteriaReport = async (requestedRefresh = false, allowGenerate = true): Promise<CryptoCriteriaPayload | null> => {
   const cacheKey = 'top-200';
   let cached = cryptoCriteriaCache.get(cacheKey);
   if (!cached) {
@@ -516,6 +516,9 @@ const getCryptoCriteriaReport = async (requestedRefresh = false): Promise<Crypto
   if (cached && cacheAge < CRYPTO_CRITERIA_CACHE_MS && (!requestedRefresh || cacheAge < CRYPTO_CRITERIA_FORCE_REFRESH_FLOOR_MS)) {
     return cached.payload;
   }
+  // Read-only callers (asset detail card) never trigger an 80s rescan: they
+  // take the latest cached payload, even stale, or report unavailable.
+  if (!allowGenerate) return cached ? cached.payload : null;
 
   if (!cryptoCriteriaInFlight) {
     cryptoCriteriaInFlight = generateCryptoCriteriaReport().finally(() => {
@@ -542,6 +545,7 @@ aiRouter.get('/ai/crypto-four-criteria/lookup', async (req, res) => {
 aiRouter.get('/ai/crypto-four-criteria', async (req, res) => {
   try {
     const payload = await getCryptoCriteriaReport(req.query.refresh === '1');
+    if (!payload) return res.status(503).json({ error: 'Criteria scan unavailable, retry shortly.' });
     res.set('Cache-Control', 'private, max-age=60');
     res.json(payload);
   } catch (err: any) {
@@ -654,10 +658,13 @@ aiRouter.post('/ai/daily-warmup', async (req, res) => {
   let cryptoCriteria: { status: 'ready' | 'failed'; generatedAt?: number; scannedAssets?: number; error?: string };
   try {
     const payload = await getCryptoCriteriaReport(true);
-    cryptoCriteria = {
+    cryptoCriteria = payload ? {
       status: 'ready',
       generatedAt: payload.generatedAt,
       scannedAssets: payload.scannedCount
+    } : {
+      status: 'failed',
+      error: 'Scan unavailable'
     };
   } catch (error) {
     cryptoCriteria = {

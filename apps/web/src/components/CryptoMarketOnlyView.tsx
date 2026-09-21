@@ -2,6 +2,8 @@ import React from 'react';
 import { ArrowLeft, ExternalLink, RefreshCw, Info } from 'lucide-react';
 import type { AssetDetailResponse } from '../types.js';
 import type { Candle, Timeframe } from '../types.js';
+import { useLanguage } from '../i18n.js';
+import { BusinessQualityAssetCard } from './BusinessQualityAssetCard.js';
 
 const money = (value: unknown) => typeof value === 'number' && Number.isFinite(value)
   ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumSignificantDigits: 7 }).format(value)
@@ -44,6 +46,7 @@ export const CryptoMarketOnlyView: React.FC<{
   onTimeframeChange?: (tf: Timeframe) => void;
 }> = ({ data, timeframe, onBack, onRefresh, loading, onTimeframeChange }) => {
   const { info, quote } = data;
+  const { language } = useLanguage();
   const dex = data.dexMarket;
   const sourceUrl = info.coinGeckoId
     ? `https://www.coingecko.com/en/coins/${encodeURIComponent(info.coinGeckoId)}`
@@ -142,6 +145,7 @@ export const CryptoMarketOnlyView: React.FC<{
       : dex?.candles?.length
         ? `Graficul DEX este disponibil, dar Money Line necesită minimum ${minCandles} lumânări închise. Sunt disponibile ${data.candles.filter(c => c.isClosed).length} pentru ${timeframe.toUpperCase()}; nu afișăm un semnal incomplet.`
         : 'Money Line indisponibil: nu avem lumânări OHLCV verificate. Nu calculăm semnale sau flipuri din simple puncte de preț.'}</p></div>
+    {data.businessQuality && <BusinessQualityAssetCard businessQuality={data.businessQuality} language={language} />}
     <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-cyan-300">Deschide {info.name} pe {quote.source}<ExternalLink className="h-4 w-4" /></a>
   </section>;
 };

@@ -16,6 +16,7 @@ import {
 import { calculateMTFConfluence } from '@money-scanner/money-line';
 import { aggregatedCryptoDetail, cryptoMarketProfiles } from '../services/crypto-market-profile.js';
 import { readPersistentAICache } from '../services/ai-cache-store.js';
+import { getCryptoCriteriaReport } from './ai-routes.js';
 import { onchainMetrics } from '../services/onchain-metrics.js';
 import type { AIContentTake } from '@money-scanner/shared';
 
@@ -694,6 +695,38 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       ? { ...(profileTakeRo ? { ro: profileTakeRo } : {}), ...(profileTakeEn ? { en: profileTakeEn } : {}) }
       : undefined;
 
+    // Business-quality card: 4-criteria numbers from the cached DefiLlama scan
+    // plus the Instinct-authored revenue narrative (business-quality-<SYMBOL>).
+    // Read-only: never triggers a rescan from an asset page load.
+    let businessQuality: {
+      status: 'measured' | 'insufficient-data' | 'unavailable';
+      asset?: import('@money-scanner/shared').CryptoFourCriteriaAsset;
+      narrative?: { ro?: AIContentTake; en?: AIContentTake };
+    } | undefined;
+    if (resolvedMarketClass === 'crypto') {
+      try {
+        const scan = await getCryptoCriteriaReport(false, false);
+        const idNeedle = (assetInfo.coinGeckoId || cryptoReference.coinGeckoId || '').toLowerCase();
+        const qualityAsset = scan?.assets?.find(entry => idNeedle && String(entry.coinGeckoId || entry.id).toLowerCase() === idNeedle)
+          || scan?.assets?.find(entry => entry.symbol.toUpperCase() === symbol);
+        const measured = Boolean(qualityAsset)
+          && ((qualityAsset!.metrics.fees30d || 0) > 0 || (qualityAsset!.metrics.revenue30d || 0) > 0 || (qualityAsset!.metrics.holdersRevenue30d || 0) > 0);
+        const readNarrativeTake = async (narrativeLanguage: 'ro' | 'en') => {
+          const entry = await readPersistentAICache<AIContentTake>(`ai-content-business-quality-${symbol}-${narrativeLanguage}`);
+          return entry && Date.now() - entry.updatedAt <= GUIDE_MAX_AGE_MS ? entry.payload : undefined;
+        };
+        const [narrativeRo, narrativeEn] = await Promise.all([readNarrativeTake('ro'), readNarrativeTake('en')]);
+        const narrative = narrativeRo || narrativeEn
+          ? { ...(narrativeRo ? { ro: narrativeRo } : {}), ...(narrativeEn ? { en: narrativeEn } : {}) }
+          : undefined;
+        businessQuality = {
+          status: !scan ? 'unavailable' : measured ? 'measured' : 'insufficient-data',
+          ...(measured && qualityAsset ? { asset: qualityAsset } : {}),
+          ...(narrative ? { narrative } : {})
+        };
+      } catch { businessQuality = undefined; }
+    }
+
     // Decision-relevant on-chain metrics (CoinGecko supply/ATH data plus
     // DefiLlama TVL/fees where the protocol is listed). Crypto only.
     const onchain = resolvedMarketClass === 'crypto' && assetInfo.coinGeckoId
@@ -713,6 +746,7 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       aiExplanation,
       investmentGuide,
       assetProfile,
+      businessQuality,
       onchain,
       lastUpdated: Date.now()
     });

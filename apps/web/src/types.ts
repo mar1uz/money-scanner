@@ -1,6 +1,6 @@
 export * from '@money-scanner/shared';
 export { TOP_50_CRYPTO_ASSETS } from '@money-scanner/shared';
-import type { AIContentTake, Candle } from '@money-scanner/shared';
+import type { AIContentTake, Candle, CryptoFourCriteriaAsset } from '@money-scanner/shared';
 
 export type AppTab = 
   | 'market'
@@ -27,6 +27,11 @@ export interface AssetDetailResponse {
   aiExplanation: any;
   investmentGuide?: { ro?: AIContentTake; en?: AIContentTake };
   assetProfile?: { ro?: AIContentTake; en?: AIContentTake };
+  businessQuality?: {
+    status: 'measured' | 'insufficient-data' | 'unavailable';
+    asset?: CryptoFourCriteriaAsset;
+    narrative?: { ro?: AIContentTake; en?: AIContentTake };
+  };
   onchain?: {
     source?: string;
     supplyCirculating?: number; supplyTotal?: number; supplyMax?: number; pctUnlocked?: number;

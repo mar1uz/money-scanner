@@ -5,6 +5,7 @@ import { fetchAssetDetail, fetchHistoricalCandles, triggerTestAlert } from '../s
 import { InteractiveChart } from './InteractiveChart.js';
 import { useLanguage } from '../i18n.js';
 import { OnchainDataCard } from './OnchainDataCard.js';
+import { BusinessQualityAssetCard } from './BusinessQualityAssetCard.js';
 import { CryptoBusinessQualityCard } from './CryptoBusinessQualityCard.js';
 import { StockBusinessQualityCard } from './StockBusinessQualityCard.js';
 import { AssetProfileOverviewCard } from './AssetProfileOverviewCard.js';
@@ -602,6 +603,8 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
                 />
 
                 <OnchainDataCard data={data?.onchain} />
+
+                {data?.businessQuality && <BusinessQualityAssetCard businessQuality={data.businessQuality} language={language} />}
 
                 {explanation ? (
                   <>
