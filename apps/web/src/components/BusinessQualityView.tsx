@@ -46,16 +46,15 @@ export const BusinessQualityView: React.FC = () => {
   useEffect(() => { void load(); }, []);
 
   const factorChips = (entry: CryptoUndervaluedEntry) => {
-    const criteria = entry.asset.criteria;
-    const items: Array<{ label: string; full: string; status: CryptoCriteriaStatus; value: string }> = [
-      { label: isRo ? 'REȚEA' : 'NETWORK', full: isRo ? 'Efect de rețea' : 'Network effect', status: criteria.networkEffect.status, value: criteria.networkEffect.value },
-      { label: isRo ? 'VENIT' : 'REVENUE', full: isRo ? 'Venit sustenabil' : 'Sustainable revenue', status: criteria.sustainableRevenue.status, value: criteria.sustainableRevenue.value },
-      { label: isRo ? 'HOLDERI' : 'HOLDERS', full: isRo ? 'Valoare către holderi' : 'Holder value', status: criteria.holderValue.status, value: criteria.holderValue.value }
+    const items: Array<{ label: string; full: string; status: CryptoCriteriaStatus }> = [
+      { label: isRo ? 'REȚEA' : 'NETWORK', full: isRo ? 'Efect de rețea' : 'Network effect', status: entry.factorStatuses.networkEffect },
+      { label: isRo ? 'VENIT' : 'REVENUE', full: isRo ? 'Venit sustenabil' : 'Sustainable revenue', status: entry.factorStatuses.sustainableRevenue },
+      { label: isRo ? 'HOLDERI' : 'HOLDERS', full: isRo ? 'Valoare către holderi' : 'Holder value', status: entry.factorStatuses.holderValue }
     ];
     return items.map(item => (
       <span
         key={item.label}
-        title={`${item.full}: ${item.status} · ${item.value}`}
+        title={`${item.full}: ${item.status}`}
         className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[8px] font-bold tracking-wide ${statusTone(item.status)}`}
       >
         {item.label}
@@ -138,19 +137,19 @@ export const BusinessQualityView: React.FC = () => {
 
         {scan && (
           <div className="space-y-2">
-            {(scan.undervalued || []).map((entry, position) => (
-              <article key={entry.asset.id} className="rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] p-3 sm:p-4">
+            {(scan.undervalued || []).slice(0, 100).map((entry, position) => (
+              <article key={entry.assetId} className="rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] p-3 sm:p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <span className={`w-7 text-center text-sm font-mono font-black ${position < 3 ? 'text-emerald-300' : 'text-slate-500'}`}>{position + 1}</span>
-                    {entry.asset.image ? <img src={entry.asset.image} alt="" className="w-8 h-8 rounded-full bg-white/[0.04]" loading="lazy" /> : <Coins className="w-8 h-8 text-slate-600" />}
+                    {entry.image ? <img src={entry.image} alt="" className="w-8 h-8 rounded-full bg-white/[0.04]" loading="lazy" /> : <Coins className="w-8 h-8 text-slate-600" />}
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-slate-100">${entry.asset.symbol}</span>
-                        <span className="text-[10px] font-mono text-slate-600">{entry.asset.marketCapRank > 0 ? `#${entry.asset.marketCapRank}` : ''}</span>
-                        <span className="text-[10px] font-mono text-slate-600">{fmtUsd(entry.asset.marketCap)}</span>
+                        <span className="text-sm font-bold text-slate-100">${entry.symbol}</span>
+                        <span className="text-[10px] font-mono text-slate-600">{entry.marketCapRank > 0 ? `#${entry.marketCapRank}` : ''}</span>
+                        <span className="text-[10px] font-mono text-slate-600">{fmtUsd(entry.marketCap)}</span>
                       </div>
-                      <span className="block text-[10px] text-slate-500 truncate">{entry.asset.name}</span>
+                      <span className="block text-[10px] text-slate-500 truncate">{entry.name}</span>
                     </div>
                   </div>
                   <div className="text-right">
@@ -172,6 +171,11 @@ export const BusinessQualityView: React.FC = () => {
                 </div>
               </article>
             ))}
+            {(scan.undervalued || []).length > 100 && (
+              <p className="py-1 text-center text-[10px] text-slate-600">
+                {isRo ? `Afișate 100 din ${(scan.undervalued || []).length} clasate` : `Showing 100 of ${(scan.undervalued || []).length} ranked`}
+              </p>
+            )}
             {scan.unrankedCount > 0 && (
               <p className="pt-1 text-center text-[10px] text-slate-600">
                 {isRo

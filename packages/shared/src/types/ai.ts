@@ -208,7 +208,17 @@ export interface CryptoFourCriteriaAsset {
 }
 
 export interface CryptoUndervaluedEntry {
-  asset: CryptoFourCriteriaAsset;
+  assetId: string;
+  symbol: string;
+  name: string;
+  image?: string;
+  marketCapRank: number;
+  marketCap: number;
+  factorStatuses: {
+    networkEffect: CryptoCriteriaStatus;
+    sustainableRevenue: CryptoCriteriaStatus;
+    holderValue: CryptoCriteriaStatus;
+  };
   /** 0-75: networkEffect + sustainableRevenue + holderValue scores. */
   qualityScore: number;
   /** 0-100 percentile of qualityScore across ranked assets. */

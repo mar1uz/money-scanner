@@ -495,7 +495,13 @@ const generateCryptoCriteriaReport = async (): Promise<CryptoCriteriaPayload> =>
   const payload = await scanCryptoFourCriteria();
   const entry = { payload, updatedAt: Date.now() };
   cryptoCriteriaCache.set('top-200', entry);
-  await writePersistentAICache(cryptoCriteriaPersistentKey, entry);
+  // Firestore documents cap at 1MiB; the expanded universe can exceed that.
+  // Skip the write explicitly - the in-memory cache still serves this instance.
+  if (JSON.stringify(entry).length < 950_000) {
+    await writePersistentAICache(cryptoCriteriaPersistentKey, entry);
+  } else {
+    console.warn('Crypto criteria payload exceeds the Firestore document limit; serving from memory only.');
+  }
   return payload;
 };
 

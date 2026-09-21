@@ -6,7 +6,8 @@ import {
   CryptoUndervaluedEntry
 } from '@money-scanner/shared';
 
-const COINGECKO_MARKETS_URL = 'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=200&page=1&sparkline=false';
+const COINGECKO_MARKETS_URL = 'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false';
+const COINGECKO_MARKETS_BY_IDS_URL = 'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&sparkline=false&ids=';
 const COINPAPRIKA_MARKETS_URL = 'https://api.coinpaprika.com/v1/tickers?quotes=USD&limit=200';
 const DEFILLAMA_PROTOCOLS_URL = 'https://api.llama.fi/protocols';
 const DEFILLAMA_FEES_URL = 'https://api.llama.fi/overview/fees?excludeTotalDataChart=true&excludeTotalDataChartBreakdown=true&dataType=dailyFees';
@@ -74,6 +75,9 @@ export interface CryptoScannerInput {
   fees: DefiLlamaMetricRow[];
   revenue: DefiLlamaMetricRow[];
   holdersRevenue: DefiLlamaMetricRow[];
+  /** Coins discovered via DefiLlama coverage beyond the market-cap top list;
+      unmeasured candidates are dropped from the returned universe. */
+  candidateIds?: Set<string>;
   generatedAt?: number;
 }
 
@@ -142,9 +146,24 @@ const buildUndervaluedRanking = (assets: CryptoFourCriteriaAsset[]): { undervalu
       const qualityScore = scoreForStatus(asset.criteria.networkEffect.status)
         + scoreForStatus(asset.criteria.sustainableRevenue.status)
         + scoreForStatus(asset.criteria.holderValue.status);
-      return { asset, qualityScore, valuationRatio, valuationBasis: basis };
+      return {
+        assetId: asset.id,
+        symbol: asset.symbol,
+        name: asset.name,
+        image: asset.image,
+        marketCapRank: asset.marketCapRank,
+        marketCap: asset.marketCap,
+        factorStatuses: {
+          networkEffect: asset.criteria.networkEffect.status,
+          sustainableRevenue: asset.criteria.sustainableRevenue.status,
+          holderValue: asset.criteria.holderValue.status
+        },
+        qualityScore,
+        valuationRatio,
+        valuationBasis: basis
+      };
     })
-    .filter((entry): entry is { asset: CryptoFourCriteriaAsset; qualityScore: number; valuationRatio: number; valuationBasis: 'revenue' | 'fees' | 'holders' } => Boolean(entry));
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
 
   const qualityValues = candidates.map(entry => entry.qualityScore).sort((a, b) => a - b);
   const logRatios = candidates.map(entry => Math.log(entry.valuationRatio)).sort((a, b) => a - b);
@@ -290,9 +309,10 @@ const addMetric = (target: NumericAggregate, row: DefiLlamaMetricRow) => {
  */
 export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFourCriteriaScan {
   const coins = input.coins
-    .filter(coin => coin.id && coin.symbol && finitePositive(coin.market_cap_rank) > 0)
-    .sort((left, right) => finitePositive(left.market_cap_rank) - finitePositive(right.market_cap_rank))
-    .slice(0, 200);
+    .filter(coin => coin.id && coin.symbol && (finitePositive(coin.market_cap_rank) > 0 || finitePositive(coin.market_cap) > 0))
+    .sort((left, right) =>
+      (finitePositive(left.market_cap_rank) || Number.MAX_SAFE_INTEGER) - (finitePositive(right.market_cap_rank) || Number.MAX_SAFE_INTEGER)
+    );
   const coinById = new Map(coins.map(coin => [coin.id.toLowerCase(), coin]));
   const coinsBySymbol = new Map<string, CoinGeckoMarketRow[]>();
   const coinByNormalizedName = new Map(coins.map(coin => [normalize(coin.name), coin]));
@@ -379,8 +399,18 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
     right.score - left.score ||
     (right.metrics.revenueRunRateChange ?? Number.NEGATIVE_INFINITY) - (left.metrics.revenueRunRateChange ?? Number.NEGATIVE_INFINITY) ||
     (right.metrics.feeRunRateChange ?? Number.NEGATIVE_INFINITY) - (left.metrics.feeRunRateChange ?? Number.NEGATIVE_INFINITY) ||
-    left.marketCapRank - right.marketCapRank
+    (left.marketCapRank || Number.MAX_SAFE_INTEGER) - (right.marketCapRank || Number.MAX_SAFE_INTEGER)
   );
+
+  // Universe rule: top-market-cap coins stay for continuity; candidate coins
+  // discovered through DefiLlama stay only when they carry real data.
+  const isMeasuredAsset = (asset: CryptoFourCriteriaAsset): boolean =>
+    (asset.metrics.fees30d || 0) > 0 || (asset.metrics.revenue30d || 0) > 0 || (asset.metrics.holdersRevenue30d || 0) > 0;
+  const universe = input.candidateIds
+    ? assets.filter(asset => isMeasuredAsset(asset) || !input.candidateIds!.has(asset.id))
+    : assets;
+  assets.length = 0;
+  assets.push(...universe);
 
   const coveredCount = assets.filter(asset => asset.classification !== 'insufficient-data').length;
   const { undervalued, unrankedCount } = buildUndervaluedRanking(assets);
@@ -442,6 +472,31 @@ const fetchCoinMarkets = async (fetcher: typeof fetch): Promise<CoinGeckoMarketR
   }
 };
 
+/** Batch-fetch market data for coins beyond the top list (demo key when present). */
+const fetchCoinsByIds = async (fetcher: typeof fetch, ids: string[]): Promise<CoinGeckoMarketRow[]> => {
+  const result: CoinGeckoMarketRow[] = [];
+  for (let index = 0; index < ids.length; index += 250) {
+    const chunk = ids.slice(index, index + 250);
+    try {
+      const response = await fetcher(`${COINGECKO_MARKETS_BY_IDS_URL}${chunk.join('%2C')}`, {
+        headers: {
+          accept: 'application/json',
+          'user-agent': 'MoneyScanner360/1.0',
+          ...(process.env.COINGECKO_API_KEY ? { 'x-cg-demo-api-key': process.env.COINGECKO_API_KEY } : {})
+        },
+        signal: AbortSignal.timeout(25_000)
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const rows = await response.json() as CoinGeckoMarketRow[];
+      result.push(...rows.map(row => ({ ...row, coin_gecko_id: row.id })));
+    } catch (error) {
+      console.warn(`CoinGecko candidate chunk failed (${chunk.length} ids):`, error instanceof Error ? error.message : error);
+    }
+    if (index + 250 < ids.length) await new Promise(resolve => setTimeout(resolve, 1500));
+  }
+  return result;
+};
+
 export async function scanCryptoFourCriteria(fetcher: typeof fetch = fetch): Promise<CryptoFourCriteriaScan> {
   const [coins, protocols, feeResponse, revenueResponse, holderRevenueResponse] = await Promise.all([
     fetchCoinMarkets(fetcher),
@@ -450,11 +505,39 @@ export async function scanCryptoFourCriteria(fetcher: typeof fetch = fetch): Pro
     fetchJson<DefiLlamaMetricResponse>(fetcher, DEFILLAMA_REVENUE_URL),
     fetchJson<DefiLlamaMetricResponse>(fetcher, DEFILLAMA_HOLDERS_REVENUE_URL)
   ]);
+  const fees = feeResponse.protocols || [];
+  const revenue = revenueResponse.protocols || [];
+  const holdersRevenue = holderRevenueResponse.protocols || [];
+
+  // Universe expansion (Marius): start from DefiLlama coverage, not the market
+  // cap top list. Every token with real fees/revenue/buyback data qualifies,
+  // whatever its rank; unmatched protocol rows (no gecko_id) are excluded.
+  const overviewSlugs = new Set<string>();
+  for (const row of [...fees, ...revenue, ...holdersRevenue]) {
+    const slug = String(row.slug || '').toLowerCase();
+    if (slug) overviewSlugs.add(slug);
+  }
+  const knownIds = new Set(coins.map(coin => coin.id.toLowerCase()));
+  const candidateIds: string[] = [];
+  const seenCandidates = new Set<string>();
+  for (const protocol of protocols) {
+    const geckoId = String(protocol.gecko_id || '').toLowerCase();
+    const slug = String(protocol.slug || '').toLowerCase();
+    if (!geckoId || !slug || knownIds.has(geckoId) || seenCandidates.has(geckoId)) continue;
+    if (overviewSlugs.has(slug)) {
+      seenCandidates.add(geckoId);
+      candidateIds.push(geckoId);
+    }
+  }
+  const extraCoins = await fetchCoinsByIds(fetcher, candidateIds);
+  const extraIdSet = new Set(extraCoins.map(coin => coin.id.toLowerCase()));
+
   return buildCryptoFourCriteriaScan({
-    coins,
+    coins: [...coins, ...extraCoins],
     protocols,
-    fees: feeResponse.protocols || [],
-    revenue: revenueResponse.protocols || [],
-    holdersRevenue: holderRevenueResponse.protocols || []
+    fees,
+    revenue,
+    holdersRevenue,
+    candidateIds: extraIdSet
   });
 }
