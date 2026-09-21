@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { AppState } from '../services/app-state.js';
+import { validateScheduledRequestToken } from '../services/scheduler-auth.js';
 import {
   Timeframe,
   TRADING_360_ASSETS,
@@ -266,6 +267,31 @@ scannerRouter.get('/search', async (req, res) => {
     res.json(enriched);
   } catch (err: any) {
     res.status(500).json({ error: 'Search failed', details: err.message });
+  }
+});
+
+// Cache warmer, driven by Cloud Scheduler (every minute). Keeps the instance's
+// quote/candle caches hot so user-facing requests always compute from warm
+// data - responses elsewhere stay freshly computed on every request.
+let warmInFlight: Promise<{ rows: number; durationMs: number }> | null = null;
+scannerRouter.get('/scanner/warm', async (req, res) => {
+  if (!validateScheduledRequestToken(req.get('x-daily-scan-token'))) {
+    return res.status(401).json({ error: 'Invalid scheduler token' });
+  }
+  try {
+    const appState = AppState.getInstance();
+    if (!warmInFlight) {
+      const startedAt = Date.now();
+      warmInFlight = (async () => {
+        const rows = await appState.refreshSignals('1w', 'ALL');
+        await appState.marketData.getMarketOverview();
+        return { rows: rows.length, durationMs: Date.now() - startedAt };
+      })().finally(() => { warmInFlight = null; });
+    }
+    const result = await warmInFlight;
+    res.json({ ok: true, ...result });
+  } catch (err: any) {
+    res.status(503).json({ error: 'Warm failed', details: err.message });
   }
 });
 

@@ -3817,3 +3817,24 @@ Teste: 17 noi (10 MA 2x2 + 7 structure scanner); suita API completă 155/155 ver
 - Revizie live: market-scanner-360-00218-4q2 (build 2b4a77d1; formula a intrat în 00217-pdh / build 83994476 / commit ea56fba). Verificat live după rescan manual: crypto-1w 34.1-100 (doar 3 la 100, legitime), metale 19.7-90.9, stocks 33.7-94.3; UI: AVAX 1W 84, XTZ 78, ETHFI 77, PENDLE 69. Teste: 27/27 (6 scor + 3 merge noi), tsc curat.
 - Backtest validare (`apps/api/scripts/backtest-flip-score.ts`, 146 flipuri confirmate 1D pe 10 monede mari, ~2.7 ani Binance): Q1 (scor 33-45) ret30 -4.1%, Q3 +5.5% (hit 72%), Q5 medie +14.2% dar mediană -7.5% (vârfurile 90+ sunt climactice); Spearman scor vs ret14 = 0.152, vs ret30 = 0.024. Concluzie: scorul filtrează bine coada de jos și modelează 1-2 săptămâni; extremele mari sunt intrări climactice. Rămâne opțional: taper RVOL >4x (discount climax), dacă Marius vrea.
 - Lecție: la verificare după deploy, rescan manual doar după ce traficul e 100% pe revizia nouă; starea restaurată poate păstra scoruri vechi (de aici și bug-ul de merge găsit).
+
+
+## Step 93 (2026-09-21): Page-load performance batch (commit 73cb7d5, rev 00221-trm + 00222-rjb)
+- compression middleware in apps/api: bundle 1,152,246B identity -> 304,368B brotli on the wire (3.8x)
+- /api/overview: 5-min stale-while-revalidate cache + single-flight + parallel CoinGecko-global/FNG fetches
+  (warm 744ms -> ~150-300ms server-side; always served from cache after first compute)
+- Cloud Run min-instances=1 on market-scanner-360 (removes scale-from-zero cold starts; small fixed monthly cost)
+- Known remaining: /api/scanner cold-instance recompute 76-121s during instance churn (CoinGecko rate limits);
+  candidate batch D: SWR response cache on /api/scanner (trades minute-level freshness for instant loads).
+
+
+## Step 94 (2026-09-21): CoinGecko Demo API key wired in (rev 00223-2pc)
+- Free Demo plan key created on an Instinct-operated CoinGecko account (agent mailbox); account + key
+  stored as agent entries in the vault. Key set as COINGECKO_API_KEY env var on Cloud Run (config-only
+  revision; code already sent x-cg-demo-api-key when set). Direct API test with key: HTTP 200 in 166ms.
+- Measured after: warm scanner 1,137-1,413ms (unchanged), warm overview ~190-350ms (SWR).
+- Honest finding: the key did NOT fix the cold path - first load on a fresh instance is still
+  60-110s for /api/scanner and ~40s for /api/overview. The dominant cold cost is per-asset
+  quote/candle hydration (~219 assets x multiple timeframes) from exchange APIs, not CoinGecko
+  rate limits. Candidate fix: a warmer keeping the min-instance caches hot (Cloud Scheduler or
+  in-process interval) - responses stay freshly computed, no stale data served.
