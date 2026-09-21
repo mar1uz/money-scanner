@@ -215,7 +215,7 @@ export interface CryptoUndervaluedEntry {
   qualityPercentile: number;
   /** marketCap / annualized revenue (or fees when revenue is missing). */
   valuationRatio: number;
-  valuationBasis: 'revenue' | 'fees';
+  valuationBasis: 'revenue' | 'fees' | 'holders';
   /** 0-100 percentile of log(valuationRatio): higher means more expensive. */
   expensivenessPercentile: number;
   /** qualityPercentile - expensivenessPercentile, range -100..+100. */

@@ -610,7 +610,7 @@ export const AIBriefingView: React.FC = () => {
     // Selection semantics: only coins that actually generate observable
     // fees/revenue are listed; unmeasured coins never show a misleading 0.
     const isMeasured = (asset: CryptoFourCriteriaAsset) =>
-      (asset.metrics.fees30d || 0) > 0 || (asset.metrics.revenue30d || 0) > 0;
+      (asset.metrics.fees30d || 0) > 0 || (asset.metrics.revenue30d || 0) > 0 || (asset.metrics.holdersRevenue30d || 0) > 0;
     const measuredMatches = localMatches.filter(isMeasured);
     const unmeasuredSearchMatches = normalizedSearch ? localMatches.filter(asset => !isMeasured(asset)) : [];
     const remoteMatches = dexLookupAssets.filter(asset =>
@@ -660,10 +660,10 @@ export const AIBriefingView: React.FC = () => {
       .replace(/\/ 30z/g, '/ 30d');
     const methodology = language === 'ro' ? criteriaScan.methodology : [
       'Growth: 7-day TVL change or fee acceleration (7d run-rate versus 30d).',
-      'Network effect: conservative proxy based on fees, TVL and multi-chain reach; it does not claim exact active users.',
-      'Sustainable revenue: material revenue observed concurrently across 24h, 7d and 30d windows.',
-      'Holder value: holder revenue reported as buyback/burn, direct distribution or revenue-funded staking.',
-      'Selection: only coins with observable fees/revenue are listed; sorted by criteria passed, then revenue run-rate (7d vs 30d), then rank - not absolute size.'
+      'Network effect: fees >= $1M/30d plus TVL or multi-chain reach; a proxy, not exact active users.',
+      'Sustainable revenue: revenue >= $1M/30d present across 24h, 7d and 30d windows; for L1s (BTC, ETH, SOL) chain fees to validators/miners are used.',
+      'Holder value: buyback/burn, distributions or revenue-funded staking >= $100K/30d reported by DefiLlama.',
+      'Selection: only coins with observable fees/revenue or reported buyback/burn are listed; sorted by criteria passed, then revenue run-rate (7d vs 30d), then rank - not absolute size.'
     ];
 
     return (
@@ -796,8 +796,8 @@ export const AIBriefingView: React.FC = () => {
               {unmeasuredSearchMatches.length > 0 && (
                 <p className="py-2 text-center text-[10px] text-slate-500">
                   {language === 'ro'
-                    ? `Fără date de fees/revenue, nu pot fi evaluate: ${unmeasuredSearchMatches.slice(0, 5).map(asset => asset.symbol).join(', ')}${unmeasuredSearchMatches.length > 5 ? ` +${unmeasuredSearchMatches.length - 5}` : ''}`
-                    : `No observable fees/revenue, not scorable: ${unmeasuredSearchMatches.slice(0, 5).map(asset => asset.symbol).join(', ')}${unmeasuredSearchMatches.length > 5 ? ` +${unmeasuredSearchMatches.length - 5}` : ''}`}
+                    ? `Fără fees/revenue sau buyback raportat, nu pot fi evaluate: ${unmeasuredSearchMatches.slice(0, 5).map(asset => asset.symbol).join(', ')}${unmeasuredSearchMatches.length > 5 ? ` +${unmeasuredSearchMatches.length - 5}` : ''}`
+                    : `No observable fees/revenue or buyback, not scorable: ${unmeasuredSearchMatches.slice(0, 5).map(asset => asset.symbol).join(', ')}${unmeasuredSearchMatches.length > 5 ? ` +${unmeasuredSearchMatches.length - 5}` : ''}`}
                 </p>
               )}
               {matchingAssets.length > visibleAssets.length && (

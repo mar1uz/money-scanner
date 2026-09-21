@@ -69,7 +69,7 @@ export const BusinessQualityView: React.FC = () => {
     'Sustainable revenue: material revenue observed concurrently across 24h, 7d and 30d windows.',
     'Holder value: holder revenue reported as buyback/burn, direct distribution or revenue-funded staking.',
     'Undervaluation model: quality score 0-75 = Network Effect + Sustainable Revenue + Holder Value (same thresholds).',
-    'Valuation: P/R = market cap / (30d revenue x 12); when revenue is missing but fees exist, P/F = market cap / (30d fees x 12).',
+    'Valuation: P/R = market cap / (30d revenue x 12); fallbacks P/F from fees and P/H from annualized buyback/burn when those are the only data.',
     'Undervaluation index = quality percentile minus expensiveness percentile (log P/R) across the covered universe. Assets without fees/revenue are not ranked.'
   ];
 
@@ -106,8 +106,8 @@ export const BusinessQualityView: React.FC = () => {
           <Info className="w-3.5 h-3.5 text-amber-300 shrink-0 mt-0.5" />
           <p className="text-[10px] leading-relaxed text-slate-400">
             {isRo
-              ? 'Index subevaluare = percentila calității (scor 0-75 din cei 3 factori) minus percentila scumpirii (log P/R; dacă lipsește revenue, se folosește P/F din fees). +100 = calitate maximă la preț minim; -100 = invers. Activele fără fees/revenue nu sunt clasate.'
-              : 'Undervaluation index = quality percentile (0-75 score from the 3 factors) minus expensiveness percentile (log P/R; P/F from fees when revenue is missing). +100 = top quality at the lowest price; -100 = the opposite. Assets without fees/revenue are not ranked.'}
+              ? 'Index subevaluare = percentila calității (scor 0-75 din cei 3 factori) minus percentila scumpirii (log P/R; fallback P/F din fees sau P/H din buyback). +100 = calitate maximă la preț minim; -100 = invers. Activele fără fees/revenue/buyback nu sunt clasate.'
+              : 'Undervaluation index = quality percentile (0-75 score from the 3 factors) minus expensiveness percentile (log P/R; P/F from fees or P/H from buyback as fallback). +100 = top quality at the lowest price; -100 = the opposite. Assets without fees/revenue/buyback are not ranked.'}
           </p>
         </div>
 
@@ -158,8 +158,9 @@ export const BusinessQualityView: React.FC = () => {
                       {entry.undervaluationIndex > 0 ? '+' : ''}{entry.undervaluationIndex}
                     </span>
                     <span className="block text-[9px] font-mono text-slate-600">
-                      {entry.valuationBasis === 'revenue' ? 'P/R' : 'P/F'} {entry.valuationRatio.toFixed(1)}x
+                      {entry.valuationBasis === 'revenue' ? 'P/R' : entry.valuationBasis === 'fees' ? 'P/F' : 'P/H'} {entry.valuationRatio.toFixed(1)}x
                       {entry.valuationBasis === 'fees' && <span className="text-amber-400"> · fees</span>}
+                      {entry.valuationBasis === 'holders' && <span className="text-purple-300"> · buyback</span>}
                     </span>
                   </div>
                 </div>
@@ -174,8 +175,8 @@ export const BusinessQualityView: React.FC = () => {
             {scan.unrankedCount > 0 && (
               <p className="pt-1 text-center text-[10px] text-slate-600">
                 {isRo
-                  ? `${scan.unrankedCount} active neclasate: nu există fees/revenue observate pe DefiLlama, deci nu pot fi evaluate corect.`
-                  : `${scan.unrankedCount} unranked assets: no fees/revenue observed on DefiLlama, so they cannot be scored honestly.`}
+                  ? `${scan.unrankedCount} active neclasate: nu există fees/revenue/buyback observate pe DefiLlama, deci nu pot fi evaluate corect.`
+                  : `${scan.unrankedCount} unranked assets: no fees/revenue/buyback observed on DefiLlama, so they cannot be scored honestly.`}
               </p>
             )}
           </div>

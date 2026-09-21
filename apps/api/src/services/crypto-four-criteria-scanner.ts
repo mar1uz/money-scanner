@@ -44,6 +44,7 @@ interface DefiLlamaProtocolRow {
 interface DefiLlamaMetricRow {
   name?: string;
   slug?: string;
+  category?: string;
   total24h?: number | null;
   total7d?: number | null;
   total30d?: number | null;
@@ -132,9 +133,10 @@ const buildUndervaluedRanking = (assets: CryptoFourCriteriaAsset[]): { undervalu
     .map(asset => {
       const revenue30d = asset.metrics.revenue30d || 0;
       const fees30d = asset.metrics.fees30d || 0;
-      const basis: 'revenue' | 'fees' | null = revenue30d > 0 ? 'revenue' : fees30d > 0 ? 'fees' : null;
+      const holders30d = asset.metrics.holdersRevenue30d || 0;
+      const basis: 'revenue' | 'fees' | 'holders' | null = revenue30d > 0 ? 'revenue' : fees30d > 0 ? 'fees' : holders30d > 0 ? 'holders' : null;
       if (!basis || asset.marketCap <= 0) return undefined;
-      const annualized = (basis === 'revenue' ? revenue30d : fees30d) * 12;
+      const annualized = (basis === 'revenue' ? revenue30d : basis === 'fees' ? fees30d : holders30d) * 12;
       const valuationRatio = annualized > 0 ? asset.marketCap / annualized : undefined;
       if (!valuationRatio || !Number.isFinite(valuationRatio)) return undefined;
       const qualityScore = scoreForStatus(asset.criteria.networkEffect.status)
@@ -142,7 +144,7 @@ const buildUndervaluedRanking = (assets: CryptoFourCriteriaAsset[]): { undervalu
         + scoreForStatus(asset.criteria.holderValue.status);
       return { asset, qualityScore, valuationRatio, valuationBasis: basis };
     })
-    .filter((entry): entry is { asset: CryptoFourCriteriaAsset; qualityScore: number; valuationRatio: number; valuationBasis: 'revenue' | 'fees' } => Boolean(entry));
+    .filter((entry): entry is { asset: CryptoFourCriteriaAsset; qualityScore: number; valuationRatio: number; valuationBasis: 'revenue' | 'fees' | 'holders' } => Boolean(entry));
 
   const qualityValues = candidates.map(entry => entry.qualityScore).sort((a, b) => a - b);
   const logRatios = candidates.map(entry => Math.log(entry.valuationRatio)).sort((a, b) => a - b);
@@ -185,7 +187,8 @@ export function evaluateCryptoFourCriteriaAsset(
   protocol: ProtocolAggregate | undefined,
   fees: NumericAggregate,
   revenue: NumericAggregate,
-  holderRevenue: NumericAggregate
+  holderRevenue: NumericAggregate,
+  isChain = false
 ): CryptoFourCriteriaAsset {
   const tvlChange7d = protocol && protocol.tvlWithChange > 0
     ? protocol.weightedTvlChange7d / protocol.tvlWithChange
@@ -203,23 +206,32 @@ export function evaluateCryptoFourCriteriaAsset(
         ? criterion('watch', 'Creștere', formatPercent(bestGrowth), 'Activitatea este stabilă sau crește lent; necesită monitorizare.')
         : criterion('fail', 'Creștere', formatPercent(bestGrowth), 'Proxy-ul de activitate este în contracție față de perioada comparabilă.');
 
-  const networkEvidence = fees.total30d >= 100_000 && ((protocol?.tvl || 0) >= 10_000_000 || (protocol?.chains.size || 0) >= 2);
+  const networkEvidence = fees.total30d >= 1_000_000 && ((protocol?.tvl || 0) >= 10_000_000 || (protocol?.chains.size || 0) >= 2);
   const networkEffect = networkEvidence
     ? criterion('pass', 'Efect de rețea', `${formatUsd(fees.total30d)} fees / 30z`, 'Activitate economică relevantă plus TVL sau distribuție multi-chain; acesta este un proxy, nu număr de utilizatori.')
     : fees.total30d > 0 || (protocol?.tvl || 0) > 0
       ? criterion('watch', 'Efect de rețea', fees.total30d > 0 ? `${formatUsd(fees.total30d)} fees / 30z` : `${formatUsd(protocol?.tvl || 0)} TVL`, 'Există utilizare măsurabilă, dar pragul proxy pentru efect de rețea nu este încă îndeplinit.')
       : criterion('unknown', 'Efect de rețea', 'Date insuficiente', 'Sursa gratuită nu oferă dovadă comparabilă de utilizare pentru acest token.');
 
-  const revenueContinuity = revenue.total30d > 0 ? (revenue.total7d * (30 / 7)) / revenue.total30d : 0;
-  const sustainableRevenue = revenue.total30d >= 100_000 && revenue.total7d > 0 && revenue.total24h > 0 && revenueContinuity >= 0.5
-    ? criterion('pass', 'Venit sustenabil', `${formatUsd(revenue.total30d)} / 30z`, 'Venitul este material și apare în ferestrele de 24h, 7z și 30z.')
-    : revenue.total30d > 0
-      ? criterion('watch', 'Venit sustenabil', `${formatUsd(revenue.total30d)} / 30z`, 'Există venit, dar este prea mic, neregulat sau recent pentru confirmare.')
+  // L1 fix: for chains, fees ARE the network's revenue (they pay
+  // validators/miners); without this, BTC/ETH-class assets were penalized for
+  // having no protocol-retained revenue while paying real security revenue.
+  const useChainFees = isChain && fees.total30d > revenue.total30d;
+  const basis24h = useChainFees ? fees.total24h : revenue.total24h;
+  const basis7d = useChainFees ? fees.total7d : revenue.total7d;
+  const basis30d = useChainFees ? fees.total30d : revenue.total30d;
+  const revenueContinuity = basis30d > 0 ? (basis7d * (30 / 7)) / basis30d : 0;
+  const sustainableRevenue = basis30d >= 1_000_000 && basis7d > 0 && basis24h > 0 && revenueContinuity >= 0.5
+    ? criterion('pass', 'Venit sustenabil', `${formatUsd(basis30d)}${useChainFees ? ' fees L1' : ''} / 30z`, useChainFees
+      ? 'Fees reale ale rețelei (către validatori/mineri) de minimum $1M/30z, prezente în ferestrele 24h, 7z și 30z.'
+      : 'Venit de minimum $1M/30z reținut de protocol, prezent concomitent în ferestrele 24h, 7z și 30z.')
+    : basis30d > 0
+      ? criterion('watch', 'Venit sustenabil', `${formatUsd(basis30d)}${useChainFees ? ' fees L1' : ''} / 30z`, 'Există venit, dar este sub $1M/30z, neregulat sau recent pentru confirmare.')
       : hasUsageObservation
         ? criterion('fail', 'Venit sustenabil', '$0 observat', 'Activitatea urmărită nu produce revenue reținut de protocol în această fereastră.')
         : criterion('unknown', 'Venit sustenabil', 'Date insuficiente', 'Nu există observații DefiLlama comparabile pentru acest token.');
 
-  const holderValue = holderRevenue.total30d >= 10_000 && holderRevenue.total7d > 0
+  const holderValue = holderRevenue.total30d >= 100_000 && holderRevenue.total7d > 0
     ? criterion('pass', 'Valoare către holderi', `${formatUsd(holderRevenue.total30d)} / 30z`, 'DefiLlama raportează buyback/burn, distribuții sau staking finanțat din revenue.')
     : holderRevenue.total30d > 0
       ? criterion('watch', 'Valoare către holderi', `${formatUsd(holderRevenue.total30d)} / 30z`, 'Mecanismul există, dar valoarea observată este încă redusă sau neregulată.')
@@ -330,11 +342,12 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
     return coinByNormalizedName.get(normalize(row.name));
   };
 
-  const aggregateMetrics = (rows: DefiLlamaMetricRow[]): Map<string, NumericAggregate> => {
+  const aggregateMetrics = (rows: DefiLlamaMetricRow[], chainCoinIds?: Set<string>): Map<string, NumericAggregate> => {
     const result = new Map<string, NumericAggregate>();
     for (const row of rows) {
       const coin = resolveMetricCoin(row);
       if (!coin) continue;
+      if (chainCoinIds && String(row.category || '').toLowerCase() === 'chain') chainCoinIds.add(coin.id);
       const aggregate = result.get(coin.id) || { total24h: 0, total7d: 0, total30d: 0 };
       addMetric(aggregate, row);
       result.set(coin.id, aggregate);
@@ -342,7 +355,8 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
     return result;
   };
 
-  const feeByCoin = aggregateMetrics(input.fees);
+  const chainCoinIds = new Set<string>();
+  const feeByCoin = aggregateMetrics(input.fees, chainCoinIds);
   const revenueByCoin = aggregateMetrics(input.revenue);
   const holderRevenueByCoin = aggregateMetrics(input.holdersRevenue);
 
@@ -359,7 +373,7 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
       image: coin.image,
       marketCapRank: Math.round(finitePositive(coin.market_cap_rank)),
       marketCap: finitePositive(coin.market_cap)
-    }, protocol, fees, revenue, holderRevenue);
+    }, protocol, fees, revenue, holderRevenue, chainCoinIds.has(coin.id));
   }).sort((left, right) =>
     right.passedCriteria - left.passedCriteria ||
     right.score - left.score ||
@@ -382,13 +396,13 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
     dataFreshness: 'CoinGecko/CoinPaprika + DefiLlama live; cache 30 minute',
     methodology: [
       'Creștere: schimbarea TVL pe 7 zile sau accelerarea fees (ritm 7z vs 30z).',
-      'Efect de rețea: proxy conservator bazat pe fees, TVL și prezență multi-chain; nu pretinde utilizatori activi exacți.',
-      'Venit sustenabil: revenue material și prezent concomitent în ferestrele 24h, 7z și 30z.',
-      'Valoare către holderi: holders revenue raportat ca buyback/burn, distribuție directă sau staking finanțat din venit.',
+      'Efect de rețea: fees ≥$1M/30z plus TVL sau prezență multi-chain; proxy conservator, nu utilizatori activi exacți.',
+      'Venit sustenabil: revenue ≥$1M/30z prezent concomitent în ferestrele 24h, 7z și 30z; pentru L1-uri (BTC, ETH, SOL) se folosesc fees rețelei, care merg la validatori/mineri.',
+      'Valoare către holderi: buyback/burn, distribuții sau staking finanțat din venit ≥$100K/30z raportat de DefiLlama.',
       'Model de subevaluare (tab Calitate Business): scor calitate 0-75 = Efect de rețea + Venit sustenabil + Valoare către holderi, aceleași praguri.',
-      'Evaluare: P/R = market cap / (revenue 30z × 12); dacă revenue lipsește dar fees există, P/F = market cap / (fees 30z × 12).',
+      'Evaluare: P/R = market cap / (revenue 30z × 12); fallback P/F din fees, respectiv P/H din buyback/burn anualizat când lipsesc ambele.',
       'Index subevaluare = percentila calității − percentila scumpirii (log P/R) în universul acoperit; activele fără fees/revenue nu sunt clasate.',
-      'Selecție secțiune: sunt listate doar monedele cu fees/revenue observabile; sortare după criterii trecute, apoi ritmul revenue (7z vs 30z) și rank — nu dimensiunea absolută.'
+      'Selecție secțiune: sunt listate doar monedele cu fees/revenue observabile sau buyback/burn raportat; sortare după criterii trecute, apoi ritmul revenue (7z vs 30z) și rank — nu dimensiunea absolută.'
     ],
     sources: [
       { id: 'video', title: 'Criteriile din interviu (30:03–30:35)', url: 'https://youtu.be/oZWS5eB5YsQ?t=1803', domain: 'youtube.com' },
