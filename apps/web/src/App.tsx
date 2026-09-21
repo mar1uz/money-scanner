@@ -383,6 +383,17 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
               {/* Tab 1: Market Intelligence (Gauges + Narrative Bar + Scanner Table) */}
               {activeTab === 'market' && (
                 <div className="market-dashboard space-y-8">
+                  {loading && scannerRows.length === 0 && (
+                    <div role="status" aria-live="polite" className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-cyan-500/25 bg-cyan-500/[0.07] px-6 py-12 text-center">
+                      <RefreshCw className="w-9 h-9 animate-spin text-cyan-400" />
+                      <p className="text-base font-bold font-mono text-slate-100">
+                        {language === 'ro' ? 'Se încarcă datele de piață…' : 'Loading market data…'}
+                      </p>
+                      <p className="text-xs font-mono text-slate-400">
+                        {language === 'ro' ? 'Se calculează semnalele 360°. Poate dura câteva secunde.' : 'Computing 360° signals. This can take a few seconds.'}
+                      </p>
+                    </div>
+                  )}
                   <section className="market-intro">
                     <div>
                       <p className="eyebrow">MARKET INTELLIGENCE / 360°</p>

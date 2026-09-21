@@ -53,6 +53,14 @@ interface InteractiveChartProps {
   onLoadMoreHistory?: () => void | Promise<void>;
   isLoadingHistory?: boolean;
   hasMoreHistory?: boolean;
+  /** CoinGecko page URL. When provided (asset deep-dive, crypto), the mobile
+      nav bar shows CoinGecko in place of the TradingView-extern tab, which
+      moves up into the flip-info row. Desktop layout is unchanged. */
+  coinGeckoUrl?: string;
+  /** Controlled tab state (optional). Lets the parent switch tabs from
+      outside (the flip-row TradingView extern button on mobile). */
+  activeTab?: 'chart' | 'tv_embed' | 'pinescript';
+  onActiveTabChange?: (tab: 'chart' | 'tv_embed' | 'pinescript') => void;
 }
 
 export type DrawingTool = 
@@ -96,7 +104,10 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   onTimeframeChange,
   onLoadMoreHistory,
   isLoadingHistory = false,
-  hasMoreHistory = true
+  hasMoreHistory = true,
+  coinGeckoUrl,
+  activeTab: controlledActiveTab,
+  onActiveTabChange
 }) => {
   const { language } = useLanguage();
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -116,7 +127,12 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   isLoadingHistoryRef.current = isLoadingHistory;
   hasMoreHistoryRef.current = hasMoreHistory;
 
-  const [activeTab, setActiveTab] = useState<'chart' | 'tv_embed' | 'pinescript'>('chart');
+  const [internalTab, setInternalTab] = useState<'chart' | 'tv_embed' | 'pinescript'>('chart');
+  const activeTab = controlledActiveTab ?? internalTab;
+  const setActiveTab = (tab: 'chart' | 'tv_embed' | 'pinescript') => {
+    setInternalTab(tab);
+    if (onActiveTabChange) onActiveTabChange(tab);
+  };
   const [activeInterval, setActiveInterval] = useState<string>(timeframe);
   const [showSma50, setShowSma50] = useState<boolean>(true);
   const [showSma200, setShowSma200] = useState<boolean>(true);
@@ -1214,7 +1230,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="âš ï¸
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-background-border">
         {/* Navigation Mode */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center bg-background-card/90 border border-background-border rounded-xl p-1 shadow-inner">
+          <div className="flex flex-wrap items-center max-w-full bg-background-card/90 border border-background-border rounded-xl p-1 shadow-inner">
             <button
               onClick={() => setActiveTab('chart')}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all ${
@@ -1229,7 +1245,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="âš ï¸
 
             <button
               onClick={() => setActiveTab('tv_embed')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all ${
+              className={`${coinGeckoUrl ? 'hidden sm:flex' : 'flex'} items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all ${
                 activeTab === 'tv_embed'
                   ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 font-bold shadow-glow-cyan'
                   : 'text-slate-400 hover:text-slate-200'
@@ -1238,6 +1254,19 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="âš ï¸
               <BarChart2 className="w-3.5 h-3.5 text-blue-400" />
               <span>TradingView extern</span>
             </button>
+
+            {coinGeckoUrl && (
+              <a
+                href={coinGeckoUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Deschide pe CoinGecko"
+                className="sm:hidden flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all text-emerald-300 hover:text-emerald-200 border border-emerald-500/30 hover:border-emerald-400/50 bg-emerald-500/10"
+              >
+                <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
+                <span>CoinGecko</span>
+              </a>
+            )}
 
             <button
               onClick={() => setActiveTab('pinescript')}
