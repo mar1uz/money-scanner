@@ -42,6 +42,7 @@ import { PriceAlertService } from './price-alert-service.js';
 import { DailySmaReclaimRunner } from './daily-sma-reclaim-runner.js';
 import { MaCrossAlertRunner } from './ma-cross-alert-runner.js';
 import { StructureScannerRunner } from './structure-scanner-runner.js';
+import { calculateFlipPriorityScore } from './flip-priority-score.js';
 import { DailySmaReclaimReport } from '@money-scanner/shared';
 
 export interface BullishCloudAlertRule {
@@ -1656,15 +1657,19 @@ export class AppState {
     const weeklyAligned = direction === 'BULLISH' ? weeklyBullish : weeklyBearish;
     const sma50Aligned = direction === 'BULLISH' ? currentPrice >= sma50 : currentPrice <= sma50;
     const sma200Aligned = direction === 'BULLISH' ? currentPrice >= sma200 : currentPrice <= sma200;
-    const statusBoost = confirmed ? 22 : crossedLive ? 16 : distanceAtr <= 0.25 ? 8 : 0;
-    const alignmentBoost = (weeklyAligned ? 6 : 0) + (sma50Aligned ? 3 : 0) + (sma200Aligned ? 2 : 0);
-    const volumeBoost = Math.min(4, Math.max(0, signal.rawIndicators.rvol - 0.8) * 3);
-    // The focused trading-alert ranking favors the actionable lower timeframe.
-    // Higher timeframes remain context filters, not an automatic probability claim.
-    const timeframeBoost = timeframe === '4h' ? 5 : timeframe === '8h' ? 3 : timeframe === '1d' ? 1 : 0;
-    const priorityScore = Math.max(0, Math.min(100,
-      92 - Math.min(distanceAtr, 4) * 18 + statusBoost + alignmentBoost + volumeBoost + timeframeBoost
-    ));
+    // Setup score: component model that differentiates confirmed flips as well as
+    // candidates on the same 0-100 scale (replaces the saturating 92+boosts formula).
+    const priorityScore = calculateFlipPriorityScore({
+      direction,
+      currentPrice,
+      triggerPrice,
+      atr,
+      moneyLineScore: signal.score,
+      weeklyTier,
+      rvol: signal.rawIndicators.rvol,
+      sma50,
+      sma200
+    }).total;
     const confirmedAt = confirmed
       ? Math.min(Date.now(), closedCandles[lastIndex].timestamp + FLIP_TIMEFRAME_DURATION_MS[timeframe])
       : undefined;
