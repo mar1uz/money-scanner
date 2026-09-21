@@ -607,11 +607,18 @@ export const AIBriefingView: React.FC = () => {
       }
       return !normalizedSearch || asset.symbol.toLowerCase().includes(normalizedSearch) || asset.name.toLowerCase().includes(normalizedSearch);
     });
+    // Selection semantics: only coins that actually generate observable
+    // fees/revenue are listed; unmeasured coins never show a misleading 0.
+    const isMeasured = (asset: CryptoFourCriteriaAsset) =>
+      (asset.metrics.fees30d || 0) > 0 || (asset.metrics.revenue30d || 0) > 0;
+    const measuredMatches = localMatches.filter(isMeasured);
+    const unmeasuredSearchMatches = normalizedSearch ? localMatches.filter(asset => !isMeasured(asset)) : [];
     const remoteMatches = dexLookupAssets.filter(asset =>
       !localMatches.some(local => local.symbol === asset.symbol && local.name.toLowerCase() === asset.name.toLowerCase())
     );
-    const matchingAssets = normalizedSearch ? [...remoteMatches, ...localMatches] : localMatches;
-    const visibleAssets = matchingAssets.slice(0, normalizedSearch ? 50 : 30);
+    const matchingAssets = normalizedSearch ? [...remoteMatches, ...measuredMatches] : measuredMatches;
+    const visibleAssets = matchingAssets.slice(0, 50);
+    const measuredCount = (criteriaScan.assets || []).filter(isMeasured).length;
     const statusIcon = (status: CryptoCriteriaStatus) => status === 'pass'
       ? <CheckCircle2 className="w-3 h-3" />
       : status === 'unknown'
@@ -655,7 +662,8 @@ export const AIBriefingView: React.FC = () => {
       'Growth: 7-day TVL change or fee acceleration (7d run-rate versus 30d).',
       'Network effect: conservative proxy based on fees, TVL and multi-chain reach; it does not claim exact active users.',
       'Sustainable revenue: material revenue observed concurrently across 24h, 7d and 30d windows.',
-      'Holder value: holder revenue reported as buyback/burn, direct distribution or revenue-funded staking.'
+      'Holder value: holder revenue reported as buyback/burn, direct distribution or revenue-funded staking.',
+      'Selection: only coins with observable fees/revenue are listed; sorted by criteria passed, then revenue run-rate (7d vs 30d), then rank - not absolute size.'
     ];
 
     return (
@@ -701,10 +709,10 @@ export const AIBriefingView: React.FC = () => {
           <>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
               {[
-                [language === 'ro' ? 'Scanate' : 'Scanned', criteriaScan.scannedCount, 'text-cyan-300'],
-                [language === 'ro' ? 'Cu date' : 'With data', criteriaScan.coveredCount, 'text-slate-200'],
+                [language === 'ro' ? 'Evaluate' : 'Measured', measuredCount, 'text-cyan-300'],
                 ['4 / 4', criteriaScan.allFourCount, 'text-emerald-300'],
-                [language === 'ro' ? 'Primele 3' : 'First 3', criteriaScan.firstThreeCount, 'text-amber-300']
+                [language === 'ro' ? 'Primele 3' : 'First 3', criteriaScan.firstThreeCount, 'text-amber-300'],
+                [language === 'ro' ? 'Fără date' : 'No data', criteriaScan.scannedCount - measuredCount, 'text-slate-500']
               ].map(([label, value, tone]) => (
                 <div key={String(label)} className="rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] p-3">
                   <span className="block text-[9px] font-mono uppercase text-slate-600">{label}</span>
@@ -785,6 +793,18 @@ export const AIBriefingView: React.FC = () => {
               {loadingDexLookup && <p className="py-3 text-center text-xs text-cyan-300">{language === 'ro' ? 'Caut pe DexScreener și evaluez cele 4 criterii…' : 'Searching DexScreener and scoring the 4 criteria…'}</p>}
               {dexLookupError && !loadingDexLookup && <p className="py-3 text-center text-xs text-rose-300">{dexLookupError}</p>}
               {visibleAssets.length === 0 && !loadingDexLookup && <p className="py-5 text-center text-xs text-slate-500">{normalizedSearch ? (language === 'ro' ? 'Nicio monedă găsită în top 200 sau pe DexScreener.' : 'No coin found in the top 200 or on DexScreener.') : (language === 'ro' ? 'Nicio monedă nu îndeplinește filtrul în datele curente.' : 'No coin matches this filter in current data.')}</p>}
+              {unmeasuredSearchMatches.length > 0 && (
+                <p className="py-2 text-center text-[10px] text-slate-500">
+                  {language === 'ro'
+                    ? `Fără date de fees/revenue, nu pot fi evaluate: ${unmeasuredSearchMatches.slice(0, 5).map(asset => asset.symbol).join(', ')}${unmeasuredSearchMatches.length > 5 ? ` +${unmeasuredSearchMatches.length - 5}` : ''}`
+                    : `No observable fees/revenue, not scorable: ${unmeasuredSearchMatches.slice(0, 5).map(asset => asset.symbol).join(', ')}${unmeasuredSearchMatches.length > 5 ? ` +${unmeasuredSearchMatches.length - 5}` : ''}`}
+                </p>
+              )}
+              {matchingAssets.length > visibleAssets.length && (
+                <p className="py-1 text-center text-[10px] text-slate-600">
+                  {language === 'ro' ? `Afișate ${visibleAssets.length} din ${matchingAssets.length} monede evaluate` : `Showing ${visibleAssets.length} of ${matchingAssets.length} measured coins`}
+                </p>
+              )}
             </div>
 
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3 pt-2 border-t border-white/[0.06]">

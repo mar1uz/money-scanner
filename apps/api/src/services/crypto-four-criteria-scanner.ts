@@ -363,7 +363,8 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
   }).sort((left, right) =>
     right.passedCriteria - left.passedCriteria ||
     right.score - left.score ||
-    (right.metrics.revenue30d || 0) - (left.metrics.revenue30d || 0) ||
+    (right.metrics.revenueRunRateChange ?? Number.NEGATIVE_INFINITY) - (left.metrics.revenueRunRateChange ?? Number.NEGATIVE_INFINITY) ||
+    (right.metrics.feeRunRateChange ?? Number.NEGATIVE_INFINITY) - (left.metrics.feeRunRateChange ?? Number.NEGATIVE_INFINITY) ||
     left.marketCapRank - right.marketCapRank
   );
 
@@ -386,7 +387,8 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
       'Valoare către holderi: holders revenue raportat ca buyback/burn, distribuție directă sau staking finanțat din venit.',
       'Model de subevaluare (tab Calitate Business): scor calitate 0-75 = Efect de rețea + Venit sustenabil + Valoare către holderi, aceleași praguri.',
       'Evaluare: P/R = market cap / (revenue 30z × 12); dacă revenue lipsește dar fees există, P/F = market cap / (fees 30z × 12).',
-      'Index subevaluare = percentila calității − percentila scumpirii (log P/R) în universul acoperit; activele fără fees/revenue nu sunt clasate.'
+      'Index subevaluare = percentila calității − percentila scumpirii (log P/R) în universul acoperit; activele fără fees/revenue nu sunt clasate.',
+      'Selecție secțiune: sunt listate doar monedele cu fees/revenue observabile; sortare după criterii trecute, apoi ritmul revenue (7z vs 30z) și rank — nu dimensiunea absolută.'
     ],
     sources: [
       { id: 'video', title: 'Criteriile din interviu (30:03–30:35)', url: 'https://youtu.be/oZWS5eB5YsQ?t=1803', domain: 'youtube.com' },
