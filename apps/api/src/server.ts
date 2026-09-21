@@ -49,6 +49,7 @@ export function createServer() {
       || req.path === '/alerts/structure-scanner/scheduled'
       || req.path === '/ai/daily-warmup'
       || req.path === '/ai/publish-content'
+      || req.path === '/scanner/warm'
       || req.path.startsWith('/auth/')
     ) {
       return next();
