@@ -444,7 +444,18 @@ const RO_TO_EN = ([
   ['Activ Criptografic', 'Crypto Protocol'],
   ['Companie Listată Public', 'Public Equity'],
   ['Marfă / Metal', 'Commodity / Metal'],
-  ['Actualizează datele', 'Refresh data']
+  ['Actualizează datele', 'Refresh data'],
+  // Sidebar + market-filter chrome (static Romanian source strings)
+  ['Caută un activ, simbol sau companie…', 'Search any asset, symbol or company…'],
+  ['Market Scanner — pagina principală', 'Market Scanner — home page'],
+  ['Retrage meniul lateral', 'Collapse sidebar'],
+  ['Navigare principală', 'Main navigation'],
+  ['Toate piețele', 'All markets'],
+  ['Metale', 'Metals'],
+  ['Alerte', 'Alerts'],
+  ['EXPLORARE', 'EXPLORE'],
+  ['CERCETARE', 'RESEARCH'],
+  ['Mai multă claritate. Mai puțin zgomot.', 'More clarity. Less noise.']
 ] as Array<[string, string]>).sort((a, b) => b[0].length - a[0].length);
 
 const EN_TO_RO = RO_TO_EN

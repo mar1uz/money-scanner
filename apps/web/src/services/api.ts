@@ -186,8 +186,8 @@ export async function fetchIntelligenceBrief(
   return res.json();
 }
 
-export async function fetchAIBriefing(): Promise<AIAnalysisPayload> {
-  const res = await fetch(`${API_BASE}/ai/briefing`);
+export async function fetchAIBriefing(language: 'ro' | 'en' = 'ro'): Promise<AIAnalysisPayload> {
+  const res = await fetch(`${API_BASE}/ai/briefing?language=${language}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch AI briefing`);
   return res.json();
 }

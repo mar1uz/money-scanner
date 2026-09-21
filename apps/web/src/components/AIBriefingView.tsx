@@ -1143,7 +1143,7 @@ export const AIBriefingView: React.FC = () => {
               <div className="mt-4 rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-4 max-w-5xl">
                 <div className="flex items-center gap-2 mb-2">
                   <Sparkles className="w-4 h-4 text-cyan-300" />
-                  <span className="text-xs font-mono text-cyan-300 uppercase tracking-wider">AI Gateway · {intelligence.aiTake.model}</span>
+                  <span className="text-xs font-mono text-cyan-300 uppercase tracking-wider">{intelligence.aiTake.source === 'instinct-agent' ? 'Instinct' : 'AI Gateway'} · {intelligence.aiTake.model}</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-50">{intelligence.aiTake.headline}</h3>
                 {intelligence.aiTake.paragraphs.map((paragraph, index) => (
@@ -1152,6 +1152,25 @@ export const AIBriefingView: React.FC = () => {
                 {intelligence.aiTake.bullets && (
                   <ul className="mt-2 list-disc pl-5 text-sm text-slate-300 space-y-1">
                     {intelligence.aiTake.bullets.map((bullet, index) => <li key={index}>{bullet}</li>)}
+                  </ul>
+                )}
+              </div>
+            )}
+            {intelligence.capitalRotation && (
+              <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 max-w-5xl">
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles className="w-4 h-4 text-amber-300" />
+                  <span className="text-xs font-mono text-amber-300 uppercase tracking-wider">
+                    {language === 'ro' ? 'Rotație de Capital' : 'Capital Rotation'} · {intelligence.capitalRotation.source === 'instinct-agent' ? 'Instinct' : 'AI Gateway'} · {intelligence.capitalRotation.model}
+                  </span>
+                </div>
+                <h3 className="text-base font-bold text-slate-50">{intelligence.capitalRotation.headline}</h3>
+                {intelligence.capitalRotation.paragraphs.map((paragraph, index) => (
+                  <p key={index} className="mt-2 text-sm text-slate-300 leading-relaxed">{paragraph}</p>
+                ))}
+                {intelligence.capitalRotation.bullets && (
+                  <ul className="mt-2 list-disc pl-5 text-sm text-slate-300 space-y-1">
+                    {intelligence.capitalRotation.bullets.map((bullet, index) => <li key={index}>{bullet}</li>)}
                   </ul>
                 )}
               </div>

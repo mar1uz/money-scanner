@@ -53,7 +53,7 @@ export interface AIContentTake {
   bullets?: string[];
   model: string;
   generatedAt: number;
-  source: 'ai-gateway';
+  source: 'ai-gateway' | 'instinct-agent';
 }
 
 export interface IntelligenceBriefPayload extends NewsSynthesisPayload {
@@ -81,6 +81,8 @@ export interface AIAnalysisPayload {
   generatedAt: number;
   dataFreshness: string;
   aiTake?: AIContentTake;
+  /** Cross-market capital rotation analysis (Instinct content agent). */
+  capitalRotation?: AIContentTake;
 }
 
 export type MarketIntelligenceScope = 'crypto' | 'stocks' | 'metals';
@@ -148,6 +150,8 @@ export interface MarketIntelligenceReport {
    */
   assetChanges?: Record<string, number>;
   aiTake?: AIContentTake;
+  /** Cross-market capital rotation analysis (Instinct content agent). */
+  capitalRotation?: AIContentTake;
 }
 
 export interface MarketIntelligenceAssetSnapshot {

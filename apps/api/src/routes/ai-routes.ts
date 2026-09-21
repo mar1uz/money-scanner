@@ -52,11 +52,17 @@ const SOURCE_REFRESH_TIMEOUT_MS = 15_000;
 
 const intelligencePersistentKey = (cacheKey: string) => `market-intelligence-${cacheKey.replace(':', '-')}`;
 
-const AI_CONTENT_KEYS = new Set(['briefing', 'intelligence-brief', 'market-intelligence']);
+const AI_CONTENT_KEYS = new Set(['briefing', 'intelligence-brief', 'market-intelligence', 'capital-rotation']);
 const AI_CONTENT_MAX_AGE_MS = 36 * 60 * 60_000;
 
-/** AI take written by the local Mac executor via the AI Gateway; fresh for 36h. */
-const readAiContentTake = async (key: string): Promise<AIContentTake | undefined> => {
+/** AI take written by the local Mac executor via the AI Gateway or by the
+ * Instinct content agent; fresh for 36h. The per-language copy is preferred;
+ * the legacy language-agnostic key remains as the (Romanian) fallback. */
+const readAiContentTake = async (key: string, language?: 'ro' | 'en'): Promise<AIContentTake | undefined> => {
+  if (language) {
+    const localized = await readPersistentAICache<AIContentTake>(`ai-content-${key}-${language}`);
+    if (localized && Date.now() - localized.updatedAt <= AI_CONTENT_MAX_AGE_MS) return localized.payload;
+  }
   const entry = await readPersistentAICache<AIContentTake>(`ai-content-${key}`);
   if (!entry || Date.now() - entry.updatedAt > AI_CONTENT_MAX_AGE_MS) return undefined;
   return entry.payload;
@@ -256,7 +262,7 @@ aiRouter.get('/intelligence/brief', async (req, res) => {
       latestSourceAt: synthesis.sources.reduce<number | null>((latest, source) => Math.max(latest || 0, source.publishedAt), null),
       filters
     };
-    const take = await readAiContentTake('intelligence-brief');
+    const take = await readAiContentTake('intelligence-brief', language);
     if (take) payload.aiTake = take;
     intelligenceBriefCache.set(cacheKey, { payload, updatedAt: Date.now() });
     return payload;
@@ -290,9 +296,12 @@ aiRouter.get('/ai/briefing', async (req, res) => {
       }
     }
 
+    const language: 'ro' | 'en' = req.query.language === 'en' ? 'en' : 'ro';
     const briefing = await appState.ai.generateMarketBriefing(overview, signalsObj, trends, news);
-    const take = await readAiContentTake('briefing');
+    const take = await readAiContentTake('briefing', language);
     if (take) briefing.aiTake = take;
+    const rotation = await readAiContentTake('capital-rotation', language);
+    if (rotation) briefing.capitalRotation = rotation;
     res.json(briefing);
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to generate AI briefing', details: err.message });
@@ -466,8 +475,10 @@ aiRouter.get('/ai/market-intelligence', async (req, res) => {
     const language: 'ro' | 'en' = req.query.language === 'en' ? 'en' : 'ro';
     const payload = await getMarketIntelligenceReport(scope, language, req.query.refresh === '1');
     const enriched = await attachLiveNarrativeChanges(payload, scope);
-    const take = await readAiContentTake('market-intelligence');
+    const take = await readAiContentTake('market-intelligence', language);
     if (take) enriched.aiTake = take;
+    const rotation = await readAiContentTake('capital-rotation', language);
+    if (rotation) enriched.capitalRotation = rotation;
     res.set('Cache-Control', 'private, max-age=30');
     res.json(enriched);
   } catch (err: any) {
@@ -582,9 +593,12 @@ aiRouter.post('/ai/publish-content', async (req, res) => {
   if (!AI_CONTENT_KEYS.has(key) || !validTake(take)) {
     return res.status(400).json({ error: 'Invalid AI content payload.' });
   }
-  await writePersistentAICache(`ai-content-${key}`, { payload: { ...take, source: 'ai-gateway' as const }, updatedAt: Date.now() });
+  const language = req.body?.language === 'en' || req.body?.language === 'ro' ? req.body.language : null;
+  const source = req.body?.source === 'instinct-agent' ? 'instinct-agent' as const : 'ai-gateway' as const;
+  const cacheKey = language ? `ai-content-${key}-${language}` : `ai-content-${key}`;
+  await writePersistentAICache(cacheKey, { payload: { ...take, source }, updatedAt: Date.now() });
   res.set('Cache-Control', 'no-store');
-  return res.json({ status: 'published', key });
+  return res.json({ status: 'published', key, language });
 });
 
 aiRouter.post('/ai/daily-warmup', async (req, res) => {

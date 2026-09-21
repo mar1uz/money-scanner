@@ -171,7 +171,7 @@ export const IntelligenceView: React.FC<IntelligenceViewProps> = ({ initialSourc
           <>
             {brief.aiTake && (
               <div className="intelligence-ai-take">
-                <div className="intelligence-ai-take-label">AI Gateway · {brief.aiTake.model}</div>
+                <div className="intelligence-ai-take-label">{brief.aiTake.source === 'instinct-agent' ? 'Instinct' : 'AI Gateway'} · {brief.aiTake.model}</div>
                 <strong>{brief.aiTake.headline}</strong>
                 {brief.aiTake.paragraphs.map((paragraph, index) => <p key={index}>{paragraph}</p>)}
                 {brief.aiTake.bullets && <ul>{brief.aiTake.bullets.map((bullet, index) => <li key={index}>{bullet}</li>)}</ul>}
