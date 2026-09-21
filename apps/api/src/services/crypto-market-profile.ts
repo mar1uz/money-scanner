@@ -96,6 +96,24 @@ export class CryptoMarketProfiles {
     }
   }
 
+  /** Exact-ticker candidates, best market-cap rank first, for disambiguating
+   * shared tickers (CVX: Convex Finance vs a tokenized Chevron stock). */
+  async resolveCandidates(symbol: string, limit = 3): Promise<CryptoMarketProfile[]> {
+    symbol = symbol.toUpperCase();
+    const result = await this.json(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(symbol)}`);
+    const exact = (result.coins || [])
+      .filter((coin: any) => String(coin.symbol).toUpperCase() === symbol)
+      .sort((a: any, b: any) => (a.market_cap_rank || 999999) - (b.market_cap_rank || 999999))
+      .slice(0, limit);
+    const profiles: CryptoMarketProfile[] = [];
+    for (const coin of exact) {
+      try {
+        profiles.push(await this.resolve(symbol, { coinGeckoId: coin.id }));
+      } catch { /* skip unverifiable candidates */ }
+    }
+    return profiles;
+  }
+
   async prices(profile: CryptoMarketProfile): Promise<number[][]> {
     if (profile.provider !== 'coingecko') return [];
     const key = `${profile.provider}:${profile.id}`;

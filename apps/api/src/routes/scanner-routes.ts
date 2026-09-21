@@ -566,15 +566,31 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
     // or ambiguous symbols keep the old search fallback.
     if (resolvedMarketClass === 'crypto' && !symbol.includes('.') && !symbol.startsWith('TOTAL') && !assetInfo.coinGeckoId) {
       try {
-        const profile = await cryptoMarketProfiles.resolve(symbol, {});
-        assetInfo = {
-          ...assetInfo,
-          coinGeckoId: profile.id,
-          ...(profile.marketCap ? { marketCap: profile.marketCap } : {}),
-          rank: profile.rank && profile.rank > 0 && profile.rank < 999 ? profile.rank : assetInfo.rank
-        };
+        // Shared tickers return several exact matches (CVX: Convex Finance
+        // vs a tokenized Chevron stock). A single candidate is accepted
+        // directly; with several, only a candidate whose provider name
+        // matches a live exchange asset wins, so the link never silently
+        // switches assets.
+        const candidates = await cryptoMarketProfiles.resolveCandidates(symbol);
+        let verified = candidates.length === 1 ? candidates[0] : undefined;
+        if (!verified) {
+          for (const candidate of candidates) {
+            if (await matchesLiveExchangeAsset(symbol, candidate.name)) {
+              verified = candidate;
+              break;
+            }
+          }
+        }
+        if (verified) {
+          assetInfo = {
+            ...assetInfo,
+            coinGeckoId: verified.id,
+            ...(verified.marketCap ? { marketCap: verified.marketCap } : {}),
+            rank: verified.rank && verified.rank > 0 && verified.rank < 999 ? verified.rank : assetInfo.rank
+          };
+        }
       } catch {
-        // Unresolvable or ambiguous: keep the stub, UI uses the search link.
+        // Unresolvable or unverifiable: keep the stub, UI uses the search link.
       }
     }
     let quote;
