@@ -600,3 +600,33 @@ describe('Daily MoneyLine regime scan', () => {
     assert.equal((state as any).findMostRecentConfirmedFlip('TEST', 'crypto', '1d', series29d, 100, 'Bullish', 40), undefined);
   });
 });
+
+describe('Confirmed flip merge', () => {
+  const base: any = {
+    id: 'crypto:AVAX:1w:BULLISH',
+    symbol: 'AVAX', marketClass: 'crypto', timeframe: '1w', direction: 'BULLISH',
+    status: 'CONFIRMED', candleTimestamp: 1000, confirmedAt: 2000, priorityScore: 100
+  };
+
+  it('a fresh rescore of the same flip replaces a stale higher score', () => {
+    const state = new AppState();
+    (state as any).confirmedFlips = [{ ...base }];
+    (state as any).mergeConfirmedFlips([{ ...base, priorityScore: 83.9 }]);
+    assert.equal((state as any).confirmedFlips.length, 1);
+    assert.equal((state as any).confirmedFlips[0].priorityScore, 83.9);
+  });
+
+  it('a newer fresh flip replaces the stored one', () => {
+    const state = new AppState();
+    (state as any).confirmedFlips = [{ ...base }];
+    (state as any).mergeConfirmedFlips([{ ...base, candleTimestamp: 3000, confirmedAt: 4000, priorityScore: 50 }]);
+    assert.equal((state as any).confirmedFlips[0].priorityScore, 50);
+  });
+
+  it('a stored entry is never downgraded by an older fresh flip', () => {
+    const state = new AppState();
+    (state as any).confirmedFlips = [{ ...base }];
+    (state as any).mergeConfirmedFlips([{ ...base, candleTimestamp: 500, confirmedAt: 900, priorityScore: 40 }]);
+    assert.equal((state as any).confirmedFlips[0].priorityScore, 100);
+  });
+});

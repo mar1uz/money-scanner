@@ -1837,17 +1837,30 @@ export class AppState {
   }
 
   private mergeConfirmedFlips(candidates: FlipCandidate[]) {
+    const keyOf = (candidate: FlipCandidate) =>
+      `${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}`;
+    const freshness = (candidate: FlipCandidate) => candidate.confirmedAt || candidate.candleTimestamp;
     const unique = new Map<string, FlipCandidate>();
-    [...candidates, ...this.confirmedFlips]
-      .sort((left, right) => (right.confirmedAt || right.candleTimestamp) - (left.confirmedAt || left.candleTimestamp)
+    // Restored history first, freshly computed entries second: a fresh scan
+    // wins for the same asset/timeframe when it describes the same or a newer
+    // flip. The previous priorityScore tie-break pinned stale scores from an
+    // older formula version (e.g. legacy flat 100/100) above the current
+    // rescore of the same flip.
+    for (const candidate of this.confirmedFlips) unique.set(keyOf(candidate), candidate);
+    for (const candidate of candidates) {
+      const existing = unique.get(keyOf(candidate));
+      if (!existing
+        || freshness(candidate) > freshness(existing)
+        || candidate.candleTimestamp === existing.candleTimestamp) {
+        unique.set(keyOf(candidate), candidate);
+      }
+    }
+    // The dashboard represents the current Money Line regime: retain only
+    // the most recent confirmed transition for each asset/timeframe.
+    this.confirmedFlips = Array.from(unique.values())
+      .sort((left, right) => freshness(right) - freshness(left)
         || right.priorityScore - left.priorityScore)
-      .forEach(candidate => {
-        // The dashboard represents the current Money Line regime: retain only
-        // the most recent confirmed transition for each asset/timeframe.
-        const key = `${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}`;
-        if (!unique.has(key)) unique.set(key, candidate);
-      });
-    this.confirmedFlips = Array.from(unique.values()).slice(0, 1_000);
+      .slice(0, 1_000);
   }
 
   private async publishConfirmedFlipEvents(
