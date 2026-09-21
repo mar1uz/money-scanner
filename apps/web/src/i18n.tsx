@@ -7,6 +7,15 @@ interface LanguageContextValue {
   setLanguage: (language: Language) => void;
 }
 
+
+/** Initial UI language. /tape is the public proof page for the English X
+ * audience: it always starts in English regardless of any stored preference.
+ * Everywhere else the stored preference applies (default Romanian). */
+export const resolveInitialLanguage = (pathname: string, storedPreference: string | null): Language => {
+  if (pathname === '/tape' || pathname.startsWith('/tape/')) return 'en';
+  return storedPreference === 'en' ? 'en' : 'ro';
+};
+
 const LanguageContext = createContext<LanguageContextValue>({
   language: 'ro',
   setLanguage: () => undefined
@@ -511,7 +520,7 @@ function translateDocument(language: Language): void {
 export const LanguageProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const [language, setLanguageState] = useState<Language>(() => {
     try {
-      return localStorage.getItem('money_scanner_language') === 'en' ? 'en' : 'ro';
+      return resolveInitialLanguage(window.location.pathname, localStorage.getItem('money_scanner_language'));
     } catch {
       return 'ro';
     }
