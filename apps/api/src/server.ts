@@ -1,6 +1,7 @@
 import express from 'express';
 import { radarRouter } from './routes/radar-routes.js';
 import cors from 'cors';
+import compression from 'compression';
 import path from 'node:path';
 import fs from 'node:fs';
 import { marketRouter } from './routes/market-routes.js';
@@ -26,6 +27,9 @@ export function createServer() {
   }));
 
   app.use(express.json());
+  // gzip the SPA bundle and JSON API responses (the 1.1 MB bundle and the
+  // scanner payloads were previously transferred uncompressed).
+  app.use(compression());
 
   // Session bootstrap routes are deliberately public. They validate Google
   // credentials themselves before issuing an HttpOnly session cookie.
