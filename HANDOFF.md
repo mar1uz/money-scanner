@@ -3987,3 +3987,11 @@ Every public surface and post should map to one of these three. Copy tone: bold 
 4. **4x200 Quality** — projects passing all four business-quality criteria. Owner examples: $PUMP 100/100 4/4 (growth +8.8%, $159.24M fees/30d, $55.52M revenue/30d, $25.15M holder value/30d); $RAY 100/100 4/4 (growth +75.8%, $27.85M fees/30d, $4.60M revenue/30d, $3.17M holder value/30d); $JUP 4x200 example supplied separately. Screen context from the app: 200 scanned, 127 with data, 8 passing 4/4, 12 first-3.
 
 Cadence: rotate pillars so the feed never becomes a monotonous ticker stream — market state, sector strength, project quality, measured results. Each pillar gets its own visual template under one Money Scanner identity.
+
+## 103. /tape route fix (2026-09-21, rev 00235-qmr, commits 194eca3..f8c89fc)
+- Symptom: https://scanner.relayhub.no/tape loaded the main Scanner page (SPA fallback), breaking the X bio/pinned link.
+- Root cause: the Regime Tape feature (5 commits: e5065a8, 2046126, c542ef1, 96c9031, 442aef5) lived only on origin/main (GitHub); the local main used for Cloud Build deploys diverged (68 local vs 5 remote) and never contained tape-routes.ts / regime-tape-page.ts / regime-tape-service.ts. Every deploy from local main shipped an app with no /tape route, so the SPA catch-all served index.html.
+- Fix: cherry-picked all 5 commits onto local main (union-resolved additive conflicts in server.ts, app-state.ts, HANDOFF.md), rebuilt packages/shared (tape type exports), tsc api green, tape service tests pass.
+- Verified live: GET /tape -> 200 "Money Scanner Performance Tape" (public, EN); GET /api/tape/proof -> 200 with 5 curated evidence rows computed live from confirmedFlips + live quotes (min +20%, max 6, env PUBLIC_TAPE_PROOF_SYMBOLS). /api/tape/events + /api/tape/summary are auth-gated by design.
+- NOTE: Cloud Scheduler money-scanner-regime-tape-scan (07:30 Oslo) was already enabled and will start recording tape scan events now that /api/tape/scan exists.
+- Proof data independently verified vs Binance klines: RAY flip close 0.6355 at 2026-08-19 20:00 UTC exact match.
