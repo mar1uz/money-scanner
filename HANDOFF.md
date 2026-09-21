@@ -3883,3 +3883,16 @@ Alert diagnosis (no fix applied): the asset-page bell button calls POST /api/ale
 
 99. 2026-09-21 Business Quality: universe expansion + selection semantics + threshold recalibration + L1 fix (rev 00230-74q; commits 652cd44, 63208e4, 4830882). Pipeline inverted: starts from DefiLlama fees/revenue/holders overviews (all covered protocols), matches to CoinGecko via /protocols gecko_id + markets-by-ids chunks (250/chunk, demo key header, chunk failure = warn+skip). Live verified: 413 universe, 269 ranked, 144 unranked; undervalued top GP(#1096)/ORE(#604)/PUMP(#51). Undervalued entries now FLAT (assetId/symbol/factorStatuses). Payload >950KB skips the persistent Firestore write by design (1MiB doc limit) and serves from the 30-min in-memory cache; cold instances re-scan ~15-80s. Recalibrated thresholds: networkEffect fees30d>=$1M AND (TVL>=$10M OR >=2 chains); sustainableRevenue basis30d>=$1M AND 7d/24h>0 AND continuity>=0.5 (L1s: chain fees count as revenue basis, fixing the validator double-penalty); holderValue holdersRevenue30d>=$100K (buyback/burn qualifies on its own). Section: measured-only listing, revenue-trend tie-break, no 30-cap.
 100. 2026-09-21 EDGE dust-pair fix (commit 15c9b34, build 1428144b-5eca). dex-market-data: when the best exact DEX pair has liquidity <$25K while CoinGecko reports vol24h >$100K, pair is flagged pairIsDust; candles fall back to CoinGecko market_chart (candleSource='CoinGecko'), UI hides the misleading 'Piata DEX principala' card and labels the chart as aggregated price; Money Line computed ONLY from GeckoTerminal candles. Local verified: EDGE 1w 14 candles + 1h 288 from CoinGecko; UNI regression unaffected.
+
+## 101. Resolver name-match fix + GP (rev 00232, commit ba5dda3)
+- Symptom: GP (Graphite Protocol) asset page showed "date indisponibile" / no data despite $478K-liq Orca pool.
+- Root cause: exact name-equality check in dex pair selection rejected the real pair ("Graphite" vs "Graphite Protocol").
+- Fix: normalized name containment accepted in exact pair match; address+symbol exact match unchanged.
+- Verified live: GP -> Orca pair $471,236 liq, 28 GeckoTerminal candles 1w, dataAvailability dex-fallback.
+
+## 102. Business Quality card + nav + STONK class fix (commits 883b57f, 6623715, e7ff47c)
+- BusinessQualityAssetCard on asset page (AI tab + CryptoMarketOnlyView): 4-criteria numbers from cached DefiLlama scan, narrative from ai-content-business-quality-<SYMBOL>-<lang> (36h), honest insufficient-data/unavailable states, EN+RO.
+- BusinessQualityView ranked rows now navigate to the asset page (useAssetNavigation from ./AssetNavigation.js).
+- STONK root cause: route early-returns aggregated response for non-catalog assets; that path never carried businessQuality (and pre-00232 name check blanked the pair). Fix: computeBusinessQuality hoisted, included on BOTH aggregated and exchange paths.
+- Live-verified on rev serving 883b57f: STONK 200 OK, dex-fallback, Raydium pair $7.48M liq, 10 GT candles 1w (was a full-page 500 "No verified Yahoo Finance quote" when hitting the wrong path). GP same shape (Orca $471K, 28 candles). UNI exchange path businessQuality=measured.
+- Note: aiBriefing/assetProfile/investmentGuide are content-driven (published takes); STONK has none published -> sections absent by design, page still renders.
