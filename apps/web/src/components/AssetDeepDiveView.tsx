@@ -315,9 +315,11 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   const socialItems = displayXPosts.slice(0, 4).map((p: any) => ({ ...p, _type: 'social' as const }));
   const unifiedFeed = [...newsItems, ...socialItems].slice(0, 6);
 
-  const catalogAsset = TRADING_360_ASSETS.find(a => a.symbol.toUpperCase() === symbol.toUpperCase());
-  const effectiveMarketCap = data?.info?.marketCap || catalogAsset?.marketCap || (data?.quote as any)?.marketCap || 0;
   const infoClass = marketClass || data?.info?.marketClass;
+  // Match the catalog by market class too: crypto CVX (Convex) must not
+  // pick up Chevron's stock market cap through the shared ticker.
+  const catalogAsset = TRADING_360_ASSETS.find(a => a.symbol.toUpperCase() === symbol.toUpperCase() && (!infoClass || a.marketClass === infoClass));
+  const effectiveMarketCap = data?.info?.marketCap || catalogAsset?.marketCap || (data?.quote as any)?.marketCap || 0;
   const rawRank = resolveRankInput(data?.info?.rank, catalogAsset?.rank, infoClass);
   const marketCapRank = getMarketCapRank(symbol, infoClass, rawRank, effectiveMarketCap);
 

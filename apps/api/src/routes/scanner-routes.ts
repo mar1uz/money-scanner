@@ -556,6 +556,25 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
         assetInfo = { ...assetInfo, rank: 999 };
       }
     }
+    // Crypto assets outside the hand-curated catalog and beyond the live
+    // top-N windows carry no CoinGecko ID (e.g. CVX resolved as a "CVX
+    // Crypto" stub), so the frontend fell back to a search URL that finds
+    // nothing. Resolve the exact coin here once: the detail then carries a
+    // direct CoinGecko link, the live market cap and the true rank. Missing
+    // or ambiguous symbols keep the old search fallback.
+    if (resolvedMarketClass === 'crypto' && !symbol.includes('.') && !symbol.startsWith('TOTAL') && !assetInfo.coinGeckoId) {
+      try {
+        const profile = await cryptoMarketProfiles.resolve(symbol, {});
+        assetInfo = {
+          ...assetInfo,
+          coinGeckoId: profile.id,
+          ...(profile.marketCap ? { marketCap: profile.marketCap } : {}),
+          rank: profile.rank && profile.rank > 0 && profile.rank < 999 ? profile.rank : assetInfo.rank
+        };
+      } catch {
+        // Unresolvable or ambiguous: keep the stub, UI uses the search link.
+      }
+    }
     let quote;
     try {
       quote = await appState.marketData.getPriceQuote(symbol, resolvedMarketClass);
