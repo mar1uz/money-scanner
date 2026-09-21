@@ -3862,3 +3862,14 @@ Revision market-scanner-360-00227-hmv (commits 99e5d89, 57ab5cc, ffeb8d4 + disam
 6. **Per-asset Instinct guides**: `publish-content` accepts `investment-guide-<SYMBOL>` keys (EN+RO); asset detail serves fresh (36h) takes as `investmentGuide.{ro,en}`; the deep-dive "Ghid de Investiție & Verdict AI" section shows the Instinct take with attribution above the template guide. Publisher script accepts the key pattern. Cadence design: pre-generated daily by the content agent for fresh-flip (24h) + top ~15 assets (on-demand impossible - generation credentials live on the Mac, not Cloud Run). Seeded CVX EN+RO as pipeline proof.
 
 Alert diagnosis (no fix applied): the asset-page bell button calls POST /api/alerts/test which hardcodes 1h and forces `evaluateSignal(force=true)` - forced sends print `previousTier → tier` (identical when no flip) under the fixed "FLIP CONFIRMAT" heading. Engine flip detection itself is correct (`isTransition = prevTier !== currentTier`). Labeling fix would be in packages/notifications/src/alert-dispatcher.ts.
+
+## Step 97 - Asset Profile Instinct takes + On-Chain Data section + i18n compound ages (Sep 21 16:25)
+
+- asset-profile-<SYM> keys now accepted by /api/ai/publish-content and scripts/instinct-content-publisher.mjs (same outbox contract, 36h freshness, EN+RO) - mirrors investment-guide.
+- Asset-detail API serves assetProfile takes + new onchain metrics (apps/api/src/services/onchain-metrics.ts): supply/unlock %, ATH/ATL distance, 24h volume/mcap (CoinGecko /coins/markets, demo-key header, 15-min cache), TVL + TVL/mcap + 24h protocol fees from DefiLlama (protocols list matched by gecko_id, cached 6h; /summary/fees/<slug> total24h). Assets without a DefiLlama protocol entry (e.g. Celestia TVL) omit those fields gracefully; crypto only.
+- New OnchainDataCard on the asset AI tab (chips: supply unlocked, ATH/ATL distance, vol/mcap, TVL, fees 24h, RO+EN, source note). AssetProfileOverviewCard renders the Instinct take (attribution + headline + paragraphs + bullets) above the template profile when published.
+- i18n: compound flip-age patterns ("acum X zile și Y ore" / "acum X ore și Y minute") translate before the simple patterns; singular zi/oră forms fixed. Root cause was the simple pattern eating the prefix and leaving " și 14 ore" untranslated.
+- Seeded asset-profile-TIA EN+RO (Celestia: modular DA, blobspace fees + staking, unlock/competition risks).
+- Bell/test-alert behavior intentionally UNTOUCHED (label bug + 1h hardcode remain) per Marius 16:13: he wants neither test change nor standing alert from the bell.
+- Live on market-scanner-360-00228-5vh (traffic 100%), verified visually RO+EN on the TIA page.
+- Housekeeping: .instinct-tmp/ untracked + gitignored (was swept into 0d688bc by git add -A).
