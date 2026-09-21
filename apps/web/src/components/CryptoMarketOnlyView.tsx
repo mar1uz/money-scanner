@@ -109,7 +109,10 @@ export const CryptoMarketOnlyView: React.FC<{
         {quote.isStale ? 'Date întârziate · ' : ''}Actualizare {quote.source}: {new Date(quote.timestamp).toLocaleString('ro-RO')}
       </p>
     </div>
-    {dex && <div className="rounded-[30px] border border-fuchsia-500/20 bg-fuchsia-500/[0.04] p-5 sm:p-6">
+    {dex?.pairIsDust && <div className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.05] p-4 text-xs leading-relaxed text-amber-100/90">
+      Lichiditatea DEX pentru {info.symbol} este neglijabilă — volumul real se tranzacționează pe CEX sau alte piețe neacoperite de DEX Screener. Graficul folosește prețuri agregate CoinGecko.
+    </div>}
+    {dex && !dex.pairIsDust && <div className="rounded-[30px] border border-fuchsia-500/20 bg-fuchsia-500/[0.04] p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold text-white">Piața DEX principală</h2><p className="mt-1 text-xs text-slate-400">Pereche selectată după lichiditatea USD raportată de DEX Screener.</p></div>
         <a href={dex.dexUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-fuchsia-400/25 px-3 py-1.5 text-xs text-fuchsia-200">DEX Screener <ExternalLink className="h-3.5 w-3.5" /></a></div>
       <dl className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -120,9 +123,13 @@ export const CryptoMarketOnlyView: React.FC<{
       <p className="mt-4 truncate font-mono text-[10px] text-slate-500" title={dex.contractAddress}>Contract: {dex.contractAddress}</p>
     </div>}
     <div className="rounded-[30px] border border-white/10 bg-[var(--t-surface)] p-5 sm:p-6">
-      <h2 className="font-semibold text-white">{dex?.candles?.length ? `Grafic OHLCV DEX · ${timeframe.toUpperCase()}` : 'Istoric de preț · ultimele 30 de zile disponibile'}</h2>
+      <h2 className="font-semibold text-white">{dex?.candles?.length
+        ? (dex.candleSource === 'CoinGecko' ? `Grafic preț agregat · ${timeframe.toUpperCase()}` : `Grafic OHLCV DEX · ${timeframe.toUpperCase()}`)
+        : 'Istoric de preț · ultimele 30 de zile disponibile'}</h2>
       <p className="mt-1 text-xs text-slate-400">{dex?.candles?.length
-        ? `Lumânări reale USD din pool-ul selectat de DEX Screener, furnizate de ${dex.candleSource}. Ultima lumânare poate fi încă deschisă.`
+        ? (dex.candleSource === 'CoinGecko'
+          ? 'Lumânări construite din prețuri agregate CoinGecko (toate piețele, inclusiv CEX). Ultima lumânare poate fi încă deschisă.'
+          : `Lumânări reale USD din pool-ul selectat de DEX Screener, furnizate de ${dex.candleSource}. Ultima lumânare poate fi încă deschisă.`)
         : `Prețuri USD raportate de ${quote.source}; puncte de preț, nu lumânări OHLCV.`}</p>
       {dex?.candles?.length ? <DexCandlestickChart candles={dex.candles} symbol={info.symbol} /> : prices.length > 1 ? <>
         <div className="mt-4 flex justify-between text-xs text-slate-400"><span>Min. {money(low)}</span><span>Max. {money(high)}</span></div>

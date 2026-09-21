@@ -18,6 +18,8 @@ export interface DexPairMetrics {
   pairCreatedAt: number | null;
   candles: Candle[];
   candleSource: string;
+  /** True when the best exact DEX pair holds dust liquidity while the asset trades real volume elsewhere (CEX / own venue). */
+  pairIsDust?: boolean;
 }
 
 const finite = (value: unknown): number | null => {
@@ -35,6 +37,12 @@ const geckoNetworkId = (dexChainId: string): string => ({
   ethereum: 'eth', polygon: 'polygon_pos', avalanche: 'avax', arbitrum: 'arbitrum',
   optimism: 'optimism', bsc: 'bsc', base: 'base', solana: 'solana', robinhood: 'robinhood'
 } as Record<string, string>)[dexChainId] || dexChainId;
+
+// A pair below this liquidity cannot represent a market doing real aggregate volume.
+const DUST_PAIR_MAX_LIQUIDITY_USD = 25_000;
+const REAL_MARKET_VOLUME_MIN_USD = 100_000;
+// CoinGecko market_chart granularity: days=1 -> 5-minute points, 2-90 -> hourly, >90 -> daily.
+const MARKET_CHART_DAYS: Record<Timeframe, number> = { '1h': 1, '4h': 14, '8h': 14, '1d': 90, '1w': 90, '1m': 365 };
 
 const candleRequest = (timeframe: Timeframe) => ({
   '1h': { unit: 'hour', aggregate: 1, sourceDurationMs: 3_600_000 },
@@ -132,6 +140,23 @@ export class DexMarketDataService {
     return response.json();
   }
 
+  private async coinGeckoCandles(profile: CryptoMarketProfile, timeframe: Timeframe): Promise<Candle[]> {
+    const chart = await this.json(`https://api.coingecko.com/api/v3/coins/${encodeURIComponent(profile.id)}/market_chart?vs_currency=usd&days=${MARKET_CHART_DAYS[timeframe]}`, true);
+    const prices = Array.isArray(chart?.prices) ? chart.prices : [];
+    const volumes = Array.isArray(chart?.total_volumes) ? chart.total_volumes : [];
+    const rows: unknown[] = [];
+    for (let index = 0; index < prices.length; index++) {
+      const point = prices[index];
+      if (!Array.isArray(point)) continue;
+      const ms = positive(point[0]);
+      const price = positive(point[1]);
+      if (!ms || !price) continue;
+      rows.push([Math.floor(ms / 1000), price, price, price, price, positive(volumes[index]?.[1]) || 0]);
+    }
+    const request = candleRequest(timeframe);
+    return aggregateDexCandles(normalizeDexCandles(rows, timeframe, Date.now(), request.sourceDurationMs), timeframe);
+  }
+
   async load(profile: CryptoMarketProfile, timeframe: Timeframe): Promise<DexPairMetrics | null> {
     if (profile.provider !== 'coingecko') return null;
     const key = `${profile.id}:${timeframe}`;
@@ -157,24 +182,34 @@ export class DexMarketDataService {
         this.pairCache.set(profile.id, pairing);
       }
       const { selected, contractAddress } = pairing;
+      const pairIsDust = (positive(selected?.liquidity?.usd) || 0) < DUST_PAIR_MAX_LIQUIDITY_USD
+        && (profile.volume24h || 0) > REAL_MARKET_VOLUME_MIN_USD;
 
       const chainId = safeSegment(selected.chainId)!;
       const pairAddress = safeSegment(selected.pairAddress)!;
       const request = candleRequest(timeframe);
       let candles: Candle[] = [];
-      const sourceKey = `${chainId}:${pairAddress}:${request.unit}`;
-      const cachedSource = this.sourceCandleCache.get(sourceKey);
-      let sourceCandles = cachedSource && Date.now() - cachedSource.fetchedAt < 60_000 ? cachedSource.candles : undefined;
-      if (!sourceCandles) {
+      let candleSource = 'GeckoTerminal';
+      if (pairIsDust) {
         try {
-          const ohlcv = await this.json(`https://api.geckoterminal.com/api/v2/networks/${encodeURIComponent(geckoNetworkId(chainId))}/pools/${encodeURIComponent(pairAddress)}/ohlcv/${request.unit}?aggregate=${request.aggregate}&limit=1000&currency=usd&token=base`);
-          sourceCandles = normalizeDexCandles(ohlcv?.data?.attributes?.ohlcv_list, timeframe, Date.now(), request.sourceDurationMs);
-          this.sourceCandleCache.set(sourceKey, { candles: sourceCandles, fetchedAt: Date.now() });
-        } catch {
-          sourceCandles = cachedSource && Date.now() - cachedSource.fetchedAt < 10 * 60_000 ? cachedSource.candles : [];
+          candles = await this.coinGeckoCandles(profile, timeframe);
+          if (candles.length > 0) candleSource = 'CoinGecko';
+        } catch { candles = []; }
+      } else {
+        const sourceKey = `${chainId}:${pairAddress}:${request.unit}`;
+        const cachedSource = this.sourceCandleCache.get(sourceKey);
+        let sourceCandles = cachedSource && Date.now() - cachedSource.fetchedAt < 60_000 ? cachedSource.candles : undefined;
+        if (!sourceCandles) {
+          try {
+            const ohlcv = await this.json(`https://api.geckoterminal.com/api/v2/networks/${encodeURIComponent(geckoNetworkId(chainId))}/pools/${encodeURIComponent(pairAddress)}/ohlcv/${request.unit}?aggregate=${request.aggregate}&limit=1000&currency=usd&token=base`);
+            sourceCandles = normalizeDexCandles(ohlcv?.data?.attributes?.ohlcv_list, timeframe, Date.now(), request.sourceDurationMs);
+            this.sourceCandleCache.set(sourceKey, { candles: sourceCandles, fetchedAt: Date.now() });
+          } catch {
+            sourceCandles = cachedSource && Date.now() - cachedSource.fetchedAt < 10 * 60_000 ? cachedSource.candles : [];
+          }
         }
+        candles = aggregateDexCandles(sourceCandles, timeframe);
       }
-      candles = aggregateDexCandles(sourceCandles, timeframe);
       const tx = selected?.txns?.h24;
       const value: DexPairMetrics = {
         chainId, pairAddress, contractAddress, dexId: String(selected.dexId || 'DEX'), dexUrl: selected.url,
@@ -183,7 +218,7 @@ export class DexMarketDataService {
         volume: { m5: positive(selected?.volume?.m5), h1: positive(selected?.volume?.h1), h6: positive(selected?.volume?.h6), h24: positive(selected?.volume?.h24) },
         liquidityUsd: positive(selected?.liquidity?.usd), fdvUsd: positive(selected?.fdv), marketCapUsd: positive(selected?.marketCap),
         transactions24h: Number.isInteger(tx?.buys) && tx.buys >= 0 && Number.isInteger(tx?.sells) && tx.sells >= 0 ? { buys: tx.buys, sells: tx.sells } : null,
-        pairCreatedAt: positive(selected.pairCreatedAt), candles, candleSource: 'GeckoTerminal'
+        pairCreatedAt: positive(selected.pairCreatedAt), candles, candleSource, pairIsDust
       };
       this.cache.set(key, { value, fetchedAt: Date.now() });
       return value;

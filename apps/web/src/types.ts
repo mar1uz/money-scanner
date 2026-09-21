@@ -41,6 +41,6 @@ export interface AssetDetailResponse {
     priceUsd: number | null; priceChange: Record<'m5' | 'h1' | 'h6' | 'h24', number | null>;
     volume: Record<'m5' | 'h1' | 'h6' | 'h24', number | null>; liquidityUsd: number | null;
     fdvUsd: number | null; marketCapUsd: number | null; transactions24h: { buys: number; sells: number } | null;
-    pairCreatedAt: number | null; candleSource: string; candles?: Candle[];
+    pairCreatedAt: number | null; candleSource: string; candles?: Candle[]; pairIsDust?: boolean;
   };
 }

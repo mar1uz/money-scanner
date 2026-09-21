@@ -150,7 +150,7 @@ export async function aggregatedCryptoDetail(
   const candles = dexMarket?.candles || [];
   const closedCandles = candles.filter(candle => candle.isClosed);
   const minCandles = timeframe === '1w' ? 15 : (timeframe === '1d' ? 30 : 210);
-  const activeSignal = calculateLatest && closedCandles.length >= minCandles ? calculateLatest(symbol, timeframe, closedCandles) : null;
+  const activeSignal = calculateLatest && dexMarket?.candleSource === 'GeckoTerminal' && closedCandles.length >= minCandles ? calculateLatest(symbol, timeframe, closedCandles) : null;
   return {
     info: {
       symbol: profile.symbol, name: profile.name, marketClass: 'crypto', quoteCurrency: 'USD',
