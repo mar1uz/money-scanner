@@ -55,15 +55,15 @@ const StockBqCard: React.FC<{
                 <span className={`text-[10px] font-mono ${asset.criteria.growth.status === 'pass' ? 'text-emerald-300' : asset.criteria.growth.status === 'watch' ? 'text-amber-300' : 'text-rose-300'}`}>{asset.criteria.growth.value}</span>
               )}
             </div>
-            <span className="block text-[10px] text-slate-500 truncate">{asset.name}{asset.sector ? ` \u00b7 ${asset.sector}` : ''}</span>
+            <span className="block text-[10px] text-slate-500 truncate">{asset.name}{asset.sector ? ` · ${asset.sector}` : ''}</span>
           </div>
         </div>
         <div className="text-right">
           <span className={`text-lg font-mono font-black ${asset.passedCriteria >= 5 ? 'text-emerald-300' : asset.score >= 50 ? 'text-amber-300' : 'text-slate-400'}`}>{asset.score}</span>
-          <span className="text-[9px] text-slate-600"> / 100 \u00b7 {asset.passedCriteria}/6</span>
+          <span className="text-[9px] text-slate-600"> / 100 · {asset.passedCriteria}/6</span>
           {undervalued ? (
             <span className={`block text-[9px] font-mono ${indexTone(undervalued.index)}`}>
-              index {undervalued.index > 0 ? '+' : ''}{undervalued.index} \u00b7 {undervalued.basis} {undervalued.ratio.toFixed(1)}x
+              index {undervalued.index > 0 ? '+' : ''}{undervalued.index} · {undervalued.basis} {undervalued.ratio.toFixed(1)}x
             </span>
           ) : (
             <span className="block text-[9px] font-mono text-cyan-300">{isRo ? asset.aiVerdictLabelRo : asset.aiVerdict}</span>

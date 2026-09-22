@@ -83,7 +83,7 @@ export const CryptoBqAssetCard: React.FC<{
         </div>
         <div className="text-right">
           <span className={`text-lg font-mono font-black ${asset.passedCriteria >= 3 ? 'text-emerald-300' : asset.score >= 50 ? 'text-amber-300' : 'text-slate-400'}`}>{asset.score}</span>
-          <span className="text-[9px] text-slate-600"> / 100 \u00b7 {asset.passedCriteria}/4</span>
+          <span className="text-[9px] text-slate-600"> / 100 · {asset.passedCriteria}/4</span>
           {undervalued && (
             <span className={`block text-[9px] font-mono ${undervalued.undervaluationIndex >= 25 ? 'text-emerald-300' : undervalued.undervaluationIndex >= 0 ? 'text-cyan-300' : 'text-amber-300'}`}>
               index {undervalued.undervaluationIndex > 0 ? '+' : ''}{undervalued.undervaluationIndex}
