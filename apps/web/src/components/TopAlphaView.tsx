@@ -108,6 +108,7 @@ export const TopAlphaView: React.FC = () => {
   const isRo = language === 'ro';
   const navigateAsset = useAssetNavigation();
   const [assetClass, setAssetClass] = useState<'crypto' | 'stocks'>('crypto');
+  const [ranking, setRanking] = useState<'score' | 'undervalued'>('score');
   const [cryptoScan, setCryptoScan] = useState<CryptoFourCriteriaScan | null>(null);
   const [stockScan, setStockScan] = useState<StockBusinessQualityScan | null>(null);
   const [loading, setLoading] = useState(true);
@@ -221,6 +222,21 @@ export const TopAlphaView: React.FC = () => {
           ))}
         </div>
 
+        {/* Ranking sub-tabs (Marius, 2026-09-22): Scor top | Subevaluate side by side, one tap away */}
+        <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] p-1">
+          {(['score', 'undervalued'] as const).map(option => (
+            <button
+              key={option}
+              onClick={() => setRanking(option)}
+              aria-pressed={ranking === option}
+              className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wide transition ${ranking === option ? 'bg-amber-500/20 text-amber-200 border border-amber-500/40' : 'text-slate-500 border border-transparent hover:text-slate-300'}`}
+            >
+              {option === 'score' ? <Trophy className="w-3.5 h-3.5" /> : <Scale className="w-3.5 h-3.5" />}
+              {option === 'score' ? (isRo ? 'Scor top' : 'Top score') : (isRo ? 'Subevaluate' : 'Undervalued')}
+            </button>
+          ))}
+        </div>
+
         {loading && !cryptoScan && !stockScan && <p className="py-8 text-center text-xs text-slate-500">{isRo ? 'Se \u00eencarc\u0103 clasamentele\u2026' : 'Loading leaderboards\u2026'}</p>}
         {error && (
           <div className="py-6 text-center space-y-2">
@@ -233,6 +249,7 @@ export const TopAlphaView: React.FC = () => {
 
         {assetClass === 'crypto' && cryptoScan && (
           <>
+            {ranking === 'score' && (
             <div className="space-y-2.5">
               <div>
                 <h3 className="text-[11px] font-bold uppercase tracking-wide text-emerald-300">{isRo ? 'Scor top' : 'Top score'}</h3>
@@ -248,8 +265,10 @@ export const TopAlphaView: React.FC = () => {
                 />
               ))}
             </div>
+            )}
 
-            <div className="space-y-2.5 pt-3 border-t border-white/[0.06]">
+            {ranking === 'undervalued' && (
+            <div className="space-y-2.5">
               <div>
                 <h3 className="text-[11px] font-bold uppercase tracking-wide text-amber-300">{isRo ? 'Subevaluate' : 'Undervalued'}</h3>
                 <p className="text-[10px] text-slate-500">{isRo ? 'Calitate raportat\u0103 la pre\u021b: percentila calit\u0103\u021bii minus percentila scumpirii (log mcap / revenue anualizat).' : 'Quality relative to price: quality percentile minus expensiveness percentile (log mcap / annualized revenue).'}</p>
@@ -265,11 +284,13 @@ export const TopAlphaView: React.FC = () => {
                 />
               ))}
             </div>
+            )}
           </>
         )}
 
         {assetClass === 'stocks' && stockScan && (
           <>
+            {ranking === 'score' && (
             <div className="space-y-2.5">
               <div>
                 <h3 className="text-[11px] font-bold uppercase tracking-wide text-emerald-300">{isRo ? 'Scor top' : 'Top score'}</h3>
@@ -285,8 +306,10 @@ export const TopAlphaView: React.FC = () => {
                 />
               ))}
             </div>
+            )}
 
-            <div className="space-y-2.5 pt-3 border-t border-white/[0.06]">
+            {ranking === 'undervalued' && (
+            <div className="space-y-2.5">
               <div>
                 <h3 className="text-[11px] font-bold uppercase tracking-wide text-amber-300">{isRo ? 'Subevaluate' : 'Undervalued'}</h3>
                 <p className="text-[10px] text-slate-500">{isRo ? 'Acela\u0219i model ca la crypto: percentila calit\u0103\u021bii minus percentila scumpirii (log P/FCF; fallback P/E, apoi P/S). Ac\u021biunile f\u0103r\u0103 multiplu utilizabil nu sunt clasate.' : 'Same model as crypto: quality percentile minus expensiveness percentile (log P/FCF; P/E then P/S fallbacks). Stocks without a usable multiple are not ranked.'}</p>
@@ -305,6 +328,7 @@ export const TopAlphaView: React.FC = () => {
                 />
               ))}
             </div>
+            )}
           </>
         )}
       </div>

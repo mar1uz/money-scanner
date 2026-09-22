@@ -4095,3 +4095,7 @@ Marius reviewed rev 00245-2xt and rejected two things:
 
 Verification: web tsc clean; web tests 80/81 (only pre-existing Playwright env failure, crypto-radar-sticky, missing browser binary on Mac); live `/api/ai/stock-business-quality` payload check: 83/83 assets have priceToFcf + trailingPE + priceToSales.
 Dot fix (commit b67f68b): replaced literal \u00b7 escapes in JSX text (TopAlphaView x3, CryptoBqAssetCard x1) with the middle-dot character. Caught in post-deploy screenshot review of rev 00246-5fr.
+
+## Step 118 - 2026-09-22 - Top Alpha: Scor top | Subevaluate sub-tabs
+
+Marius asked for the two rankings as two easy-to-find sub-tabs in the same page instead of scrolling stacked sections. TopAlphaView now has a second segmented control under the Crypto|Actii selector: "Scor top | Subevaluate" (Trophy / Scale icons, same amber segmented style). One section renders at a time; ranking state is independent of the asset-class selector, so both markets get both views. Section headers + methodology subtitles kept inside each view.
