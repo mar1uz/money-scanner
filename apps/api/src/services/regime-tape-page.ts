@@ -114,6 +114,12 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
   .bq-facts span { font: 600 12px 'JetBrains Mono'; }
   .bq-note { color: var(--muted); font-size: 12px; margin: 16px 0 0; }
   .bq-date { color: var(--muted); font: 500 10px 'JetBrains Mono'; margin-top: 10px; }
+  .bf-section { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 18px; }
+  .bf-section:first-child { margin-top: 16px; border-top: 0; padding-top: 0; }
+  .bf-kicker { color: var(--lime); font: 600 10px 'JetBrains Mono'; text-transform: uppercase; letter-spacing: .12em; margin-bottom: 8px; }
+  .bf-head { margin: 0 0 10px; font-size: 16px; }
+  .bf-section p { color: var(--muted); font-size: 13px; line-height: 1.6; margin: 0 0 10px; }
+  #briefingSections .briefing-list li:first-child { color: var(--muted); font-weight: 400; }
   .footer { border-top: 1px solid var(--line); margin-top: 64px; padding-top: 22px; color: var(--muted); display: flex; justify-content: space-between; gap: 20px; font-size: 11px; }
   @media (max-width: 780px) {
     .shell { padding: 0 16px calc(48px + env(safe-area-inset-bottom)); }
@@ -184,6 +190,13 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
     <div class="briefing-date" id="briefingDate"></div>
   </section>
 
+  <section class="panel" id="briefingFull" style="display:none;margin-top:64px">
+    <div class="eyebrow" style="margin-bottom:10px">AI Briefing</div>
+    <h3 style="margin:0">The full daily briefing</h3>
+    <div id="briefingSections"></div>
+    <div class="briefing-date" id="briefingFullDate"></div>
+  </section>
+
   <section class="panel" id="bq" style="display:none;margin-top:64px">
     <div class="eyebrow" style="margin-bottom:10px">Business Quality screen</div>
     <h3 style="margin:0">Top 5 undervalued assets</h3>
@@ -239,6 +252,12 @@ async function loadProof() {
     document.getElementById('bq').style.display = 'block';
     document.getElementById('bqGrid').innerHTML = q.entries.map((entry, i) => '<article class="bq-card"><div class="bq-top"><div><div class="bq-symbol">' + esc(entry.symbol) + '</div><div class="bq-name">' + esc(entry.name || '') + '</div></div><span class="bq-rank">#' + (i + 1) + '</span></div><div class="bq-facts"><div><label>Fees / 30d</label><span>' + fmtUsd(entry.fees30d) + '</span></div><div><label>Revenue / 30d</label><span>' + fmtUsd(entry.revenue30d) + '</span></div><div><label>Holder value / 30d</label><span>' + fmtUsd(entry.holderValue30d) + '</span></div><div><label>Growth run-rate</label><span>' + fmtPct(entry.growthRunRatePct) + '</span></div><div><label>Price 7d</label><span class="' + (entry.priceChange7d == null ? 'muted' : Number(entry.priceChange7d) >= 0 ? 'pos' : 'neg') + '">' + fmtPct(entry.priceChange7d) + '</span></div></div></article>').join('');
     document.getElementById('bqDate').textContent = q.generatedAt ? 'Scan generated ' + new Date(q.generatedAt).toISOString().slice(0, 10) + ' UTC' : '';
+  }
+  const f = d.briefingFull;
+  if (f && f.sections && f.sections.length) {
+    document.getElementById('briefingFull').style.display = 'block';
+    document.getElementById('briefingSections').innerHTML = f.sections.map(s => '<div class="bf-section"><div class="bf-kicker">' + esc(s.title) + '</div>' + (s.headline ? '<h4 class="bf-head">' + esc(s.headline) + '</h4>' : '') + (s.paragraphs || []).map(p => '<p>' + esc(p) + '</p>').join('') + ((s.bullets && s.bullets.length) ? '<ul class="briefing-list">' + s.bullets.map(b => '<li>' + esc(b) + '</li>').join('') + '</ul>' : '') + '</div>').join('');
+    document.getElementById('briefingFullDate').textContent = f.generatedAt ? 'Generated ' + new Date(f.generatedAt).toISOString().slice(0, 10) + ' UTC' : '';
   }
   document.getElementById('proofCards').innerHTML = selected.length ? selected.map(({e,o})=>'<article class="proof-card"><div class="proof-top"><div><div class="proof-symbol">'+esc(e.asset)+'</div><div class="proof-name">'+esc(e.name||'')+'</div></div><span>'+(e.currentRegime?'<span class="tier tier-'+esc(e.currentRegime).replace(/\s/g,'')+'">'+esc(e.currentRegime)+'</span> ':'')+'<span class="tf">'+esc(e.timeframe).toUpperCase()+'</span></span></div><div class="proof-return">+'+Number(o.value).toFixed(2)+'%</div><div class="proof-label">verified '+o.label.toLowerCase()+' return from flip close</div><div class="proof-facts"><div><label>Flip date</label><span>'+new Date(e.flipDate).toISOString().slice(0,10)+'</span></div><div><label>Flip close</label><span>'+fmtPrice(e.flipClose)+'</span></div><div><label>Current regime</label><span>'+esc(e.currentRegime||'-')+'</span></div></div></article>').join('') : '<div class="proof-card muted">Verified performance evidence will appear here after an outcome window closes and is selected for publication.</div>';
 }

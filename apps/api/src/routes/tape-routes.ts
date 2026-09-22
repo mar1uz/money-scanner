@@ -24,6 +24,14 @@ interface TapeBqReport {
   undervalued?: Array<{ assetId: string; symbol: string; name: string; priceChange7d?: number }>;
 }
 
+interface TapeBriefingSection {
+  key: string;
+  title: string;
+  headline: string | null;
+  paragraphs: string[];
+  bullets: string[];
+}
+
 export const tapeRouter = Router();
 
 const VALID_TIMEFRAMES = new Set(['1d', '1w']);
@@ -62,25 +70,39 @@ tapeRouter.get('/tape/proof', async (_req, res) => {
     ...item,
     currentRegime: regimeByAsset.get(item.asset.toUpperCase()) ?? null
   }));
-  // The day's AI briefing highlights for the public tape (EN copy, max 3).
-  // Public-surface rule (Marius, 2026-09-22): price/percent/context lines only -
-  // never JEV, momentum or composite score numbers; they mean nothing to
-  // outside readers. Source the day's briefing takes in priority order.
+  // The day's AI briefing for the public tape (EN copy): a 3-line summary
+  // plus the full daily briefing mirrored from the app's AI Briefing page
+  // (without the "Sources used" block, which the takes never carry).
+  // Public-surface rule (Marius, 2026-09-22): price/percent/context lines
+  // only - never internal score numbers or score jargon; they mean nothing
+  // to outside readers. Plain market language ("momentum") is fine.
+  const SCORE_WORDS = /\bjev\b|\bcombined\b|\bcomposite\b|\bscores?\b/i;
+  const SCORE_LIST = /[A-Z]{2,6}\s+\d{1,3}\.\d(?![\d%])/;
+  const AT_SCORE = /\bat\s+\d{1,3}\.\d(?![\d%])/i;
+  const isContextLine = (line: string): boolean =>
+    Boolean(line) && !SCORE_WORDS.test(line) && !SCORE_LIST.test(line) && !AT_SCORE.test(line);
   let briefing: { generatedAt: number; highlights: string[] } | null = null;
+  let briefingFull: { generatedAt: number; sections: TapeBriefingSection[] } | null = null;
   try {
-    const SCORE_WORDS = /\bjev\b|\bcombined\b|\bcomposite\b|\bmomentum\b|\bscores?\b/i;
-    const SCORE_LIST = /[A-Z]{2,6}\s+\d{1,3}\.\d(?![\d%])/;
-    const AT_SCORE = /\bat\s+\d{1,3}\.\d(?![\d%])/i;
-    const isContextLine = (line: string): boolean =>
-      Boolean(line) && !SCORE_WORDS.test(line) && !SCORE_LIST.test(line) && !AT_SCORE.test(line);
+    const BRIEFING_KEYS: Array<[string, string]> = [
+      ['briefing', 'Daily Briefing'],
+      ['capital-rotation', 'Capital Rotation'],
+      ['market-intelligence', 'Market Intelligence'],
+      ['intelligence-brief', 'Intelligence Brief']
+    ];
     const candidates: string[] = [];
+    const sections: TapeBriefingSection[] = [];
     let generatedAt = 0;
-    for (const key of ['briefing', 'capital-rotation', 'market-intelligence', 'intelligence-brief']) {
+    for (const [key, title] of BRIEFING_KEYS) {
       const take = await readAiContentTake(key, 'en');
       if (!take) continue;
       generatedAt = Math.max(generatedAt, take.generatedAt);
       if (take.headline) candidates.push(take.headline);
       for (const bullet of take.bullets ?? []) candidates.push(bullet);
+      const headline = take.headline && isContextLine(take.headline) ? take.headline : null;
+      const paragraphs = (take.paragraphs ?? []).filter(isContextLine);
+      const bullets = (take.bullets ?? []).filter(isContextLine);
+      if (headline || paragraphs.length || bullets.length) sections.push({ key, title, headline, paragraphs, bullets });
     }
     const seen = new Set<string>();
     const highlights = candidates.filter(isContextLine).filter(line => {
@@ -90,6 +112,7 @@ tapeRouter.get('/tape/proof', async (_req, res) => {
       return true;
     }).slice(0, 3);
     if (highlights.length) briefing = { generatedAt, highlights };
+    if (sections.length) briefingFull = { generatedAt, sections };
   } catch { /* briefing is optional on the public tape */ }
   // Top 5 undervalued from the Business Quality screen - public and free for
   // now (Marius, 2026-09-22). Real protocol inputs only; the internal quality
@@ -123,7 +146,7 @@ tapeRouter.get('/tape/proof', async (_req, res) => {
   res.set('Cache-Control', 'public, max-age=300');
   return res.json({ disclosure: REGIME_TAPE_DISCLOSURE, tapeVersion: REGIME_TAPE_VERSION,
     selection: { minimumReturnPct: 20, maximumItems: 6, curated: true }, updatedAt: new Date().toISOString(),
-    evidence: evidenceWithRegime, briefing, businessQuality });
+    evidence: evidenceWithRegime, briefing, briefingFull, businessQuality });
 });
 
 // Authenticated product endpoints. Global middleware protects these paths.
