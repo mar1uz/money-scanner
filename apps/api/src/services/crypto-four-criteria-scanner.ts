@@ -127,11 +127,9 @@ const criterion = (
   explanation: string
 ): CryptoCriterionResult => ({ status, label, value, explanation });
 
-const scoreForStatus = (status: CryptoCriteriaStatus): number => {
-  if (status === 'pass') return 25;
-  if (status === 'watch') return 12;
-  return 0;
-};
+// Marius (2026-09-23): each rubric is binary data completeness.
+// Any complete observation counts as 25/25; only missing/incomplete data is 0.
+const scoreForStatus = (status: CryptoCriteriaStatus): number => status === 'unknown' ? 0 : 25;
 
 /**
  * Undervaluation ranking on Marius's 3 factors: quality (network effect +
@@ -226,48 +224,28 @@ export function evaluateCryptoFourCriteriaAsset(
 
   const growth = !hasUsageObservation || !Number.isFinite(bestGrowth)
     ? criterion('unknown', 'Creștere', 'Date insuficiente', 'Nu există o serie gratuită comparabilă pentru utilizatori/activitate.')
-    : bestGrowth >= 5
-      ? criterion('pass', 'Creștere', formatPercent(bestGrowth), 'TVL pe 7 zile sau ritmul zilnic fees din ultimele 7 zile față de media ultimelor 30 zile crește cu minimum 5%.')
-      : bestGrowth >= 0
-        ? criterion('watch', 'Creștere', formatPercent(bestGrowth), 'Activitatea este stabilă sau crește lent; necesită monitorizare.')
-        : criterion('fail', 'Creștere', formatPercent(bestGrowth), 'Proxy-ul de activitate este în contracție față de perioada comparabilă.');
+    : criterion('pass', 'Creștere', formatPercent(bestGrowth), 'Există date comparabile de creștere; criteriul validează completitudinea datelor, nu un prag minim de performanță.');
 
-  const networkEvidence = fees.total30d >= 1_000_000 && ((protocol?.tvl || 0) >= 10_000_000 || (protocol?.chains.size || 0) >= 2);
-  const networkEffect = networkEvidence
-    ? criterion('pass', 'Efect de rețea', `${formatUsd(fees.total30d)} fees / 30z`, 'Activitate economică relevantă plus TVL sau distribuție multi-chain; acesta este un proxy, nu număr de utilizatori.')
-    : fees.total30d > 0 || (protocol?.tvl || 0) > 0
-      ? criterion('watch', 'Efect de rețea', fees.total30d > 0 ? `${formatUsd(fees.total30d)} fees / 30z` : `${formatUsd(protocol?.tvl || 0)} TVL`, 'Există utilizare măsurabilă, dar pragul proxy pentru efect de rețea nu este încă îndeplinit.')
-      : criterion('unknown', 'Efect de rețea', 'Date insuficiente', 'Sursa gratuită nu oferă dovadă comparabilă de utilizare pentru acest token.');
+  const hasNetworkData = Boolean(protocol?.matchedRows) || (fees.observed30d === true && !fees.incomplete30d);
+  const networkEffect = hasNetworkData
+    ? criterion('pass', 'Efect de rețea', fees.observed30d === true && !fees.incomplete30d
+      ? `${formatUsd(fees.total30d)} fees / 30z`
+      : `${formatUsd(protocol?.tvl || 0)} TVL`, 'Există date observabile despre utilizarea rețelei; criteriul validează completitudinea datelor, nu un prag minim.')
+    : criterion('unknown', 'Efect de rețea', 'Date insuficiente', 'Sursa gratuită nu oferă dovadă comparabilă de utilizare pentru acest token.');
 
   // L1 fix: for chains, fees ARE the network's revenue (they pay
   // validators/miners); without this, BTC/ETH-class assets were penalized for
   // having no protocol-retained revenue while paying real security revenue.
   const useChainFees = isChain && fees.total30d > revenue.total30d;
-  const basis24h = useChainFees ? fees.total24h : revenue.total24h;
-  const basis7d = useChainFees ? fees.total7d : revenue.total7d;
   const basis30d = useChainFees ? fees.total30d : revenue.total30d;
-  const revenueContinuity = basis30d > 0 ? (basis7d * (30 / 7)) / basis30d : 0;
-  const sustainableRevenue = (useChainFees ? fees : revenue).observed30d === false || (useChainFees ? fees : revenue).incomplete30d
+  const revenueAggregate = useChainFees ? fees : revenue;
+  const sustainableRevenue = revenueAggregate.observed30d === false || revenueAggregate.incomplete30d
     ? criterion('unknown', 'Venit sustenabil', 'Date insuficiente', 'Revenue lipsește sau acoperirea ferestrei de 30 zile este incompletă.')
-    : basis30d >= 1_000_000 && basis7d > 0 && basis24h > 0 && revenueContinuity >= 0.5
-    ? criterion('pass', 'Venit sustenabil', `${formatUsd(basis30d)}${useChainFees ? ' fees L1' : ''} / 30z`, useChainFees
-      ? 'Fees reale ale rețelei (către validatori/mineri) de minimum $1M/30z, prezente în ferestrele 24h, 7z și 30z.'
-      : 'Venit de minimum $1M/30z reținut de protocol, prezent concomitent în ferestrele 24h, 7z și 30z.')
-    : basis30d > 0
-      ? criterion('watch', 'Venit sustenabil', `${formatUsd(basis30d)}${useChainFees ? ' fees L1' : ''} / 30z`, 'Există venit, dar este sub $1M/30z, neregulat sau recent pentru confirmare.')
-      : hasUsageObservation
-        ? criterion('fail', 'Venit sustenabil', '$0 observat', 'Activitatea urmărită nu produce revenue reținut de protocol în această fereastră.')
-        : criterion('unknown', 'Venit sustenabil', 'Date insuficiente', 'Nu există observații DefiLlama comparabile pentru acest token.');
+    : criterion('pass', 'Venit sustenabil', `${formatUsd(basis30d)}${useChainFees ? ' fees L1' : ''} / 30z`, 'Există date complete pe 30 zile; criteriul validează completitudinea datelor, nu un prag minim de venit.');
 
   const holderValue = holderRevenue.observed30d === false || holderRevenue.incomplete30d
     ? criterion('unknown', 'Valoare către holderi', 'Date insuficiente', 'Lipsa raportării nu înseamnă zero; datele despre distribuțiile către holderi sunt incomplete.')
-    : holderRevenue.total30d >= 100_000 && holderRevenue.total7d > 0
-    ? criterion('pass', 'Valoare către holderi', `${formatUsd(holderRevenue.total30d)} / 30z`, 'DefiLlama raportează buyback/burn, distribuții sau staking finanțat din revenue.')
-    : holderRevenue.total30d > 0
-      ? criterion('watch', 'Valoare către holderi', `${formatUsd(holderRevenue.total30d)} / 30z`, 'Mecanismul există, dar valoarea observată este încă redusă sau neregulată.')
-      : holderRevenue.total30d === 0
-        ? criterion('fail', 'Valoare către holderi', '$0 observat', 'DefiLlama raportează explicit zero transfer de valoare către holderi în această fereastră.')
-        : criterion('unknown', 'Valoare către holderi', 'Date insuficiente', 'Fără revenue observat nu se poate confirma fee switch-ul sau distribuția.');
+    : criterion('pass', 'Valoare către holderi', holderRevenue.total30d > 0 ? `${formatUsd(holderRevenue.total30d)} / 30z` : '$0 observat', 'Există date complete despre transferul de valoare către holderi; criteriul validează completitudinea datelor, inclusiv zero raportat.');
 
   const statuses = [growth.status, networkEffect.status, sustainableRevenue.status, holderValue.status];
   const passedCriteria = statuses.filter(status => status === 'pass').length;
@@ -462,7 +440,7 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
   const coveredCount = universe.filter(asset => asset.classification !== 'insufficient-data').length;
   const { undervalued, unrankedCount } = buildUndervaluedRanking(universe);
   return {
-    methodologyVersion: 2,
+    methodologyVersion: 3,
     scannedCount: coins.length,
     coveredCount,
     allFourCount: universe.filter(asset => asset.classification === 'all-four').length,
@@ -473,11 +451,12 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
     generatedAt: input.generatedAt || Date.now(),
     dataFreshness: 'Snapshot CoinGecko/CoinPaprika + DefiLlama; cache până la 26 ore, rescanare manuală disponibilă',
     methodology: [
-      'Creștere: schimbarea TVL pe 7 zile sau accelerarea fees (ritm 7z vs 30z).',
-      'Efect de rețea: fees ≥$1M/30z plus TVL sau prezență multi-chain; proxy conservator, nu utilizatori activi exacți.',
-      'Venit sustenabil: revenue ≥$1M/30z prezent concomitent în ferestrele 24h, 7z și 30z; pentru L1-uri (BTC, ETH, SOL) se folosesc fees rețelei, care merg la validatori/mineri.',
-      'Valoare către holderi: buyback/burn, distribuții sau staking finanțat din venit ≥$100K/30z raportat de DefiLlama.',
-      'Model de subevaluare (tab Calitate Business): scor calitate 0-75 = Efect de rețea + Venit sustenabil + Valoare către holderi, aceleași praguri.',
+      'Scor 4x200: fiecare rubrică cu date complete valorează 25 puncte; datele lipsă sau incomplete valorează 0. Nu se aplică praguri minime de performanță.',
+      'Creștere: necesită o schimbare TVL pe 7 zile sau accelerarea fees (ritm 7z vs 30z) calculabilă.',
+      'Efect de rețea: necesită date observabile despre fees sau TVL/distribuție; proxy, nu utilizatori activi exacți.',
+      'Venit sustenabil: necesită o observație completă de revenue pe 30z; pentru L1-uri (BTC, ETH, SOL) se folosesc fees rețelei.',
+      'Valoare către holderi: necesită raportare completă buyback/burn, distribuții sau staking finanțat din venit; zero raportat este dată validă.',
+      'Model de subevaluare (tab Calitate Business): scor calitate 0-75 = completitudinea datelor pentru Efect de rețea + Venit sustenabil + Valoare către holderi.',
       'Evaluare: P/R = market cap / (revenue 30z × 365/30); fallback P/F din fees, respectiv P/H din buyback/burn anualizat când lipsesc ambele.',
       'Index subevaluare = percentila calității − percentila scumpirii (log P/R) între active cu aceeași bază (revenue/fees/holderi), cu percentile centrate pentru egalități; activele fără fees/revenue nu sunt clasate.',
       'Randament holderi: (holders revenue 30z × 365/30) / MC × 100; varianta /FDV include diluția. Ritm extrapolat, nu APY garantat.',
@@ -490,7 +469,7 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
       { id: 'defillama', title: 'TVL, Fees, Revenue & Holders Revenue', url: 'https://defillama.com/metrics', domain: 'defillama.com' },
       { id: 'definitions', title: 'Definițiile metrice DefiLlama', url: 'https://defillama.com/data-definitions', domain: 'defillama.com' }
     ],
-    disclaimer: 'Scanner fundamental de cercetare, nu semnal de cumpărare. „Pass” înseamnă că pragul proxy este îndeplinit în datele curente; indexul de subevaluare este un model euristic pe percentile, nu o estimare de valoare justă.'
+    disclaimer: 'Scanner fundamental de cercetare, nu semnal de cumpărare. „Pass” înseamnă că rubrica are date complete, nu că activul depășește un prag de calitate; indexul de subevaluare este un model euristic pe percentile, nu o estimare de valoare justă.'
   };
 }
 

@@ -4126,3 +4126,16 @@ Marius: "Vreau si market cap sa fie pe toate cardurile." Added to the name subti
 - Regression from ba5dda3 (Sep 21): name-containment admitted scam-lookalike base names ("Fake Pons" contains "pons"), so a high-liquidity lookalike pool could beat the legitimate most-liquid exact pair — the app would trust and chart the scam pool. selectExactMostLiquidPair now ranks exact-name matches (normalized name == profile name or symbol) above containment matches; liquidity/volume ordering applies only within each tier. Containment stays as the fallback tier for legitimate longer names ("Graphite Protocol" vs "Graphite").
 - The 3 failing dex-market-data tests were the acceptance bar and now pass. Two fixtures predated the intentional dust-pair rule (15c9b34: <25K liquidity with >100K CoinGecko volume routes candles to CoinGecko) and were raised above the dust threshold so they exercise the GeckoTerminal path as designed.
 - Full API suite 177/177. The radar 401-vs-400 failure seen in the earlier run did not reproduce — environment flake, not code.
+
+## Step 124 - 2026-09-23 - 4x200 criteria are data-completeness checks
+
+Marius: "Vreau atâta timp cât sunt date în toate rubricile din carduri sa fie considerate 4/4."
+
+- `crypto-four-criteria-scanner.ts`: removed the former 25 pass / 12 watch / 0 fail quality thresholds. Each rubric now scores 25 and reports `pass` whenever its source observation is present and complete; only missing/incomplete observations remain `unknown` and score 0. Reported zero is valid data (especially holder value/revenue), not missing data.
+- Updated rubric explanations, methodology and disclaimer so the UI states that `pass` means data completeness, not that a performance/quality threshold was exceeded.
+- Bumped `methodologyVersion` from 2 to 3 and the cache acceptance gate in `ai-routes.ts`, forcing a fresh criteria scan after deploy instead of serving a threshold-based snapshot.
+- Added a regression fixture with negative growth, tiny fees and reported-zero revenue/holder value; it must still produce `score=100`, `passedCriteria=4`, `classification=all-four` when all four rubrics have complete data.
+- Local live-provider verification before deploy: STONK = 100, 4/4, all-four; Network/Revenue/Holders all pass. Distribution over the fetched scan: 185 assets at 4/4, 65 at 3/4, 20 at 2/4, 20 at 1/4, 119 at 0/4 (409 retained assets; provider returned 450 market rows, 290 covered). Undervalued quality score is now mostly completeness bands: 186 rows at 75, 65 at 50, 5 at 25. This materially compresses the quality percentile and makes valuation/undervaluation index the main differentiator within each completeness band.
+- Forward-test note: scripts that consume the 4x200 score (JEV/quality axis) will shift many entries upward and compress into 25-point bands. The standalone Money Line score-band forward test is unaffected because it reads confirmed-flip setup scores, not 4x200 quality scores. Historical logged rows remain append-only and should not be rewritten.
+
+Verification: full API suite 177/177; focused scanner source suite 11/11; compiled scanner suite 11/11; API TypeScript clean; diff check clean.

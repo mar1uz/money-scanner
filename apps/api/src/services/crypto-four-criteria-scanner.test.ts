@@ -31,17 +31,33 @@ describe('Crypto four-criteria scanner', () => {
 
     assert.equal(scan.scannedCount, 3);
     assert.equal(scan.coveredCount, 2);
-    assert.equal(scan.allFourCount, 1);
+    assert.equal(scan.allFourCount, 2);
     assert.equal(scan.firstThreeCount, 2);
     assert.equal(scan.assets[0].symbol, 'ALP');
     assert.equal(scan.assets[0].classification, 'all-four');
     assert.equal(scan.assets[0].score, 100);
-    assert.equal(scan.assets[1].classification, 'first-three');
-    assert.equal(scan.assets[1].criteria.holderValue.status, 'fail');
+    assert.equal(scan.assets[1].classification, 'all-four');
+    assert.equal(scan.assets[1].criteria.holderValue.status, 'pass');
     assert.equal(scan.assets[2].classification, 'insufficient-data');
   });
 
-  it('does not assign ambiguous duplicate symbols to an unrelated protocol', () => {
+  it('counts every complete rubric as passed regardless of former quality thresholds', () => {
+  const scan = buildCryptoFourCriteriaScan({
+    coins: [coin('stonk-like', 50_000_000)],
+    protocols: [{ slug: 'stonk-like', gecko_id: 'stonk-like', tvl: 100_000, change_7d: -25, chains: ['Base'] }],
+    fees: [{ slug: 'stonk-like', total24h: 1, total7d: 7, total30d: 30 }],
+    revenue: [{ slug: 'stonk-like', total24h: 0, total7d: 0, total30d: 0 }],
+    holdersRevenue: [{ slug: 'stonk-like', total24h: 0, total7d: 0, total30d: 0 }]
+  });
+  const asset = scan.assets[0];
+  assert.deepEqual(Object.values(asset.criteria).map(criterion => criterion.status), ['pass', 'pass', 'pass', 'pass']);
+  assert.equal(asset.passedCriteria, 4);
+  assert.equal(asset.score, 100);
+  assert.equal(asset.classification, 'all-four');
+  assert.equal(scan.undervalued[0].qualityScore, 75);
+});
+
+it('does not assign ambiguous duplicate symbols to an unrelated protocol', () => {
     const scan = buildCryptoFourCriteriaScan({
       coins: [
         { id: 'one', symbol: 'dup', name: 'One', market_cap_rank: 1, market_cap: 10 },
@@ -76,7 +92,7 @@ it('distinguishes reported zero, absent data and incomplete child totals', () =>
   const missing = scan.assets.find(a => a.id === 'missing')!;
   const partial = scan.assets.find(a => a.id === 'partial')!;
   assert.equal(zero.metrics.holdersRevenue30d, 0);
-  assert.equal(zero.criteria.holderValue.status, 'fail');
+  assert.equal(zero.criteria.holderValue.status, 'pass');
   assert.equal(missing.metrics.revenue30d, undefined);
   assert.equal(missing.criteria.sustainableRevenue.status, 'unknown');
   assert.equal(missing.criteria.holderValue.status, 'unknown');
@@ -179,7 +195,7 @@ it('orders undervalued by criteria passed first, then undervaluation index withi
   const full = scan.undervalued.find(a => a.assetId === 'full')!;
   const cheap = scan.undervalued.find(a => a.assetId === 'cheap')!;
   assert.equal(full.passedCriteria, 4);
-  assert.equal(cheap.passedCriteria, 2);
+  assert.equal(cheap.passedCriteria, 3);
   assert.ok(cheap.undervaluationIndex > full.undervaluationIndex);
   assert.deepEqual(scan.undervalued.map(a => a.assetId), ['full', 'cheap', 'mid']);
 });
