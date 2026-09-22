@@ -127,9 +127,14 @@ const criterion = (
   explanation: string
 ): CryptoCriterionResult => ({ status, label, value, explanation });
 
-// Marius (2026-09-23): each rubric is binary data completeness.
-// Any complete observation counts as 25/25; only missing/incomplete data is 0.
-const scoreForStatus = (status: CryptoCriteriaStatus): number => status === 'unknown' ? 0 : 25;
+// Marius (2026-09-23): GROWTH / REVENUE / HOLDERS stay binary data completeness
+// (pass=25, anything else 0). NETWORK is again a quality gate with the old
+// intermediate state: pass=25, watch=12, unknown/fail=0.
+const scoreForStatus = (status: CryptoCriteriaStatus): number => {
+  if (status === 'pass') return 25;
+  if (status === 'watch') return 12;
+  return 0;
+};
 
 /**
  * Undervaluation ranking on Marius's 3 factors: quality (network effect +
@@ -226,12 +231,16 @@ export function evaluateCryptoFourCriteriaAsset(
     ? criterion('unknown', 'Creștere', 'Date insuficiente', 'Nu există o serie gratuită comparabilă pentru utilizatori/activitate.')
     : criterion('pass', 'Creștere', formatPercent(bestGrowth), 'Există date comparabile de creștere; criteriul validează completitudinea datelor, nu un prag minim de performanță.');
 
-  const hasNetworkData = Boolean(protocol?.matchedRows) || (fees.observed30d === true && !fees.incomplete30d);
-  const networkEffect = hasNetworkData
-    ? criterion('pass', 'Efect de rețea', fees.observed30d === true && !fees.incomplete30d
-      ? `${formatUsd(fees.total30d)} fees / 30z`
-      : `${formatUsd(protocol?.tvl || 0)} TVL`, 'Există date observabile despre utilizarea rețelei; criteriul validează completitudinea datelor, nu un prag minim.')
-    : criterion('unknown', 'Efect de rețea', 'Date insuficiente', 'Sursa gratuită nu oferă dovadă comparabilă de utilizare pentru acest token.');
+  // Marius (2026-09-23): NETWORK is a quality gate again, not data completeness.
+  // Pass ONLY when 30-day fees >= $100K AND TVL >= $10M; the old ">= 2 chains"
+  // alternative is deliberately dropped. Watch when the pass rule is unmet but
+  // some usage exists (fees30d > 0 or TVL > 0); unknown when no usage data.
+  const networkPass = fees.total30d >= 100_000 && (protocol?.tvl || 0) >= 10_000_000;
+  const networkEffect = networkPass
+    ? criterion('pass', 'Efect de rețea', `${formatUsd(fees.total30d)} fees / 30z`, 'Activitate economică relevantă (fees ≥ $100K / 30z) plus TVL ≥ $10M; acesta este un proxy, nu număr de utilizatori.')
+    : fees.total30d > 0 || (protocol?.tvl || 0) > 0
+      ? criterion('watch', 'Efect de rețea', fees.total30d > 0 ? `${formatUsd(fees.total30d)} fees / 30z` : `${formatUsd(protocol?.tvl || 0)} TVL`, 'Există utilizare măsurabilă, dar pragul proxy pentru efect de rețea (fees ≥ $100K / 30z și TVL ≥ $10M) nu este încă îndeplinit.')
+      : criterion('unknown', 'Efect de rețea', 'Date insuficiente', 'Sursa gratuită nu oferă dovadă comparabilă de utilizare pentru acest token.');
 
   // L1 fix: for chains, fees ARE the network's revenue (they pay
   // validators/miners); without this, BTC/ETH-class assets were penalized for
@@ -440,7 +449,7 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
   const coveredCount = universe.filter(asset => asset.classification !== 'insufficient-data').length;
   const { undervalued, unrankedCount } = buildUndervaluedRanking(universe);
   return {
-    methodologyVersion: 3,
+    methodologyVersion: 4,
     scannedCount: coins.length,
     coveredCount,
     allFourCount: universe.filter(asset => asset.classification === 'all-four').length,

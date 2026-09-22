@@ -4139,3 +4139,15 @@ Marius: "Vreau atâta timp cât sunt date în toate rubricile din carduri sa fie
 - Forward-test note: scripts that consume the 4x200 score (JEV/quality axis) will shift many entries upward and compress into 25-point bands. The standalone Money Line score-band forward test is unaffected because it reads confirmed-flip setup scores, not 4x200 quality scores. Historical logged rows remain append-only and should not be rewritten.
 
 Verification: full API suite 177/177; focused scanner source suite 11/11; compiled scanner suite 11/11; API TypeScript clean; diff check clean.
+
+## Step 125 - 2026-09-23 - NETWORK quality gate restored (fees 30d >= $100K AND TVL >= $10M)
+
+Marius: "trece doar daca fees 30z >= $100K SI (TVL >= $10M)". Partly reverts Step 124: GROWTH / REVENUE / HOLDERS stay binary data-completeness (pass=25 when the observation is complete, else unknown=0), but NETWORK is a quality rule again.
+
+- `crypto-four-criteria-scanner.ts`: NETWORK passes ONLY when DefiLlama fees total30d >= $100,000 AND protocol TVL >= $10,000,000. The pre-Step-124 ">= 2 chains" alternative leg is deliberately dropped (single-chain protocols no longer pass on chain count). Intermediate states follow the old structure: watch (12 pts) when the pass rule is unmet but some usage exists (fees30d > 0 or TVL > 0); unknown (0) with no usage data. `scoreForStatus` back to pass=25 / watch=12 / else 0; the three completeness rubrics never emit watch, so their scoring is unchanged.
+- Methodology bumped 3 -> 4 (scanner payload + ai-routes cache gate) so the deploy forces a fresh criteria scan instead of serving the completeness snapshot.
+- The separate DEX-only implementation (`crypto-four-criteria-lookup.ts`, volume/liquidity thresholds with its own >= 2 chains alternative) is intentionally untouched.
+- Tests: the Step-124 regression fixture (STONK-like: tiny fees, $100K TVL) now asserts the new rule: network watch, 3/4, score 87, classification partial, undervalued qualityScore 62. New test covers the boundary matrix: exact thresholds pass (100K/10M), fees 99,999 watch, TVL 9,999,999 watch, multi-chain with TVL < $10M watch (chains leg gone), no-usage unknown. `cheap`/`mid` fixtures in the undervalued ordering test drop from 3/4 to 2/4 (fees-only, no TVL).
+- Distribution effect vs Step 124: assets with measurable-but-small usage move from pass (25) to watch (12) and out of the 4/4 bucket; scores leave the pure 25-point bands (75/50/25) for mixed values like 87/62. Live-verified numbers in the deploy report.
+
+Verification: full API suite 178/178 (177 + 1 new); diff limited to scanner.ts, scanner test, ai-routes.ts version gate, HANDOFF.md.

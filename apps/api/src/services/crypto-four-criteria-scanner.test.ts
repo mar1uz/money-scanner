@@ -41,7 +41,9 @@ describe('Crypto four-criteria scanner', () => {
     assert.equal(scan.assets[2].classification, 'insufficient-data');
   });
 
-  it('counts every complete rubric as passed regardless of former quality thresholds', () => {
+  it('keeps growth/revenue/holders on completeness but gates network on fees >= $100K and TVL >= $10M', () => {
+  // STONK-like: measurable usage, but TVL below the $10M leg of the NETWORK
+  // pass rule -> watch (12 pts), 3/4, score 87 (Marius, 2026-09-23).
   const scan = buildCryptoFourCriteriaScan({
     coins: [coin('stonk-like', 50_000_000)],
     protocols: [{ slug: 'stonk-like', gecko_id: 'stonk-like', tvl: 100_000, change_7d: -25, chains: ['Base'] }],
@@ -50,11 +52,36 @@ describe('Crypto four-criteria scanner', () => {
     holdersRevenue: [{ slug: 'stonk-like', total24h: 0, total7d: 0, total30d: 0 }]
   });
   const asset = scan.assets[0];
-  assert.deepEqual(Object.values(asset.criteria).map(criterion => criterion.status), ['pass', 'pass', 'pass', 'pass']);
-  assert.equal(asset.passedCriteria, 4);
-  assert.equal(asset.score, 100);
-  assert.equal(asset.classification, 'all-four');
-  assert.equal(scan.undervalued[0].qualityScore, 75);
+  assert.deepEqual(Object.values(asset.criteria).map(criterion => criterion.status), ['pass', 'watch', 'pass', 'pass']);
+  assert.equal(asset.passedCriteria, 3);
+  assert.equal(asset.score, 87);
+  assert.equal(asset.classification, 'partial');
+  assert.equal(scan.undervalued[0].qualityScore, 62);
+});
+
+it('passes network only when fees >= $100K AND TVL >= $10M, with no multi-chain alternative', () => {
+  const scan = buildCryptoFourCriteriaScan({
+    coins: [coin('qualified'), coin('low-fees'), coin('low-tvl'), coin('multi-chain'), coin('no-usage')],
+    protocols: [
+      { slug: 'qualified', gecko_id: 'qualified', tvl: 10_000_000, change_7d: 6, chains: ['Solana'] },
+      { slug: 'low-fees', gecko_id: 'low-fees', tvl: 50_000_000, change_7d: 6, chains: ['Solana'] },
+      { slug: 'low-tvl', gecko_id: 'low-tvl', tvl: 9_999_999, change_7d: 6, chains: ['Solana'] },
+      { slug: 'multi-chain', gecko_id: 'multi-chain', tvl: 5_000_000, change_7d: 6, chains: ['Solana', 'Base'] }
+    ],
+    fees: [
+      { slug: 'qualified', total24h: 10_000, total7d: 70_000, total30d: 100_000 },
+      { slug: 'low-fees', total24h: 3_000, total7d: 21_000, total30d: 99_999 },
+      { slug: 'low-tvl', total24h: 10_000, total7d: 70_000, total30d: 500_000 },
+      { slug: 'multi-chain', total24h: 10_000, total7d: 70_000, total30d: 500_000 }
+    ],
+    revenue: [], holdersRevenue: []
+  });
+  const statusOf = (id: string) => scan.assets.find(a => a.id === id)!.criteria.networkEffect.status;
+  assert.equal(statusOf('qualified'), 'pass');
+  assert.equal(statusOf('low-fees'), 'watch');
+  assert.equal(statusOf('low-tvl'), 'watch');
+  assert.equal(statusOf('multi-chain'), 'watch');
+  assert.equal(statusOf('no-usage'), 'unknown');
 });
 
 it('does not assign ambiguous duplicate symbols to an unrelated protocol', () => {
@@ -195,7 +222,7 @@ it('orders undervalued by criteria passed first, then undervaluation index withi
   const full = scan.undervalued.find(a => a.assetId === 'full')!;
   const cheap = scan.undervalued.find(a => a.assetId === 'cheap')!;
   assert.equal(full.passedCriteria, 4);
-  assert.equal(cheap.passedCriteria, 3);
+  assert.equal(cheap.passedCriteria, 2);
   assert.ok(cheap.undervaluationIndex > full.undervaluationIndex);
   assert.deepEqual(scan.undervalued.map(a => a.assetId), ['full', 'cheap', 'mid']);
 });
