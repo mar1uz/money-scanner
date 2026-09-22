@@ -29,19 +29,20 @@ tapeRouter.get('/tape/proof', async (_req, res) => {
   const evidence = approvedSymbols.size
     ? await appState.getPublicTapeProof(approvedSymbols, 20, 6)
     : [];
-  // Current regime per proof asset: latest taped tier for symbol+timeframe.
-  // Bounded to the assets already published as proof - no new disclosure.
+  // Current regime per proof asset: latest taped tier for the symbol (the
+  // tape tracks 1d/1w regimes; proof flips are 4h/8h, so match by symbol).
+  // Events arrive newest-first. Bounded to published proof assets.
   let regimeByAsset = new Map<string, string>();
   try {
     const events = await appState.regimeTape.getEvents(500);
     for (const event of events) {
-      const key = event.symbol.toUpperCase() + ':' + event.timeframe;
+      const key = event.symbol.toUpperCase();
       if (!regimeByAsset.has(key)) regimeByAsset.set(key, event.tier);
     }
   } catch { /* regime is optional on the public proof */ }
   const evidenceWithRegime = evidence.map(item => ({
     ...item,
-    currentRegime: regimeByAsset.get(item.asset.toUpperCase() + ':' + item.timeframe) ?? null
+    currentRegime: regimeByAsset.get(item.asset.toUpperCase()) ?? null
   }));
   // The day's AI briefing highlights for the public tape (EN copy, max 3).
   let briefing: { generatedAt: number; highlights: string[] } | null = null;
