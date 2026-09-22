@@ -45,13 +45,33 @@ tapeRouter.get('/tape/proof', async (_req, res) => {
     currentRegime: regimeByAsset.get(item.asset.toUpperCase()) ?? null
   }));
   // The day's AI briefing highlights for the public tape (EN copy, max 3).
+  // Public-surface rule (Marius, 2026-09-22): price/percent/context lines only -
+  // never JEV, momentum or composite score numbers; they mean nothing to
+  // outside readers. Source the day's briefing takes in priority order.
   let briefing: { generatedAt: number; highlights: string[] } | null = null;
   try {
-    const take = await readAiContentTake('briefing', 'en');
-    if (take) {
-      const highlights = [take.headline, ...(take.bullets ?? []).slice(0, 2)].filter(Boolean).slice(0, 3);
-      if (highlights.length) briefing = { generatedAt: take.generatedAt, highlights };
+    const SCORE_WORDS = /\bjev\b|\bcombined\b|\bcomposite\b|\bmomentum\b|\bscores?\b/i;
+    const SCORE_LIST = /[A-Z]{2,6}\s+\d{1,3}\.\d(?![\d%])/;
+    const AT_SCORE = /\bat\s+\d{1,3}\.\d(?![\d%])/i;
+    const isContextLine = (line: string): boolean =>
+      Boolean(line) && !SCORE_WORDS.test(line) && !SCORE_LIST.test(line) && !AT_SCORE.test(line);
+    const candidates: string[] = [];
+    let generatedAt = 0;
+    for (const key of ['briefing', 'capital-rotation', 'market-intelligence', 'intelligence-brief']) {
+      const take = await readAiContentTake(key, 'en');
+      if (!take) continue;
+      generatedAt = Math.max(generatedAt, take.generatedAt);
+      if (take.headline) candidates.push(take.headline);
+      for (const bullet of take.bullets ?? []) candidates.push(bullet);
     }
+    const seen = new Set<string>();
+    const highlights = candidates.filter(isContextLine).filter(line => {
+      const k = line.trim().toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    }).slice(0, 3);
+    if (highlights.length) briefing = { generatedAt, highlights };
   } catch { /* briefing is optional on the public tape */ }
   res.set('Cache-Control', 'public, max-age=300');
   return res.json({ disclosure: REGIME_TAPE_DISCLOSURE, tapeVersion: REGIME_TAPE_VERSION,
