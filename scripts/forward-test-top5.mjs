@@ -14,7 +14,7 @@ import { scanAll, rankSetups, DAY_MS } from './trend-ranking-core.mjs';
 import { parseLog as parsePaperLog } from './paper-trade-logger.mjs';
 import {
   parseLog, serializeRecords, deriveState, freezeSelection, recordEntries,
-  computeOutcome, btcBenchmark, aggregate
+  computeOutcome, btcBenchmark, aggregate, dedupeKey
 } from './forward-test-top5-core.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -60,7 +60,20 @@ async function run() {
       getAssetCandles: sym => perAsset.get(sym)?.candles,
       now
     }));
-    if (newRecords.length) await appendFile(LOG_PATH, serializeRecords(newRecords));
+    if (newRecords.length) {
+      // Close the concurrent-run race (Sep 22 incident: two morning runs
+      // double-appended scanDate 2026-09-21): re-read the log immediately
+      // before appending and drop anything a parallel run already wrote.
+      let fresh = [];
+      try { fresh = parseLog(await readFile(LOG_PATH, 'utf8')); } catch { /* first run */ }
+      const existing = new Set(fresh.map(dedupeKey).filter(Boolean));
+      const kept = newRecords.filter(r => { const k = dedupeKey(r); return k === null || !existing.has(k); });
+      const skipped = newRecords.length - kept.length;
+      if (skipped) console.log(`  skipped ${skipped} duplicate(s) already appended by a concurrent run`);
+      if (kept.length) await appendFile(LOG_PATH, serializeRecords(kept));
+      newRecords.length = 0;
+      newRecords.push(...kept);
+    }
     const frozen = newRecords.filter(r => r.type === 'selection');
     const entered = newRecords.filter(r => r.type === 'entry');
     console.log(`Forward test (${scanDate}): ${frozen.length} new selection(s), ${entered.length} new entr(ies).`);

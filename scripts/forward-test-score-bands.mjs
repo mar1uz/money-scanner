@@ -115,7 +115,21 @@ async function run() {
 
   const fresh = updateLog(records, flips, runDate, now);
   if (fresh.length) {
-    await appendFile(LOG_PATH, serializeRecords(fresh));
+    // Close the concurrent-run race (see the 2026-09-21 top5 double-append):
+    // re-read the log immediately before appending and drop records a
+    // parallel run already wrote. Key: entry -> entry:<key>, exit ->
+    // exit:<key>:<horizonDays>; unknown shapes never dedupe.
+    const dedupeKey = r => r.kind === 'entry' ? `entry:${r.key}`
+      : r.kind === 'exit' ? `exit:${r.key}:${r.horizonDays}` : null;
+    let existing = [];
+    try { existing = parseLog(await readFile(LOG_PATH, 'utf8')); } catch { /* first run */ }
+    const seen = new Set(existing.map(dedupeKey).filter(Boolean));
+    const kept = fresh.filter(r => { const k = dedupeKey(r); return k === null || !seen.has(k); });
+    const skipped = fresh.length - kept.length;
+    if (skipped) console.log(`  skipped ${skipped} duplicate(s) already appended by a concurrent run`);
+    if (kept.length) await appendFile(LOG_PATH, serializeRecords(kept));
+    fresh.length = 0;
+    fresh.push(...kept);
   }
   const entries = fresh.filter(r => r.kind === 'entry').length;
   const exits = fresh.filter(r => r.kind === 'exit').length;

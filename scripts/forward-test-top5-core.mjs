@@ -15,10 +15,33 @@ export function serializeRecords(records) {
   return records.map(r => JSON.stringify(r)).join('\n') + (records.length ? '\n' : '');
 }
 
+// Dedupe (Sep 22 incident): two concurrent logger runs both read the log
+// before either appended and double-froze scanDate 2026-09-21. The log stays
+// append-only, so duplicates are never rewritten out - every consumer keeps
+// only the FIRST occurrence of each key, and the runner re-checks keys
+// against a fresh read immediately before appending. Unknown record types
+// (e.g. dedupe-note markers) never dedupe.
+export function dedupeKey(rec) {
+  if (rec.type === 'selection' || rec.type === 'entry') return `${rec.type}:${rec.scanDate}:${rec.symbol}`;
+  return null;
+}
+export function dedupeFirstWins(records) {
+  const seen = new Set();
+  const out = [];
+  for (const rec of records) {
+    const k = dedupeKey(rec);
+    if (k === null) { out.push(rec); continue; }
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(rec);
+  }
+  return out;
+}
+
 export function deriveState(records) {
   const selectionsByDate = new Map(); // scanDate -> [selection records]
   const entries = new Map();          // `${scanDate}:${symbol}` -> entry record
-  for (const rec of records) {
+  for (const rec of dedupeFirstWins(records)) {
     if (rec.type === 'selection') {
       if (!selectionsByDate.has(rec.scanDate)) selectionsByDate.set(rec.scanDate, []);
       selectionsByDate.get(rec.scanDate).push(rec);

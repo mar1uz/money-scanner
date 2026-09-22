@@ -4008,3 +4008,13 @@ Cadence: rotate pillars so the feed never becomes a monotonous ticker stream —
 - Root causes: (a) the app-wide "< $1 ? toFixed(4)" price pattern loses every asset below $0.0001 (BONK/PEPE/SHIB class); chart fast/slow lines used toFixed(2). (b) ai-analyst rounded S/R levels and the support-risk string with toFixed(4)/toFixed(2) -> 0 for dust assets. (c) AssetDeepDiveView rendered both BusinessQualityAssetCard (older panel) and CryptoBusinessQualityCard (newer) for crypto.
 - Fix: new shared apps/web/src/utils/price.ts formatPrice (4 significant digits below $1, locale 2-decimals at $1+) used in AssetDeepDiveView, InteractiveChart (fastLine/slowLine/sma50/sma200/priceDiff/fib/entry-exit), Header, ScannerTable, NarrativeDetailModal, UniversalSearchModal; ai-analyst S/R + risk string now use toPrecision(4); BusinessQualityAssetCard hidden on crypto when the explanation section renders CryptoBusinessQualityCard.
 - Verified live: BONK desktop + mobile (header $0.000003350, Baza Nor $0.000005096, Margine Nor $0.000006071, SMA 50 $0.000006583, SMA 200 $0.000001681, S1 $0.000003199 / R1 $0.000003501 / R2 $0.000003652, one BQ card), PEPE desktop (cloud values real, one BQ card).
+
+## Step 106 - 2026-09-22: forward tracker dedupe (append guard + read-side first-wins)
+
+Incident: two concurrent morning runs of scripts/forward-test-top5.mjs both read the log before either appended and double-froze scanDate 2026-09-21 (batches 04:41:55.547Z + 04:42:22.851Z, 10 duplicate keys: XRP/OP/AVAX/TIA/LTC selections + entries).
+
+Repair (owner-approved, append-only preserved):
+- core: dedupeKey (selection/entry -> type:scanDate:symbol) + dedupeFirstWins; deriveState now consumes first-wins, so the second batch is excluded from effective analysis while both recordedAt provenance timestamps stay in the file.
+- runner: re-reads the log immediately before appendFile and drops keys a parallel run already wrote ('skipped N duplicates'); same guard added to forward-test-score-bands.mjs.
+- marker: one dedupe-note line appended to forward-test-top5.jsonl (kept 04:41:55.547Z, excluded 04:42:22.851Z).
+- proof: 10/10 node --test (2 new dedupe tests); logger run twice -> 0 appends both, 51 rows stable; effective Sep 21 state = 5 selections + 5 entries.

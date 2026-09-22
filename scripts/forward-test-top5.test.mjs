@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   freezeSelection, recordEntries, computeOutcome, btcBenchmark,
-  aggregate, deriveState, parseLog, serializeRecords
+  aggregate, deriveState, parseLog, serializeRecords, dedupeFirstWins
 } from './forward-test-top5-core.mjs';
 
 const DAY = 86_400_000;
@@ -129,6 +129,29 @@ test('aggregate computes win rate, mean return, drawdown, exits', () => {
   assert.ok(Math.abs(a.meanReturnPct - 2.67) < 0.05);
   assert.equal(a.drawdownPct, 5);
   assert.deepEqual(a.byExit, { horizon: 2, stop: 1 });
+});
+
+test('dedupe: a double-appended batch (Sep 21 incident) reads first-wins', () => {
+  const first = frozenSet();
+  const dup = frozenSet().map(r => ({ ...r, recordedAt: '2026-09-19T05:00:27.000Z' })); // concurrent second run
+  const doubled = first.concat(dup);
+  const deduped = dedupeFirstWins(doubled);
+  assert.equal(deduped.length, 5);
+  assert.deepEqual(deduped, first); // first batch wins, provenance of both stays in the file
+  const state = deriveState(doubled);
+  assert.equal(state.selectionsByDate.get('2026-09-18').length, 5); // not 10
+  // entries over doubled selections still record once per scanDate:symbol
+  const candles = [candle(0, 100, 104, 99, 103), candle(1, 103, 105, 102, 104)];
+  const entries = recordEntries({ records: doubled, getAssetCandles: () => candles, now: NOW });
+  assert.equal(entries.length, 5);
+});
+
+test('dedupe: marker lines pass through and never dedupe', () => {
+  const marker = { type: 'dedupe-note', scanDate: '2026-09-18', notedAt: NOW };
+  const recs = frozenSet().concat([marker]);
+  assert.equal(dedupeFirstWins(recs).length, recs.length);
+  const state = deriveState(parseLog(serializeRecords(recs)));
+  assert.equal(state.selectionsByDate.get('2026-09-18').length, 5);
 });
 
 test('JSONL round-trip', () => {
