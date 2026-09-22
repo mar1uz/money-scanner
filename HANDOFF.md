@@ -4068,3 +4068,7 @@ Owner ask: the BQ card's GROWTH card became a MULTIPLE card (mcap / annualized r
 - web BusinessQualityAssetCard.tsx: same inline growth + multiple card.
 - api tape-routes.ts: TapeBqEntry gains valuationRatio + valuationBasis ('mcap / annualized revenue'); businessQuality payload includes both; ratio = mcap/(revenueRunRate*12) rounded 1dp (null when uncomputable).
 - api regime-tape-page.ts: tape panel renders inline growth span (.bq-growth, 'Revenue run +117.2%') and the MULTIPLE fact replacing GROWTH RUN RATE; note updated ('multiple = mcap / annualized revenue').
+
+## Step 114: Multiple-card change is APP-ONLY - tape panel reverted (Marius scope correction)
+
+Marius (2026-09-22 11:06): the MULTIPLE card and Top Alpha tab belong in the app, NOT on the public Tape. Commit 0b4d675 had touched tape-routes.ts (valuationRatio/valuationBasis) and regime-tape-page.ts (inline growth + multiple fact); build 7ab519d7 deployed it as rev 00243-kj6 before the correction arrived. This step restores both tape files to the 7c5bb7c state (tape Top-5 panel keeps: fees, revenue, holder value, growth run-rate, price 7d). The app-side change (AIBriefingView top-score cards + BusinessQualityAssetCard deep-dive) stays.

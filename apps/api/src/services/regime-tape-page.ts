@@ -128,7 +128,6 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
   .bq-symbol { font: 700 16px 'JetBrains Mono'; }
   .bq-name { color: var(--muted); font-size: 11px; }
   .bq-rank { color: var(--lime); font: 700 11px 'JetBrains Mono'; }
-  .bq-growth { font: 600 11px 'JetBrains Mono'; }
   .bq-facts { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px 14px; border-top: 1px solid var(--line); padding-top: 12px; }
   .bq-facts label { display: block; color: var(--muted); font: 600 9px 'JetBrains Mono'; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 3px; }
   .bq-facts span { font: 600 12px 'JetBrains Mono'; }
@@ -223,7 +222,7 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
     <h3 style="margin:0">Top 5 undervalued assets</h3>
     <p style="margin-top:9px">Real protocol inputs from the daily Business Quality scan. Free while the community grows.</p>
     <div class="bq-grid" id="bqGrid"></div>
-    <p class="bq-note">Fees, revenue and holder value are trailing 30-day protocol figures. The multiple compares market cap with annualized revenue (30d x 12). The inline growth percent compares the recent 7-day pace with the trailing 30 days. The ranking is a heuristic - not fair value or a buy signal.</p>
+    <p class="bq-note">Fees, revenue and holder value are trailing 30-day protocol figures. Growth compares the recent 7-day fee pace with the trailing 30 days. The ranking is a heuristic - not fair value or a buy signal.</p>
     <div class="bq-date" id="bqDate"></div>
   </section>
 
@@ -278,7 +277,7 @@ async function loadProof() {
     const fmtUsd = v => v > 0 ? (v >= 1e9 ? '$' + (v / 1e9).toFixed(2) + 'B' : v >= 1e6 ? '$' + (v / 1e6).toFixed(2) + 'M' : v >= 1e3 ? '$' + (v / 1e3).toFixed(1) + 'K' : '$' + Math.round(v)) : '-';
     const fmtPct = v => Number.isFinite(v) ? (v >= 0 ? '+' : '') + Number(v).toFixed(1) + '%' : '-';
     document.getElementById('bq').style.display = 'block';
-    document.getElementById('bqGrid').innerHTML = q.entries.map((entry, i) => '<article class="bq-card"><div class="bq-top"><div><div class="bq-symbol">' + esc(entry.symbol) + (entry.growthRunRatePct == null ? '' : ' <span class="bq-growth ' + (Number(entry.growthRunRatePct) >= 0 ? 'pos' : 'neg') + '">' + fmtPct(entry.growthRunRatePct) + '</span>') + '</div><div class="bq-name">' + esc(entry.name || '') + '</div></div><span class="bq-rank">#' + (i + 1) + '</span></div><div class="bq-facts"><div><label>Fees / 30d</label><span>' + fmtUsd(entry.fees30d) + '</span></div><div><label>Revenue / 30d</label><span>' + fmtUsd(entry.revenue30d) + '</span></div><div><label>Holder value / 30d</label><span>' + fmtUsd(entry.holderValue30d) + '</span></div><div><label>' + (entry.valuationBasis === 'fees' ? 'mcap / annualized fees' : entry.valuationBasis === 'holders' ? 'mcap / annualized holder value' : 'mcap / annualized revenue') + '</label><span>' + (entry.valuationRatio ? entry.valuationRatio.toFixed(1) + 'x' : '-') + '</span></div><div><label>Price 7d</label><span class="' + (entry.priceChange7d == null ? 'muted' : Number(entry.priceChange7d) >= 0 ? 'pos' : 'neg') + '">' + fmtPct(entry.priceChange7d) + '</span></div></div></article>').join('');
+    document.getElementById('bqGrid').innerHTML = q.entries.map((entry, i) => '<article class="bq-card"><div class="bq-top"><div><div class="bq-symbol">' + esc(entry.symbol) + '</div><div class="bq-name">' + esc(entry.name || '') + '</div></div><span class="bq-rank">#' + (i + 1) + '</span></div><div class="bq-facts"><div><label>Fees / 30d</label><span>' + fmtUsd(entry.fees30d) + '</span></div><div><label>Revenue / 30d</label><span>' + fmtUsd(entry.revenue30d) + '</span></div><div><label>Holder value / 30d</label><span>' + fmtUsd(entry.holderValue30d) + '</span></div><div><label>Growth run-rate</label><span>' + fmtPct(entry.growthRunRatePct) + '</span></div><div><label>Price 7d</label><span class="' + (entry.priceChange7d == null ? 'muted' : Number(entry.priceChange7d) >= 0 ? 'pos' : 'neg') + '">' + fmtPct(entry.priceChange7d) + '</span></div></div></article>').join('');
     document.getElementById('bqDate').textContent = q.generatedAt ? 'Scan generated ' + new Date(q.generatedAt).toISOString().slice(0, 10) + ' UTC' : '';
   }
   const f = d.briefingFull;
