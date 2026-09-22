@@ -14,8 +14,17 @@ const number = (value: unknown) => typeof value === 'number' && Number.isFinite(
 export const DexCandlestickChart: React.FC<{ candles: Candle[]; symbol: string }> = ({ candles, symbol }) => {
   const visible = candles.filter(c => [c.open, c.high, c.low, c.close, c.timestamp].every(Number.isFinite)).slice(-180);
   if (!visible.length) return null;
-  const min = Math.min(...visible.map(c => c.low));
-  const max = Math.max(...visible.map(c => c.high));
+  // Outlier-robust domain (Marius, 2026-09-22): low-liquidity GeckoTerminal
+  // pairs carry bad ticks (STONK: a $0.00001 wick on a $0.35 asset) that
+  // squash every real candle into an invisible flat line. The domain is
+  // anchored on the median close: candles within a 25x band set the scale,
+  // extreme ticks are still drawn but clipped instead of setting it.
+  const sortedCloses = visible.map(c => c.close).sort((a, b) => a - b);
+  const medianClose = sortedCloses[Math.floor(sortedCloses.length / 2)] || 0;
+  const sane = medianClose > 0 ? visible.filter(c => c.low >= medianClose / 25 && c.high <= medianClose * 25) : visible;
+  const domainSource = sane.length >= Math.max(3, Math.ceil(visible.length * 0.6)) ? sane : visible;
+  const min = Math.min(...domainSource.map(c => c.low));
+  const max = Math.max(...domainSource.map(c => c.high));
   const range = max - min || Math.max(max * 0.01, 1e-12);
   const y = (price: number) => 245 - ((price - min) / range) * 225;
   const step = 800 / visible.length;
@@ -59,6 +68,10 @@ export const CryptoMarketOnlyView: React.FC<{
   const points = prices.map(([time, price]) => `${10 + (time - start) / (end - start || 1) * 780},${high === low ? 130 : 240 - (price - low) / (high - low) * 220}`).join(' ');
   const change = typeof quote.change24h === 'number' && Number.isFinite(quote.change24h) ? quote.change24h : null;
   const minCandles = timeframe === '1w' ? 15 : (timeframe === '1d' ? 30 : 210);
+  // Sparse DEX series (Marius, 2026-09-22): under 15 usable candles the
+  // "chart" is unreadable, so fall back to the aggregated price line.
+  const dexCandleCount = (dex?.candles || []).filter(candle => [candle.open, candle.high, candle.low, candle.close, candle.timestamp].every(Number.isFinite)).length;
+  const showDexCandles = dexCandleCount >= 15;
 
   return <section className="space-y-5" aria-label={`Date de piață ${info.name}`}>
     <div className="flex flex-wrap items-center gap-3">
@@ -115,6 +128,21 @@ export const CryptoMarketOnlyView: React.FC<{
     {dex?.pairIsDust && <div className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.05] p-4 text-xs leading-relaxed text-amber-100/90">
       Lichiditatea DEX pentru {info.symbol} este neglijabilă — volumul real se tranzacționează pe CEX sau alte piețe neacoperite de DEX Screener. Graficul folosește prețuri agregate CoinGecko.
     </div>}
+    <div className="rounded-[30px] border border-white/10 bg-[var(--t-surface)] p-5 sm:p-6">
+      <h2 className="font-semibold text-white">{showDexCandles
+        ? (dex!.candleSource === 'CoinGecko' ? `Grafic preț agregat · ${timeframe.toUpperCase()}` : `Grafic OHLCV DEX · ${timeframe.toUpperCase()}`)
+        : 'Istoric de preț · ultimele 30 de zile disponibile'}</h2>
+      <p className="mt-1 text-xs text-slate-400">{showDexCandles
+        ? (dex!.candleSource === 'CoinGecko'
+          ? 'Lumânări construite din prețuri agregate CoinGecko (toate piețele, inclusiv CEX). Ultima lumânare poate fi încă deschisă.'
+          : `Lumânări reale USD din pool-ul selectat de DEX Screener, furnizate de ${dex!.candleSource}. Ultima lumânare poate fi încă deschisă.`)
+        : `Prețuri USD raportate de ${quote.source}; puncte de preț, nu lumânări OHLCV.`}</p>
+      {showDexCandles ? <DexCandlestickChart candles={dex!.candles || []} symbol={info.symbol} /> : prices.length > 1 ? <>
+        <div className="mt-4 flex justify-between text-xs text-slate-400"><span>Min. {money(low)}</span><span>Max. {money(high)}</span></div>
+        <svg viewBox="0 0 800 260" className="mt-2 w-full" role="img" aria-label={`Istoric de preț ${info.name}`}><polyline points={points} fill="none" stroke="#CDEE7F" strokeWidth="2.5" vectorEffect="non-scaling-stroke" /></svg>
+        <div className="flex justify-between text-xs text-slate-400"><span>{new Date(start).toLocaleDateString('ro-RO')}</span><span>{new Date(end).toLocaleString('ro-RO')}</span></div>
+      </> : <p className="py-10 text-sm text-slate-400">Istoricul de preț nu este disponibil momentan de la furnizor. Cotația de mai sus rămâne disponibilă.</p>}
+    </div>
     {dex && !dex.pairIsDust && <div className="rounded-[30px] border border-fuchsia-500/20 bg-fuchsia-500/[0.04] p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold text-white">Piața DEX principală</h2><p className="mt-1 text-xs text-slate-400">Pereche selectată după lichiditatea USD raportată de DEX Screener.</p></div>
         <a href={dex.dexUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-fuchsia-400/25 px-3 py-1.5 text-xs text-fuchsia-200">DEX Screener <ExternalLink className="h-3.5 w-3.5" /></a></div>
@@ -125,21 +153,6 @@ export const CryptoMarketOnlyView: React.FC<{
       </dl>
       <p className="mt-4 truncate font-mono text-[10px] text-slate-500" title={dex.contractAddress}>Contract: {dex.contractAddress}</p>
     </div>}
-    <div className="rounded-[30px] border border-white/10 bg-[var(--t-surface)] p-5 sm:p-6">
-      <h2 className="font-semibold text-white">{dex?.candles?.length
-        ? (dex.candleSource === 'CoinGecko' ? `Grafic preț agregat · ${timeframe.toUpperCase()}` : `Grafic OHLCV DEX · ${timeframe.toUpperCase()}`)
-        : 'Istoric de preț · ultimele 30 de zile disponibile'}</h2>
-      <p className="mt-1 text-xs text-slate-400">{dex?.candles?.length
-        ? (dex.candleSource === 'CoinGecko'
-          ? 'Lumânări construite din prețuri agregate CoinGecko (toate piețele, inclusiv CEX). Ultima lumânare poate fi încă deschisă.'
-          : `Lumânări reale USD din pool-ul selectat de DEX Screener, furnizate de ${dex.candleSource}. Ultima lumânare poate fi încă deschisă.`)
-        : `Prețuri USD raportate de ${quote.source}; puncte de preț, nu lumânări OHLCV.`}</p>
-      {dex?.candles?.length ? <DexCandlestickChart candles={dex.candles} symbol={info.symbol} /> : prices.length > 1 ? <>
-        <div className="mt-4 flex justify-between text-xs text-slate-400"><span>Min. {money(low)}</span><span>Max. {money(high)}</span></div>
-        <svg viewBox="0 0 800 260" className="mt-2 w-full" role="img" aria-label={`Istoric de preț ${info.name}`}><polyline points={points} fill="none" stroke="#CDEE7F" strokeWidth="2.5" vectorEffect="non-scaling-stroke" /></svg>
-        <div className="flex justify-between text-xs text-slate-400"><span>{new Date(start).toLocaleDateString('ro-RO')}</span><span>{new Date(end).toLocaleString('ro-RO')}</span></div>
-      </> : <p className="py-10 text-sm text-slate-400">Istoricul de preț nu este disponibil momentan de la furnizor. Cotația de mai sus rămâne disponibilă.</p>}
-    </div>
     <div className={`flex gap-3 rounded-xl border p-4 text-sm ${data.activeSignal ? 'border-cyan-500/20 bg-cyan-500/5 text-cyan-100' : 'border-amber-500/20 bg-amber-500/5 text-amber-100'}`}><Info className="mt-0.5 h-5 w-5 shrink-0" /><p>{data.activeSignal
       ? `Money Line ${timeframe.toUpperCase()} calculat din ${data.candles.filter(c => c.isClosed).length} lumânări DEX închise: ${data.activeSignal.tier}, scor ${data.activeSignal.score}.`
       : dex?.candles?.length

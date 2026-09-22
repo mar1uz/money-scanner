@@ -4107,3 +4107,9 @@ Marius approved the inline-% fix after the interpretation discussion: the single
 ## Step 120 - 2026-09-22 - Market cap on all BQ cards
 
 Marius: "Vreau si market cap sa fie pe toate cardurile." Added to the name subtitle line on every Business Quality card: crypto (CryptoBqAssetCard - Top Alpha crypto + BQ view) and stocks (StockBqCard - Top Alpha stocks). Format: "NVIDIA Corporation - MC $4.32T - Chips & Siliciu" / "Bonk - MC $308M". Shared fmtUsd with a $T branch added (crypto card formatter gained it too). App-only; Tape untouched.
+
+## Step 121 — Top Alpha full leaderboards + asset-page chart fix (2026-09-22)
+- Top Alpha no longer truncates at 10: Scor top / Subevaluate list the full scan universe (crypto measured assets, undervalued rows, stocks score + stocks undervalued). Section headers now show the asset count. (Marius: "top 100 sau cate sunt acolo".)
+- Asset detail (CryptoMarketOnlyView): the chart card moved directly under the price card — it used to sit below the long DEX stats card, and with a broken render it looked like there was no chart at all (Marius: "De ce asta nu are grafic?").
+- DexCandlestickChart: outlier-robust y-domain. Low-liquidity GeckoTerminal pairs carry bad ticks (STONK: $0.00001 wick on a $0.35 asset) that squashed every real candle into an invisible flat line. Domain is anchored on the median close; candles within a 25x band set the scale, extreme ticks are drawn but clipped.
+- Sparse DEX series: under 15 usable candles the candlestick is unreadable, so the card falls back to the aggregated CoinGecko price line (721 points for STONK) with the honest "price points, not OHLCV" label.

@@ -149,14 +149,13 @@ export const TopAlphaView: React.FC = () => {
     () => new Map((cryptoScan?.assets || []).flatMap(asset => [[asset.id, asset] as const, ...(asset.coinGeckoId ? [[asset.coinGeckoId, asset] as const] : [])])),
     [cryptoScan]
   );
-  const topScoreAssets = (cryptoScan?.assets || []).filter(isMeasured).slice(0, 10);
+  const topScoreAssets = (cryptoScan?.assets || []).filter(isMeasured);
   const undervaluedRows = (cryptoScan?.undervalued || [])
-    .slice(0, 10)
     .flatMap(entry => {
       const asset = cryptoAssetsById.get(entry.assetId);
       return asset ? [{ entry, asset }] : [];
     });
-  const stockAssets = (stockScan?.assets || []).slice(0, 10);
+  const stockAssets = (stockScan?.assets || []);
 
   // Stocks undervalued (Marius, 2026-09-22): same model as crypto -
   // quality percentile minus expensiveness percentile of log(valuation
@@ -185,8 +184,7 @@ export const TopAlphaView: React.FC = () => {
         ...r,
         index: percentile(qualitySorted, r.asset.score) - percentile(expSorted, Math.log(r.ratio))
       }))
-      .sort((a, b) => b.index - a.index)
-      .slice(0, 10);
+      .sort((a, b) => b.index - a.index);
   }, [stockScan]);
 
   return (
@@ -261,7 +259,7 @@ export const TopAlphaView: React.FC = () => {
             {ranking === 'score' && (
             <div className="space-y-2.5">
               <div>
-                <h3 className="text-[11px] font-bold uppercase tracking-wide text-emerald-300">{isRo ? 'Scor top' : 'Top score'}</h3>
+                <h3 className="text-[11px] font-bold uppercase tracking-wide text-emerald-300">{isRo ? 'Scor top' : 'Top score'} · {topScoreAssets.length}</h3>
                 <p className="text-[10px] text-slate-500">{isRo ? 'Calitate + accelera\u021bie, f\u0103r\u0103 s\u0103 se uite la pre\u021b. Sortat dup\u0103 criterii trecute, apoi ritm de cre\u0219tere.' : 'Quality + acceleration, price ignored. Sorted by criteria passed, then growth pace.'}</p>
               </div>
               {topScoreAssets.map((asset, index) => (
@@ -279,7 +277,7 @@ export const TopAlphaView: React.FC = () => {
             {ranking === 'undervalued' && (
             <div className="space-y-2.5">
               <div>
-                <h3 className="text-[11px] font-bold uppercase tracking-wide text-amber-300">{isRo ? 'Subevaluate' : 'Undervalued'}</h3>
+                <h3 className="text-[11px] font-bold uppercase tracking-wide text-amber-300">{isRo ? 'Subevaluate' : 'Undervalued'} · {undervaluedRows.length}</h3>
                 <p className="text-[10px] text-slate-500">{isRo ? 'Calitate raportat\u0103 la pre\u021b: percentila calit\u0103\u021bii minus percentila scumpirii (log mcap / revenue anualizat).' : 'Quality relative to price: quality percentile minus expensiveness percentile (log mcap / annualized revenue).'}</p>
               </div>
               {undervaluedRows.map(({ entry, asset }, index) => (
@@ -302,7 +300,7 @@ export const TopAlphaView: React.FC = () => {
             {ranking === 'score' && (
             <div className="space-y-2.5">
               <div>
-                <h3 className="text-[11px] font-bold uppercase tracking-wide text-emerald-300">{isRo ? 'Scor top' : 'Top score'}</h3>
+                <h3 className="text-[11px] font-bold uppercase tracking-wide text-emerald-300">{isRo ? 'Scor top' : 'Top score'} · {stockAssets.length}</h3>
                 <p className="text-[10px] text-slate-500">{isRo ? 'Sortat dup\u0103 scorul pe 6 criterii: profitabilitate, eficien\u021ba capitalului, cre\u0219tere, solvabilitate, FCF, evaluare.' : 'Sorted by the 6-criteria score: profitability, capital efficiency, growth, solvency, FCF, valuation.'}</p>
               </div>
               {stockAssets.map((asset, index) => (
@@ -320,7 +318,7 @@ export const TopAlphaView: React.FC = () => {
             {ranking === 'undervalued' && (
             <div className="space-y-2.5">
               <div>
-                <h3 className="text-[11px] font-bold uppercase tracking-wide text-amber-300">{isRo ? 'Subevaluate' : 'Undervalued'}</h3>
+                <h3 className="text-[11px] font-bold uppercase tracking-wide text-amber-300">{isRo ? 'Subevaluate' : 'Undervalued'} · {stockUndervalued.length}</h3>
                 <p className="text-[10px] text-slate-500">{isRo ? 'Acela\u0219i model ca la crypto: percentila calit\u0103\u021bii minus percentila scumpirii (log P/FCF; fallback P/E, apoi P/S). Ac\u021biunile f\u0103r\u0103 multiplu utilizabil nu sunt clasate.' : 'Same model as crypto: quality percentile minus expensiveness percentile (log P/FCF; P/E then P/S fallbacks). Stocks without a usable multiple are not ranked.'}</p>
               </div>
               {stockUndervalued.length === 0 && (
