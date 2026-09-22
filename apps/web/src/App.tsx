@@ -23,6 +23,7 @@ import { AssetDeepDiveView } from './components/AssetDeepDiveView.js';
 import { IntelligenceView } from './components/IntelligenceView.js';
 import { AIBriefingView } from './components/AIBriefingView.js';
 import { TopAlphaView } from './components/TopAlphaView.js';
+import { BusinessQualityView } from './components/BusinessQualityView.js';
 import { BacktestView } from './components/BacktestView.js';
 import { SystemStatusView } from './components/SystemStatusView.js';
 import { AlertsCenterView } from './components/AlertsCenterView.js';
@@ -43,7 +44,7 @@ interface AuthenticatedAppProps {
 
 const VALID_TIMEFRAMES: Timeframe[] = ['1h', '4h', '8h', '1d', '1w', '1m'];
 const VALID_MARKET_CLASSES = ['crypto', 'stocks', 'metals'] as const;
-const VALID_TABS: AppTab[] = ['market', 'crypto_radar', 'crypto_bubbles', 'crypto_heatmap', 'top_alpha', 'usa_status', 'intelligence', 'ai', 'alerts', 'backtest', 'status'];
+const VALID_TABS: AppTab[] = ['market', 'crypto_radar', 'crypto_bubbles', 'crypto_heatmap', 'top_alpha', 'business_quality', 'usa_status', 'intelligence', 'ai', 'alerts', 'backtest', 'status'];
 
 const readMoneyLineDeepLink = () => {
   const params = new URLSearchParams(window.location.search);
@@ -510,8 +511,11 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
               {/* Top Alpha: both Business Quality leaderboards in one view */}
               {activeTab === 'top_alpha' && <TopAlphaView />}
 
+              {/* Business Quality: hidden tab (no sidebar entry) - opened from the AI Briefing header button (Marius, 2026-09-22) */}
+              {activeTab === 'business_quality' && <BusinessQualityView />}
+
               {/* Tab 5: AI Market Briefing & Interactive Chat */}
-              {activeTab === 'ai' && <AIBriefingView />}
+              {activeTab === 'ai' && <AIBriefingView onOpenBusinessQuality={() => handleTabChange('business_quality')} />}
 
               {/* Tab 6: Alerts — stay mounted after first visit so the last
                   scan snapshot is not refetched when leaving and coming back. */}

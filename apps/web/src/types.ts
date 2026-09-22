@@ -8,6 +8,7 @@ export type AppTab =
   | 'crypto_bubbles'
   | 'crypto_heatmap'
   | 'top_alpha'
+  | 'business_quality'
   | 'usa_status'
   | 'intelligence'
   | 'ai'

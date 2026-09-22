@@ -4086,3 +4086,11 @@ Marius (2026-09-22 11:01 + 11:03): one simple "Top Alpha" view with BOTH Busines
 ## Step 116: Valuation multiple strip in the deep-dive BQ card
 
 Found during rev 00244 verification: the asset deep-dive "Crypto Business Quality · 4 Criteria" block is CryptoBusinessQualityCard.tsx (a different component from the ones in step 113) and still lacked the multiple. Added a highlighted Multiplu strip (Scale icon, ratio x.x, mcap / annualized revenue|fees|holder value 30d x 12 sublabel) between the header and the 4 criteria pills. The 4 criteria rows stay (they are criterion statuses, not the fact cards Marius meant).
+
+## Step 117 - 2026-09-22 - Top Alpha correction: stocks undervalued model + BQ as AI Briefing header button
+
+Marius reviewed rev 00245-2xt and rejected two things:
+1. Top Alpha must show BOTH rankings (Top Score + Undervalued) for BOTH crypto AND stocks. The first version only had a crypto undervalued model. Built the stocks equivalent in `TopAlphaView.tsx` (`stockUndervalued`): same percentile-index methodology as crypto - quality percentile minus expensiveness percentile of the log valuation ratio. Ratio per stock = priceToFcf, falling back to trailingPE, then priceToSales (all present in StockFinancialMetrics; live scan check 2026-09-22: 83/83 assets carry all three). Minimum 5 rankable assets, top 10 shown. Rows render via local `StockBqCard` with an "index +NN - P/FCF 12.3x" chip.
+2. Business Quality must NOT be embedded inside the AI Briefing flow. It is now a BUTTON in the AI Briefing header row (amber, Scale icon, "Business Quality" / mobile "BQ"), immediately left of the "4 criteria / Top 200" button (crypto scope only). The button opens the Business Quality view as a hidden tab (`business_quality` re-added to TabId + VALID_TABS, rendered in App.tsx, no sidebar entry - standalone BQ nav tab stays removed). The embed in AIBriefingView was removed.
+
+Verification: web tsc clean; web tests 80/81 (only pre-existing Playwright env failure, crypto-radar-sticky, missing browser binary on Mac); live `/api/ai/stock-business-quality` payload check: 83/83 assets have priceToFcf + trailingPE + priceToSales.

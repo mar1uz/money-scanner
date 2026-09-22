@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Trophy, RefreshCw, Coins, TrendingUp } from 'lucide-react';
+import { Trophy, RefreshCw, Coins, TrendingUp, Scale } from 'lucide-react';
 import { fetchCryptoFourCriteriaScan, fetchStockBusinessQualityScan } from '../services/api.js';
 import type { CryptoFourCriteriaAsset, CryptoFourCriteriaScan, StockBusinessQualityAsset, StockBusinessQualityScan } from '@money-scanner/shared';
 import { useLanguage } from '../i18n.js';
@@ -15,12 +15,93 @@ const stockChipTone = (status: string): string =>
         ? 'border-rose-500/40 bg-rose-500/10 text-rose-300'
         : 'border-white/[0.08] bg-white/[0.02] text-slate-500';
 
+const indexTone = (index: number): string =>
+  index >= 25 ? 'text-emerald-300' : index >= 0 ? 'text-cyan-300' : index >= -25 ? 'text-amber-300' : 'text-rose-300';
+
+type StockUndervaluedRow = { asset: StockBusinessQualityAsset; ratio: number; basis: string; index: number };
+
+const STOCK_CRITERIA: { key: keyof StockBusinessQualityAsset['criteria']; ro: string; en: string }[] = [
+  { key: 'profitability', ro: 'Profitabilitate', en: 'Profitability' },
+  { key: 'capitalEfficiency', ro: 'Eficien\u021ba capitalului', en: 'Capital efficiency' },
+  { key: 'growth', ro: 'Cre\u0219tere', en: 'Growth' },
+  { key: 'solvency', ro: 'Solvabilitate', en: 'Solvency' },
+  { key: 'freeCashFlow', ro: 'Flux de numerar liber', en: 'Free cash flow' },
+  { key: 'valuation', ro: 'Evaluare', en: 'Valuation' }
+];
+
+const StockBqCard: React.FC<{
+  rank: number;
+  asset: StockBusinessQualityAsset;
+  undervalued?: StockUndervaluedRow;
+  language: 'ro' | 'en';
+  onNavigate: () => void;
+}> = ({ rank, asset, undervalued, language, onNavigate }) => {
+  const isRo = language === 'ro';
+  return (
+    <article
+      role="button"
+      tabIndex={0}
+      onClick={onNavigate}
+      onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onNavigate(); } }}
+      className="cursor-pointer rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] p-3 sm:p-4 transition-colors hover:border-cyan-500/30"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className={`w-7 text-center text-sm font-mono font-black ${rank <= 3 ? 'text-emerald-300' : 'text-slate-500'}`}>{rank}</span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-slate-100">${asset.symbol}</span>
+              {asset.criteria.growth.status !== 'unknown' && (
+                <span className={`text-[10px] font-mono ${asset.criteria.growth.status === 'pass' ? 'text-emerald-300' : asset.criteria.growth.status === 'watch' ? 'text-amber-300' : 'text-rose-300'}`}>{asset.criteria.growth.value}</span>
+              )}
+            </div>
+            <span className="block text-[10px] text-slate-500 truncate">{asset.name}{asset.sector ? ` \u00b7 ${asset.sector}` : ''}</span>
+          </div>
+        </div>
+        <div className="text-right">
+          <span className={`text-lg font-mono font-black ${asset.passedCriteria >= 5 ? 'text-emerald-300' : asset.score >= 50 ? 'text-amber-300' : 'text-slate-400'}`}>{asset.score}</span>
+          <span className="text-[9px] text-slate-600"> / 100 \u00b7 {asset.passedCriteria}/6</span>
+          {undervalued ? (
+            <span className={`block text-[9px] font-mono ${indexTone(undervalued.index)}`}>
+              index {undervalued.index > 0 ? '+' : ''}{undervalued.index} \u00b7 {undervalued.basis} {undervalued.ratio.toFixed(1)}x
+            </span>
+          ) : (
+            <span className="block text-[9px] font-mono text-cyan-300">{isRo ? asset.aiVerdictLabelRo : asset.aiVerdict}</span>
+          )}
+        </div>
+      </div>
+      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+        {STOCK_CRITERIA.map(item => {
+          const criterion = asset.criteria[item.key];
+          return (
+            <span key={item.key} title={`${isRo ? item.ro : item.en}: ${criterion.status} - ${criterion.explanation}`} className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[8px] font-bold tracking-wide ${stockChipTone(criterion.status)}`}>
+              {(isRo ? item.ro : item.en).toUpperCase().slice(0, 8)}
+            </span>
+          );
+        })}
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3">
+        {STOCK_CRITERIA.map(item => {
+          const criterion = asset.criteria[item.key];
+          return (
+            <div key={item.key} className="rounded-lg border border-white/[0.07] bg-white/[0.02] p-2.5">
+              <span className="block text-[9px] font-mono uppercase text-slate-600">{isRo ? item.ro : item.en}</span>
+              <span className="block mt-1 text-[11px] font-mono font-bold text-slate-100 truncate" title={criterion.explanation}>{criterion.value}</span>
+            </div>
+          );
+        })}
+      </div>
+    </article>
+  );
+};
+
 /**
  * Top Alpha (Marius, 2026-09-22): one simple screen with BOTH Business
- * Quality leaderboards - Top Score (quality + acceleration, price ignored)
- * and Undervalued (quality relative to price) - behind an asset-class
- * selector. Crypto shows both rankings; stocks shows the quality top picks
- * (no undervalued model exists for equities yet).
+ * Quality leaderboards - Top Score and Undervalued - for BOTH crypto and
+ * stocks, behind an asset-class selector. Stocks undervalued uses the same
+ * model as crypto: quality percentile minus expensiveness percentile of the
+ * log valuation ratio (P/FCF, fallback P/E then P/S), computed from the
+ * stock business-quality scan metrics.
  */
 export const TopAlphaView: React.FC = () => {
   const { language } = useLanguage();
@@ -67,14 +148,36 @@ export const TopAlphaView: React.FC = () => {
     });
   const stockAssets = (stockScan?.assets || []).slice(0, 10);
 
-  const stockCriteriaItems = (asset: StockBusinessQualityAsset) => [
-    { key: 'profitability', label: isRo ? 'PROFIT' : 'PROFIT', full: isRo ? 'Profitabilitate' : 'Profitability' },
-    { key: 'capitalEfficiency', label: isRo ? 'CAPITAL' : 'CAPITAL', full: isRo ? 'Eficien\u021ba capitalului' : 'Capital efficiency' },
-    { key: 'growth', label: isRo ? 'CRE\u0218TERE' : 'GROWTH', full: isRo ? 'Cre\u0219tere' : 'Growth' },
-    { key: 'solvency', label: isRo ? 'SOLV' : 'SOLV', full: isRo ? 'Solvabilitate' : 'Solvency' },
-    { key: 'freeCashFlow', label: 'FCF', full: isRo ? 'Flux de numerar liber' : 'Free cash flow' },
-    { key: 'valuation', label: isRo ? 'PRE\u021a' : 'VALUE', full: isRo ? 'Evaluare' : 'Valuation' }
-  ] as const;
+  // Stocks undervalued (Marius, 2026-09-22): same model as crypto -
+  // quality percentile minus expensiveness percentile of log(valuation
+  // ratio). Ratio = P/FCF, fallback P/E, then P/S. Assets without a
+  // usable ratio are not ranked (same honesty rule as crypto).
+  const stockUndervalued = useMemo<StockUndervaluedRow[]>(() => {
+    if (!stockScan) return [];
+    const rows = stockScan.assets.flatMap(asset => {
+      const m = asset.metrics || {};
+      const ratio = (m.priceToFcf || 0) > 0
+        ? { ratio: m.priceToFcf!, basis: 'P/FCF' }
+        : (m.trailingPE || 0) > 0
+          ? { ratio: m.trailingPE!, basis: 'P/E' }
+          : (m.priceToSales || 0) > 0
+            ? { ratio: m.priceToSales!, basis: 'P/S' }
+            : null;
+      return ratio ? [{ asset, ...ratio }] : [];
+    });
+    if (rows.length < 5) return [];
+    const qualitySorted = rows.map(r => r.asset.score).slice().sort((a, b) => a - b);
+    const expSorted = rows.map(r => Math.log(r.ratio)).sort((a, b) => a - b);
+    const percentile = (sorted: number[], value: number) =>
+      Math.round((sorted.filter(v => v < value).length / sorted.length) * 100);
+    return rows
+      .map(r => ({
+        ...r,
+        index: percentile(qualitySorted, r.asset.score) - percentile(expSorted, Math.log(r.ratio))
+      }))
+      .sort((a, b) => b.index - a.index)
+      .slice(0, 10);
+  }, [stockScan]);
 
   return (
     <div className="space-y-4">
@@ -166,63 +269,43 @@ export const TopAlphaView: React.FC = () => {
         )}
 
         {assetClass === 'stocks' && stockScan && (
-          <div className="space-y-2.5">
-            <div>
-              <h3 className="text-[11px] font-bold uppercase tracking-wide text-emerald-300">{isRo ? 'Calitate top' : 'Top quality'}</h3>
-              <p className="text-[10px] text-slate-500">{isRo ? 'Sortat dup\u0103 scorul pe 6 criterii: profitabilitate, eficien\u021ba capitalului, cre\u0219tere, solvabilitate, FCF, evaluare.' : 'Sorted by the 6-criteria score: profitability, capital efficiency, growth, solvency, FCF, valuation.'}</p>
+          <>
+            <div className="space-y-2.5">
+              <div>
+                <h3 className="text-[11px] font-bold uppercase tracking-wide text-emerald-300">{isRo ? 'Scor top' : 'Top score'}</h3>
+                <p className="text-[10px] text-slate-500">{isRo ? 'Sortat dup\u0103 scorul pe 6 criterii: profitabilitate, eficien\u021ba capitalului, cre\u0219tere, solvabilitate, FCF, evaluare.' : 'Sorted by the 6-criteria score: profitability, capital efficiency, growth, solvency, FCF, valuation.'}</p>
+              </div>
+              {stockAssets.map((asset, index) => (
+                <StockBqCard
+                  key={asset.id}
+                  rank={index + 1}
+                  asset={asset}
+                  language={language}
+                  onNavigate={() => navigateAsset({ symbol: asset.symbol, marketClass: 'stocks' })}
+                />
+              ))}
             </div>
-            {stockAssets.map((asset, index) => (
-              <article
-                key={asset.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => navigateAsset({ symbol: asset.symbol, marketClass: 'stocks' })}
-                onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); navigateAsset({ symbol: asset.symbol, marketClass: 'stocks' }); } }}
-                className="cursor-pointer rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] p-3 sm:p-4 transition-colors hover:border-cyan-500/30"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className={`w-7 text-center text-sm font-mono font-black ${index < 3 ? 'text-emerald-300' : 'text-slate-500'}`}>{index + 1}</span>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-slate-100">${asset.symbol}</span>
-                        {asset.criteria.growth.status !== 'unknown' && (
-                          <span className={`text-[10px] font-mono ${asset.criteria.growth.status === 'pass' ? 'text-emerald-300' : asset.criteria.growth.status === 'watch' ? 'text-amber-300' : 'text-rose-300'}`}>{asset.criteria.growth.value}</span>
-                        )}
-                      </div>
-                      <span className="block text-[10px] text-slate-500 truncate">{asset.name}{asset.sector ? ` \u00b7 ${asset.sector}` : ''}</span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className={`text-lg font-mono font-black ${asset.passedCriteria >= 5 ? 'text-emerald-300' : asset.score >= 50 ? 'text-amber-300' : 'text-slate-400'}`}>{asset.score}</span>
-                    <span className="text-[9px] text-slate-600"> / 100 \u00b7 {asset.passedCriteria}/6</span>
-                    <span className="block text-[9px] font-mono text-cyan-300">{isRo ? asset.aiVerdictLabelRo : asset.aiVerdict}</span>
-                  </div>
-                </div>
-                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                  {stockCriteriaItems(asset).map(item => {
-                    const criterion = asset.criteria[item.key];
-                    return (
-                      <span key={item.key} title={`${item.full}: ${criterion.status} - ${criterion.explanation}`} className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[8px] font-bold tracking-wide ${stockChipTone(criterion.status)}`}>
-                        {item.label}
-                      </span>
-                    );
-                  })}
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3">
-                  {stockCriteriaItems(asset).map(item => {
-                    const criterion = asset.criteria[item.key];
-                    return (
-                      <div key={item.key} className="rounded-lg border border-white/[0.07] bg-white/[0.02] p-2.5">
-                        <span className="block text-[9px] font-mono uppercase text-slate-600">{item.full}</span>
-                        <span className="block mt-1 text-[11px] font-mono font-bold text-slate-100 truncate" title={criterion.explanation}>{criterion.value}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </article>
-            ))}
-          </div>
+
+            <div className="space-y-2.5 pt-3 border-t border-white/[0.06]">
+              <div>
+                <h3 className="text-[11px] font-bold uppercase tracking-wide text-amber-300">{isRo ? 'Subevaluate' : 'Undervalued'}</h3>
+                <p className="text-[10px] text-slate-500">{isRo ? 'Acela\u0219i model ca la crypto: percentila calit\u0103\u021bii minus percentila scumpirii (log P/FCF; fallback P/E, apoi P/S). Ac\u021biunile f\u0103r\u0103 multiplu utilizabil nu sunt clasate.' : 'Same model as crypto: quality percentile minus expensiveness percentile (log P/FCF; P/E then P/S fallbacks). Stocks without a usable multiple are not ranked.'}</p>
+              </div>
+              {stockUndervalued.length === 0 && (
+                <p className="py-3 text-center text-[10px] text-slate-600">{isRo ? 'Prea pu\u021bine ac\u021biuni cu multiplu utilizabil \u00een scanul curent.' : 'Too few stocks with a usable multiple in the current scan.'}</p>
+              )}
+              {stockUndervalued.map((row, index) => (
+                <StockBqCard
+                  key={row.asset.id}
+                  rank={index + 1}
+                  asset={row.asset}
+                  undervalued={row}
+                  language={language}
+                  onNavigate={() => navigateAsset({ symbol: row.asset.symbol, marketClass: 'stocks' })}
+                />
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>

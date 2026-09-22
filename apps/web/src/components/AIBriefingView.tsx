@@ -21,7 +21,6 @@ import {
 } from '../services/api.js';
 import { useLanguage } from '../i18n.js';
 import { AssetLink, useAssetNavigation, useDelegatedAssetNavigation } from './AssetNavigation.js';
-import { BusinessQualityView } from './BusinessQualityView.js';
 import {
   BrainCircuit,
   Sparkles,
@@ -152,7 +151,7 @@ const shouldLookupOnDexScreener = (query: string, localMatchCount: number) => {
 };
 
 /* ─── Main Component ─── */
-export const AIBriefingView: React.FC = () => {
+export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = ({ onOpenBusinessQuality }) => {
   const { language } = useLanguage();
   const navigateAsset = useAssetNavigation();
   const handleDelegatedAssetClick = useDelegatedAssetNavigation();
@@ -1506,6 +1505,17 @@ export const AIBriefingView: React.FC = () => {
               </div>
             </button>
             <div className="flex items-center gap-1.5">
+              {scope === 'crypto' && onOpenBusinessQuality && (
+                <button
+                  onClick={onOpenBusinessQuality}
+                  title={language === 'ro' ? 'Deschide clasamentul Business Quality (subevaluate)' : 'Open the Business Quality ranking (undervalued)'}
+                  className="inline-flex items-center gap-1.5 h-9 px-2.5 sm:px-3 rounded-xl border border-amber-500/25 bg-amber-500/[0.08] text-[10px] sm:text-[11px] font-semibold text-amber-200 hover:bg-amber-500/15 transition"
+                >
+                  <Scale className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Business Quality</span>
+                  <span className="sm:hidden">BQ</span>
+                </button>
+              )}
               {scope === 'crypto' && (
                 <button
                   onClick={() => void loadCriteriaScan(Boolean(criteriaScan))}
@@ -1561,8 +1571,6 @@ export const AIBriefingView: React.FC = () => {
         <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 space-y-6">
           {!isBriefingCollapsed && renderIntelligenceDashboard()}
           {scope === 'crypto' && renderCryptoCriteriaScanner()}
-          {/* Business Quality tab moved into AI Briefing (Marius, 2026-09-22): undervalued ranking next to the 4-criteria section */}
-          {scope === 'crypto' && <BusinessQualityView />}
           {scope === 'stocks' && renderStockCriteriaScanner()}
 
           <div className="flex items-center gap-3 pt-2">
