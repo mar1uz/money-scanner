@@ -91,12 +91,12 @@ test('loads verified contract, most-liquid DEX pair and GeckoTerminal OHLCV', as
   const service = new DexMarketDataService(async input => {
     const url = String(input); urls.push(url);
     if (url.includes('api.coingecko.com')) return response({ id: 'pons', symbol: 'pons', name: 'Pons', asset_platform_id: 'robinhood', platforms: { robinhood: address } });
-    if (url.includes('api.dexscreener.com')) return response({ pairs: [pair(), pair({ pairAddress: '0xrich', liquidity: { usd: 500 } })] });
+    if (url.includes('api.dexscreener.com')) return response({ pairs: [pair({ liquidity: { usd: 50_000 } }), pair({ pairAddress: '0xrich', liquidity: { usd: 100_000 } })] });
     return response({ data: { attributes: { ohlcv_list: [[1000, 1, 3, 0.5, 2, 10]] } } });
   });
   const result = await service.load(profile, '4h');
   assert.equal(result?.pairAddress, '0xrich');
-  assert.equal(result?.liquidityUsd, 500);
+  assert.equal(result?.liquidityUsd, 100_000);
   assert.equal(result?.transactions24h?.buys, 10);
   assert.equal(result?.candles.length, 1);
   assert.match(urls[2], /networks\/robinhood\/pools\/0xrich\/ohlcv\/hour\?aggregate=1/);
@@ -113,7 +113,7 @@ test('Ethereum DEX chain maps to GeckoTerminal eth network', async () => {
   const service = new DexMarketDataService(async input => {
     const url = String(input); urls.push(url);
     if (url.includes('api.coingecko.com')) return response({ id: 'pons', symbol: 'pons', name: 'Pons', asset_platform_id: 'ethereum', platforms: { ethereum: address } });
-    if (url.includes('api.dexscreener.com')) return response({ pairs: [pair({ chainId: 'ethereum' })] });
+    if (url.includes('api.dexscreener.com')) return response({ pairs: [pair({ chainId: 'ethereum', liquidity: { usd: 50_000 } })] });
     return response({ data: { attributes: { ohlcv_list: [] } } });
   });
   await service.load(profile, '1w');

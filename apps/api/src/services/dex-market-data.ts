@@ -121,6 +121,13 @@ export function selectExactMostLiquidPair(rows: unknown, profile: CryptoMarketPr
     if (base === profileName || base === profileSymbol) return true;
     return base.length >= 3 && profileName.length >= 3 && (base.includes(profileName) || profileName.includes(base));
   };
+  // Containment (ba5dda3: "Graphite" vs "Graphite Protocol") is only a fallback
+  // tier: an exact-name pair always outranks a containment lookalike ("Fake
+  // Pons"), no matter how much liquidity the lookalike advertises.
+  const exactName = (rawName: unknown): boolean => {
+    const base = normalizeTokenName(String(rawName || ''));
+    return Boolean(base) && (base === profileName || base === profileSymbol);
+  };
   const exact = rows.filter((pair: any) => {
     return sameAddress(pair?.baseToken?.address, contractAddress)
       && String(pair?.baseToken?.symbol || '').toUpperCase() === profile.symbol
@@ -128,7 +135,8 @@ export function selectExactMostLiquidPair(rows: unknown, profile: CryptoMarketPr
       && safeSegment(pair?.chainId) && safeSegment(pair?.pairAddress) && typeof pair?.url === 'string' && /^https:\/\/dexscreener\.com\//.test(pair.url);
   });
   return exact.sort((left: any, right: any) =>
-    (positive(right?.liquidity?.usd) || 0) - (positive(left?.liquidity?.usd) || 0)
+    Number(exactName(right?.baseToken?.name)) - Number(exactName(left?.baseToken?.name))
+    || (positive(right?.liquidity?.usd) || 0) - (positive(left?.liquidity?.usd) || 0)
     || (positive(right?.volume?.h24) || 0) - (positive(left?.volume?.h24) || 0)
   )[0] || null;
 }
