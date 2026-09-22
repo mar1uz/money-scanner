@@ -4018,3 +4018,7 @@ Repair (owner-approved, append-only preserved):
 - runner: re-reads the log immediately before appendFile and drops keys a parallel run already wrote ('skipped N duplicates'); same guard added to forward-test-score-bands.mjs.
 - marker: one dedupe-note line appended to forward-test-top5.jsonl (kept 04:41:55.547Z, excluded 04:42:22.851Z).
 - proof: 10/10 node --test (2 new dedupe tests); logger run twice -> 0 appends both, 51 rows stable; effective Sep 21 state = 5 selections + 5 entries.
+
+## Step 107 - 2026-09-22: Regime Tape Telegram digest now opt-in (default off)
+
+Owner decision (Marius, 2026-09-22): the daily Regime Tape summary adds no value on Telegram. regime-tape-service.deliverDigest now returns early unless REGIME_TAPE_TELEGRAM_DIGEST=1 (was: sent by default when a default chat was configured, 0 disabled). Scan + ledger recording (/api/tape/scan, scheduler money-scanner-regime-tape-scan 07:30 Europe/Oslo) are untouched - the public Tape page and tape events keep updating. Verified: tsx --test regime-tape-service.test.ts 5/5. Takes effect with the next deploy (rides step 108).

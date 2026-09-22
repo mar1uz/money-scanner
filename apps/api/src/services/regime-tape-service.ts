@@ -389,7 +389,10 @@ export class RegimeTapeService {
 
   /** Owner-only Telegram digest through the existing verified bot delivery. */
   private async deliverDigest(events: RegimeTapeEvent[], report: RegimeTapeScanReport): Promise<void> {
-    if (process.env.REGIME_TAPE_TELEGRAM_DIGEST === '0') return;
+    // Owner decision 2026-09-22: the daily Regime Tape summary is no longer
+    // sent to Telegram (adds no value there). Opt back in explicitly with
+    // REGIME_TAPE_TELEGRAM_DIGEST=1. Scan + ledger recording are unaffected.
+    if (process.env.REGIME_TAPE_TELEGRAM_DIGEST !== '1') return;
     if (!this.telegram.getDefaultChatId()) return;
     if (events.length === 0) return;
     try {
