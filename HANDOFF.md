@@ -4045,3 +4045,10 @@ Owner decisions (Marius, 2026-09-22): the Tape page is the public proof surface 
 - apps/api/src/services/regime-tape-page.ts: "Top 5 undervalued assets" panel between briefing and CTA grid - 5 cards with the 5 inputs, heuristic disclaimer, scan date. EN only.
 - Verified: API tsc clean, 164/164 API tests, web tsc clean, 80/81 web tests (1 pre-existing env failure: Playwright chromium binary not installed on the Mac - crypto-radar-sticky browser test, unrelated).
 - Commit 4022452. Deployed via cloudbuild (build 5c2d83b2).
+
+## Step 111 - 2026-09-22 - Public tape: full daily AI briefing mirror
+- Marius (via Instinct): all information from the AI Briefing page except "Sources used" should be published on the tape.
+- /api/tape/proof: +briefingFull - per-take sections (Daily Briefing, Capital Rotation, Market Intelligence, Intelligence Brief) with headline, paragraphs, bullets from the day's EN takes. The takes never carry a sources/evidence block, so it is excluded by construction.
+- Score guard refined: word guard now jev/combined/composite/score only (plain "momentum" is market language and stays); score-list ("SYM 77.2") and at-score ("at 81.6") number guards unchanged. Applied to headlines, paragraphs and bullets alike; the 3-line summary panel uses the same guard and is unchanged in output today.
+- Page: "The full daily briefing" panel between the 3-line summary and the BQ section; per-take kicker + headline + paragraphs + bullets, EN, generated date.
+- Cancelled build 5c2d83b2 to fold this into one deploy. API tsc clean, 164/164 tests. Commit e32968f. Build d657da49.
