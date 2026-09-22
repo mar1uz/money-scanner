@@ -4103,3 +4103,7 @@ Marius asked for the two rankings as two easy-to-find sub-tabs in the same page 
 ## Step 119 - 2026-09-22 - BQ cards: labeled FEES + REV pace chips, TVL to tooltip
 
 Marius approved the inline-% fix after the interpretation discussion: the single unlabeled growth % next to the asset name (revenue run-rate 7d vs 30d, silently different from the CRESTERE criterion's max(TVL 7d, fee pace)) is replaced by two labeled mini-chips on CryptoBqAssetCard: FEES (fee run-rate 7d vs 30d) and REV (revenue run-rate 7d vs 30d), each colored by sign. The tooltip carries the full breakdown: "Ritm 7z vs 30z (anualizat) - FEES x - REV y - TVL 7z z". TVL no longer appears in the foreground. Applies everywhere CryptoBqAssetCard renders: Top Alpha crypto sections, Business Quality view. Tape Top-5 panel untouched (public, no score internals). AIBriefingView top-score cards untouched (their inline % is the criterion's own value, already consistent with the CRESTERE chip there).
+
+## Step 120 - 2026-09-22 - Market cap on all BQ cards
+
+Marius: "Vreau si market cap sa fie pe toate cardurile." Added to the name subtitle line on every Business Quality card: crypto (CryptoBqAssetCard - Top Alpha crypto + BQ view) and stocks (StockBqCard - Top Alpha stocks). Format: "NVIDIA Corporation - MC $4.32T - Chips & Siliciu" / "Bonk - MC $308M". Shared fmtUsd with a $T branch added (crypto card formatter gained it too). App-only; Tape untouched.

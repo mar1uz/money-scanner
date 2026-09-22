@@ -13,6 +13,7 @@ const chipTone = (status: CryptoCriteriaStatus): string =>
 
 const fmtUsd = (value?: number): string => {
   if (!value || !Number.isFinite(value) || value <= 0) return '\u2014';
+  if (value >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
   if (value >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
   if (value >= 1e6) return `$${(value / 1e6).toFixed(1)}M`;
   if (value >= 1e3) return `$${(value / 1e3).toFixed(1)}K`;
@@ -100,7 +101,7 @@ export const CryptoBqAssetCard: React.FC<{
                 </span>
               )}
             </div>
-            <span className="block text-[10px] text-slate-500 truncate">{asset.name}</span>
+            <span className="block text-[10px] text-slate-500 truncate">{asset.name} · MC {fmtUsd(asset.marketCap)}</span>
           </div>
         </div>
         <div className="text-right">

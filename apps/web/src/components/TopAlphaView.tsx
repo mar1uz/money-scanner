@@ -29,6 +29,15 @@ const STOCK_CRITERIA: { key: keyof StockBusinessQualityAsset['criteria']; ro: st
   { key: 'valuation', ro: 'Evaluare', en: 'Valuation' }
 ];
 
+const fmtUsd = (value?: number): string => {
+  if (value === undefined || !Number.isFinite(value) || value <= 0) return '';
+  if (value >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
+  if (value >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
+  if (value >= 1e6) return `$${(value / 1e6).toFixed(1)}M`;
+  if (value >= 1e3) return `$${(value / 1e3).toFixed(1)}K`;
+  return `$${value.toFixed(0)}`;
+};
+
 const StockBqCard: React.FC<{
   rank: number;
   asset: StockBusinessQualityAsset;
@@ -55,7 +64,7 @@ const StockBqCard: React.FC<{
                 <span className={`text-[10px] font-mono ${asset.criteria.growth.status === 'pass' ? 'text-emerald-300' : asset.criteria.growth.status === 'watch' ? 'text-amber-300' : 'text-rose-300'}`}>{asset.criteria.growth.value}</span>
               )}
             </div>
-            <span className="block text-[10px] text-slate-500 truncate">{asset.name}{asset.sector ? ` · ${asset.sector}` : ''}</span>
+            <span className="block text-[10px] text-slate-500 truncate">{asset.name} · MC {fmtUsd(asset.marketCap)}{asset.sector ? ` · ${asset.sector}` : ''}</span>
           </div>
         </div>
         <div className="text-right">
