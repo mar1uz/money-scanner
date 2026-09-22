@@ -4082,3 +4082,7 @@ Marius (2026-09-22 11:01 + 11:03): one simple "Top Alpha" view with BOTH Busines
 - BusinessQualityView: compact rows replaced with the same unified CryptoBqAssetCard (undervalued cards now carry the same info as Top Score cards).
 - Navigation: 'business_quality' tab removed (types.ts AppTab, App.tsx VALID_TABS + render, Sidebar item); new 'top_alpha' tab in the research group (Scale icon, alpha badge).
 - AIBriefingView: <BusinessQualityView /> embedded right after the 4-criteria scanner section (crypto scope), per "langa butonul 4 criteria Top 200".
+
+## Step 116: Valuation multiple strip in the deep-dive BQ card
+
+Found during rev 00244 verification: the asset deep-dive "Crypto Business Quality · 4 Criteria" block is CryptoBusinessQualityCard.tsx (a different component from the ones in step 113) and still lacked the multiple. Added a highlighted Multiplu strip (Scale icon, ratio x.x, mcap / annualized revenue|fees|holder value 30d x 12 sublabel) between the header and the 4 criteria pills. The 4 criteria rows stay (they are criterion statuses, not the fact cards Marius meant).

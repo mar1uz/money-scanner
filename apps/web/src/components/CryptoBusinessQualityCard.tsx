@@ -9,7 +9,8 @@ import {
   DollarSign,
   Users,
   AlertCircle,
-  Loader2
+  Loader2,
+  Scale
 } from 'lucide-react';
 import type { CryptoFourCriteriaScan, CryptoFourCriteriaAsset, CryptoCriteriaStatus } from '../types.js';
 import { fetchCryptoFourCriteriaScan } from '../services/api.js';
@@ -215,6 +216,22 @@ export const CryptoBusinessQualityCard: React.FC<CryptoBusinessQualityCardProps>
       )
     : null;
 
+  // Valuation multiple (Marius, 2026-09-22): mcap / annualized revenue,
+  // fees then holder revenue as basis fallback. Same number as the
+  // MULTIPLE card in the ranking views.
+  const valuationMultiple = (() => {
+    const metrics = asset.metrics || {};
+    const basis = (metrics.revenue30d || 0) > 0
+      ? { annualized: metrics.revenue30d! * 12, ro: 'mcap / revenue anualizat (30z \u00d7 12)', en: 'mcap / annualized revenue (30d \u00d7 12)' }
+      : (metrics.fees30d || 0) > 0
+        ? { annualized: metrics.fees30d! * 12, ro: 'mcap / fees anualizate (30z \u00d7 12)', en: 'mcap / annualized fees (30d \u00d7 12)' }
+        : (metrics.holdersRevenue30d || 0) > 0
+          ? { annualized: metrics.holdersRevenue30d! * 12, ro: 'mcap / valoare holderi anualizat\u0103 (30z \u00d7 12)', en: 'mcap / annualized holder value (30d \u00d7 12)' }
+          : null;
+    if (!basis || asset.marketCap <= 0) return null;
+    return { ratio: asset.marketCap / basis.annualized, label: isRo ? basis.ro : basis.en };
+  })();
+
   return (
     <div className="rounded-[30px] bg-[var(--t-surface)] border border-cyan-500/20 shadow-lg overflow-hidden">
       {/* ── Compact Header (always visible) ── */}
@@ -247,6 +264,17 @@ export const CryptoBusinessQualityCard: React.FC<CryptoBusinessQualityCardProps>
           {expanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
         </div>
       </button>
+
+      {/* ── Valuation multiple strip (Marius, 2026-09-22) ── */}
+      {valuationMultiple && (
+        <div className="mx-4 sm:mx-5 mb-3 -mt-1 flex flex-wrap items-center gap-2 rounded-xl border border-cyan-500/25 bg-cyan-500/[0.07] px-3 py-2">
+          <Scale className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
+          <span className="text-[10px] font-mono uppercase tracking-wide text-cyan-300">{isRo ? 'Multiplu' : 'Multiple'}</span>
+          <span className="text-sm font-mono font-black text-cyan-100">{valuationMultiple.ratio.toFixed(1)}x</span>
+          <span className="text-[9px] font-mono text-cyan-300/70">{valuationMultiple.label}</span>
+        </div>
+      )}
+
 
       {/* ── 4 Criteria Pills (always visible) ── */}
       <div className="px-4 sm:px-5 pb-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
