@@ -6,14 +6,19 @@ import {
   endCurrentSession,
   getCurrentSession
 } from '../services/firebase-auth.js';
-import { useLanguage } from '../i18n.js';
 
 interface AuthGateProps {
   children: (user: UserProfile, logout: () => Promise<void>) => ReactNode;
 }
 
 export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
-  const { language } = useLanguage();
+  // Public surface rule (Marius, 2026-09-22): the logged-out experience is
+  // public and defaults to English. A stored preference from the in-app
+  // language toggle always wins.
+  const [storedLanguage] = useState<string | null>(() => {
+    try { return localStorage.getItem('money_scanner_language'); } catch { return null; }
+  });
+  const language: 'ro' | 'en' = storedLanguage === 'ro' ? 'ro' : 'en';
   const [user, setUser] = useState<UserProfile | null>(null);
   const [checking, setChecking] = useState(true);
   const [signingIn, setSigningIn] = useState(false);
@@ -32,7 +37,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
         const sessionUser = await loadSession();
         if (active) setUser(sessionUser);
       } catch (restoreError) {
-        if (active) setError(restoreError instanceof Error ? restoreError.message : 'Autentificarea nu a putut fi finalizată.');
+        if (active) setError(restoreError instanceof Error ? restoreError.message : language === 'ro' ? 'Autentificarea nu a putut fi finalizată.' : 'Sign-in could not be completed.');
       } finally {
         if (active) setChecking(false);
       }
@@ -48,7 +53,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
       const signedInUser = await beginGoogleSignIn();
       if (signedInUser) setUser(signedInUser);
     } catch (loginError) {
-      setError(loginError instanceof Error ? loginError.message : 'Google Login nu a putut fi pornit.');
+      setError(loginError instanceof Error ? loginError.message : language === 'ro' ? 'Google Login nu a putut fi pornit.' : 'Google sign-in could not be started.');
     } finally {
       setSigningIn(false);
     }
@@ -62,7 +67,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
   if (checking) {
     return (
       <div className="min-h-screen grid place-items-center bg-[var(--t-surface-raised)] text-slate-300">
-        <div className="flex items-center gap-3 font-mono text-sm"><Loader2 className="h-5 w-5 animate-spin text-cyan-400" />Verific sesiunea securizată…</div>
+        <div className="flex items-center gap-3 font-mono text-sm"><Loader2 className="h-5 w-5 animate-spin text-cyan-400" />{language === 'ro' ? 'Verific sesiunea securizată…' : 'Checking the secure session…'}</div>
       </div>
     );
   }

@@ -103,6 +103,17 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
   .briefing-list li { margin-bottom: 8px; }
   .briefing-list li:first-child { color: var(--text); font-weight: 600; }
   .briefing-date { color: var(--muted); font: 500 10px 'JetBrains Mono'; margin-top: 12px; }
+  .bq-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); gap: 14px; margin-top: 18px; }
+  .bq-card { border: 1px solid var(--line); border-radius: 14px; padding: 18px; background: var(--bg); }
+  .bq-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  .bq-symbol { font: 700 16px 'JetBrains Mono'; }
+  .bq-name { color: var(--muted); font-size: 11px; }
+  .bq-rank { color: var(--lime); font: 700 11px 'JetBrains Mono'; }
+  .bq-facts { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .bq-facts label { display: block; color: var(--muted); font: 600 9px 'JetBrains Mono'; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 3px; }
+  .bq-facts span { font: 600 12px 'JetBrains Mono'; }
+  .bq-note { color: var(--muted); font-size: 12px; margin: 16px 0 0; }
+  .bq-date { color: var(--muted); font: 500 10px 'JetBrains Mono'; margin-top: 10px; }
   .footer { border-top: 1px solid var(--line); margin-top: 64px; padding-top: 22px; color: var(--muted); display: flex; justify-content: space-between; gap: 20px; font-size: 11px; }
   @media (max-width: 780px) {
     .shell { padding: 0 16px calc(48px + env(safe-area-inset-bottom)); }
@@ -173,6 +184,15 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
     <div class="briefing-date" id="briefingDate"></div>
   </section>
 
+  <section class="panel" id="bq" style="display:none;margin-top:64px">
+    <div class="eyebrow" style="margin-bottom:10px">Business Quality screen</div>
+    <h3 style="margin:0">Top 5 undervalued assets</h3>
+    <p style="margin-top:9px">Real protocol inputs from the daily Business Quality scan. Free while the community grows.</p>
+    <div class="bq-grid" id="bqGrid"></div>
+    <p class="bq-note">Fees, revenue and holder value are trailing 30-day protocol figures. Growth compares the recent 7-day fee pace with the trailing 30 days. The ranking is a heuristic - not fair value or a buy signal.</p>
+    <div class="bq-date" id="bqDate"></div>
+  </section>
+
   <section class="lower-grid">
     <div class="panel">
       <div class="eyebrow" style="margin-bottom:10px">Daily signal</div><h3>Get the regime digest</h3>
@@ -211,6 +231,14 @@ async function loadProof() {
     document.getElementById('briefing').style.display = 'block';
     document.getElementById('briefingList').innerHTML = b.highlights.map(h => '<li>' + esc(h) + '</li>').join('');
     document.getElementById('briefingDate').textContent = b.generatedAt ? 'Generated ' + new Date(b.generatedAt).toISOString().slice(0, 10) + ' UTC' : '';
+  }
+  const q = d.businessQuality;
+  if (q && q.entries && q.entries.length) {
+    const fmtUsd = v => v > 0 ? (v >= 1e9 ? '$' + (v / 1e9).toFixed(2) + 'B' : v >= 1e6 ? '$' + (v / 1e6).toFixed(2) + 'M' : v >= 1e3 ? '$' + (v / 1e3).toFixed(1) + 'K' : '$' + Math.round(v)) : '-';
+    const fmtPct = v => Number.isFinite(v) ? (v >= 0 ? '+' : '') + Number(v).toFixed(1) + '%' : '-';
+    document.getElementById('bq').style.display = 'block';
+    document.getElementById('bqGrid').innerHTML = q.entries.map((entry, i) => '<article class="bq-card"><div class="bq-top"><div><div class="bq-symbol">' + esc(entry.symbol) + '</div><div class="bq-name">' + esc(entry.name || '') + '</div></div><span class="bq-rank">#' + (i + 1) + '</span></div><div class="bq-facts"><div><label>Fees / 30d</label><span>' + fmtUsd(entry.fees30d) + '</span></div><div><label>Revenue / 30d</label><span>' + fmtUsd(entry.revenue30d) + '</span></div><div><label>Holder value / 30d</label><span>' + fmtUsd(entry.holderValue30d) + '</span></div><div><label>Growth run-rate</label><span>' + fmtPct(entry.growthRunRatePct) + '</span></div><div><label>Price 7d</label><span class="' + (entry.priceChange7d == null ? 'muted' : Number(entry.priceChange7d) >= 0 ? 'pos' : 'neg') + '">' + fmtPct(entry.priceChange7d) + '</span></div></div></article>').join('');
+    document.getElementById('bqDate').textContent = q.generatedAt ? 'Scan generated ' + new Date(q.generatedAt).toISOString().slice(0, 10) + ' UTC' : '';
   }
   document.getElementById('proofCards').innerHTML = selected.length ? selected.map(({e,o})=>'<article class="proof-card"><div class="proof-top"><div><div class="proof-symbol">'+esc(e.asset)+'</div><div class="proof-name">'+esc(e.name||'')+'</div></div><span>'+(e.currentRegime?'<span class="tier tier-'+esc(e.currentRegime).replace(/\s/g,'')+'">'+esc(e.currentRegime)+'</span> ':'')+'<span class="tf">'+esc(e.timeframe).toUpperCase()+'</span></span></div><div class="proof-return">+'+Number(o.value).toFixed(2)+'%</div><div class="proof-label">verified '+o.label.toLowerCase()+' return from flip close</div><div class="proof-facts"><div><label>Flip date</label><span>'+new Date(e.flipDate).toISOString().slice(0,10)+'</span></div><div><label>Flip close</label><span>'+fmtPrice(e.flipClose)+'</span></div><div><label>Current regime</label><span>'+esc(e.currentRegime||'-')+'</span></div></div></article>').join('') : '<div class="proof-card muted">Verified performance evidence will appear here after an outcome window closes and is selected for publication.</div>';
 }

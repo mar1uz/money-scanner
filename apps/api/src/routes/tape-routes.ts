@@ -5,6 +5,24 @@ import { validateScheduledRequestToken } from '../services/scheduler-auth.js';
 import { buildXPreview } from '../services/regime-tape-service.js';
 import { REGIME_TAPE_PAGE_HTML } from '../services/regime-tape-page.js';
 import { readAiContentTake } from './ai-routes.js';
+import { readPersistentAICache } from '../services/ai-cache-store.js';
+
+// Minimal structural view of the cached Business Quality report. The public
+// tape reads only these fields and never exposes internal ranking scores.
+interface TapeBqReport {
+  generatedAt?: number;
+  assets?: Array<{
+    id: string;
+    metrics: {
+      fees30d?: number;
+      revenue30d?: number;
+      holdersRevenue30d?: number;
+      feeRunRateChange?: number;
+      tvlChange7d?: number;
+    };
+  }>;
+  undervalued?: Array<{ assetId: string; symbol: string; name: string; priceChange7d?: number }>;
+}
 
 export const tapeRouter = Router();
 
@@ -73,10 +91,39 @@ tapeRouter.get('/tape/proof', async (_req, res) => {
     }).slice(0, 3);
     if (highlights.length) briefing = { generatedAt, highlights };
   } catch { /* briefing is optional on the public tape */ }
+  // Top 5 undervalued from the Business Quality screen - public and free for
+  // now (Marius, 2026-09-22). Real protocol inputs only; the internal quality
+  // and valuation scores never leave the product. Serves the latest cached
+  // daily scan; a public route must never trigger a rescan.
+  let businessQuality: { generatedAt: number; entries: Array<{
+    symbol: string; name: string; fees30d: number; revenue30d: number;
+    holderValue30d: number; growthRunRatePct: number | null; priceChange7d: number | null;
+  }> } | null = null;
+  try {
+    const cached = await readPersistentAICache<TapeBqReport>('crypto-four-criteria-top-200');
+    if (cached?.payload) {
+      const byId = new Map((cached.payload.assets ?? []).map(asset => [asset.id, asset]));
+      const entries = (cached.payload.undervalued ?? []).slice(0, 5).map(entry => {
+        const asset = byId.get(entry.assetId);
+        const growthCandidates = [asset?.metrics.tvlChange7d, asset?.metrics.feeRunRateChange]
+          .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+        return {
+          symbol: entry.symbol,
+          name: entry.name,
+          fees30d: asset?.metrics.fees30d ?? 0,
+          revenue30d: asset?.metrics.revenue30d ?? 0,
+          holderValue30d: asset?.metrics.holdersRevenue30d ?? 0,
+          growthRunRatePct: growthCandidates.length ? Math.max(...growthCandidates) : null,
+          priceChange7d: typeof entry.priceChange7d === 'number' && Number.isFinite(entry.priceChange7d) ? entry.priceChange7d : null
+        };
+      });
+      if (entries.length) businessQuality = { generatedAt: cached.payload.generatedAt ?? cached.updatedAt, entries };
+    }
+  } catch { /* business quality is optional on the public tape */ }
   res.set('Cache-Control', 'public, max-age=300');
   return res.json({ disclosure: REGIME_TAPE_DISCLOSURE, tapeVersion: REGIME_TAPE_VERSION,
     selection: { minimumReturnPct: 20, maximumItems: 6, curated: true }, updatedAt: new Date().toISOString(),
-    evidence: evidenceWithRegime, briefing });
+    evidence: evidenceWithRegime, briefing, businessQuality });
 });
 
 // Authenticated product endpoints. Global middleware protects these paths.
