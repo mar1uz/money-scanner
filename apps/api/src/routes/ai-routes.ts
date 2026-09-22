@@ -61,7 +61,7 @@ const AI_CONTENT_MAX_AGE_MS = 36 * 60 * 60_000;
 /** AI take written by the local Mac executor via the AI Gateway or by the
  * Instinct content agent; fresh for 36h. The per-language copy is preferred;
  * the legacy language-agnostic key remains as the (Romanian) fallback. */
-const readAiContentTake = async (key: string, language?: 'ro' | 'en'): Promise<AIContentTake | undefined> => {
+export const readAiContentTake = async (key: string, language?: 'ro' | 'en'): Promise<AIContentTake | undefined> => {
   if (language) {
     const localized = await readPersistentAICache<AIContentTake>(`ai-content-${key}-${language}`);
     if (localized && Date.now() - localized.updatedAt <= AI_CONTENT_MAX_AGE_MS) return localized.payload;

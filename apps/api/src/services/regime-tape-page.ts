@@ -99,6 +99,10 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
   .method p { color: var(--muted); font-size: 12px; }
   .method strong { color: var(--text); }
   code { color: var(--lime); font: 500 11px 'JetBrains Mono'; }
+  .briefing-list { margin: 12px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+  .briefing-list li { margin-bottom: 8px; }
+  .briefing-list li:first-child { color: var(--text); font-weight: 600; }
+  .briefing-date { color: var(--muted); font: 500 10px 'JetBrains Mono'; margin-top: 12px; }
   .footer { border-top: 1px solid var(--line); margin-top: 64px; padding-top: 22px; color: var(--muted); display: flex; justify-content: space-between; gap: 20px; font-size: 11px; }
   @media (max-width: 780px) {
     .shell { padding: 0 16px calc(48px + env(safe-area-inset-bottom)); }
@@ -162,6 +166,13 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
     <p class="boundary"><strong>What is not shown:</strong> live entries, the complete active watchlist, current scores, exhaustive regimes or data that substitutes for the paid product.</p>
   </section>
 
+  <section class="panel" id="briefing" style="display:none;margin-top:64px">
+    <div class="eyebrow" style="margin-bottom:10px">Today's AI Briefing</div>
+    <h3 style="margin:0">The day's context, in three lines</h3>
+    <ul class="briefing-list" id="briefingList"></ul>
+    <div class="briefing-date" id="briefingDate"></div>
+  </section>
+
   <section class="lower-grid">
     <div class="panel">
       <div class="eyebrow" style="margin-bottom:10px">Daily signal</div><h3>Get the regime digest</h3>
@@ -195,7 +206,13 @@ async function loadProof() {
     ['Access','Public proof','live intelligence withheld'],
     ['Updated',d.updatedAt?new Date(d.updatedAt).toLocaleDateString('en-GB',{dateStyle:'medium',timeZone:'UTC'}):'—','UTC']
   ].map(x=>'<div class="stat"><div class="stat-label">'+x[0]+'</div><div class="stat-value">'+x[1]+'</div><div class="stat-meta">'+x[2]+'</div></div>').join('');
-  document.getElementById('proofCards').innerHTML = selected.length ? selected.map(({e,o})=>'<article class="proof-card"><div class="proof-top"><div><div class="proof-symbol">'+esc(e.asset)+'</div><div class="proof-name">'+esc(e.name||'')+'</div></div><span class="tf">'+esc(e.timeframe).toUpperCase()+'</span></div><div class="proof-return">+'+Number(o.value).toFixed(2)+'%</div><div class="proof-label">verified '+o.label.toLowerCase()+' return from flip close</div><div class="proof-facts"><div><label>Flip date</label><span>'+new Date(e.flipDate).toISOString().slice(0,10)+'</span></div><div><label>Flip close</label><span>'+fmtPrice(e.flipClose)+'</span></div></div></article>').join('') : '<div class="proof-card muted">Verified performance evidence will appear here after an outcome window closes and is selected for publication.</div>';
+  const b = d.briefing;
+  if (b && b.highlights && b.highlights.length) {
+    document.getElementById('briefing').style.display = 'block';
+    document.getElementById('briefingList').innerHTML = b.highlights.map(h => '<li>' + esc(h) + '</li>').join('');
+    document.getElementById('briefingDate').textContent = b.generatedAt ? 'Generated ' + new Date(b.generatedAt).toISOString().slice(0, 10) + ' UTC' : '';
+  }
+  document.getElementById('proofCards').innerHTML = selected.length ? selected.map(({e,o})=>'<article class="proof-card"><div class="proof-top"><div><div class="proof-symbol">'+esc(e.asset)+'</div><div class="proof-name">'+esc(e.name||'')+'</div></div><span>'+(e.currentRegime?'<span class="tier tier-'+esc(e.currentRegime).replace(/\s/g,'')+'">'+esc(e.currentRegime)+'</span> ':'')+'<span class="tf">'+esc(e.timeframe).toUpperCase()+'</span></span></div><div class="proof-return">+'+Number(o.value).toFixed(2)+'%</div><div class="proof-label">verified '+o.label.toLowerCase()+' return from flip close</div><div class="proof-facts"><div><label>Flip date</label><span>'+new Date(e.flipDate).toISOString().slice(0,10)+'</span></div><div><label>Flip close</label><span>'+fmtPrice(e.flipClose)+'</span></div><div><label>Current regime</label><span>'+esc(e.currentRegime||'-')+'</span></div></div></article>').join('') : '<div class="proof-card muted">Verified performance evidence will appear here after an outcome window closes and is selected for publication.</div>';
 }
 async function joinWaitlist() { const email=document.getElementById('wlemail').value.trim(), pricePointEur=parseInt(document.getElementById('wlprice').value,10), msg=document.getElementById('wlmsg'); try { const r=await fetch('/api/tape/waitlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,source:'tape-page',pricePointEur:Number.isFinite(pricePointEur)?pricePointEur:undefined})}); const d=await r.json(); if(!r.ok) throw new Error(d.error||'failed'); msg.textContent=(d.added?'You are on the list.':'Already registered.')+' Total signups: '+d.total; } catch(e) { msg.textContent='Could not save that email: '+e.message; } }
 loadProof();

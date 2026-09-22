@@ -4022,3 +4022,10 @@ Repair (owner-approved, append-only preserved):
 ## Step 107 - 2026-09-22: Regime Tape Telegram digest now opt-in (default off)
 
 Owner decision (Marius, 2026-09-22): the daily Regime Tape summary adds no value on Telegram. regime-tape-service.deliverDigest now returns early unless REGIME_TAPE_TELEGRAM_DIGEST=1 (was: sent by default when a default chat was configured, 0 disabled). Scan + ledger recording (/api/tape/scan, scheduler money-scanner-regime-tape-scan 07:30 Europe/Oslo) are untouched - the public Tape page and tape events keep updating. Verified: tsx --test regime-tape-service.test.ts 5/5. Takes effect with the next deploy (rides step 108).
+
+## Step 108 - 2026-09-22: tape page rebuilt proof-only + daily briefing highlights
+
+Owner decisions (Marius, 2026-09-22): the Tape page is the public proof surface - per asset: flip date + flip close, measured gain since the confirmed flip (live-computed, min +20%, curated), current regime. Plus a Today's AI Briefing section with the day's top 3 highlights (EN take from the morning content pipeline, hidden when absent).
+- /api/tape/proof now attaches currentRegime (latest taped tier per symbol+timeframe, bounded to published proof assets) and briefing { generatedAt, highlights[<=3] } (readAiContentTake('briefing','en'), optional).
+- regime-tape-page.ts: regime chip + Current regime fact on proof cards; new briefing panel after the proof grid; no transition list rendered.
+- readAiContentTake exported from ai-routes.ts. tsc clean (shared, api).

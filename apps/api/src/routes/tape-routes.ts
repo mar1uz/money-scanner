@@ -4,6 +4,7 @@ import { AppState } from '../services/app-state.js';
 import { validateScheduledRequestToken } from '../services/scheduler-auth.js';
 import { buildXPreview } from '../services/regime-tape-service.js';
 import { REGIME_TAPE_PAGE_HTML } from '../services/regime-tape-page.js';
+import { readAiContentTake } from './ai-routes.js';
 
 export const tapeRouter = Router();
 
@@ -24,12 +25,37 @@ tapeRouter.post('/tape/scan', async (req, res) => {
 // evidence, never the exhaustive event tape or live regime data.
 tapeRouter.get('/tape/proof', async (_req, res) => {
   const approvedSymbols = new Set((process.env.PUBLIC_TAPE_PROOF_SYMBOLS || '').split(',').map(value => value.trim().toUpperCase()).filter(Boolean));
+  const appState = AppState.getInstance();
   const evidence = approvedSymbols.size
-    ? await AppState.getInstance().getPublicTapeProof(approvedSymbols, 20, 6)
+    ? await appState.getPublicTapeProof(approvedSymbols, 20, 6)
     : [];
+  // Current regime per proof asset: latest taped tier for symbol+timeframe.
+  // Bounded to the assets already published as proof - no new disclosure.
+  let regimeByAsset = new Map<string, string>();
+  try {
+    const events = await appState.regimeTape.getEvents(500);
+    for (const event of events) {
+      const key = event.symbol.toUpperCase() + ':' + event.timeframe;
+      if (!regimeByAsset.has(key)) regimeByAsset.set(key, event.tier);
+    }
+  } catch { /* regime is optional on the public proof */ }
+  const evidenceWithRegime = evidence.map(item => ({
+    ...item,
+    currentRegime: regimeByAsset.get(item.asset.toUpperCase() + ':' + item.timeframe) ?? null
+  }));
+  // The day's AI briefing highlights for the public tape (EN copy, max 3).
+  let briefing: { generatedAt: number; highlights: string[] } | null = null;
+  try {
+    const take = await readAiContentTake('briefing', 'en');
+    if (take) {
+      const highlights = [take.headline, ...(take.bullets ?? []).slice(0, 2)].filter(Boolean).slice(0, 3);
+      if (highlights.length) briefing = { generatedAt: take.generatedAt, highlights };
+    }
+  } catch { /* briefing is optional on the public tape */ }
   res.set('Cache-Control', 'public, max-age=300');
   return res.json({ disclosure: REGIME_TAPE_DISCLOSURE, tapeVersion: REGIME_TAPE_VERSION,
-    selection: { minimumReturnPct: 20, maximumItems: 6, curated: true }, updatedAt: new Date().toISOString(), evidence });
+    selection: { minimumReturnPct: 20, maximumItems: 6, curated: true }, updatedAt: new Date().toISOString(),
+    evidence: evidenceWithRegime, briefing });
 });
 
 // Authenticated product endpoints. Global middleware protects these paths.
