@@ -4059,3 +4059,12 @@ Owner decisions (Marius, 2026-09-22): the Tape page is the public proof surface 
 - Theme selector in the topbar (Light | Dark pills), persisted in localStorage money_scanner_tape_theme; tiny pre-paint script applies a stored dark choice without flash. Default light.
 - Applies across all panels (proof, summary briefing, full briefing, BQ top 5) via CSS vars.
 - API tsc clean, 164/164 tests.
+
+## Step 113: BQ cards - valuation multiple replaces growth; growth inline by asset name (app + tape)
+
+Owner ask: the BQ card's GROWTH card became a MULTIPLE card (mcap / annualized revenue, e.g. 8.4x), and the growth number moved inline next to the asset name. Applied to the app BQ cards AND the public tape Top-5 panel.
+
+- web AIBriefingView.tsx: inline growth chip next to asset name (header-growth, 'Annualized revenue +117.2%'); card 4 now `Scale multiple ...x` with sublabel 'mcap / annualized revenue'; criteria.slice(1) indices fixed to criteria.length; valuationMultiple() rounds to 1 decimal.
+- web BusinessQualityAssetCard.tsx: same inline growth + multiple card.
+- api tape-routes.ts: TapeBqEntry gains valuationRatio + valuationBasis ('mcap / annualized revenue'); businessQuality payload includes both; ratio = mcap/(revenueRunRate*12) rounded 1dp (null when uncomputable).
+- api regime-tape-page.ts: tape panel renders inline growth span (.bq-growth, 'Revenue run +117.2%') and the MULTIPLE fact replacing GROWTH RUN RATE; note updated ('multiple = mcap / annualized revenue').

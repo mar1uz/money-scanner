@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, CircleHelp, XCircle, Sparkles } from 'lucide-react';
+import { CheckCircle2, CircleHelp, XCircle, Sparkles, Scale } from 'lucide-react';
 import type { CryptoCriteriaStatus } from '@money-scanner/shared';
 import type { AssetDetailResponse } from '../types.js';
 
@@ -56,6 +56,23 @@ export const BusinessQualityAssetCard: React.FC<{ businessQuality?: BusinessQual
       'Without observed revenue, fee sharing or distribution cannot be confirmed.'
     ]
   };
+  // Valuation multiple (Marius, 2026-09-22): mcap / annualized revenue,
+  // fees then holder revenue as basis fallback. Replaces the growth card;
+  // growth shows inline in the header.
+  const valuationMultiple = () => {
+    if (!asset) return null;
+    const metrics = asset.metrics || {};
+    const basis = (metrics.revenue30d || 0) > 0
+      ? { annualized: metrics.revenue30d! * 12, ro: 'mcap / revenue anualizat (30z × 12)', en: 'mcap / annualized revenue (30d × 12)' }
+      : (metrics.fees30d || 0) > 0
+        ? { annualized: metrics.fees30d! * 12, ro: 'mcap / fees anualizate (30z × 12)', en: 'mcap / annualized fees (30d × 12)' }
+        : (metrics.holdersRevenue30d || 0) > 0
+          ? { annualized: metrics.holdersRevenue30d! * 12, ro: 'mcap / valoare holderi anualizată (30z × 12)', en: 'mcap / annualized holder value (30d × 12)' }
+          : null;
+    if (!basis || asset.marketCap <= 0) return null;
+    return { ratio: asset.marketCap / basis.annualized, label: isRo ? basis.ro : basis.en };
+  };
+  const multiple = valuationMultiple();
   const localizedValue = (value: string) => isRo ? value : value
     .replace('Date insuficiente', 'Insufficient data')
     .replace('$0 observat', '$0 observed')
@@ -68,13 +85,24 @@ export const BusinessQualityAssetCard: React.FC<{ businessQuality?: BusinessQual
         {asset && (
           <span className="font-mono text-sm font-black text-emerald-300">
             {asset.score}<span className="text-[10px] font-semibold text-slate-500"> /100 · {asset.passedCriteria}/4 {isRo ? 'trecute' : 'pass'}</span>
+            {asset.criteria.growth.status !== 'unknown' && (
+              <span className={`ml-2 text-[10px] font-semibold ${asset.criteria.growth.status === 'pass' ? 'text-emerald-300' : asset.criteria.growth.status === 'watch' ? 'text-amber-300' : 'text-rose-300'}`}>{localizedValue(asset.criteria.growth.value)}</span>
+            )}
           </span>
         )}
       </div>
 
       {asset ? (
         <div className="grid gap-2.5 sm:grid-cols-2">
-          {(['growth', 'networkEffect', 'sustainableRevenue', 'holderValue'] as const).map((key, index) => {
+          <div className="rounded-xl border p-3 border-cyan-500/25 bg-cyan-500/[0.07] text-cyan-200">
+            <div className="flex items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider"><Scale className="w-3 h-3" />{isRo ? 'Multiplu' : 'Multiple'}</span>
+            </div>
+            <p className="mt-1.5 font-mono text-sm font-bold">{multiple ? `${multiple.ratio.toFixed(1)}x` : '—'}</p>
+            <p className="mt-1 text-[11px] leading-relaxed opacity-80">{multiple ? multiple.label : (isRo ? 'Fără fees/revenue observabil pentru multiplu.' : 'No observable fees/revenue for a multiple.')}</p>
+          </div>
+          {(['networkEffect', 'sustainableRevenue', 'holderValue'] as const).map((key, zeroIndex) => {
+            const index = zeroIndex + 1;
             const criterion = asset.criteria[key];
             return (
               <div key={key} className={`rounded-xl border p-3 ${tone(criterion.status)}`}>

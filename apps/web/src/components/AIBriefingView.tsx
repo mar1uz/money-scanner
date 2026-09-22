@@ -654,6 +654,21 @@ export const AIBriefingView: React.FC = () => {
         'Without observed revenue, fee sharing or distribution cannot be confirmed.'
       ]
     };
+    // Valuation multiple (Marius, 2026-09-22): mcap / annualized revenue,
+    // fees then holder revenue as basis fallback. Shown as its own card in
+    // place of the growth card; growth moves inline next to the asset name.
+    const valuationMultiple = (asset: CryptoFourCriteriaAsset) => {
+      const metrics = asset.metrics || {};
+      const basis = (metrics.revenue30d || 0) > 0
+        ? { annualized: metrics.revenue30d! * 12, ro: 'mcap / revenue anualizat (30z × 12)', en: 'mcap / annualized revenue (30d × 12)' }
+        : (metrics.fees30d || 0) > 0
+          ? { annualized: metrics.fees30d! * 12, ro: 'mcap / fees anualizate (30z × 12)', en: 'mcap / annualized fees (30d × 12)' }
+          : (metrics.holdersRevenue30d || 0) > 0
+            ? { annualized: metrics.holdersRevenue30d! * 12, ro: 'mcap / valoare holderi anualizată (30z × 12)', en: 'mcap / annualized holder value (30d × 12)' }
+            : null;
+      if (!basis || asset.marketCap <= 0) return null;
+      return { ratio: asset.marketCap / basis.annualized, label: language === 'ro' ? basis.ro : basis.en };
+    };
     const localizedValue = (value: string) => language === 'ro' ? value : value
       .replace('Date insuficiente', 'Insufficient data')
       .replace('$0 observat', '$0 observed')
@@ -763,6 +778,9 @@ export const AIBriefingView: React.FC = () => {
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-bold text-slate-100">${asset.symbol}</span>
                             <span className="text-[10px] font-mono text-slate-600">{asset.marketCapRank > 0 ? `#${asset.marketCapRank}` : asset.id.startsWith('dex:') ? 'DexScreener' : ''}</span>
+                            {asset.criteria.growth.status !== 'unknown' && (
+                              <span className={`text-[10px] font-mono ${asset.criteria.growth.status === 'pass' ? 'text-emerald-300' : asset.criteria.growth.status === 'watch' ? 'text-amber-300' : 'text-rose-300'}`}>{localizedValue(asset.criteria.growth.value)}</span>
+                            )}
                           </div>
                           <span className="block text-[10px] text-slate-500 truncate">{asset.name}</span>
                         </div>
@@ -773,7 +791,20 @@ export const AIBriefingView: React.FC = () => {
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2 mt-3">
-                      {criteria.map((item, index) => {
+                      {(() => {
+                        const multiple = valuationMultiple(asset);
+                        return (
+                          <div className="rounded-lg border p-2.5 border-cyan-500/25 bg-cyan-500/[0.07] text-cyan-200">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wide"><Scale className="w-3 h-3" />{language === 'ro' ? 'Multiplu' : 'Multiple'}</span>
+                            </div>
+                            <span className="block mt-1.5 text-[11px] font-mono text-slate-200">{multiple ? `${multiple.ratio.toFixed(1)}x` : '—'}</span>
+                            <p className="mt-1 text-[9px] leading-relaxed text-slate-500">{multiple ? multiple.label : (language === 'ro' ? 'Fără fees/revenue observabil pentru multiplu.' : 'No observable fees/revenue for a multiple.')}</p>
+                          </div>
+                        );
+                      })()}
+                      {criteria.slice(1).map((item, zeroIndex) => {
+                        const index = zeroIndex + 1;
                         const Icon = criterionIcons[index];
                         return (
                           <div key={item.label} title={language === 'ro' ? item.explanation : englishExplanations[item.status][index]} className={`rounded-lg border p-2.5 ${criteriaTone(item.status)}`}>

@@ -21,7 +21,7 @@ interface TapeBqReport {
       tvlChange7d?: number;
     };
   }>;
-  undervalued?: Array<{ assetId: string; symbol: string; name: string; priceChange7d?: number }>;
+  undervalued?: Array<{ assetId: string; symbol: string; name: string; priceChange7d?: number; valuationRatio?: number; valuationBasis?: string }>;
 }
 
 interface TapeBriefingSection {
@@ -121,6 +121,7 @@ tapeRouter.get('/tape/proof', async (_req, res) => {
   let businessQuality: { generatedAt: number; entries: Array<{
     symbol: string; name: string; fees30d: number; revenue30d: number;
     holderValue30d: number; growthRunRatePct: number | null; priceChange7d: number | null;
+    valuationRatio: number | null; valuationBasis: string | null;
   }> } | null = null;
   try {
     const cached = await readPersistentAICache<TapeBqReport>('crypto-four-criteria-top-200');
@@ -137,7 +138,9 @@ tapeRouter.get('/tape/proof', async (_req, res) => {
           revenue30d: asset?.metrics.revenue30d ?? 0,
           holderValue30d: asset?.metrics.holdersRevenue30d ?? 0,
           growthRunRatePct: growthCandidates.length ? Math.max(...growthCandidates) : null,
-          priceChange7d: typeof entry.priceChange7d === 'number' && Number.isFinite(entry.priceChange7d) ? entry.priceChange7d : null
+          priceChange7d: typeof entry.priceChange7d === 'number' && Number.isFinite(entry.priceChange7d) ? entry.priceChange7d : null,
+          valuationRatio: typeof entry.valuationRatio === 'number' && Number.isFinite(entry.valuationRatio) ? entry.valuationRatio : null,
+          valuationBasis: entry.valuationBasis ?? null
         };
       });
       if (entries.length) businessQuality = { generatedAt: cached.payload.generatedAt ?? cached.updatedAt, entries };
