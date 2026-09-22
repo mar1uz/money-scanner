@@ -4072,3 +4072,13 @@ Owner ask: the BQ card's GROWTH card became a MULTIPLE card (mcap / annualized r
 ## Step 114: Multiple-card change is APP-ONLY - tape panel reverted (Marius scope correction)
 
 Marius (2026-09-22 11:06): the MULTIPLE card and Top Alpha tab belong in the app, NOT on the public Tape. Commit 0b4d675 had touched tape-routes.ts (valuationRatio/valuationBasis) and regime-tape-page.ts (inline growth + multiple fact); build 7ab519d7 deployed it as rev 00243-kj6 before the correction arrived. This step restores both tape files to the 7c5bb7c state (tape Top-5 panel keeps: fees, revenue, holder value, growth run-rate, price 7d). The app-side change (AIBriefingView top-score cards + BusinessQualityAssetCard deep-dive) stays.
+
+## Step 115: Top Alpha tab + Business Quality tab folded into AI Briefing
+
+Marius (2026-09-22 11:01 + 11:03): one simple "Top Alpha" view with BOTH Business Quality leaderboards, unified cards everywhere, crypto/stocks selector; and the Business Quality top-level tab moves into the AI Briefing page next to the 4-criteria Top 200 section (fewer tabs).
+
+- New CryptoBqAssetCard.tsx: unified BQ card - criteria chips (growth, network effect, sustainable revenue, holder value), Fees/Revenue/Holder value 30d facts, MULTIPLE card (mcap / annualized revenue, fees/holder fallback) replacing the growth card, growth as inline % next to the asset name, score/100 + x/4, undervaluation index chip on undervalued rows.
+- New TopAlphaView.tsx: mobile-first full-width segmented Crypto|Stocks selector. Crypto: Top Score top 10 (measured assets, scan order) + Undervalued top 10 (joined to assets by id/coinGeckoId). Stocks: top 10 quality picks from /ai/stock-business-quality (6-criteria chips + values, verdict) - no undervalued model exists for equities.
+- BusinessQualityView: compact rows replaced with the same unified CryptoBqAssetCard (undervalued cards now carry the same info as Top Score cards).
+- Navigation: 'business_quality' tab removed (types.ts AppTab, App.tsx VALID_TABS + render, Sidebar item); new 'top_alpha' tab in the research group (Scale icon, alpha badge).
+- AIBriefingView: <BusinessQualityView /> embedded right after the 4-criteria scanner section (crypto scope), per "langa butonul 4 criteria Top 200".

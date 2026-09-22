@@ -4,6 +4,7 @@ import { fetchCryptoFourCriteriaScan } from '../services/api.js';
 import type { CryptoCriteriaStatus, CryptoFourCriteriaScan, CryptoUndervaluedEntry } from '@money-scanner/shared';
 import { useLanguage } from '../i18n.js';
 import { useAssetNavigation } from './AssetNavigation.js';
+import { CryptoBqAssetCard } from './CryptoBqAssetCard.js';
 
 const statusTone = (status: CryptoCriteriaStatus): string =>
   status === 'pass'
@@ -163,47 +164,20 @@ export const BusinessQualityView: React.FC = () => {
 
         {scan && (
           <div className="space-y-2">
-            {(scan.undervalued || []).slice(0, 100).map((entry, position) => (
-              <article
-                key={entry.assetId}
-                role="button"
-                tabIndex={0}
-                onClick={() => navigateAsset({ symbol: entry.symbol, marketClass: 'crypto', coinGeckoId: entry.assetId })}
-                onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); navigateAsset({ symbol: entry.symbol, marketClass: 'crypto', coinGeckoId: entry.assetId }); } }}
-                className="cursor-pointer rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] p-3 sm:p-4 transition-colors hover:border-cyan-500/30">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className={`w-7 text-center text-sm font-mono font-black ${position < 3 ? 'text-emerald-300' : 'text-slate-500'}`}>{position + 1}</span>
-                    {entry.image ? <img src={entry.image} alt="" className="w-8 h-8 rounded-full bg-white/[0.04]" loading="lazy" /> : <Coins className="w-8 h-8 text-slate-600" />}
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-slate-100">${entry.symbol}</span>
-                        <span className="text-[10px] font-mono text-slate-600">{entry.marketCapRank > 0 ? `#${entry.marketCapRank}` : ''}</span>
-                        <span className="text-[10px] font-mono text-slate-600">{fmtUsd(entry.marketCap)}</span>
-                      </div>
-                      <span className="block text-[10px] text-slate-500 truncate">{entry.name}</span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className={`text-lg font-mono font-black ${indexTone(entry.undervaluationIndex)}`}>
-                      {entry.undervaluationIndex > 0 ? '+' : ''}{entry.undervaluationIndex}
-                    </span>
-                    <span className="block text-[9px] font-mono text-slate-600">
-                      {entry.valuationBasis === 'revenue' ? 'P/R' : entry.valuationBasis === 'fees' ? 'P/F' : 'P/H'} {entry.valuationRatio.toFixed(1)}x
-                      {entry.valuationBasis === 'fees' && <span className="text-amber-400"> · fees</span>}
-                      {entry.valuationBasis === 'holders' && <span className="text-purple-300"> · buyback</span>}
-                    </span>
-                  </div>
-                </div>
-                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                  {factorChips(entry)}
-                  {plChips(entry)}
-                  <span className="ml-auto text-[9px] font-mono text-slate-500">
-                    {isRo ? 'calitate' : 'quality'} {entry.qualityScore}/75 · {isRo ? 'pct' : 'pct'} {entry.qualityPercentile} · {isRo ? 'ieftin' : 'cheap'} {100 - entry.expensivenessPercentile}%
-                  </span>
-                </div>
-              </article>
-            ))}
+            {(scan.undervalued || []).slice(0, 100).map((entry, position) => {
+              const asset = (scan.assets || []).find(a => a.id === entry.assetId || a.coinGeckoId === entry.assetId);
+              if (!asset) return null;
+              return (
+                <CryptoBqAssetCard
+                  key={entry.assetId}
+                  rank={position + 1}
+                  asset={asset}
+                  undervalued={entry}
+                  language={language}
+                  onNavigate={target => navigateAsset({ symbol: target.symbol, marketClass: 'crypto', coinGeckoId: target.coinGeckoId })}
+                />
+              );
+            })}
             {(scan.undervalued || []).length > 100 && (
               <p className="py-1 text-center text-[10px] text-slate-600">
                 {isRo ? `Afișate 100 din ${(scan.undervalued || []).length} clasate` : `Showing 100 of ${(scan.undervalued || []).length} ranked`}

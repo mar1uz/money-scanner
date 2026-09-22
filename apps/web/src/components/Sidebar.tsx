@@ -56,7 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'crypto_heatmap', label: 'Market Heat Map', shortLabel: 'Heat Map', icon: LayoutGrid, accent: 'text-emerald-400', badge: '360°' },
     { id: 'crypto_radar', label: 'Crypto Radar', shortLabel: 'Radar', icon: Radio, accent: 'text-cyan-400', badge: '3 chains' },
     { id: 'crypto_bubbles', label: 'Crypto Bubble', shortLabel: 'Bubbles', icon: CircleDot, accent: 'text-fuchsia-400', badge: '100' },
-    { id: 'business_quality', label: 'Business Quality', shortLabel: 'Quality', icon: Scale, accent: 'text-amber-400', badge: '3F' },
+    { id: 'top_alpha', label: 'Top Alpha', shortLabel: 'Alpha', icon: Scale, accent: 'text-amber-400', badge: 'α' },
     { id: 'ai', label: 'AI Briefing', shortLabel: 'AI Briefing', icon: BrainCircuit, accent: 'text-purple-400', badge: 'AI' },
     { id: 'usa_status', label: 'USA Macro', shortLabel: 'USA Macro', icon: Landmark, accent: 'text-blue-400', badge: '🇺🇸' },
     { id: 'intelligence', label: 'Intelligence', shortLabel: 'Intelligence', icon: Radio, accent: 'text-violet-400', badge: 'AI' },
@@ -65,7 +65,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
   const scanner = navItems.filter(item => item.id === 'market');
   const explore = navItems.filter(item => ['crypto_heatmap', 'crypto_radar', 'crypto_bubbles'].includes(item.id));
-  const research = navItems.filter(item => ['business_quality', 'ai', 'usa_status', 'intelligence', 'backtest'].includes(item.id));
+  const research = navItems.filter(item => ['top_alpha', 'ai', 'usa_status', 'intelligence', 'backtest'].includes(item.id));
   const renderDesktopItem = (item: typeof navItems[number]) => {
     const Icon = item.icon;
     const selected = activeTab === item.id && !(item.id === 'market' && watchlistOnly);

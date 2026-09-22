@@ -22,7 +22,7 @@ import { ScannerTable } from './components/ScannerTable.js';
 import { AssetDeepDiveView } from './components/AssetDeepDiveView.js';
 import { IntelligenceView } from './components/IntelligenceView.js';
 import { AIBriefingView } from './components/AIBriefingView.js';
-import { BusinessQualityView } from './components/BusinessQualityView.js';
+import { TopAlphaView } from './components/TopAlphaView.js';
 import { BacktestView } from './components/BacktestView.js';
 import { SystemStatusView } from './components/SystemStatusView.js';
 import { AlertsCenterView } from './components/AlertsCenterView.js';
@@ -43,7 +43,7 @@ interface AuthenticatedAppProps {
 
 const VALID_TIMEFRAMES: Timeframe[] = ['1h', '4h', '8h', '1d', '1w', '1m'];
 const VALID_MARKET_CLASSES = ['crypto', 'stocks', 'metals'] as const;
-const VALID_TABS: AppTab[] = ['market', 'crypto_radar', 'crypto_bubbles', 'crypto_heatmap', 'business_quality', 'usa_status', 'intelligence', 'ai', 'alerts', 'backtest', 'status'];
+const VALID_TABS: AppTab[] = ['market', 'crypto_radar', 'crypto_bubbles', 'crypto_heatmap', 'top_alpha', 'usa_status', 'intelligence', 'ai', 'alerts', 'backtest', 'status'];
 
 const readMoneyLineDeepLink = () => {
   const params = new URLSearchParams(window.location.search);
@@ -507,8 +507,8 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
               {/* Tab 3: X Narrative Intelligence & AI News Aggregator */}
               {activeTab === 'intelligence' && <IntelligenceView initialSource={initialDeepLink.intelligenceSource} />}
 
-              {/* Business Quality: undervalued ranking on 3 factors */}
-              {activeTab === 'business_quality' && <BusinessQualityView />}
+              {/* Top Alpha: both Business Quality leaderboards in one view */}
+              {activeTab === 'top_alpha' && <TopAlphaView />}
 
               {/* Tab 5: AI Market Briefing & Interactive Chat */}
               {activeTab === 'ai' && <AIBriefingView />}

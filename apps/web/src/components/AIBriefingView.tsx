@@ -21,6 +21,7 @@ import {
 } from '../services/api.js';
 import { useLanguage } from '../i18n.js';
 import { AssetLink, useAssetNavigation, useDelegatedAssetNavigation } from './AssetNavigation.js';
+import { BusinessQualityView } from './BusinessQualityView.js';
 import {
   BrainCircuit,
   Sparkles,
@@ -1560,6 +1561,8 @@ export const AIBriefingView: React.FC = () => {
         <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 space-y-6">
           {!isBriefingCollapsed && renderIntelligenceDashboard()}
           {scope === 'crypto' && renderCryptoCriteriaScanner()}
+          {/* Business Quality tab moved into AI Briefing (Marius, 2026-09-22): undervalued ranking next to the 4-criteria section */}
+          {scope === 'crypto' && <BusinessQualityView />}
           {scope === 'stocks' && renderStockCriteriaScanner()}
 
           <div className="flex items-center gap-3 pt-2">
