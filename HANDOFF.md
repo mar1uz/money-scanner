@@ -4052,3 +4052,10 @@ Owner decisions (Marius, 2026-09-22): the Tape page is the public proof surface 
 - Score guard refined: word guard now jev/combined/composite/score only (plain "momentum" is market language and stays); score-list ("SYM 77.2") and at-score ("at 81.6") number guards unchanged. Applied to headlines, paragraphs and bullets alike; the 3-line summary panel uses the same guard and is unchanged in output today.
 - Page: "The full daily briefing" panel between the 3-line summary and the BQ section; per-take kicker + headline + paragraphs + bullets, EN, generated date.
 - Cancelled build 5c2d83b2 to fold this into one deploy. API tsc clean, 164/164 tests. Commit e32968f. Build d657da49.
+
+## Step 112 - 2026-09-22 - Tape themes: light editorial default + dark toggle
+- Marius (via Instinct, with X-slide reference image): likes the light editorial identity from the X slides for /tape (off-white, dark-green eyebrow caps, serif display headline, green numerals); dark theme stays, selectable from the top of the page.
+- regime-tape-page.ts: :root is now the light editorial palette (paper #F5F2EA, deep green #1F5C38 accent, serif Fraunces for h1/h2/briefing heads, green mono numerals); [data-theme="dark"] restores the original palette. Light-only overrides via html:not([data-theme="dark"]). CTA/button text via --cta-text.
+- Theme selector in the topbar (Light | Dark pills), persisted in localStorage money_scanner_tape_theme; tiny pre-paint script applies a stored dark choice without flash. Default light.
+- Applies across all panels (proof, summary briefing, full briefing, BQ top 5) via CSS vars.
+- API tsc clean, 164/164 tests.

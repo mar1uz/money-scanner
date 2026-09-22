@@ -7,14 +7,33 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
 <title>Money Scanner Performance Tape</title>
 <meta name="description" content="Selected, verified Money Scanner performance evidence after the signal.">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap');
+  /* Light editorial is the default public theme (Marius, 2026-09-22); the
+     original dark theme stays available from the top-of-page selector. */
   :root {
+    color-scheme: light;
+    --bg: #F5F2EA; --surface: #FFFFFF; --surface-2: #FAF8F1; --surface-3: #F0EDE2;
+    --line: #E4DFD0; --line-strong: #C9C2AC; --text: #1B2418; --muted: #5F6B58;
+    --lime: #1F5C38; --lime-soft: rgba(31,92,56,.09); --red: #B4463C;
+    --red-soft: rgba(180,70,60,.09); --blue: #33608F; --radius: 16px; --cta-text: #FFFFFF;
+  }
+  [data-theme="dark"] {
     color-scheme: dark;
     --bg: #0B0D10; --surface: #12151A; --surface-2: #171B21; --surface-3: #1C2129;
     --line: #232A35; --line-strong: #323B49; --text: #F2F5F7; --muted: #84909F;
     --lime: #C8F169; --lime-soft: rgba(200,241,105,.11); --red: #FF6B8A;
-    --red-soft: rgba(255,107,138,.11); --blue: #6FC7FF; --radius: 16px;
+    --red-soft: rgba(255,107,138,.11); --blue: #6FC7FF; --cta-text: #071006;
   }
+  html:not([data-theme="dark"]) body:before { background: radial-gradient(circle at 78% 0%, rgba(31,92,56,.06), transparent 28%), linear-gradient(rgba(27,36,24,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(27,36,24,.035) 1px, transparent 1px); }
+  html:not([data-theme="dark"]) h1, html:not([data-theme="dark"]) h2, html:not([data-theme="dark"]) .bf-head { font-family: Fraunces, Georgia, serif; letter-spacing: -.02em; }
+  html:not([data-theme="dark"]) .stats { background: var(--surface); }
+  html:not([data-theme="dark"]) .filters { background: var(--surface); }
+  html:not([data-theme="dark"]) .mark { border-color: rgba(31,92,56,.4); }
+  html:not([data-theme="dark"]) .live:before { box-shadow: 0 0 0 5px rgba(31,92,56,.1), 0 0 12px rgba(31,92,56,.3); }
+  .topbar-right { display: flex; align-items: center; gap: 14px; }
+  .theme-switch { display: flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--surface); }
+  .theme-switch button { min-height: 30px; padding: 0 12px; border: 0; background: transparent; color: var(--muted); font: 600 10px 'JetBrains Mono'; text-transform: uppercase; letter-spacing: .08em; cursor: pointer; }
+  .theme-switch button.active { background: var(--lime); color: var(--cta-text); }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
   body { margin: 0; background: var(--bg); color: var(--text); font: 500 15px/1.55 Quicksand, sans-serif; }
@@ -41,7 +60,7 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
   .live:before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 5px rgba(200,241,105,.08), 0 0 14px rgba(200,241,105,.45); }
   .hero { padding: 76px 0 44px; display: grid; grid-template-columns: minmax(0,1fr) 360px; gap: 56px; align-items: end; }
   .hero-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:26px; }
-  .cta { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:0 18px; border-radius:10px; border:1px solid var(--lime); background:var(--lime); color:#071006; font:700 11px 'JetBrains Mono'; letter-spacing:.08em; text-transform:uppercase; text-decoration:none; }
+  .cta { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:0 18px; border-radius:10px; border:1px solid var(--lime); background:var(--lime); color:var(--cta-text); font:700 11px 'JetBrains Mono'; letter-spacing:.08em; text-transform:uppercase; text-decoration:none; }
   .cta.secondary { background:transparent; color:var(--text); border-color:var(--line); }
   .trust-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
   .trust-pill { padding:7px 10px; border:1px solid var(--line); border-radius:999px; color:var(--muted); font:600 9px 'JetBrains Mono'; letter-spacing:.06em; text-transform:uppercase; }
@@ -63,7 +82,7 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
   .filters { position: sticky; top: 10px; z-index: 4; display: grid; grid-template-columns: 1fr 180px auto; gap: 10px; padding: 10px; margin-bottom: 14px; border: 1px solid var(--line); border-radius: 14px; background: rgba(18,21,26,.94); backdrop-filter: blur(16px); }
   input, select, button { min-height: 44px; font: 600 13px Quicksand, sans-serif; border-radius: 9px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--text); padding: 0 14px; outline: none; }
   input:focus, select:focus { border-color: var(--lime); box-shadow: 0 0 0 3px rgba(200,241,105,.08); }
-  button { background: var(--lime); color: #10130C; border-color: var(--lime); cursor: pointer; font-weight: 700; padding-inline: 22px; }
+  button { background: var(--lime); color: var(--cta-text); border-color: var(--lime); cursor: pointer; font-weight: 700; padding-inline: 22px; }
   button:hover { filter: brightness(1.06); }
   .table-shell { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -160,10 +179,11 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
 </style>
 </head>
 <body>
+<script>try{if(localStorage.getItem('money_scanner_tape_theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
 <main class="shell">
   <header class="topbar">
     <a class="brand" href="/"><span class="mark">M</span><span>MONEY SCANNER<small>MARKET INTELLIGENCE</small></span></a>
-    <div class="live">Public tape</div>
+    <div class="topbar-right"><div class="live">Public tape</div><div class="theme-switch" role="group" aria-label="Color theme"><button type="button" id="themeLight" onclick="setTheme('light')">Light</button><button type="button" id="themeDark" onclick="setTheme('dark')">Dark</button></div></div>
   </header>
 
   <section class="hero">
@@ -230,6 +250,13 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
 const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmtPrice = v => v == null ? '—' : Number(v).toLocaleString('en-US', { maximumFractionDigits: Number(v) < 1 ? 6 : 2 });
 const completed = e => [['30D','d30'],['7D','d7'],['1D','d1']].map(([label,key])=>({label,key,value:e.outcomes&&e.outcomes[key]&&e.outcomes[key].returnPct})).find(x=>Number.isFinite(Number(x.value)));
+function applyTheme(t) {
+  if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark'); else document.documentElement.removeAttribute('data-theme');
+  document.getElementById('themeLight').classList.toggle('active', t !== 'dark');
+  document.getElementById('themeDark').classList.toggle('active', t === 'dark');
+}
+function setTheme(t) { try { localStorage.setItem('money_scanner_tape_theme', t); } catch (e) {} applyTheme(t); }
+applyTheme((function () { try { return localStorage.getItem('money_scanner_tape_theme') === 'dark' ? 'dark' : 'light'; } catch (e) { return 'light'; } })());
 async function loadProof() {
   const d = await (await fetch('/api/tape/proof')).json();
   const selected = (d.evidence || []).map(e=>({e,o:{label:e.window,value:e.returnPct}}));
