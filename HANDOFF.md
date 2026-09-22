@@ -4029,3 +4029,19 @@ Owner decisions (Marius, 2026-09-22): the Tape page is the public proof surface 
 - /api/tape/proof now attaches currentRegime (latest taped tier per symbol+timeframe, bounded to published proof assets) and briefing { generatedAt, highlights[<=3] } (readAiContentTake('briefing','en'), optional).
 - regime-tape-page.ts: regime chip + Current regime fact on proof cards; new briefing panel after the proof grid; no transition list rendered.
 - readAiContentTake exported from ai-routes.ts. tsc clean (shared, api).
+
+## Step 109 - 2026-09-22 - Public tape briefing: context lines only (no score numbers)
+- Marius rule (relayed via Instinct): no JEV/Momentum/composite score numbers on public surfaces - they mean nothing to outside readers.
+- apps/api/src/routes/tape-routes.ts /api/tape/proof: briefing highlight selection now aggregates the day's EN takes (briefing, capital-rotation, market-intelligence, intelligence-brief, in priority order; headline then bullets) and filters out score lines before picking max 3.
+- Filter: word guard (jev/combined/composite/momentum/score), score-list guard (SYM 77.2 pattern), at-score guard ("at 81.6"); percent/price lines pass. Dedupe, deterministic order.
+- Verified against 2026-09-22 outbox takes: selects "Major crypto assets are at weekly trigger zones...", "No buy signal: wait for closed-candle confirmation...", "Rotation is selective: AI chips lead equities..."; excludes both JEV/momentum score bullets.
+- tsc clean; 164/164 tests. Commit 256892a. Deployed via cloudbuild.
+
+## Step 110 - 2026-09-22 - Public tape: Top 5 undervalued (BQ) + English-default login
+- Marius (via Instinct): (1) everything public defaults to English - the login page rendered Romanian; (2) add Top 5 undervalued from Business Quality to /tape, free until follower count grows.
+- /tape + /api/tape/proof were already public server-side (verified 200 unauthenticated); the login wall Marius hit is the app root behind AuthGate (tape CTAs link to "/").
+- apps/web/src/components/AuthGate.tsx: logged-out experience defaults to English unless a stored money_scanner_language preference says 'ro' (in-app toggle still wins). Loading state and error fallbacks bilingual. In-app default unchanged.
+- apps/api/src/routes/tape-routes.ts /api/tape/proof: +businessQuality - top 5 from undervalued[] of the cached crypto-four-criteria-top-200 report, joined to assets[] for real inputs: fees30d, revenue30d, holderValue30d, growthRunRatePct (max of tvlChange7d/feeRunRateChange), priceChange7d. NO quality/valuation scores or percentiles (public rule). Read-only from persistent cache; public route never triggers a rescan; section omitted if cache missing.
+- apps/api/src/services/regime-tape-page.ts: "Top 5 undervalued assets" panel between briefing and CTA grid - 5 cards with the 5 inputs, heuristic disclaimer, scan date. EN only.
+- Verified: API tsc clean, 164/164 API tests, web tsc clean, 80/81 web tests (1 pre-existing env failure: Playwright chromium binary not installed on the Mac - crypto-radar-sticky browser test, unrelated).
+- Commit 4022452. Deployed via cloudbuild (build 5c2d83b2).
