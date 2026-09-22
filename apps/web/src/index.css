@@ -593,12 +593,13 @@ button, input, select, summary { min-height: 44px; }
 .mobile-nav-item b { position: absolute; top: 3px; right: 12px; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 999px; background: #C8F169; color: #10140A; font-size: 9px; line-height: 15px; }
 
 @media (max-width: 767px) {
-  .mobile-dock { width: calc(100% - 24px); bottom: max(10px, env(safe-area-inset-bottom)); gap: 6px; }
+  .mobile-dock { width: calc(100% - 24px); bottom: calc(var(--mobile-viewport-inset, 0px) + max(12px, env(safe-area-inset-bottom))); gap: 6px; }
+  .mobile-more-menu { max-height: max(44px, calc(var(--mobile-visible-height, 100dvh) - 100px - env(safe-area-inset-bottom))); overflow-y: auto; overscroll-behavior-y: contain; }
   .mobile-nav { padding: 3px; }
   .mobile-nav-track { overflow: visible; }
   .mobile-nav-item { flex: 1 1 0; min-width: 0; font-size: 10px; }
   .mobile-search-orb { flex-basis: 48px; height: 48px; }
-  .workspace-main { padding-inline: 12px; }
+  .workspace-main { padding-inline: 12px; padding-bottom: calc(84px + var(--mobile-viewport-inset, 0px) + env(safe-area-inset-bottom)); }
   .scanner-section > .card-base { padding: 10px; }
   .scanner-section table { width: 100%; table-layout: auto; }
   .scanner-section table th, .scanner-section table td { padding-inline: 8px; }

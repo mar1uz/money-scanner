@@ -1,4 +1,6 @@
 import {
+  cryptoValuation,
+  midrankPercentile,
   CryptoCriterionResult,
   CryptoCriteriaStatus,
   CryptoFourCriteriaAsset,
@@ -22,6 +24,9 @@ interface CoinGeckoMarketRow {
   image?: string;
   market_cap_rank?: number;
   market_cap?: number;
+  fully_diluted_valuation?: number;
+  last_updated?: string;
+  market_data_source?: 'coingecko' | 'coinpaprika';
   price_change_percentage_24h?: number;
   price_change_percentage_7d_in_currency?: number;
 }
@@ -39,12 +44,15 @@ interface DefiLlamaProtocolRow {
   slug?: string;
   symbol?: string;
   gecko_id?: string | null;
+  parentProtocol?: string;
   tvl?: number | null;
   change_7d?: number | null;
   chains?: string[];
 }
 
 interface DefiLlamaMetricRow {
+  parentProtocol?: string;
+  defillamaId?: string;
   name?: string;
   slug?: string;
   category?: string;
@@ -58,6 +66,9 @@ interface DefiLlamaMetricResponse {
 }
 
 interface NumericAggregate {
+  observed30d?: boolean;
+  incomplete30d?: boolean;
+  incomplete7d?: boolean;
   total24h: number;
   total7d: number;
   total30d: number;
@@ -122,14 +133,6 @@ const scoreForStatus = (status: CryptoCriteriaStatus): number => {
   return 0;
 };
 
-/** Percentile (0-100) of value inside an ascending-sorted array. */
-const percentileOf = (sortedAsc: number[], value: number): number => {
-  if (sortedAsc.length <= 1) return 50;
-  let below = 0;
-  for (const item of sortedAsc) if (item < value) below += 1;
-  return (below / (sortedAsc.length - 1)) * 100;
-};
-
 /**
  * Undervaluation ranking on Marius's 3 factors: quality (network effect +
  * sustainable revenue + holder value, same thresholds) versus expensiveness
@@ -140,14 +143,8 @@ const percentileOf = (sortedAsc: number[], value: number): number => {
 const buildUndervaluedRanking = (assets: CryptoFourCriteriaAsset[]): { undervalued: CryptoUndervaluedEntry[]; unrankedCount: number } => {
   const candidates = assets
     .map(asset => {
-      const revenue30d = asset.metrics.revenue30d || 0;
-      const fees30d = asset.metrics.fees30d || 0;
-      const holders30d = asset.metrics.holdersRevenue30d || 0;
-      const basis: 'revenue' | 'fees' | 'holders' | null = revenue30d > 0 ? 'revenue' : fees30d > 0 ? 'fees' : holders30d > 0 ? 'holders' : null;
-      if (!basis || asset.marketCap <= 0) return undefined;
-      const annualized = (basis === 'revenue' ? revenue30d : basis === 'fees' ? fees30d : holders30d) * 12;
-      const valuationRatio = annualized > 0 ? asset.marketCap / annualized : undefined;
-      if (!valuationRatio || !Number.isFinite(valuationRatio)) return undefined;
+      const { basis, multiple: valuationRatio } = cryptoValuation(asset);
+      if (!basis || valuationRatio === undefined || !Number.isFinite(valuationRatio)) return undefined;
       const qualityScore = scoreForStatus(asset.criteria.networkEffect.status)
         + scoreForStatus(asset.criteria.sustainableRevenue.status)
         + scoreForStatus(asset.criteria.holderValue.status);
@@ -164,6 +161,7 @@ const buildUndervaluedRanking = (assets: CryptoFourCriteriaAsset[]): { undervalu
           holderValue: asset.criteria.holderValue.status
         },
         qualityScore,
+        passedCriteria: [asset.criteria.growth.status, asset.criteria.networkEffect.status, asset.criteria.sustainableRevenue.status, asset.criteria.holderValue.status].filter(status => status === 'pass').length,
         valuationRatio,
         valuationBasis: basis,
         priceChange24h: asset.priceChange24h,
@@ -172,12 +170,11 @@ const buildUndervaluedRanking = (assets: CryptoFourCriteriaAsset[]): { undervalu
     })
     .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
 
-  const qualityValues = candidates.map(entry => entry.qualityScore).sort((a, b) => a - b);
-  const logRatios = candidates.map(entry => Math.log(entry.valuationRatio)).sort((a, b) => a - b);
-
   const undervalued: CryptoUndervaluedEntry[] = candidates.map(entry => {
-    const qualityPercentile = Math.round(percentileOf(qualityValues, entry.qualityScore));
-    const expensivenessPercentile = Math.round(percentileOf(logRatios, Math.log(entry.valuationRatio)));
+    // Fees, retained revenue and holder distributions are different denominators.
+    const peers = candidates.filter(peer => peer.valuationBasis === entry.valuationBasis);
+    const qualityPercentile = Math.round(midrankPercentile(peers.map(peer => peer.qualityScore), entry.qualityScore));
+    const expensivenessPercentile = Math.round(midrankPercentile(peers.map(peer => peer.valuationRatio), entry.valuationRatio));
     return {
       ...entry,
       qualityPercentile,
@@ -185,6 +182,9 @@ const buildUndervaluedRanking = (assets: CryptoFourCriteriaAsset[]): { undervalu
       undervaluationIndex: qualityPercentile - expensivenessPercentile
     };
   }).sort((left, right) =>
+    // Marius (2026-09-22): 4/4 undervalued first, then 3/4, then 2/4;
+    // the index only orders assets inside the same criteria group.
+    right.passedCriteria - left.passedCriteria ||
     right.undervaluationIndex - left.undervaluationIndex ||
     right.qualityScore - left.qualityScore ||
     left.valuationRatio - right.valuationRatio
@@ -194,7 +194,7 @@ const buildUndervaluedRanking = (assets: CryptoFourCriteriaAsset[]): { undervalu
 };
 
 const runRateChange = (total7d: number, total30d: number): number | undefined => {
-  if (total7d <= 0 || total30d <= 0) return undefined;
+  if (total7d < 0 || total30d <= 0) return undefined;
   return ((total7d * (30 / 7)) / total30d - 1) * 100;
 };
 
@@ -219,15 +219,15 @@ export function evaluateCryptoFourCriteriaAsset(
   const tvlChange7d = protocol && protocol.tvlWithChange > 0
     ? protocol.weightedTvlChange7d / protocol.tvlWithChange
     : undefined;
-  const feeTrend = runRateChange(fees.total7d, fees.total30d);
-  const revenueTrend = runRateChange(revenue.total7d, revenue.total30d);
+  const feeTrend = fees.incomplete30d || fees.incomplete7d ? undefined : runRateChange(fees.total7d, fees.total30d);
+  const revenueTrend = revenue.incomplete30d || revenue.incomplete7d ? undefined : runRateChange(revenue.total7d, revenue.total30d);
   const bestGrowth = Math.max(tvlChange7d ?? Number.NEGATIVE_INFINITY, feeTrend ?? Number.NEGATIVE_INFINITY);
   const hasUsageObservation = Boolean(protocol?.matchedRows || fees.total30d > 0);
 
   const growth = !hasUsageObservation || !Number.isFinite(bestGrowth)
     ? criterion('unknown', 'Creștere', 'Date insuficiente', 'Nu există o serie gratuită comparabilă pentru utilizatori/activitate.')
     : bestGrowth >= 5
-      ? criterion('pass', 'Creștere', formatPercent(bestGrowth), 'TVL sau ritmul anualizat al fees accelerează cu minimum 5%.')
+      ? criterion('pass', 'Creștere', formatPercent(bestGrowth), 'TVL pe 7 zile sau ritmul zilnic fees din ultimele 7 zile față de media ultimelor 30 zile crește cu minimum 5%.')
       : bestGrowth >= 0
         ? criterion('watch', 'Creștere', formatPercent(bestGrowth), 'Activitatea este stabilă sau crește lent; necesită monitorizare.')
         : criterion('fail', 'Creștere', formatPercent(bestGrowth), 'Proxy-ul de activitate este în contracție față de perioada comparabilă.');
@@ -247,7 +247,9 @@ export function evaluateCryptoFourCriteriaAsset(
   const basis7d = useChainFees ? fees.total7d : revenue.total7d;
   const basis30d = useChainFees ? fees.total30d : revenue.total30d;
   const revenueContinuity = basis30d > 0 ? (basis7d * (30 / 7)) / basis30d : 0;
-  const sustainableRevenue = basis30d >= 1_000_000 && basis7d > 0 && basis24h > 0 && revenueContinuity >= 0.5
+  const sustainableRevenue = (useChainFees ? fees : revenue).observed30d === false || (useChainFees ? fees : revenue).incomplete30d
+    ? criterion('unknown', 'Venit sustenabil', 'Date insuficiente', 'Revenue lipsește sau acoperirea ferestrei de 30 zile este incompletă.')
+    : basis30d >= 1_000_000 && basis7d > 0 && basis24h > 0 && revenueContinuity >= 0.5
     ? criterion('pass', 'Venit sustenabil', `${formatUsd(basis30d)}${useChainFees ? ' fees L1' : ''} / 30z`, useChainFees
       ? 'Fees reale ale rețelei (către validatori/mineri) de minimum $1M/30z, prezente în ferestrele 24h, 7z și 30z.'
       : 'Venit de minimum $1M/30z reținut de protocol, prezent concomitent în ferestrele 24h, 7z și 30z.')
@@ -257,12 +259,14 @@ export function evaluateCryptoFourCriteriaAsset(
         ? criterion('fail', 'Venit sustenabil', '$0 observat', 'Activitatea urmărită nu produce revenue reținut de protocol în această fereastră.')
         : criterion('unknown', 'Venit sustenabil', 'Date insuficiente', 'Nu există observații DefiLlama comparabile pentru acest token.');
 
-  const holderValue = holderRevenue.total30d >= 100_000 && holderRevenue.total7d > 0
+  const holderValue = holderRevenue.observed30d === false || holderRevenue.incomplete30d
+    ? criterion('unknown', 'Valoare către holderi', 'Date insuficiente', 'Lipsa raportării nu înseamnă zero; datele despre distribuțiile către holderi sunt incomplete.')
+    : holderRevenue.total30d >= 100_000 && holderRevenue.total7d > 0
     ? criterion('pass', 'Valoare către holderi', `${formatUsd(holderRevenue.total30d)} / 30z`, 'DefiLlama raportează buyback/burn, distribuții sau staking finanțat din revenue.')
     : holderRevenue.total30d > 0
       ? criterion('watch', 'Valoare către holderi', `${formatUsd(holderRevenue.total30d)} / 30z`, 'Mecanismul există, dar valoarea observată este încă redusă sau neregulată.')
-      : revenue.total30d > 0
-        ? criterion('fail', 'Valoare către holderi', '$0 observat', 'Există revenue, dar nu este raportat un transfer de valoare către token holderi.')
+      : holderRevenue.total30d === 0
+        ? criterion('fail', 'Valoare către holderi', '$0 observat', 'DefiLlama raportează explicit zero transfer de valoare către holderi în această fereastră.')
         : criterion('unknown', 'Valoare către holderi', 'Date insuficiente', 'Fără revenue observat nu se poate confirma fee switch-ul sau distribuția.');
 
   const statuses = [growth.status, networkEffect.status, sustainableRevenue.status, holderValue.status];
@@ -292,17 +296,20 @@ export function evaluateCryptoFourCriteriaAsset(
     metrics: {
       tvl: protocol?.tvl || undefined,
       tvlChange7d,
-      fees30d: fees.total30d || undefined,
+      fees30d: fees.observed30d === false || fees.incomplete30d ? undefined : fees.total30d,
       feeRunRateChange: feeTrend,
-      revenue30d: revenue.total30d || undefined,
+      revenue30d: revenue.observed30d === false || revenue.incomplete30d ? undefined : revenue.total30d,
       revenueRunRateChange: revenueTrend,
-      holdersRevenue30d: holderRevenue.total30d || undefined,
+      holdersRevenue30d: holderRevenue.observed30d === false || holderRevenue.incomplete30d ? undefined : holderRevenue.total30d,
       chainCount: protocol?.chains.size || 0
     }
   };
 }
 
 const addMetric = (target: NumericAggregate, row: DefiLlamaMetricRow) => {
+  if (typeof row.total30d === 'number' && Number.isFinite(row.total30d) && row.total30d >= 0) target.observed30d = true;
+  else target.incomplete30d = true;
+  if (typeof row.total7d !== 'number' || !Number.isFinite(row.total7d) || row.total7d < 0) target.incomplete7d = true;
   target.total24h += finitePositive(row.total24h);
   target.total7d += finitePositive(row.total7d);
   target.total30d += finitePositive(row.total30d);
@@ -315,7 +322,12 @@ const addMetric = (target: NumericAggregate, row: DefiLlamaMetricRow) => {
  * proxies and missing observations remain unknown.
  */
 export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFourCriteriaScan {
-  const coins = input.coins
+  const uniqueCoins = new Map<string, CoinGeckoMarketRow>();
+  for (const coin of input.coins) {
+    const key = coin.coin_gecko_id || coin.id;
+    if (!uniqueCoins.has(key) || coin.market_data_source === 'coingecko') uniqueCoins.set(key, coin);
+  }
+  const coins = [...uniqueCoins.values()]
     .filter(coin => coin.id && coin.symbol && (finitePositive(coin.market_cap_rank) > 0 || finitePositive(coin.market_cap) > 0))
     .sort((left, right) =>
       (finitePositive(left.market_cap_rank) || Number.MAX_SAFE_INTEGER) - (finitePositive(right.market_cap_rank) || Number.MAX_SAFE_INTEGER)
@@ -329,6 +341,13 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
     coinsBySymbol.set(symbol, [...(coinsBySymbol.get(symbol) || []), coin]);
   }
 
+  const familyCoinIds = new Map<string, Set<string>>();
+  for (const protocol of input.protocols) {
+    if (!protocol.parentProtocol || !protocol.gecko_id) continue;
+    const ids = familyCoinIds.get(protocol.parentProtocol) || new Set<string>();
+    ids.add(protocol.gecko_id.toLowerCase());
+    familyCoinIds.set(protocol.parentProtocol, ids);
+  }
   const protocolToCoinId = new Map<string, string>();
   const protocolAggregates = new Map<string, ProtocolAggregate>();
   for (const protocol of input.protocols) {
@@ -338,7 +357,14 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
     const symbolCoins = symbol ? coinsBySymbol.get(symbol) : undefined;
     const uniqueSymbolCoin = symbolCoins?.length === 1 ? symbolCoins[0] : undefined;
     const nameCoin = coinByNormalizedName.get(normalize(protocol.name));
-    const coin = directCoin || uniqueSymbolCoin || nameCoin;
+    // An explicit provider ID must never be overridden by a coincident symbol.
+    const familyIds = protocol.parentProtocol ? familyCoinIds.get(protocol.parentProtocol) : undefined;
+    const familyCoin = familyIds?.size === 1 ? coinById.get([...familyIds][0]) : undefined;
+    const namedSymbolCoin = uniqueSymbolCoin && (
+      normalize(protocol.name).startsWith(normalize(uniqueSymbolCoin.name)) ||
+      normalize(protocol.parentProtocol?.replace('parent#', '')) === normalize(uniqueSymbolCoin.coin_gecko_id || uniqueSymbolCoin.id)
+    ) ? uniqueSymbolCoin : undefined;
+    const coin = protocol.gecko_id ? directCoin : familyIds?.size ? familyCoin : namedSymbolCoin || nameCoin;
     if (!coin) continue;
     if (slug) protocolToCoinId.set(slug, coin.id);
     const current = protocolAggregates.get(coin.id) || {
@@ -349,10 +375,10 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
       matchedRows: 0
     };
     const tvl = finitePositive(protocol.tvl);
-    const change7d = Number(protocol.change_7d);
+    const change7d = finiteNumber(protocol.change_7d);
     current.tvl += tvl;
     current.matchedRows += 1;
-    if (tvl > 0 && Number.isFinite(change7d)) {
+    if (tvl > 0 && change7d !== undefined) {
       current.weightedTvlChange7d += tvl * change7d;
       current.tvlWithChange += tvl;
     }
@@ -364,6 +390,8 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
     const slug = String(row.slug || '').toLowerCase();
     const mappedId = protocolToCoinId.get(slug);
     if (mappedId) return coinById.get(mappedId);
+    // Do not fall back to a name if an explicit protocol ID was unmatched.
+    if (input.protocols.some(protocol => protocol.slug?.toLowerCase() === slug && protocol.gecko_id)) return undefined;
     const exactSlug = coinById.get(slug);
     if (exactSlug) return exactSlug;
     return coinByNormalizedName.get(normalize(row.name));
@@ -371,11 +399,18 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
 
   const aggregateMetrics = (rows: DefiLlamaMetricRow[], chainCoinIds?: Set<string>): Map<string, NumericAggregate> => {
     const result = new Map<string, NumericAggregate>();
+    const seen = new Set<string>();
+    const parentIds = new Set(rows.map(row => row.defillamaId).filter(Boolean));
     for (const row of rows) {
+      // Parent totals already include children. Also ignore duplicate rows.
+      if (row.parentProtocol && parentIds.has(row.parentProtocol)) continue;
+      const key = row.defillamaId || row.slug || normalize(row.name);
+      if (seen.has(key)) continue;
+      seen.add(key);
       const coin = resolveMetricCoin(row);
       if (!coin) continue;
       if (chainCoinIds && String(row.category || '').toLowerCase() === 'chain') chainCoinIds.add(coin.id);
-      const aggregate = result.get(coin.id) || { total24h: 0, total7d: 0, total30d: 0 };
+      const aggregate = result.get(coin.id) || { total24h: 0, total7d: 0, total30d: 0, observed30d: false };
       addMetric(aggregate, row);
       result.set(coin.id, aggregate);
     }
@@ -389,9 +424,9 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
 
   const assets: CryptoFourCriteriaAsset[] = coins.map(coin => {
     const protocol = protocolAggregates.get(coin.id);
-    const fees = feeByCoin.get(coin.id) || { total24h: 0, total7d: 0, total30d: 0 };
-    const revenue = revenueByCoin.get(coin.id) || { total24h: 0, total7d: 0, total30d: 0 };
-    const holderRevenue = holderRevenueByCoin.get(coin.id) || { total24h: 0, total7d: 0, total30d: 0 };
+    const fees = feeByCoin.get(coin.id) || { total24h: 0, total7d: 0, total30d: 0, observed30d: false };
+    const revenue = revenueByCoin.get(coin.id) || { total24h: 0, total7d: 0, total30d: 0, observed30d: false };
+    const holderRevenue = holderRevenueByCoin.get(coin.id) || { total24h: 0, total7d: 0, total30d: 0, observed30d: false };
     const evaluated = evaluateCryptoFourCriteriaAsset({
       id: coin.id,
       coinGeckoId: coin.coin_gecko_id,
@@ -401,6 +436,10 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
       marketCapRank: Math.round(finitePositive(coin.market_cap_rank)),
       marketCap: finitePositive(coin.market_cap)
     }, protocol, fees, revenue, holderRevenue, chainCoinIds.has(coin.id));
+    evaluated.fullyDilutedValuation = finitePositive(coin.fully_diluted_valuation) || undefined;
+    evaluated.marketDataSource = coin.market_data_source;
+    evaluated.marketDataUpdatedAt = coin.last_updated;
+    evaluated.protocolSlugs = [...protocolToCoinId].filter(([, id]) => id === coin.id).map(([slug]) => slug);
     evaluated.priceChange24h = finiteNumber(coin.price_change_percentage_24h);
     evaluated.priceChange7d = finiteNumber(coin.price_change_percentage_7d_in_currency);
     return evaluated;
@@ -419,29 +458,29 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
   const universe = input.candidateIds
     ? assets.filter(asset => isMeasuredAsset(asset) || !input.candidateIds!.has(asset.id))
     : assets;
-  assets.length = 0;
-  assets.push(...universe);
 
-  const coveredCount = assets.filter(asset => asset.classification !== 'insufficient-data').length;
-  const { undervalued, unrankedCount } = buildUndervaluedRanking(assets);
+  const coveredCount = universe.filter(asset => asset.classification !== 'insufficient-data').length;
+  const { undervalued, unrankedCount } = buildUndervaluedRanking(universe);
   return {
+    methodologyVersion: 2,
     scannedCount: coins.length,
     coveredCount,
-    allFourCount: assets.filter(asset => asset.classification === 'all-four').length,
-    firstThreeCount: assets.filter(asset => asset.classification === 'all-four' || asset.classification === 'first-three').length,
-    assets,
+    allFourCount: universe.filter(asset => asset.classification === 'all-four').length,
+    firstThreeCount: universe.filter(asset => asset.classification === 'all-four' || asset.classification === 'first-three').length,
+    assets: universe,
     undervalued,
     unrankedCount,
     generatedAt: input.generatedAt || Date.now(),
-    dataFreshness: 'CoinGecko/CoinPaprika + DefiLlama live; cache 30 minute',
+    dataFreshness: 'Snapshot CoinGecko/CoinPaprika + DefiLlama; cache până la 26 ore, rescanare manuală disponibilă',
     methodology: [
       'Creștere: schimbarea TVL pe 7 zile sau accelerarea fees (ritm 7z vs 30z).',
       'Efect de rețea: fees ≥$1M/30z plus TVL sau prezență multi-chain; proxy conservator, nu utilizatori activi exacți.',
       'Venit sustenabil: revenue ≥$1M/30z prezent concomitent în ferestrele 24h, 7z și 30z; pentru L1-uri (BTC, ETH, SOL) se folosesc fees rețelei, care merg la validatori/mineri.',
       'Valoare către holderi: buyback/burn, distribuții sau staking finanțat din venit ≥$100K/30z raportat de DefiLlama.',
       'Model de subevaluare (tab Calitate Business): scor calitate 0-75 = Efect de rețea + Venit sustenabil + Valoare către holderi, aceleași praguri.',
-      'Evaluare: P/R = market cap / (revenue 30z × 12); fallback P/F din fees, respectiv P/H din buyback/burn anualizat când lipsesc ambele.',
-      'Index subevaluare = percentila calității − percentila scumpirii (log P/R) în universul acoperit; activele fără fees/revenue nu sunt clasate.',
+      'Evaluare: P/R = market cap / (revenue 30z × 365/30); fallback P/F din fees, respectiv P/H din buyback/burn anualizat când lipsesc ambele.',
+      'Index subevaluare = percentila calității − percentila scumpirii (log P/R) între active cu aceeași bază (revenue/fees/holderi), cu percentile centrate pentru egalități; activele fără fees/revenue nu sunt clasate.',
+      'Randament holderi: (holders revenue 30z × 365/30) / MC × 100; varianta /FDV include diluția. Ritm extrapolat, nu APY garantat.',
       'Selecție secțiune: sunt listate doar monedele cu fees/revenue observabile sau buyback/burn raportat; sortare după criterii trecute, apoi ritmul revenue (7z vs 30z) și rank — nu dimensiunea absolută.'
     ],
     sources: [
@@ -467,13 +506,14 @@ const fetchJson = async <T>(fetcher: typeof fetch, url: string): Promise<T> => {
 const fetchCoinMarkets = async (fetcher: typeof fetch): Promise<CoinGeckoMarketRow[]> => {
   try {
     const rows = await fetchJson<CoinGeckoMarketRow[]>(fetcher, COINGECKO_MARKETS_URL);
-    return rows.map(row => ({ ...row, coin_gecko_id: row.id }));
+    return rows.map(row => ({ ...row, coin_gecko_id: row.id, market_data_source: 'coingecko' as const }));
   } catch {
     // CoinGecko's no-key endpoint can briefly return 429. A separate public
     // market-cap source keeps the scan available instead of fabricating ranks.
     const rows = await fetchJson<CoinPaprikaMarketRow[]>(fetcher, COINPAPRIKA_MARKETS_URL);
     return rows.map(row => ({
       id: row.id,
+      market_data_source: 'coinpaprika',
       symbol: row.symbol,
       name: row.name,
       market_cap_rank: row.rank,
@@ -498,7 +538,7 @@ const fetchCoinsByIds = async (fetcher: typeof fetch, ids: string[]): Promise<Co
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const rows = await response.json() as CoinGeckoMarketRow[];
-      result.push(...rows.map(row => ({ ...row, coin_gecko_id: row.id })));
+      result.push(...rows.map(row => ({ ...row, coin_gecko_id: row.id, market_data_source: 'coingecko' as const })));
     } catch (error) {
       console.warn(`CoinGecko candidate chunk failed (${chunk.length} ids):`, error instanceof Error ? error.message : error);
     }
@@ -515,6 +555,9 @@ export async function scanCryptoFourCriteria(fetcher: typeof fetch = fetch): Pro
     fetchJson<DefiLlamaMetricResponse>(fetcher, DEFILLAMA_REVENUE_URL),
     fetchJson<DefiLlamaMetricResponse>(fetcher, DEFILLAMA_HOLDERS_REVENUE_URL)
   ]);
+  if (![protocols, feeResponse.protocols, revenueResponse.protocols, holderRevenueResponse.protocols].every(Array.isArray)) {
+    throw new Error('DefiLlama returned an incomplete response; scan not updated.');
+  }
   const fees = feeResponse.protocols || [];
   const revenue = revenueResponse.protocols || [];
   const holdersRevenue = holderRevenueResponse.protocols || [];
@@ -540,10 +583,15 @@ export async function scanCryptoFourCriteria(fetcher: typeof fetch = fetch): Pro
     }
   }
   const extraCoins = await fetchCoinsByIds(fetcher, candidateIds);
+  const canonicalCoins = coins.map(coin => {
+    if (coin.market_data_source !== 'coinpaprika') return coin;
+    const matches = extraCoins.filter(extra => normalize(extra.name) === normalize(coin.name) && extra.symbol.toLowerCase() === coin.symbol.toLowerCase());
+    return matches.length === 1 ? matches[0] : coin;
+  });
   const extraIdSet = new Set(extraCoins.map(coin => coin.id.toLowerCase()));
 
   return buildCryptoFourCriteriaScan({
-    coins: [...coins, ...extraCoins],
+    coins: [...canonicalCoins, ...extraCoins],
     protocols,
     fees,
     revenue,

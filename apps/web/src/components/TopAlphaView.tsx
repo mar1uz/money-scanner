@@ -1,3 +1,4 @@
+import { midrankPercentile } from '@money-scanner/shared';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Trophy, RefreshCw, Coins, TrendingUp, Scale } from 'lucide-react';
 import { fetchCryptoFourCriteriaScan, fetchStockBusinessQualityScan } from '../services/api.js';
@@ -120,19 +121,21 @@ export const TopAlphaView: React.FC = () => {
   const [ranking, setRanking] = useState<'score' | 'undervalued'>('score');
   const [cryptoScan, setCryptoScan] = useState<CryptoFourCriteriaScan | null>(null);
   const [stockScan, setStockScan] = useState<StockBusinessQualityScan | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadingByClass, setLoadingByClass] = useState({ crypto: true, stocks: false });
+  const [errorsByClass, setErrorsByClass] = useState<Record<'crypto' | 'stocks', string | null>>({ crypto: null, stocks: null });
+  const loading = loadingByClass[assetClass];
+  const error = errorsByClass[assetClass];
 
   const load = async (target: 'crypto' | 'stocks', refresh = false) => {
-    setLoading(true);
-    setError(null);
+    setLoadingByClass(current => ({ ...current, [target]: true }));
+    setErrorsByClass(current => ({ ...current, [target]: null }));
     try {
       if (target === 'crypto') setCryptoScan(await fetchCryptoFourCriteriaScan(refresh));
       else setStockScan(await fetchStockBusinessQualityScan(refresh));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Scan failed');
+      setErrorsByClass(current => ({ ...current, [target]: cause instanceof Error ? cause.message : 'Scan failed' }));
     } finally {
-      setLoading(false);
+      setLoadingByClass(current => ({ ...current, [target]: false }));
     }
   };
 
@@ -165,26 +168,24 @@ export const TopAlphaView: React.FC = () => {
     if (!stockScan) return [];
     const rows = stockScan.assets.flatMap(asset => {
       const m = asset.metrics || {};
-      const ratio = (m.priceToFcf || 0) > 0
+      const positive = (value?: number) => value !== undefined && Number.isFinite(value) && value > 0;
+      const ratio = positive(m.priceToFcf)
         ? { ratio: m.priceToFcf!, basis: 'P/FCF' }
-        : (m.trailingPE || 0) > 0
+        : positive(m.trailingPE)
           ? { ratio: m.trailingPE!, basis: 'P/E' }
-          : (m.priceToSales || 0) > 0
+          : positive(m.priceToSales)
             ? { ratio: m.priceToSales!, basis: 'P/S' }
             : null;
       return ratio ? [{ asset, ...ratio }] : [];
     });
     if (rows.length < 5) return [];
-    const qualitySorted = rows.map(r => r.asset.score).slice().sort((a, b) => a - b);
-    const expSorted = rows.map(r => Math.log(r.ratio)).sort((a, b) => a - b);
-    const percentile = (sorted: number[], value: number) =>
-      Math.round((sorted.filter(v => v < value).length / sorted.length) * 100);
     return rows
-      .map(r => ({
-        ...r,
-        index: percentile(qualitySorted, r.asset.score) - percentile(expSorted, Math.log(r.ratio))
-      }))
-      .sort((a, b) => b.index - a.index);
+      .map(r => {
+        const peers = rows.filter(peer => peer.basis === r.basis);
+        return { ...r, index: Math.round(midrankPercentile(peers.map(peer => peer.asset.score), r.asset.score))
+          - Math.round(midrankPercentile(peers.map(peer => peer.ratio), r.ratio)) };
+      })
+      .sort((a, b) => b.asset.passedCriteria - a.asset.passedCriteria || b.index - a.index);
   }, [stockScan]);
 
   return (
@@ -199,8 +200,8 @@ export const TopAlphaView: React.FC = () => {
               <h2 className="text-sm font-bold text-slate-100 font-sans">Top Alpha</h2>
               <p className="text-[11px] text-slate-400 font-sans">
                 {isRo
-                  ? 'Ambele clasamente Business Quality \u00eentr-un singur ecran: scorul top \u0219i cele mai subevaluate.'
-                  : 'Both Business Quality leaderboards in one screen: top score and most undervalued.'}
+                  ? 'Scoruri Business Quality și evaluare relativă; nu reprezintă valoarea justă a monedei.'
+                  : 'Business Quality scores and relative valuation; neither estimates fair value.'}
               </p>
             </div>
           </div>
@@ -244,7 +245,7 @@ export const TopAlphaView: React.FC = () => {
           ))}
         </div>
 
-        {loading && !cryptoScan && !stockScan && <p className="py-8 text-center text-xs text-slate-500">{isRo ? 'Se \u00eencarc\u0103 clasamentele\u2026' : 'Loading leaderboards\u2026'}</p>}
+        {loading && !(assetClass === 'crypto' ? cryptoScan : stockScan) && <p className="py-8 text-center text-xs text-slate-500">{isRo ? 'Se \u00eencarc\u0103 clasamentele\u2026' : 'Loading leaderboards\u2026'}</p>}
         {error && (
           <div className="py-6 text-center space-y-2">
             <p className="text-sm text-rose-300">{error}</p>
@@ -254,13 +255,24 @@ export const TopAlphaView: React.FC = () => {
           </div>
         )}
 
+        {(assetClass === 'crypto' ? cryptoScan : stockScan) && (
+          <div className="rounded-xl border border-white/[0.08] p-3 text-[11px] text-slate-400 space-y-2">
+            <p>{isRo ? 'Scanare' : 'Snapshot'}: {new Date((assetClass === 'crypto' ? cryptoScan! : stockScan!).generatedAt).toLocaleString(isRo ? 'ro-RO' : 'en-GB')} · {isRo ? 'Date păstrate până la 26h; Rescanează cere o actualizare (minimum 2 minute între cereri).' : 'Cached up to 26h; Rescan requests an update (minimum 2 minutes between requests).'}</p>
+            {assetClass === 'crypto' && <>
+              <p>{isRo ? 'Fees = comisioane totale; revenue = partea reținută de protocol; holderi = partea destinată deținătorilor. FEES/REV % compară media zilnică 7z cu media 30z, nu prețul.' : 'Fees = total user fees; revenue = protocol share; holders = tokenholder share. FEES/REV % compares 7d and 30d daily averages, not price.'}</p>
+              <p>{isRo ? 'Scor intern: 25 puncte/pass, 12/watch, 0/fail sau necunoscut. Indicele compară doar aceeași bază P/R, P/F sau P/H; +80 nu înseamnă 80% subevaluare.' : 'Internal score: 25 points/pass, 12/watch, 0/fail or unknown. The index compares the same basis P/R, P/F or P/H; +80 does not mean 80% undervalued.'}</p>
+              <a className="inline-block underline" href="https://defillama.com/data-definitions" target="_blank" rel="noreferrer">{isRo ? 'Definiții și metodologie DefiLlama' : 'DefiLlama definitions and methodology'}</a>
+            </>}
+          </div>
+        )}
+
         {assetClass === 'crypto' && cryptoScan && (
           <>
             {ranking === 'score' && (
             <div className="space-y-2.5">
               <div>
                 <h3 className="text-[11px] font-bold uppercase tracking-wide text-emerald-300">{isRo ? 'Scor top' : 'Top score'} · {topScoreAssets.length}</h3>
-                <p className="text-[10px] text-slate-500">{isRo ? 'Calitate + accelera\u021bie, f\u0103r\u0103 s\u0103 se uite la pre\u021b. Sortat dup\u0103 criterii trecute, apoi ritm de cre\u0219tere.' : 'Quality + acceleration, price ignored. Sorted by criteria passed, then growth pace.'}</p>
+                <p className="text-[10px] text-slate-500">{isRo ? 'Calitate + accelera\u021bie, f\u0103r\u0103 s\u0103 se uite la pre\u021b. Sortat după criterii trecute, apoi scor și ritm de creștere.' : 'Quality + acceleration, price ignored. Sorted by criteria passed, then score and growth pace.'}</p>
               </div>
               {topScoreAssets.map((asset, index) => (
                 <CryptoBqAssetCard
@@ -278,7 +290,7 @@ export const TopAlphaView: React.FC = () => {
             <div className="space-y-2.5">
               <div>
                 <h3 className="text-[11px] font-bold uppercase tracking-wide text-amber-300">{isRo ? 'Subevaluate' : 'Undervalued'} · {undervaluedRows.length}</h3>
-                <p className="text-[10px] text-slate-500">{isRo ? 'Calitate raportat\u0103 la pre\u021b: percentila calit\u0103\u021bii minus percentila scumpirii (log mcap / revenue anualizat).' : 'Quality relative to price: quality percentile minus expensiveness percentile (log mcap / annualized revenue).'}</p>
+                <p className="text-[10px] text-slate-500">{isRo ? 'Mai întâi criteriile trecute (4/4, apoi 3/4, 2/4); în grupă: percentila calității minus percentila multiplului în aceeași grupă P/R, P/F sau P/H. Clasament relativ, nu preț țintă.' : 'Criteria passed first (4/4, then 3/4, 2/4); within each group: quality percentile minus valuation percentile within the same P/R, P/F or P/H group. Relative ranking, not a price target.'}</p>
               </div>
               {undervaluedRows.map(({ entry, asset }, index) => (
                 <CryptoBqAssetCard
@@ -319,7 +331,7 @@ export const TopAlphaView: React.FC = () => {
             <div className="space-y-2.5">
               <div>
                 <h3 className="text-[11px] font-bold uppercase tracking-wide text-amber-300">{isRo ? 'Subevaluate' : 'Undervalued'} · {stockUndervalued.length}</h3>
-                <p className="text-[10px] text-slate-500">{isRo ? 'Acela\u0219i model ca la crypto: percentila calit\u0103\u021bii minus percentila scumpirii (log P/FCF; fallback P/E, apoi P/S). Ac\u021biunile f\u0103r\u0103 multiplu utilizabil nu sunt clasate.' : 'Same model as crypto: quality percentile minus expensiveness percentile (log P/FCF; P/E then P/S fallbacks). Stocks without a usable multiple are not ranked.'}</p>
+                <p className="text-[10px] text-slate-500">{isRo ? 'Mai întâi criteriile trecute, apoi indicele relativ în fiecare grupă P/FCF, P/E sau P/S. Bazele diferite nu se compară direct. Acțiunile fără multiplu utilizabil nu sunt clasate.' : 'Criteria passed first, then the relative index within each P/FCF, P/E or P/S group. Different denominators are not compared directly. Stocks without a usable multiple are not ranked.'}</p>
               </div>
               {stockUndervalued.length === 0 && (
                 <p className="py-3 text-center text-[10px] text-slate-600">{isRo ? 'Prea pu\u021bine ac\u021biuni cu multiplu utilizabil \u00een scanul curent.' : 'Too few stocks with a usable multiple in the current scan.'}</p>

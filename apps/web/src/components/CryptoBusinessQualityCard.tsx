@@ -1,3 +1,4 @@
+import { CRYPTO_ANNUALIZATION_FACTOR } from '@money-scanner/shared';
 import React, { useState, useEffect } from 'react';
 import {
   ShieldCheck,
@@ -222,11 +223,11 @@ export const CryptoBusinessQualityCard: React.FC<CryptoBusinessQualityCardProps>
   const valuationMultiple = (() => {
     const metrics = asset.metrics || {};
     const basis = (metrics.revenue30d || 0) > 0
-      ? { annualized: metrics.revenue30d! * 12, ro: 'mcap / revenue anualizat (30z \u00d7 12)', en: 'mcap / annualized revenue (30d \u00d7 12)' }
+      ? { annualized: metrics.revenue30d! * CRYPTO_ANNUALIZATION_FACTOR, ro: 'mcap / revenue anualizat (30z \u00d7 365/30)', en: 'mcap / annualized revenue (30d \u00d7 365/30)' }
       : (metrics.fees30d || 0) > 0
-        ? { annualized: metrics.fees30d! * 12, ro: 'mcap / fees anualizate (30z \u00d7 12)', en: 'mcap / annualized fees (30d \u00d7 12)' }
+        ? { annualized: metrics.fees30d! * CRYPTO_ANNUALIZATION_FACTOR, ro: 'mcap / fees anualizate (30z \u00d7 365/30)', en: 'mcap / annualized fees (30d \u00d7 365/30)' }
         : (metrics.holdersRevenue30d || 0) > 0
-          ? { annualized: metrics.holdersRevenue30d! * 12, ro: 'mcap / valoare holderi anualizat\u0103 (30z \u00d7 12)', en: 'mcap / annualized holder value (30d \u00d7 12)' }
+          ? { annualized: metrics.holdersRevenue30d! * CRYPTO_ANNUALIZATION_FACTOR, ro: 'mcap / valoare holderi anualizat\u0103 (30z \u00d7 365/30)', en: 'mcap / annualized holder value (30d \u00d7 365/30)' }
           : null;
     if (!basis || asset.marketCap <= 0) return null;
     return { ratio: asset.marketCap / basis.annualized, label: isRo ? basis.ro : basis.en };

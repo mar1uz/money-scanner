@@ -212,12 +212,15 @@ const metricSum = (
   rows: LlamaBundle['fees'],
   slug: string,
   name: string
-): { total24h: number; total7d: number; total30d: number } => {
+): { total24h: number; total7d: number; total30d: number; observed30d: boolean; incomplete30d: boolean; incomplete7d: boolean } => {
   const targetSlug = slug.toLowerCase();
   const targetName = normalize(name);
   const matched = rows.filter(row => String(row.slug || '').toLowerCase() === targetSlug || normalize(row.name) === targetName);
-  const sum = { total24h: 0, total7d: 0, total30d: 0 };
+  const sum = { total24h: 0, total7d: 0, total30d: 0, observed30d: false, incomplete30d: false, incomplete7d: false };
   for (const row of matched) {
+    if (typeof row.total30d === 'number' && Number.isFinite(row.total30d) && row.total30d >= 0) sum.observed30d = true;
+    else sum.incomplete30d = true;
+    if (typeof row.total7d !== 'number' || !Number.isFinite(row.total7d) || row.total7d < 0) sum.incomplete7d = true;
     sum.total24h += finitePositive(row.total24h);
     sum.total7d += finitePositive(row.total7d);
     sum.total30d += finitePositive(row.total30d);

@@ -1,4 +1,5 @@
 import React from 'react';
+import { cryptoValuation } from '@money-scanner/shared';
 import { Activity, Network, Banknote, HandCoins, Scale, Coins } from 'lucide-react';
 import type { CryptoCriteriaStatus, CryptoFourCriteriaAsset, CryptoUndervaluedEntry } from '@money-scanner/shared';
 
@@ -12,7 +13,7 @@ const chipTone = (status: CryptoCriteriaStatus): string =>
         : 'border-white/[0.08] bg-white/[0.02] text-slate-500';
 
 const fmtUsd = (value?: number): string => {
-  if (!value || !Number.isFinite(value) || value <= 0) return '\u2014';
+  if (value === undefined || !Number.isFinite(value) || value < 0) return '\u2014';
   if (value >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
   if (value >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
   if (value >= 1e6) return `$${(value / 1e6).toFixed(1)}M`;
@@ -46,22 +47,15 @@ export const CryptoBqAssetCard: React.FC<{
   const revPace = fmtGrowth(metrics.revenueRunRateChange);
   const tvlPace = fmtGrowth(metrics.tvlChange7d);
   const paceTip = [
-    isRo ? 'Ritm 7z vs 30z (anualizat)' : '7d vs 30d pace (annualized)',
+    isRo ? 'Media zilnică 7z vs media zilnică 30z' : '7d daily average vs 30d daily average',
     feePace ? `FEES ${feePace}` : null,
     revPace ? `REV ${revPace}` : null,
     tvlPace ? `TVL 7z ${tvlPace}` : null,
   ].filter(Boolean).join(' \u00b7 ');
-  const multiple = (() => {
-    const basis = (metrics.revenue30d || 0) > 0
-      ? { annualized: metrics.revenue30d! * 12, sub: isRo ? 'mcap / revenue anualizat' : 'mcap / annualized revenue' }
-      : (metrics.fees30d || 0) > 0
-        ? { annualized: metrics.fees30d! * 12, sub: isRo ? 'mcap / fees anualizate' : 'mcap / annualized fees' }
-        : (metrics.holdersRevenue30d || 0) > 0
-          ? { annualized: metrics.holdersRevenue30d! * 12, sub: isRo ? 'mcap / valoare holderi anualizat\u0103' : 'mcap / annualized holder value' }
-          : null;
-    if (!basis || asset.marketCap <= 0) return null;
-    return { ratio: asset.marketCap / basis.annualized, sub: basis.sub };
-  })();
+  const valuation = cryptoValuation(asset);
+  const multipleBasis = valuation.basis === 'revenue' ? 'P/R' : valuation.basis === 'fees' ? 'P/F' : 'P/H';
+  const percent = (value?: number) => value === undefined ? '—' : `${value.toFixed(2)}%`;
+  const basisLabel = valuation.basis === 'revenue' ? 'revenue' : valuation.basis === 'fees' ? 'fees' : isRo ? 'valoare holderi' : 'holder value';
   const criteriaItems: { label: string; full: string; status: CryptoCriteriaStatus; icon: React.ReactNode }[] = [
     { label: isRo ? 'CRE\u0218TERE' : 'GROWTH', full: isRo ? 'Cre\u0219tere' : 'Growth', status: asset.criteria.growth.status, icon: <Activity className="w-3 h-3" /> },
     { label: isRo ? 'RE\u021AEA' : 'NETWORK', full: isRo ? 'Efect de re\u021bea' : 'Network effect', status: asset.criteria.networkEffect.status, icon: <Network className="w-3 h-3" /> },
@@ -81,11 +75,11 @@ export const CryptoBqAssetCard: React.FC<{
           <span className={`w-7 text-center text-sm font-mono font-black ${rank <= 3 ? 'text-emerald-300' : 'text-slate-500'}`}>{rank}</span>
           {asset.image ? <img src={asset.image} alt="" className="w-8 h-8 rounded-full bg-white/[0.04]" loading="lazy" /> : <Coins className="w-8 h-8 text-slate-600" />}
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-bold text-slate-100">${asset.symbol}</span>
               <span className="text-[10px] font-mono text-slate-600">{asset.marketCapRank > 0 ? `#${asset.marketCapRank}` : ''}</span>
               {(feePace || revPace) && (
-                <span className="inline-flex items-center gap-1 text-[9px] font-mono" title={paceTip}>
+                <span className="inline-flex flex-wrap items-center gap-1 text-[9px] font-mono" title={paceTip}>
                   {feePace && (
                     <span className="inline-flex items-center gap-0.5 rounded border border-white/[0.08] px-1 py-px">
                       <span className="text-slate-500">FEES</span>
@@ -104,7 +98,7 @@ export const CryptoBqAssetCard: React.FC<{
             <span className="block text-[10px] text-slate-500 truncate">{asset.name} · MC {fmtUsd(asset.marketCap)}</span>
           </div>
         </div>
-        <div className="text-right">
+        <div className="text-right" title={isRo ? 'Scor intern: pass = 25, watch = 12, fail/necunoscut = 0. Nu este probabilitate sau randament.' : 'Internal score: pass = 25, watch = 12, fail/unknown = 0. Not a probability or return.'}>
           <span className={`text-lg font-mono font-black ${asset.passedCriteria >= 3 ? 'text-emerald-300' : asset.score >= 50 ? 'text-amber-300' : 'text-slate-400'}`}>{asset.score}</span>
           <span className="text-[9px] text-slate-600"> / 100 · {asset.passedCriteria}/4</span>
           {undervalued && (
@@ -121,7 +115,7 @@ export const CryptoBqAssetCard: React.FC<{
           </span>
         ))}
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 mt-3">
         <div className="rounded-lg border border-white/[0.07] bg-white/[0.02] p-2.5">
           <span className="block text-[9px] font-mono uppercase text-slate-600">{isRo ? 'Fees / 30z' : 'Fees / 30d'}</span>
           <span className="block mt-1 text-sm font-mono font-bold text-slate-100">{fmtUsd(metrics.fees30d)}</span>
@@ -135,10 +129,26 @@ export const CryptoBqAssetCard: React.FC<{
           <span className="block mt-1 text-sm font-mono font-bold text-slate-100">{fmtUsd(metrics.holdersRevenue30d)}</span>
         </div>
         <div className="rounded-lg border border-cyan-500/25 bg-cyan-500/[0.07] p-2.5">
-          <span className="inline-flex items-center gap-1 text-[9px] font-mono uppercase text-cyan-300"><Scale className="w-3 h-3" />{isRo ? 'Multiplu' : 'Multiple'}</span>
-          <span className="block mt-1 text-sm font-mono font-bold text-cyan-100">{multiple ? `${multiple.ratio.toFixed(1)}x` : '\u2014'}</span>
-          <span className="block text-[8px] font-mono text-cyan-300/70">{multiple ? multiple.sub : isRo ? 'f\u0103r\u0103 revenue observat' : 'no observed revenue'}</span>
+          <span className="inline-flex items-center gap-1 text-[9px] font-mono uppercase text-cyan-300"><Scale className="w-3 h-3" />{valuation.multiple === undefined ? (isRo ? 'Multiplu' : 'Multiple') : multipleBasis}</span>
+          <span className="block mt-1 text-sm font-mono font-bold text-cyan-100">{valuation.multiple === undefined ? '—' : `${valuation.multiple.toFixed(1)}x`}</span>
+          <span className="block text-[8px] font-mono text-cyan-300/70">{valuation.multiple === undefined ? (isRo ? 'date insuficiente' : 'insufficient data') : `MC / (${basisLabel} 30d × 365/30)`}</span>
         </div>
+        <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/[0.05] p-2.5">
+          <span className="block text-[9px] font-mono uppercase text-emerald-300">{isRo ? 'Randament holderi' : 'Holder yield'}</span>
+          <span className="block mt-1 text-sm font-mono font-bold text-slate-100">{percent(valuation.holderYield)}</span>
+          <span className="block text-[9px] text-slate-400">{isRo ? 'Holderi 30z × 365/30 / MC' : 'Holders 30d × 365/30 / MC'}</span>
+        </div>
+        <div className="rounded-lg border border-white/[0.07] bg-white/[0.02] p-2.5">
+          <span className="block text-[9px] font-mono uppercase text-slate-400">{isRo ? 'Randament / FDV' : 'Yield / FDV'}</span>
+          <span className="block mt-1 text-sm font-mono font-bold text-slate-100">{percent(valuation.dilutedHolderYield)}</span>
+          <span className="block text-[9px] text-slate-400">FDV {fmtUsd(asset.fullyDilutedValuation)}{valuation.dilutionMultiple !== undefined ? ` · ${valuation.dilutionMultiple.toFixed(2)}× MC` : ''}</span>
+        </div>
+      </div>
+      <p className="mt-2 text-[10px] text-slate-400">{isRo ? 'Ritm extrapolat din 30z, nu APY garantat. Buyback/burn nu este o plată directă. — = date lipsă sau incomplete.' : '30d pace extrapolated, not guaranteed APY. Buybacks/burns are not direct payouts. — = missing or incomplete data.'}</p>
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-400" onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+        {asset.coinGeckoId && <a className="underline" target="_blank" rel="noreferrer" href={`https://www.coingecko.com/en/coins/${encodeURIComponent(asset.coinGeckoId)}`}>CoinGecko</a>}
+        {asset.marketDataSource === 'coinpaprika' && <a className="underline" target="_blank" rel="noreferrer" href={`https://coinpaprika.com/coin/${encodeURIComponent(asset.id)}/`}>CoinPaprika</a>}
+        {asset.protocolSlugs?.map(slug => <a key={slug} className="underline" target="_blank" rel="noreferrer" href={`https://defillama.com/protocol/${encodeURIComponent(slug)}`}>{slug}</a>)}
       </div>
     </article>
   );

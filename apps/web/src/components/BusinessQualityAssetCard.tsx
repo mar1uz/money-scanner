@@ -1,3 +1,4 @@
+import { CRYPTO_ANNUALIZATION_FACTOR } from '@money-scanner/shared';
 import React from 'react';
 import { CheckCircle2, CircleHelp, XCircle, Sparkles, Scale } from 'lucide-react';
 import type { CryptoCriteriaStatus } from '@money-scanner/shared';
@@ -63,11 +64,11 @@ export const BusinessQualityAssetCard: React.FC<{ businessQuality?: BusinessQual
     if (!asset) return null;
     const metrics = asset.metrics || {};
     const basis = (metrics.revenue30d || 0) > 0
-      ? { annualized: metrics.revenue30d! * 12, ro: 'mcap / revenue anualizat (30z × 12)', en: 'mcap / annualized revenue (30d × 12)' }
+      ? { annualized: metrics.revenue30d! * CRYPTO_ANNUALIZATION_FACTOR, ro: 'mcap / revenue anualizat (30z × 365/30)', en: 'mcap / annualized revenue (30d × 365/30)' }
       : (metrics.fees30d || 0) > 0
-        ? { annualized: metrics.fees30d! * 12, ro: 'mcap / fees anualizate (30z × 12)', en: 'mcap / annualized fees (30d × 12)' }
+        ? { annualized: metrics.fees30d! * CRYPTO_ANNUALIZATION_FACTOR, ro: 'mcap / fees anualizate (30z × 365/30)', en: 'mcap / annualized fees (30d × 365/30)' }
         : (metrics.holdersRevenue30d || 0) > 0
-          ? { annualized: metrics.holdersRevenue30d! * 12, ro: 'mcap / valoare holderi anualizată (30z × 12)', en: 'mcap / annualized holder value (30d × 12)' }
+          ? { annualized: metrics.holdersRevenue30d! * CRYPTO_ANNUALIZATION_FACTOR, ro: 'mcap / valoare holderi anualizată (30z × 365/30)', en: 'mcap / annualized holder value (30d × 365/30)' }
           : null;
     if (!basis || asset.marketCap <= 0) return null;
     return { ratio: asset.marketCap / basis.annualized, label: isRo ? basis.ro : basis.en };

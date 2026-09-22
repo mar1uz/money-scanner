@@ -17,6 +17,7 @@ import {
   Scale
 } from 'lucide-react';
 import { AppTab } from '../types.js';
+import { useMobileViewport } from '../hooks/useMobileViewport.js';
 
 interface SidebarProps {
   activeTab: AppTab;
@@ -45,6 +46,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   collapsed = false,
   onCollapsedChange
 }) => {
+  useMobileViewport();
   const activeTabRef = useRef<HTMLButtonElement | null>(null);
   const watchlistTabRef = useRef<HTMLButtonElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);

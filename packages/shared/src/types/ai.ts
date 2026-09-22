@@ -186,6 +186,10 @@ export interface CryptoFourCriteriaAsset {
   image?: string;
   marketCapRank: number;
   marketCap: number;
+  fullyDilutedValuation?: number;
+  marketDataSource?: 'coingecko' | 'coinpaprika';
+  marketDataUpdatedAt?: string;
+  protocolSlugs?: string[];
   /** Price change % over the last 24h at scan time (CoinGecko markets). */
   priceChange24h?: number;
   /** Price change % over the last 7d at scan time (CoinGecko markets). */
@@ -229,6 +233,8 @@ export interface CryptoUndervaluedEntry {
   };
   /** 0-75: networkEffect + sustainableRevenue + holderValue scores. */
   qualityScore: number;
+  /** 0-4: 4x200 criteria passed (growth + networkEffect + sustainableRevenue + holderValue). Primary sort key. */
+  passedCriteria: number;
   /** 0-100 percentile of qualityScore across ranked assets. */
   qualityPercentile: number;
   /** marketCap / annualized revenue (or fees when revenue is missing). */
@@ -241,6 +247,7 @@ export interface CryptoUndervaluedEntry {
 }
 
 export interface CryptoFourCriteriaScan {
+  methodologyVersion?: number;
   scannedCount: number;
   coveredCount: number;
   allFourCount: number;

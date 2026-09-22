@@ -95,8 +95,8 @@ export const BusinessQualityView: React.FC = () => {
     'Sustainable revenue: material revenue observed concurrently across 24h, 7d and 30d windows.',
     'Holder value: holder revenue reported as buyback/burn, direct distribution or revenue-funded staking.',
     'Undervaluation model: quality score 0-75 = Network Effect + Sustainable Revenue + Holder Value (same thresholds).',
-    'Valuation: P/R = market cap / (30d revenue x 12); fallbacks P/F from fees and P/H from annualized buyback/burn when those are the only data.',
-    'Undervaluation index = quality percentile minus expensiveness percentile (log P/R) across the covered universe. Assets without fees/revenue are not ranked.'
+    'Valuation: P/R = market cap / (30d revenue x 365/30); fallbacks P/F from fees and P/H from annualized buyback/burn when those are the only data.',
+    'Undervaluation index = quality percentile minus expensiveness percentile (log P/R) within the same valuation basis, with midranks for ties. Assets without fees/revenue are not ranked.'
   ];
 
   return (
