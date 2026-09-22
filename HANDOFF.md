@@ -4099,3 +4099,7 @@ Dot fix (commit b67f68b): replaced literal \u00b7 escapes in JSX text (TopAlphaV
 ## Step 118 - 2026-09-22 - Top Alpha: Scor top | Subevaluate sub-tabs
 
 Marius asked for the two rankings as two easy-to-find sub-tabs in the same page instead of scrolling stacked sections. TopAlphaView now has a second segmented control under the Crypto|Actii selector: "Scor top | Subevaluate" (Trophy / Scale icons, same amber segmented style). One section renders at a time; ranking state is independent of the asset-class selector, so both markets get both views. Section headers + methodology subtitles kept inside each view.
+
+## Step 119 - 2026-09-22 - BQ cards: labeled FEES + REV pace chips, TVL to tooltip
+
+Marius approved the inline-% fix after the interpretation discussion: the single unlabeled growth % next to the asset name (revenue run-rate 7d vs 30d, silently different from the CRESTERE criterion's max(TVL 7d, fee pace)) is replaced by two labeled mini-chips on CryptoBqAssetCard: FEES (fee run-rate 7d vs 30d) and REV (revenue run-rate 7d vs 30d), each colored by sign. The tooltip carries the full breakdown: "Ritm 7z vs 30z (anualizat) - FEES x - REV y - TVL 7z z". TVL no longer appears in the foreground. Applies everywhere CryptoBqAssetCard renders: Top Alpha crypto sections, Business Quality view. Tape Top-5 panel untouched (public, no score internals). AIBriefingView top-score cards untouched (their inline % is the criterion's own value, already consistent with the CRESTERE chip there).

@@ -40,7 +40,16 @@ export const CryptoBqAssetCard: React.FC<{
 }> = ({ rank, asset, undervalued, language, onNavigate }) => {
   const isRo = language === 'ro';
   const metrics = asset.metrics || {};
-  const growth = fmtGrowth(metrics.revenueRunRateChange ?? metrics.feeRunRateChange);
+  // Marius, 2026-09-22: show both paces explicitly labeled; TVL demoted to the tooltip breakdown.
+  const feePace = fmtGrowth(metrics.feeRunRateChange);
+  const revPace = fmtGrowth(metrics.revenueRunRateChange);
+  const tvlPace = fmtGrowth(metrics.tvlChange7d);
+  const paceTip = [
+    isRo ? 'Ritm 7z vs 30z (anualizat)' : '7d vs 30d pace (annualized)',
+    feePace ? `FEES ${feePace}` : null,
+    revPace ? `REV ${revPace}` : null,
+    tvlPace ? `TVL 7z ${tvlPace}` : null,
+  ].filter(Boolean).join(' \u00b7 ');
   const multiple = (() => {
     const basis = (metrics.revenue30d || 0) > 0
       ? { annualized: metrics.revenue30d! * 12, sub: isRo ? 'mcap / revenue anualizat' : 'mcap / annualized revenue' }
@@ -74,8 +83,21 @@ export const CryptoBqAssetCard: React.FC<{
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-slate-100">${asset.symbol}</span>
               <span className="text-[10px] font-mono text-slate-600">{asset.marketCapRank > 0 ? `#${asset.marketCapRank}` : ''}</span>
-              {growth && (
-                <span className={`text-[10px] font-mono ${growth.startsWith('+') ? 'text-emerald-300' : 'text-rose-300'}`} title={isRo ? 'Ritm revenue anualizat (7z vs 30z)' : 'Annualized revenue pace (7d vs 30d)'}>{growth}</span>
+              {(feePace || revPace) && (
+                <span className="inline-flex items-center gap-1 text-[9px] font-mono" title={paceTip}>
+                  {feePace && (
+                    <span className="inline-flex items-center gap-0.5 rounded border border-white/[0.08] px-1 py-px">
+                      <span className="text-slate-500">FEES</span>
+                      <span className={feePace.startsWith('+') ? 'text-emerald-300' : 'text-rose-300'}>{feePace}</span>
+                    </span>
+                  )}
+                  {revPace && (
+                    <span className="inline-flex items-center gap-0.5 rounded border border-white/[0.08] px-1 py-px">
+                      <span className="text-slate-500">REV</span>
+                      <span className={revPace.startsWith('+') ? 'text-emerald-300' : 'text-rose-300'}>{revPace}</span>
+                    </span>
+                  )}
+                </span>
               )}
             </div>
             <span className="block text-[10px] text-slate-500 truncate">{asset.name}</span>
