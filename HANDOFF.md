@@ -4398,3 +4398,12 @@ cap de 10 milioane să fie minimul și, bineînțeles, holder mai mare decât ze
 - Full 410-asset universe, local run: 49 ranked. Top 10: GNS, USUAL, RAY, BONK, CAKE, LDO, SKY,
   JUP, SSV, CVX. COOK out (MC $1.9M and $0 to holders).
 - Shipped in the same deploy as Step 136.
+
+### Steps 136+137 deploy - 2026-09-23 13:36 UTC
+
+Deployed ec3e72b (Steps 136 + 137) after Marius approved on WhatsApp ("Da, e ok așa, filtru plus
+TVL", then MC floor $10M + holders > $0). Cloud Build 58432f0d SUCCESS (4m27s), image
+crypto-scanner-web:ec3e72b, revision market-scanner-360-00268-7wn serving 100%. Firestore
+criteria cache regenerated right away with the deployed code path (local ADC): v8, 410 assets,
+49 undervalued. Live /api/tape/proof undervalued top 5: GNS, USUAL, RAY, BONK, CAKE, each with
+TVL; /tape rows show "mcap · TVL" (verified in a headless mobile render).
