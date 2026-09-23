@@ -36,6 +36,7 @@ export interface TapeCriteriaAssetInput {
   score?: number;
   criteria?: Partial<Record<'growth' | 'networkEffect' | 'sustainableRevenue' | 'holderValue', { status?: string }>>;
   metrics: {
+    tvl?: number;
     fees30d?: number;
     revenue30d?: number;
     holdersRevenue30d?: number;
@@ -48,6 +49,7 @@ export interface TapeTopScoreEntry {
   symbol: string;
   name: string;
   marketCap: number | null;
+  tvl: number | null;
   priceChange24h: number | null;
   priceChange7d: number | null;
   fees30d: number;
@@ -105,6 +107,7 @@ export const buildTopScore = (assets: TapeCriteriaAssetInput[] | undefined, limi
     symbol: asset.symbol,
     name: asset.name,
     marketCap: finite(asset.marketCap),
+    tvl: finite(asset.metrics.tvl),
     priceChange24h: finite(asset.priceChange24h),
     priceChange7d: finite(asset.priceChange7d),
     fees30d: asset.metrics.fees30d ?? 0,

@@ -19,6 +19,7 @@ interface TapeBqReport {
       holdersRevenue30d?: number;
       feeRunRateChange?: number;
       tvlChange7d?: number;
+      tvl?: number;
     };
   }>;
   undervalued?: Array<{ assetId: string; symbol: string; name: string; marketCap?: number; priceChange24h?: number; priceChange7d?: number }>;
@@ -142,7 +143,7 @@ tapeRouter.get('/tape/proof', async (_req, res) => {
   // and valuation scores never leave the product. Serves the latest cached
   // daily scan; a public route must never trigger a rescan.
   let businessQuality: { generatedAt: number; entries: Array<{
-    symbol: string; name: string; marketCap: number | null; fees30d: number; revenue30d: number;
+    symbol: string; name: string; marketCap: number | null; tvl: number | null; fees30d: number; revenue30d: number;
     holderValue30d: number; growthRunRatePct: number | null; priceChange24h: number | null; priceChange7d: number | null;
   }>; topScore: TapeTopScoreEntry[] } | null = null;
   try {
@@ -157,6 +158,7 @@ tapeRouter.get('/tape/proof', async (_req, res) => {
           symbol: entry.symbol,
           name: entry.name,
           marketCap: typeof entry.marketCap === 'number' && Number.isFinite(entry.marketCap) ? entry.marketCap : null,
+          tvl: typeof asset?.metrics.tvl === 'number' && Number.isFinite(asset.metrics.tvl) ? asset.metrics.tvl : null,
           fees30d: asset?.metrics.fees30d ?? 0,
           revenue30d: asset?.metrics.revenue30d ?? 0,
           holderValue30d: asset?.metrics.holdersRevenue30d ?? 0,

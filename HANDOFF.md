@@ -4354,3 +4354,28 @@ EIGEN/FF/MORPHO absent. Live checks: /api/tape/proof shows COOK, GNS, INV, QUICK
 real revenue; /tape renders the new Business Quality screen (screenshot verified). The
 authenticated Top Alpha Undervalued tab reads the same cache, so it serves the cleaned list
 on first open without an 80s rescan.
+
+### Step 136 - Undervalued: hard Network gate + TVL on BQ cards (Marius, 2026-09-23 14:51-14:53, not deployed)
+
+Marius: "Monedele de la Undervalued sunt prea mici și riscante, trebuie pus regula aia la
+networking sa fie hard. fees ≥ $100K/30z + TVL ≥ $10M." Then: TVL on every card, up top after
+MC, as large as the other tiles.
+
+- crypto-four-criteria-scanner.ts: NETWORK_MIN_FEES_30D / NETWORK_MIN_TVL constants shared by
+  the Network criterion and the new `meetsUndervaluedNetworkGate`. buildUndervaluedRanking now
+  excludes any asset without COMPLETE 30d fees >= $100K AND TVL >= $10M. Incomplete fees do not
+  pass (e.g. QUICK). A holders-basis entry only exists when fees are missing/$0, so holders-basis
+  entries drop out too. Criterion scoring and Top Score membership/order are unchanged.
+- methodologyVersion 6 -> 7 (scanner + ai-routes cache check). Methodology text: Network line
+  states the thresholds; new "Eligibilitate Subevaluate (filtru hard, v7)" line. TopAlphaView and
+  BusinessQualityView RO/EN notes mention the filter.
+- CryptoBqAssetCard: MC moved out of the subtitle into a Market cap tile; new TVL tile next to
+  it, same size as the metric tiles, green when TVL >= $10M, amber below. Public /tape rows show
+  "$X mcap · $Y TVL" (tvl added to the /api/tape/proof entries and topScore).
+- Tests: new gate test (fees 99,999 / TVL 9,999,999 / no fees out; exact thresholds in; all
+  assets kept in the scan); fixtures given TVL rows. Scanner + tape-briefing: 22/22 pass. API
+  and web tsc clean.
+- Full 410-asset universe, local run (Firestore cache NOT rewritten): 208 ranked -> 59. Top 10
+  after: COOK, GNS, INV, RSUP, BIFI, USUAL, RAY, BONK, QI, EKUBO (QUICK out: incomplete fees).
+  The top of the list barely moves because every 4/4 asset already passes Network.
+- NOT deployed. After deploy, regenerate the criteria cache (v7) so /tape picks up the gate.

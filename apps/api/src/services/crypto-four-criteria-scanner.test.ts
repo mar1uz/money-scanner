@@ -61,7 +61,9 @@ describe('Crypto four-criteria scanner', () => {
   assert.equal(asset.passedCriteria, 3);
   assert.equal(asset.score, 87);
   assert.equal(asset.classification, 'partial');
-  assert.equal(scan.undervalued[0].qualityScore, 62);
+  // Hard Network gate (v7, 2026-09-23): TVL $100K is below $10M, so the
+  // asset keeps its 3/4 score but is not eligible for Undervalued at all.
+  assert.equal(scan.undervalued.length, 0);
 });
 
 it('passes network only when fees >= $100K AND TVL >= $10M, with no multi-chain alternative', () => {
@@ -108,6 +110,32 @@ it('does not assign ambiguous duplicate symbols to an unrelated protocol', () =>
 
 const coin = (id: string, cap = 12_000_000) => ({ id, coin_gecko_id: id, symbol: id, name: id, market_cap: cap, market_cap_rank: 1 });
 const metric = (slug: string, total30d: number | null = 1_000_000) => ({ slug, total24h: 40_000, total7d: 300_000, total30d });
+// Protocol rows with TVL above the $10M Network threshold, so fixtures stay
+// eligible for the hard Undervalued gate (v7).
+const tvlRows = (...ids: string[]) => ids.map(id => ({ slug: id, gecko_id: id, tvl: 50_000_000 }));
+
+it('hard Network gate: Undervalued needs complete fees >= $100K AND TVL >= $10M (v7, 2026-09-23)', () => {
+  const scan = buildCryptoFourCriteriaScan({
+    coins: [coin('ok'), coin('thin-fees'), coin('small-tvl'), coin('no-fees'), coin('edge')],
+    protocols: [
+      ...tvlRows('ok', 'thin-fees', 'no-fees'),
+      { slug: 'small-tvl', gecko_id: 'small-tvl', tvl: 9_999_999 },
+      { slug: 'edge', gecko_id: 'edge', tvl: 10_000_000 }
+    ],
+    fees: [metric('ok'), metric('thin-fees', 99_999), metric('small-tvl'), metric('edge', 100_000)],
+    revenue: ['ok', 'thin-fees', 'small-tvl', 'no-fees', 'edge'].map(id => metric(id, 50_000)),
+    holdersRevenue: []
+  });
+  assert.equal(scan.methodologyVersion, 7);
+  assert.deepEqual(scan.undervalued.map(a => a.assetId).sort(), ['edge', 'ok']);
+  assert.equal(scan.unrankedCount, 3);
+  // Gate applies to Undervalued membership only: every asset stays in the
+  // scan (Top Score list) with its metrics and criteria.
+  assert.equal(scan.assets.length, 5);
+  for (const id of ['thin-fees', 'small-tvl', 'no-fees']) {
+    assert.ok(scan.assets.some(a => a.id === id), id);
+  }
+});
 
 it('distinguishes reported zero, absent data and incomplete child totals', () => {
   const scan = buildCryptoFourCriteriaScan({
@@ -147,7 +175,7 @@ it('does not redirect an explicit gecko ID or unrelated symbol to the wrong coin
 it('deduplicates coins and parent/child metric rows, retains protocol source links and FDV', () => {
   const scan = buildCryptoFourCriteriaScan({
     coins: [{ ...coin('alpha'), fully_diluted_valuation: 24_000_000 }, coin('alpha')],
-    protocols: [{ slug: 'alpha-v1', gecko_id: 'alpha' }],
+    protocols: [{ slug: 'alpha-v1', gecko_id: 'alpha', tvl: 50_000_000 }],
     fees: [
       { ...metric('alpha'), defillamaId: 'parent#alpha' },
       { ...metric('alpha-v1'), parentProtocol: 'parent#alpha', defillamaId: '123' },
@@ -165,7 +193,7 @@ it('deduplicates coins and parent/child metric rows, retains protocol source lin
 it('ranks tied quality fairly and compares multiples only within the same basis', () => {
   const scan = buildCryptoFourCriteriaScan({
     coins: [coin('cheap'), coin('costly', 24_000_000), coin('fees-only', 1)],
-    protocols: [], fees: [metric('fees-only')],
+    protocols: tvlRows('cheap', 'costly', 'fees-only'), fees: [metric('cheap'), metric('costly'), metric('fees-only')],
     revenue: [metric('cheap'), metric('costly')], holdersRevenue: []
   });
   const cheap = scan.undervalued.find(a => a.assetId === 'cheap')!;
@@ -185,11 +213,13 @@ it('excludes fees-basis fallback assets from the undervalued ranking (revenue-fi
   // holder-distribution assets stay.
   const scan = buildCryptoFourCriteriaScan({
     coins: [coin('rev'), coin('fees-only'), coin('holders-only')],
-    protocols: [], fees: [metric('fees-only')],
+    protocols: tvlRows('rev', 'fees-only', 'holders-only'), fees: [metric('rev'), metric('fees-only'), metric('holders-only')],
     revenue: [metric('rev')], holdersRevenue: [metric('holders-only')]
   });
-  assert.deepEqual(scan.undervalued.map(a => a.assetId).sort(), ['holders-only', 'rev']);
-  assert.equal(scan.unrankedCount, 1);
+  // Since v7 a holders-basis asset can only exist with fees missing or $0,
+  // so the hard Network gate (fees >= $100K) excludes it as well.
+  assert.deepEqual(scan.undervalued.map(a => a.assetId), ['rev']);
+  assert.equal(scan.unrankedCount, 2);
   // Excluded from the ranking, not from the scan: metrics stay visible.
   assert.ok(scan.assets.some(a => a.id === 'fees-only'));
 });
@@ -234,7 +264,8 @@ it('orders undervalued by criteria passed first, then undervaluation index withi
   const scan = buildCryptoFourCriteriaScan({
     coins: [coin('full', 600_000_000), coin('mid', 12_000_000), coin('cheap', 1_000_000)],
     protocols: [
-      { name: 'Full Protocol', slug: 'full-protocol', symbol: 'FULL', tvl: 100_000_000, change_7d: 10, chains: ['Ethereum', 'Base'] }
+      { name: 'Full Protocol', slug: 'full-protocol', symbol: 'FULL', tvl: 100_000_000, change_7d: 10, chains: ['Ethereum', 'Base'] },
+      ...tvlRows('mid', 'cheap')
     ],
     fees: [metric('full-protocol'), metric('mid'), metric('cheap')],
     revenue: [metric('full-protocol'), metric('mid'), metric('cheap')],
@@ -243,7 +274,7 @@ it('orders undervalued by criteria passed first, then undervaluation index withi
   const full = scan.undervalued.find(a => a.assetId === 'full')!;
   const cheap = scan.undervalued.find(a => a.assetId === 'cheap')!;
   assert.equal(full.passedCriteria, 4);
-  assert.equal(cheap.passedCriteria, 2);
+  assert.equal(cheap.passedCriteria, 3);
   assert.ok(cheap.undervaluationIndex > full.undervaluationIndex);
   assert.deepEqual(scan.undervalued.map(a => a.assetId), ['full', 'cheap', 'mid']);
 });

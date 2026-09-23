@@ -53,6 +53,7 @@ export const CryptoBqAssetCard: React.FC<{
     tvlPace ? `TVL 7z ${tvlPace}` : null,
   ].filter(Boolean).join(' \u00b7 ');
   const valuation = cryptoValuation(asset);
+  const tvlMeetsGate = (metrics.tvl ?? 0) >= 10_000_000;
   const multipleBasis = valuation.basis === 'revenue' ? 'P/R' : valuation.basis === 'fees' ? 'P/F' : 'P/H';
   const percent = (value?: number) => value === undefined ? '—' : `${value.toFixed(2)}%`;
   const basisLabel = valuation.basis === 'revenue' ? 'revenue' : valuation.basis === 'fees' ? 'fees' : isRo ? 'valoare holderi' : 'holder value';
@@ -95,7 +96,7 @@ export const CryptoBqAssetCard: React.FC<{
                 </span>
               )}
             </div>
-            <span className="block text-[10px] text-slate-500 truncate"><bdi translate="no">{asset.name}</bdi> · MC {fmtUsd(asset.marketCap)}</span>
+            <span className="block text-[10px] text-slate-500 truncate"><bdi translate="no">{asset.name}</bdi></span>
           </div>
         </div>
         <div className="text-right" title={isRo ? 'Scor intern: pass = 25, watch = 12, fail/necunoscut = 0. Nu este probabilitate sau randament.' : 'Internal score: pass = 25, watch = 12, fail/unknown = 0. Not a probability or return.'}>
@@ -106,6 +107,19 @@ export const CryptoBqAssetCard: React.FC<{
               index {undervalued.undervaluationIndex > 0 ? '+' : ''}{undervalued.undervaluationIndex}
             </span>
           )}
+        </div>
+      </div>
+      {/* Marius (2026-09-23): MC and TVL up top, as large as the metric tiles,
+          so the size of every protocol is visible at a glance. TVL is green
+          when it clears the $10M Network threshold, amber below it. */}
+      <div className="grid grid-cols-2 gap-2 mt-3">
+        <div className="rounded-lg border border-white/[0.07] bg-white/[0.02] p-2.5">
+          <span className="block text-[9px] font-mono uppercase text-slate-600">{isRo ? 'Market cap' : 'Market cap'}</span>
+          <span className="block mt-1 text-sm font-mono font-bold text-slate-100">{fmtUsd(asset.marketCap)}</span>
+        </div>
+        <div className={`rounded-lg border p-2.5 ${tvlMeetsGate ? 'border-emerald-500/25 bg-emerald-500/[0.05]' : 'border-amber-500/25 bg-amber-500/[0.05]'}`} title={isRo ? 'Prag Efect de rețea: TVL ≥ $10M' : 'Network effect threshold: TVL ≥ $10M'}>
+          <span className={`block text-[9px] font-mono uppercase ${tvlMeetsGate ? 'text-emerald-300' : 'text-amber-300'}`}>TVL</span>
+          <span className="block mt-1 text-sm font-mono font-bold text-slate-100">{fmtUsd(metrics.tvl)}</span>
         </div>
       </div>
       <div className="mt-2.5 flex flex-wrap items-center gap-1.5">

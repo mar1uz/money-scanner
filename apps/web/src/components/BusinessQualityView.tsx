@@ -113,8 +113,8 @@ export const BusinessQualityView: React.FC = () => {
               </h2>
               <p className="text-[11px] text-slate-400 font-sans">
                 {isRo
-                  ? 'Sortare de la cea mai subevaluată la cea mai supraevaluată, după Efect de rețea, Venit sustenabil și Valoare către holderi.'
-                  : 'Sorted from most undervalued to most overvalued, by Network Effect, Sustainable Revenue and Holder Value.'}
+                  ? 'Sortare de la cea mai subevaluată la cea mai supraevaluată, după Efect de rețea, Venit sustenabil și Valoare către holderi. Eligibile doar cu fees 30z ≥ $100K și TVL ≥ $10M.'
+                  : 'Sorted from most undervalued to most overvalued, by Network Effect, Sustainable Revenue and Holder Value. Eligible only with 30d fees ≥ $100K and TVL ≥ $10M.'}
               </p>
             </div>
           </div>

@@ -130,6 +130,21 @@ const criterion = (
 // Marius (2026-09-23): GROWTH / REVENUE / HOLDERS stay binary data completeness
 // (pass=25, anything else 0). NETWORK is again a quality gate with the old
 // intermediate state: pass=25, watch=12, unknown/fail=0.
+// NETWORK pass thresholds (Marius, 2026-09-23). Shared by the criterion and
+// by the hard Undervalued eligibility gate so the two can never drift apart.
+export const NETWORK_MIN_FEES_30D = 100_000;
+export const NETWORK_MIN_TVL = 10_000_000;
+
+/**
+ * Hard eligibility gate for the Undervalued list (Marius, 2026-09-23:
+ * "trebuie pus regula aia la networking sa fie hard. fees >= $100K/30z +
+ * TVL >= $10M"). An asset appears in Undervalued only with COMPLETE 30-day
+ * fees >= $100K AND TVL >= $10M. Incomplete fees cannot prove the threshold,
+ * so they do not pass the gate. Top Score membership is not affected.
+ */
+export const meetsUndervaluedNetworkGate = (asset: CryptoFourCriteriaAsset): boolean =>
+  (asset.metrics.fees30d ?? 0) >= NETWORK_MIN_FEES_30D && (asset.metrics.tvl ?? 0) >= NETWORK_MIN_TVL;
+
 const scoreForStatus = (status: CryptoCriteriaStatus): number => {
   if (status === 'pass') return 25;
   if (status === 'watch') return 12;
@@ -159,6 +174,9 @@ const buildUndervaluedRanking = (assets: CryptoFourCriteriaAsset[]): { undervalu
       // entirely. They still appear in `assets` with their metrics; they are
       // simply not ranked on value.
       if (basis === 'fees') return undefined;
+      // Hard Network gate (2026-09-23, methodology v7): small, thin protocols
+      // (fees < $100K / 30d or TVL < $10M) are not eligible at all.
+      if (!meetsUndervaluedNetworkGate(asset)) return undefined;
       const qualityScore = scoreForStatus(asset.criteria.networkEffect.status)
         + scoreForStatus(asset.criteria.sustainableRevenue.status)
         + scoreForStatus(asset.criteria.holderValue.status);
@@ -268,7 +286,7 @@ export function evaluateCryptoFourCriteriaAsset(
   // Pass ONLY when 30-day fees >= $100K AND TVL >= $10M; the old ">= 2 chains"
   // alternative is deliberately dropped. Watch when the pass rule is unmet but
   // some usage exists (fees30d > 0 or TVL > 0); unknown when no usage data.
-  const networkPass = fees.total30d >= 100_000 && (protocol?.tvl || 0) >= 10_000_000;
+  const networkPass = fees.total30d >= NETWORK_MIN_FEES_30D && (protocol?.tvl || 0) >= NETWORK_MIN_TVL;
   const networkEffect = networkPass
     ? criterion('pass', 'Efect de rețea', `${formatUsd(fees.total30d)} fees / 30z`, 'Activitate economică relevantă (fees ≥ $100K / 30z) plus TVL ≥ $10M; acesta este un proxy, nu număr de utilizatori.')
     : fees.total30d > 0 || (protocol?.tvl || 0) > 0
@@ -483,7 +501,7 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
   const coveredCount = universe.filter(asset => asset.classification !== 'insufficient-data').length;
   const { undervalued, unrankedCount } = buildUndervaluedRanking(universe);
   return {
-    methodologyVersion: 6,
+    methodologyVersion: 7,
     scannedCount: coins.length,
     coveredCount,
     allFourCount: universe.filter(asset => asset.classification === 'all-four').length,
@@ -496,11 +514,12 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
     methodology: [
       'Scor 4x200: fiecare rubrică cu date complete valorează 25 puncte; datele lipsă sau incomplete valorează 0. Nu se aplică praguri minime de performanță.',
       'Creștere: necesită o schimbare TVL pe 7 zile sau accelerarea fees (ritm 7z vs 30z) calculabilă.',
-      'Efect de rețea: necesită date observabile despre fees sau TVL/distribuție; proxy, nu utilizatori activi exacți.',
+      'Efect de rețea: pass doar cu fees 30z ≥ $100K ȘI TVL ≥ $10M; watch când există utilizare sub prag. Proxy, nu utilizatori activi exacți.',
       'Venit sustenabil: necesită o observație completă de revenue pe 30z; pentru L1-uri (BTC, ETH, SOL) se folosesc fees rețelei.',
       'Valoare către holderi: necesită raportare completă buyback/burn, distribuții sau staking finanțat din venit; zero raportat este dată validă.',
       'Model de subevaluare (tab Calitate Business): scor calitate 0-75 = completitudinea datelor pentru Efect de rețea + Venit sustenabil + Valoare către holderi.',
       'Evaluare: P/R = market cap / (revenue 30z × 365/30); fallback P/H din buyback/burn anualizat când revenue lipsește. Activele cu doar fees (fără revenue/holderi) sunt excluse din clasamentul de subevaluate - P/F nu măsoară captura de valoare.',
+      'Eligibilitate Subevaluate (filtru hard, v7): apar doar activele cu fees 30z complete ≥ $100K ȘI TVL ≥ $10M (regula Efect de rețea); cele sub prag nu sunt clasate deloc, indiferent de multiplu.',
       'Index subevaluare = percentila calității − percentila scumpirii (log P/R) între active cu aceeași bază (revenue/holderi), cu percentile centrate pentru egalități; activele fără revenue sau date de holderi nu sunt clasate.',
       'Randament holderi: (holders revenue 30z × 365/30) / MC × 100; varianta /FDV include diluția. Ritm extrapolat, nu APY garantat.',
       'Selecție secțiune: sunt listate doar monedele cu fees/revenue observabile sau buyback/burn raportat; sortare după criterii trecute, apoi factorul de dimensiune (log10 din revenue 30z; distribuțiile către holderi contează ca revenue, iar fees sunt fallback doar când datele de revenue lipsesc complet), apoi ritmul revenue (7z vs 30z) și rank.'
