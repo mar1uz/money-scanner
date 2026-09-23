@@ -151,3 +151,32 @@ export const buildInstinctReport = (
     capitalRotation: takes.capitalRotation
   };
 };
+
+const NUMBER_TOKEN = /\d+(?:[.,]\d+)*/g;
+const normNumber = (raw: string) => raw.replace(/[.,](?=\d{3}(?:\D|$))/g, '').replace(',', '.');
+
+/**
+ * Ask-box answers must come only from today's Instinct briefing. On top of
+ * the narrative rules, every number with 2+ digits or a decimal in the answer
+ * must appear in the briefing text (same value, any thousands separator).
+ */
+export const answerIssues = (answer: string, briefingText: string): string[] => {
+  const issues = findNarrativeIssues([answer]);
+  const known = new Set((briefingText.match(NUMBER_TOKEN) || []).map(normNumber));
+  for (const raw of answer.match(NUMBER_TOKEN) || []) {
+    const n = normNumber(raw);
+    if (n.replace('.', '').length < 2 && !n.includes('.')) continue;
+    if (!known.has(n)) issues.push(`ungrounded-number: ${raw} is not in today's briefing`);
+  }
+  return issues;
+};
+
+export const ASK_FIXED_REPLY = {
+  en: "I can only answer from today's Instinct briefing, and I couldn't give a checked answer to this question. Try asking about something covered in today's briefing above.",
+  ro: 'Pot răspunde doar din briefingul Instinct de azi și nu am putut da un răspuns verificat la această întrebare. Încearcă o întrebare despre ce acoperă briefingul de mai sus.'
+} as const;
+
+export const ASK_NO_BRIEFING_REPLY = {
+  en: "Today's Instinct briefing is not published yet, so I can't answer questions right now.",
+  ro: 'Briefingul Instinct de azi nu este publicat încă, așa că nu pot răspunde acum la întrebări.'
+} as const;

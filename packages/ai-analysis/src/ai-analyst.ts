@@ -430,6 +430,35 @@ export class AIMarketAnalystService {
     };
   }
 
+  /**
+   * Ask box: answers ONLY from today's Instinct-authored briefing text.
+   * The caller runs the narrative guard on the result. Throws on any failure;
+   * the caller then shows a fixed reply.
+   */
+  public async askFromInstinctBriefing(question: string, briefingText: string, language: 'ro' | 'en'): Promise<string> {
+    if (!this.geminiApiKey) throw new Error('no model key');
+    const safeModel = /^[a-zA-Z0-9._-]+$/.test(this.geminiModel) ? this.geminiModel : 'gemini-3.5-flash-lite';
+    const prompt = [
+      `Answer in ${language === 'ro' ? 'Romanian' : 'English'}, in at most 120 words, using ONLY the briefing text below. It was written today by Instinct and is the only allowed source.`,
+      'Do not add any fact, number, date, price, event or name that is not written in the briefing. Copy numbers exactly as written.',
+      `If the briefing does not cover the question, say only that today's briefing does not cover it.`,
+      'No financial advice, no entries or targets, no probabilities.',
+      `Question: ${question.slice(0, 600)}`,
+      `Briefing:\n${briefingText.slice(0, 12000)}`
+    ].join('\n');
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${safeModel}:generateContent`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': this.geminiApiKey },
+      signal: AbortSignal.timeout(30_000),
+      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: 0, maxOutputTokens: 600 } })
+    });
+    if (!response.ok) throw new Error(`Gemini HTTP ${response.status}`);
+    const body = await response.json() as any;
+    const answer = body?.candidates?.[0]?.content?.parts?.map((part: any) => typeof part?.text === 'string' ? part.text : '').join('').trim();
+    if (!answer) throw new Error('empty answer');
+    return answer;
+  }
+
   public async askMarketIntelligenceQuestion(
     question: string,
     report: MarketIntelligenceReport,

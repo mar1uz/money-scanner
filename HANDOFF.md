@@ -4184,3 +4184,13 @@ Marius clarified with an annotated screenshot: the button he wanted gone was the
 - `AssetDeepDiveView.tsx`: restored the flip-row "TradingView extern" button exactly as before Step 126 (controlled `chartTab` state, `activeTab`/`onActiveTabChange` passed to the chart; the button switches the chart to the TradingView embed).
 - `InteractiveChart.tsx`: removed the small external TradingView link pill (BarChart2 + ExternalLink, text "Deschide Tab TradingView" on desktop) from the tab bar entirely. Reverted the Step 126 change that showed the "TradingView extern" tab on mobile: on crypto asset pages (CoinGecko shortcut present) it is hidden on mobile again and reached only via the flip-row button, so there is one access path per width. Desktop tab bar unchanged.
 - Kept from Step 126: "Plan alert" removal and the single timeframe selector.
+
+## Step 129 - 2026-09-23 - Ask box answers only from today's Instinct briefing, guarded
+
+Marius chose option 2 for "Ask the AI analyst": "Rămâne, dar răspunde doar din briefing-ul meu zilnic, cu filtrul aplicat pe fiecare răspuns".
+
+- `POST /api/ai/ask` rewritten. Context = today's servable Instinct takes for the selected language (briefing, market-intelligence, capital-rotation, intelligence-brief). No briefing -> fixed "not published yet" reply. Otherwise `AIAnalyst.askFromInstinctBriefing` (Gemini, temperature 0, prompt restricted to the briefing text) writes the answer, and `answerIssues` checks it: the Step 127 narrative rules (market-cap units, dated central-bank decisions) plus every number with 2+ digits or a decimal must appear in the briefing. Any issue or model failure -> fixed reply (`ASK_FIXED_REPLY`, EN/RO). The old Gemini report / market-data answer paths are no longer used by this route.
+- Response adds `source: 'instinct-briefing'`, `guard: pass|fixed-reply|no-briefing`, header `X-Answer-Guard`. Rejections are logged (`ask-box guard rejected answer:`) with the issues.
+- Ops verification: `/ai/ask` is reachable with the scheduler token (`x-daily-scan-token`) without a session; with that token, `verifyAnswer` runs the guard on a supplied answer instead of calling the model.
+- Tests: guard suite 14/14 (3 new ask-box cases).
+- Deployed from a clean git worktree of HEAD so uncommitted work from the parallel i18n task was not shipped.
