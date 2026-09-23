@@ -4305,3 +4305,12 @@ He picked option 2: absolute size must matter in the ranking, not only accelerat
   the $0-revenue-no-fallback rule and the L1 fees-fallback lower down the sort. Suite: 198/198.
 - Fresh 11:07 UTC scan top 10: HYPE, UNI, SKY, JUP, CAKE, RAY, LIT, AAVE, EDGE, ETHFI.
   AVAX #21, BONK #11, MORPHO #28. Still NOT deployed.
+
+### Step 134 deploy - 2026-09-23 13:16 UTC
+
+Deployed to Cloud Run from a1e46ad ("Da" on WhatsApp 13:11, answering "Fac deploy?"):
+revision market-scanner-360-00266-6z9, image crypto-scanner-web:a1e46ad, build
+c611df9f SUCCESS (4m29s). Verified: revision ready and serving; /tape renders (still the
+old ordering from the daily artifact - it picks up the new sort on the next daily scan);
+the app criteria cache (methodologyVersion 4) is discarded by the new code and regenerates
+as v5 on first authenticated Top Alpha open or the next scheduled scan.
