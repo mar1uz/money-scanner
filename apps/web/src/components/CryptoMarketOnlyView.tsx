@@ -5,6 +5,7 @@ import type { Candle, Timeframe } from '../types.js';
 import { useLanguage } from '../i18n.js';
 import { BusinessQualityAssetCard } from './BusinessQualityAssetCard.js';
 import { AssetExternalLinks } from './AssetExternalLinks.js';
+import { NarrativeTag } from './NarrativeTag.js';
 import { useCryptoFundamentals } from '../services/crypto-fundamentals.js';
 
 const money = (value: unknown) => typeof value === 'number' && Number.isFinite(value)
@@ -77,19 +78,30 @@ export const CryptoMarketOnlyView: React.FC<{
   const showDexCandles = dexCandleCount >= 15;
 
   return <section className="space-y-5" aria-label={`Date de piață ${info.name}`}>
-    <div className="flex flex-wrap items-center gap-3">
-      <button onClick={onBack} className="rounded-xl border border-white/10 p-2.5 text-slate-300" aria-label="Înapoi"><ArrowLeft className="h-5 w-5" /></button>
-      <div className="min-w-0 flex-1"><h1 className="text-xl font-bold text-white">{info.name} <span className="text-slate-400">${info.symbol}</span></h1>
-        <p className="text-xs text-slate-400">Crypto · {quote.source}{info.rank > 0 ? ` · #${info.rank}` : ''}</p>
-        <AssetExternalLinks className="mt-2" symbol={info.symbol} marketClass="crypto" coinGeckoId={info.coinGeckoId} protocolSlugs={data.businessQuality?.asset?.protocolSlugs} contractAddress={dex?.contractAddress} narrative={data.businessQuality?.asset?.narrative || cryptoFundamentals.get(String(info.symbol).toUpperCase())?.narrative} language={language} /></div>
+    <div className="space-y-2.5">
+      {/* Row 1: identity + refresh (Marius, 2026-09-23: one job per row, nothing collides) */}
+      <div className="flex items-center gap-3">
+        <button onClick={onBack} className="shrink-0 rounded-xl border border-white/10 p-2.5 text-slate-300" aria-label="Înapoi"><ArrowLeft className="h-5 w-5" /></button>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-xl font-bold text-white">{info.name} <span className="text-slate-400">${info.symbol}</span></h1>
+          <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-slate-400">
+            <span>Crypto · {quote.source}{info.rank > 0 ? ` · #${info.rank}` : ''}</span>
+            <NarrativeTag narrative={data.businessQuality?.asset?.narrative || cryptoFundamentals.get(String(info.symbol).toUpperCase())?.narrative} />
+          </p>
+        </div>
+        <button onClick={onRefresh} disabled={loading} className="shrink-0 rounded-xl border border-white/10 p-2.5 text-cyan-300" aria-label="Reîncarcă datele"><RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} /></button>
+      </div>
+      {/* Row 2: timeframe segmented control, full width, equal tap targets */}
       {onTimeframeChange && (
-        <div className="flex items-center rounded-lg border border-white/[0.06] bg-white/[0.03] p-0.5">
+        <div className="flex w-full items-center rounded-xl border border-white/[0.06] bg-white/[0.03] p-1" role="tablist" aria-label="Interval grafic">
           {(['1h', '4h', '8h', '1d', '1w'] as Timeframe[]).map((tf) => (
             <button
               key={tf}
               type="button"
+              role="tab"
+              aria-selected={timeframe === tf}
               onClick={() => onTimeframeChange(tf)}
-              className={`px-2 py-1 text-[11px] font-mono rounded-md transition-all ${
+              className={`min-w-0 flex-1 rounded-lg px-2 py-1.5 text-[11px] font-mono transition-all ${
                 timeframe === tf
                   ? 'bg-cyan-500/15 text-cyan-300 font-bold'
                   : 'text-slate-500 hover:text-slate-300'
@@ -100,7 +112,8 @@ export const CryptoMarketOnlyView: React.FC<{
           ))}
         </div>
       )}
-      <button onClick={onRefresh} disabled={loading} className="rounded-xl border border-white/10 p-2.5 text-cyan-300" aria-label="Reîncarcă datele"><RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} /></button>
+      {/* Row 3: external actions, one fixed 3-button strip */}
+      <AssetExternalLinks layout="strip" showNarrative={false} symbol={info.symbol} marketClass="crypto" coinGeckoId={info.coinGeckoId} protocolSlugs={data.businessQuality?.asset?.protocolSlugs} contractAddress={dex?.contractAddress} narrative={data.businessQuality?.asset?.narrative || cryptoFundamentals.get(String(info.symbol).toUpperCase())?.narrative} language={language} />
     </div>
     <div className="rounded-[30px] border border-white/10 bg-[var(--t-surface)] p-5 sm:p-6">
       <div className="flex flex-wrap items-baseline gap-3">
