@@ -6,6 +6,7 @@ import { useLanguage } from '../i18n.js';
 import { BusinessQualityAssetCard } from './BusinessQualityAssetCard.js';
 import { AssetExternalLinks } from './AssetExternalLinks.js';
 import { NarrativeTag } from './NarrativeTag.js';
+import { CoinPageChart, type CoinChartMarketResolver } from './CoinPageChart.js';
 import { useCryptoFundamentals } from '../services/crypto-fundamentals.js';
 
 const money = (value: unknown) => typeof value === 'number' && Number.isFinite(value)
@@ -56,7 +57,8 @@ export const DexCandlestickChart: React.FC<{ candles: Candle[]; symbol: string }
 export const CryptoMarketOnlyView: React.FC<{
   data: AssetDetailResponse; timeframe: Timeframe; onBack: () => void; onRefresh: () => void; loading?: boolean;
   onTimeframeChange?: (tf: Timeframe) => void;
-}> = ({ data, timeframe, onBack, onRefresh, loading, onTimeframeChange }) => {
+  chartResolver?: CoinChartMarketResolver;
+}> = ({ data, timeframe, onBack, onRefresh, loading, onTimeframeChange, chartResolver }) => {
   const { info, quote } = data;
   const { language } = useLanguage();
   const cryptoFundamentals = useCryptoFundamentals();
@@ -145,21 +147,27 @@ export const CryptoMarketOnlyView: React.FC<{
     {dex?.pairIsDust && <div className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.05] p-4 text-xs leading-relaxed text-amber-100/90">
       Lichiditatea DEX pentru {info.symbol} este neglijabilă — volumul real se tranzacționează pe CEX sau alte piețe neacoperite de DEX Screener. Graficul folosește prețuri agregate CoinGecko.
     </div>}
-    <div className="rounded-[30px] border border-white/10 bg-[var(--t-surface)] p-5 sm:p-6">
-      <h2 className="font-semibold text-white">{showDexCandles
+    <CoinPageChart
+      symbol={info.symbol}
+      marketClass="crypto"
+      timeframe={timeframe}
+      language={language}
+      resolver={chartResolver}
+      dex={dex ? { pairAddress: dex.pairAddress, chainId: dex.chainId, pairIsDust: dex.pairIsDust } : null}
+      fallbackTitle={showDexCandles
         ? (dex!.candleSource === 'CoinGecko' ? `Grafic preț agregat · ${timeframe.toUpperCase()}` : `Grafic OHLCV DEX · ${timeframe.toUpperCase()}`)
-        : 'Istoric de preț · ultimele 30 de zile disponibile'}</h2>
-      <p className="mt-1 text-xs text-slate-400">{showDexCandles
+        : 'Istoric de preț · ultimele 30 de zile disponibile'}
+      fallbackSubtitle={showDexCandles
         ? (dex!.candleSource === 'CoinGecko'
           ? 'Lumânări construite din prețuri agregate CoinGecko (toate piețele, inclusiv CEX). Ultima lumânare poate fi încă deschisă.'
           : `Lumânări reale USD din pool-ul selectat de DEX Screener, furnizate de ${dex!.candleSource}. Ultima lumânare poate fi încă deschisă.`)
-        : `Prețuri USD raportate de ${quote.source}; puncte de preț, nu lumânări OHLCV.`}</p>
-      {showDexCandles ? <DexCandlestickChart candles={dex!.candles || []} symbol={info.symbol} /> : prices.length > 1 ? <>
+        : `Prețuri USD raportate de ${quote.source}; puncte de preț, nu lumânări OHLCV.`}
+      fallback={showDexCandles ? <DexCandlestickChart candles={dex!.candles || []} symbol={info.symbol} /> : prices.length > 1 ? <>
         <div className="mt-4 flex justify-between text-xs text-slate-400"><span>Min. {money(low)}</span><span>Max. {money(high)}</span></div>
         <svg viewBox="0 0 800 260" className="mt-2 w-full" role="img" aria-label={`Istoric de preț ${info.name}`}><polyline points={points} fill="none" stroke="#CDEE7F" strokeWidth="2.5" vectorEffect="non-scaling-stroke" /></svg>
         <div className="flex justify-between text-xs text-slate-400"><span>{new Date(start).toLocaleDateString('ro-RO')}</span><span>{new Date(end).toLocaleString('ro-RO')}</span></div>
       </> : <p className="py-10 text-sm text-slate-400">Istoricul de preț nu este disponibil momentan de la furnizor. Cotația de mai sus rămâne disponibilă.</p>}
-    </div>
+    />
     {dex && !dex.pairIsDust && <div className="rounded-[30px] border border-fuchsia-500/20 bg-fuchsia-500/[0.04] p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold text-white">Piața DEX principală</h2><p className="mt-1 text-xs text-slate-400">Pereche selectată după lichiditatea USD raportată de DEX Screener.</p></div>
         <a href={dex.dexUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-fuchsia-400/25 px-3 py-1.5 text-xs text-fuchsia-200">DEX Screener <ExternalLink className="h-3.5 w-3.5" /></a></div>
