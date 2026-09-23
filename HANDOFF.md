@@ -4379,3 +4379,22 @@ MC, as large as the other tiles.
   after: COOK, GNS, INV, RSUP, BIFI, USUAL, RAY, BONK, QI, EKUBO (QUICK out: incomplete fees).
   The top of the list barely moves because every 4/4 asset already passes Network.
 - NOT deployed. After deploy, regenerate the criteria cache (v7) so /tape picks up the gate.
+
+### Step 137 - Undervalued MC floor $10M + Holders needs > $0 (Marius, 2026-09-23 15:20-15:26)
+
+Marius approved the Step 136 deploy ("Da, e ok așa, filtru plus TVL"), then asked for "25 de
+milioane market cap plus holder mai mare decât zero" and corrected it a minute later: "market
+cap de 10 milioane să fie minimul și, bineînțeles, holder mai mare decât zero".
+
+- UNDERVALUED_MIN_MARKET_CAP = $10M next to the Network constants; buildUndervaluedRanking
+  excludes assets below it.
+- Holder value criterion: complete data AND > $0 to pass. A reported $0 is now 'fail'
+  ("$0 observat"); missing/incomplete stays 'unknown'. This changes 4x200 scores and therefore
+  Top Score order too (e.g. a $0-to-holders asset drops from 4/4 to 3/4) - approved by Marius.
+- methodologyVersion 7 -> 8 (scanner + ai-routes). Methodology, disclaimer and the RO/EN notes
+  in Top Alpha / Business Quality updated.
+- Tests updated for $0 holders = fail; gate test adds a $9,999,999 MC asset (out) and a $10M
+  edge (in). Scanner + tape-briefing 22/22 pass; API and web tsc clean.
+- Full 410-asset universe, local run: 49 ranked. Top 10: GNS, USUAL, RAY, BONK, CAKE, LDO, SKY,
+  JUP, SSV, CVX. COOK out (MC $1.9M and $0 to holders).
+- Shipped in the same deploy as Step 136.

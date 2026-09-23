@@ -518,7 +518,7 @@ export const getCryptoCriteriaReport = async (requestedRefresh = false, allowGen
     cached = await readPersistentAICache<CryptoCriteriaPayload>(cryptoCriteriaPersistentKey);
     if (cached) cryptoCriteriaCache.set(cacheKey, cached);
   }
-  if (cached?.payload.methodologyVersion !== 7) cached = undefined;
+  if (cached?.payload.methodologyVersion !== 8) cached = undefined;
   const cacheAge = cached ? Date.now() - cached.updatedAt : Number.POSITIVE_INFINITY;
   if (cached && cacheAge < CRYPTO_CRITERIA_CACHE_MS && (!requestedRefresh || cacheAge < CRYPTO_CRITERIA_FORCE_REFRESH_FLOOR_MS)) {
     return cached.payload;

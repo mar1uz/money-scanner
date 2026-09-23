@@ -33,13 +33,14 @@ describe('Crypto four-criteria scanner', () => {
 
     assert.equal(scan.scannedCount, 3);
     assert.equal(scan.coveredCount, 2);
-    assert.equal(scan.allFourCount, 2);
+    // Beta reports $0 to holders: since v8 that fails Holders (was pass).
+    assert.equal(scan.allFourCount, 1);
     assert.equal(scan.firstThreeCount, 2);
     assert.equal(scan.assets[0].symbol, 'ALP');
     assert.equal(scan.assets[0].classification, 'all-four');
     assert.equal(scan.assets[0].score, 100);
-    assert.equal(scan.assets[1].classification, 'all-four');
-    assert.equal(scan.assets[1].criteria.holderValue.status, 'pass');
+    assert.equal(scan.assets[1].classification, 'first-three');
+    assert.equal(scan.assets[1].criteria.holderValue.status, 'fail');
     assert.equal(scan.assets[2].classification, 'insufficient-data');
   });
 
@@ -57,9 +58,10 @@ describe('Crypto four-criteria scanner', () => {
     holdersRevenue: [{ slug: 'stonk-like', total24h: 0, total7d: 0, total30d: 0 }]
   });
   const asset = scan.assets[0];
-  assert.deepEqual(Object.values(asset.criteria).map(criterion => criterion.status), ['pass', 'watch', 'pass', 'pass']);
-  assert.equal(asset.passedCriteria, 3);
-  assert.equal(asset.score, 87);
+  // Holders reports $0 -> fail since v8.
+  assert.deepEqual(Object.values(asset.criteria).map(criterion => criterion.status), ['pass', 'watch', 'pass', 'fail']);
+  assert.equal(asset.passedCriteria, 2);
+  assert.equal(asset.score, 62);
   assert.equal(asset.classification, 'partial');
   // Hard Network gate (v7, 2026-09-23): TVL $100K is below $10M, so the
   // asset keeps its 3/4 score but is not eligible for Undervalued at all.
@@ -116,23 +118,24 @@ const tvlRows = (...ids: string[]) => ids.map(id => ({ slug: id, gecko_id: id, t
 
 it('hard Network gate: Undervalued needs complete fees >= $100K AND TVL >= $10M (v7, 2026-09-23)', () => {
   const scan = buildCryptoFourCriteriaScan({
-    coins: [coin('ok'), coin('thin-fees'), coin('small-tvl'), coin('no-fees'), coin('edge')],
+    coins: [coin('ok'), coin('thin-fees'), coin('small-tvl'), coin('no-fees'), coin('edge', 10_000_000), coin('micro', 9_999_999)],
     protocols: [
-      ...tvlRows('ok', 'thin-fees', 'no-fees'),
+      ...tvlRows('ok', 'thin-fees', 'no-fees', 'micro'),
       { slug: 'small-tvl', gecko_id: 'small-tvl', tvl: 9_999_999 },
       { slug: 'edge', gecko_id: 'edge', tvl: 10_000_000 }
     ],
-    fees: [metric('ok'), metric('thin-fees', 99_999), metric('small-tvl'), metric('edge', 100_000)],
-    revenue: ['ok', 'thin-fees', 'small-tvl', 'no-fees', 'edge'].map(id => metric(id, 50_000)),
+    fees: [metric('ok'), metric('thin-fees', 99_999), metric('small-tvl'), metric('edge', 100_000), metric('micro')],
+    revenue: ['ok', 'thin-fees', 'small-tvl', 'no-fees', 'edge', 'micro'].map(id => metric(id, 50_000)),
     holdersRevenue: []
   });
-  assert.equal(scan.methodologyVersion, 7);
+  assert.equal(scan.methodologyVersion, 8);
   assert.deepEqual(scan.undervalued.map(a => a.assetId).sort(), ['edge', 'ok']);
-  assert.equal(scan.unrankedCount, 3);
+  // 'micro' passes Network but sits below the $10M market-cap floor (v8).
+  assert.equal(scan.unrankedCount, 4);
   // Gate applies to Undervalued membership only: every asset stays in the
   // scan (Top Score list) with its metrics and criteria.
-  assert.equal(scan.assets.length, 5);
-  for (const id of ['thin-fees', 'small-tvl', 'no-fees']) {
+  assert.equal(scan.assets.length, 6);
+  for (const id of ['thin-fees', 'small-tvl', 'no-fees', 'micro']) {
     assert.ok(scan.assets.some(a => a.id === id), id);
   }
 });
@@ -152,7 +155,8 @@ it('distinguishes reported zero, absent data and incomplete child totals', () =>
   const missing = scan.assets.find(a => a.id === 'missing')!;
   const partial = scan.assets.find(a => a.id === 'partial')!;
   assert.equal(zero.metrics.holdersRevenue30d, 0);
-  assert.equal(zero.criteria.holderValue.status, 'pass');
+  // v8: complete data but $0 to holders fails the criterion.
+  assert.equal(zero.criteria.holderValue.status, 'fail');
   assert.equal(missing.metrics.revenue30d, undefined);
   assert.equal(missing.criteria.sustainableRevenue.status, 'unknown');
   assert.equal(missing.criteria.holderValue.status, 'unknown');
@@ -262,7 +266,7 @@ it('rejects malformed provider payloads instead of caching an empty successful s
 
 it('orders undervalued by criteria passed first, then undervaluation index within the group', () => {
   const scan = buildCryptoFourCriteriaScan({
-    coins: [coin('full', 600_000_000), coin('mid', 12_000_000), coin('cheap', 1_000_000)],
+    coins: [coin('full', 600_000_000), coin('mid', 24_000_000), coin('cheap', 10_000_000)],
     protocols: [
       { name: 'Full Protocol', slug: 'full-protocol', symbol: 'FULL', tvl: 100_000_000, change_7d: 10, chains: ['Ethereum', 'Base'] },
       ...tvlRows('mid', 'cheap')
@@ -344,9 +348,11 @@ it('ranks $0-revenue protocols by real capture; fees are fallback only when reve
       { slug: 'earner', total24h: 1_000, total7d: 7_000, total30d: 30_000 }
     ]
   });
-  assert.deepEqual(scan.assets.map(asset => asset.id), ['earner', 'hollow', 'feechain', 'smallchain']);
+  // v8: hollow reports $0 to holders, so Holders fails and it drops to the
+  // 3/4 group, where its $0 capture puts it last.
+  assert.deepEqual(scan.assets.map(asset => asset.id), ['earner', 'feechain', 'smallchain', 'hollow']);
   assert.equal(scan.assets[0].passedCriteria, 4);
-  assert.equal(scan.assets[1].passedCriteria, 4);
+  assert.equal(scan.assets[1].passedCriteria, 3);
   assert.equal(scan.assets[2].passedCriteria, 3);
   assert.equal(scan.assets[3].passedCriteria, 3);
 });
