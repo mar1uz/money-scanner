@@ -39,7 +39,7 @@ import {
   BellRing
 } from 'lucide-react';
 import { useLanguage } from '../i18n.js';
-import { fetchBullishAlertStatus, setBullishAlert, fetchChartMarket, fetchPriceAlerts, createPriceAlert, deletePriceAlert, type PriceAlertRule } from '../services/api.js';
+import { fetchChartMarket, fetchPriceAlerts, createPriceAlert, deletePriceAlert, type PriceAlertRule } from '../services/api.js';
 import { calculateMoneyLineCloud } from '@money-scanner/money-line/cloud-supertrend';
 
 interface InteractiveChartProps {
@@ -54,12 +54,10 @@ interface InteractiveChartProps {
   onLoadMoreHistory?: () => void | Promise<void>;
   isLoadingHistory?: boolean;
   hasMoreHistory?: boolean;
-  /** CoinGecko page URL. When provided (asset deep-dive, crypto), the mobile
-      nav bar shows CoinGecko in place of the TradingView-extern tab, which
-      moves up into the flip-info row. Desktop layout is unchanged. */
+  /** CoinGecko page URL. When provided (asset deep-dive, crypto), the nav bar
+      also shows a CoinGecko shortcut next to the tabs on mobile. */
   coinGeckoUrl?: string;
-  /** Controlled tab state (optional). Lets the parent switch tabs from
-      outside (the flip-row TradingView extern button on mobile). */
+  /** Controlled tab state (optional). */
   activeTab?: 'chart' | 'tv_embed' | 'pinescript';
   onActiveTabChange?: (tab: 'chart' | 'tv_embed' | 'pinescript') => void;
 }
@@ -138,10 +136,6 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   const [showSma50, setShowSma50] = useState<boolean>(true);
   const [showSma200, setShowSma200] = useState<boolean>(true);
   const [copiedPine, setCopiedPine] = useState(false);
-  const [bullishAlertActive, setBullishAlertActive] = useState(false);
-  const [bullishAlertSaving, setBullishAlertSaving] = useState(false);
-  const [telegramConfigured, setTelegramConfigured] = useState(false);
-  const [bullishAlertError, setBullishAlertError] = useState('');
   const [priceAlerts, setPriceAlerts] = useState<PriceAlertRule[]>([]);
   const [priceAlertPrice, setPriceAlertPrice] = useState('');
   const [priceAlertDirection, setPriceAlertDirection] = useState<'above' | 'below'>('above');
@@ -181,15 +175,6 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   useEffect(() => {
     historyLoadTriggeredRef.current = false;
   }, [candles.length]);
-
-  const intervalOptions: { id: Timeframe; label: string }[] = [
-    { id: '1h', label: '1H' },
-    { id: '4h', label: '4H' },
-    { id: '8h', label: '8H' },
-    { id: '1d', label: '1D' },
-    { id: '1w', label: '1W' },
-    { id: '1m', label: '1M' }
-  ];
 
   // Helper to map symbol to TradingView symbol with exchange prefix
   const getTradingViewSymbol = (sym: string): string => {
@@ -340,41 +325,6 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
 
   useEffect(() => {
     let cancelled = false;
-    const alertTimeframe = activeInterval.toLowerCase() as Timeframe;
-    const storageKey = `moneyline-bullish-alert:${symbol.toUpperCase()}:${alertTimeframe}`;
-    setBullishAlertSaving(true);
-    setBullishAlertError('');
-
-    fetchBullishAlertStatus(symbol, alertTimeframe)
-      .then(async status => {
-        if (cancelled) return;
-        const storedAlert = localStorage.getItem(storageKey);
-        let shouldRestore = storedAlert === 'true';
-        if (storedAlert?.startsWith('{')) {
-          try {
-            shouldRestore = JSON.parse(storedAlert)?.enabled === true;
-          } catch {}
-        }
-        const currentStatus = shouldRestore && !status.active
-          ? await setBullishAlert(symbol, alertTimeframe, normalizedAlertMarketClass, true)
-          : status;
-        if (cancelled) return;
-        setBullishAlertActive(currentStatus.active);
-        setTelegramConfigured(currentStatus.telegramConfigured);
-        if (currentStatus.rule?.lastError) setBullishAlertError(currentStatus.rule.lastError);
-      })
-      .catch(error => {
-        if (!cancelled) setBullishAlertError(error instanceof Error ? error.message : 'Alert status unavailable');
-      })
-      .finally(() => {
-        if (!cancelled) setBullishAlertSaving(false);
-      });
-
-    return () => { cancelled = true; };
-  }, [symbol, activeInterval, normalizedAlertMarketClass]);
-
-  useEffect(() => {
-    let cancelled = false;
     fetchPriceAlerts(symbol, normalizedAlertMarketClass)
       .then(result => { if (!cancelled) setPriceAlerts(result.rules.filter(rule => rule.isEnabled)); })
       .catch(() => { if (!cancelled) setPriceAlerts([]); });
@@ -405,26 +355,6 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       await deletePriceAlert(id);
       setPriceAlerts(prev => prev.filter(rule => rule.id !== id));
     } catch {}
-  };
-
-  const handleToggleBullishAlert = async () => {
-    const alertTimeframe = activeInterval.toLowerCase() as Timeframe;
-    const nextActive = !bullishAlertActive;
-    const storageKey = `moneyline-bullish-alert:${symbol.toUpperCase()}:${alertTimeframe}`;
-    setBullishAlertSaving(true);
-    setBullishAlertError('');
-    try {
-      const status = await setBullishAlert(symbol, alertTimeframe, normalizedAlertMarketClass, nextActive);
-      setBullishAlertActive(status.active);
-      setTelegramConfigured(status.telegramConfigured);
-        if (status.active) localStorage.setItem(storageKey, JSON.stringify({ enabled: true, marketClass: normalizedAlertMarketClass }));
-      else localStorage.removeItem(storageKey);
-      if (status.rule?.lastError) setBullishAlertError(status.rule.lastError);
-    } catch (error) {
-      setBullishAlertError(error instanceof Error ? error.message : 'Nu am putut salva alerta.');
-    } finally {
-      setBullishAlertSaving(false);
-    }
   };
 
   // Keep Money Line telemetry available even when the official TradingView
@@ -1246,7 +1176,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
 
             <button
               onClick={() => setActiveTab('tv_embed')}
-              className={`${coinGeckoUrl ? 'hidden sm:flex' : 'flex'} items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all ${
                 activeTab === 'tv_embed'
                   ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 font-bold shadow-glow-cyan'
                   : 'text-slate-400 hover:text-slate-200'
@@ -1262,7 +1192,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
                 target="_blank"
                 rel="noopener noreferrer"
                 title="Deschide pe CoinGecko"
-                className="sm:hidden flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all text-emerald-300 hover:text-emerald-200 border border-emerald-500/30 hover:border-emerald-400/50 bg-emerald-500/10"
+                className="sm:hidden flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all text-slate-400 hover:text-slate-200"
               >
                 <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
                 <span>CoinGecko</span>
@@ -1289,7 +1219,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
                 target="_blank"
                 rel="noopener noreferrer"
                 title={`Deschide ${effectiveTvSymbol} în TradingView Oficial`}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all text-cyan-300 hover:text-cyan-200 border border-cyan-500/30 hover:border-cyan-400/50 bg-cyan-500/10"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all text-slate-400 hover:text-slate-200"
               >
                 <BarChart2 className="w-3.5 h-3.5 text-cyan-400" />
                 <span className="hidden sm:inline">Deschide Tab TradingView</span>
@@ -1300,28 +1230,6 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
 
         </div>
 
-        {/* Timeframe Interval Controls (1H -> 1M) */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-[11px] font-mono text-slate-400 mr-1 hidden sm:inline">Interval:</span>
-          <div className="flex items-center bg-background-card border border-background-border rounded-xl p-0.5">
-            {intervalOptions.map(opt => (
-              <button
-                key={opt.id}
-                onClick={() => {
-                  setActiveInterval(opt.id);
-                  if (onTimeframeChange) onTimeframeChange(opt.id);
-                }}
-                className={`px-3 py-1 text-xs font-mono rounded-lg transition-all ${
-                  activeInterval.toLowerCase() === opt.id.toLowerCase()
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold shadow-glow-emerald'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* Main Tab 1: MoneyLine TradingView Native Chart with Drawing Toolbar */}
@@ -1345,25 +1253,6 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
 
             <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-300">
               <span>Baza Nor (Fast): <strong className="text-emerald-400">${formatPrice(latestState?.fastLine)}</strong></span>
-              <button
-                type="button"
-                onClick={handleToggleBullishAlert}
-                disabled={bullishAlertSaving}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-bold transition-all disabled:opacity-60 ${
-                  bullishAlertActive
-                    ? telegramConfigured
-                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-glow-emerald'
-                      : 'bg-amber-500/15 text-amber-300 border-amber-500/40'
-                    : 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/20'
-                }`}
-                title={bullishAlertError || (bullishAlertActive
-                  ? (telegramConfigured ? 'Plan Telegram activ: confirmare bullish, entry, stop și ținte R:R adaptate timeframe-ului' : 'Alerta este activă; Telegram necesită configurarea botului și a chatului')
-                  : 'Activează planul de alertă bullish pentru acest asset și timeframe')}
-              >
-                <BellRing className={`w-3.5 h-3.5 ${bullishAlertSaving ? 'animate-pulse' : ''}`} />
-                <span>{bullishAlertActive ? (language === 'ro' ? 'Plan activ' : 'Plan on') : (language === 'ro' ? 'Alertă plan' : 'Plan alert')}</span>
-              </button>
-
               {/* Price alert: set a target price on the resolved pair, Telegram message on hit */}
               <span className="inline-flex items-center gap-1">
                 <button

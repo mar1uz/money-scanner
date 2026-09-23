@@ -4145,3 +4145,13 @@ Marius: "trece doar daca fees 30z >= $100K SI (TVL >= $10M)". Partly reverts Ste
 - Distribution effect vs Step 124: assets with measurable-but-small usage move from pass (25) to watch (12) and out of the 4/4 bucket; scores leave the pure 25-point bands (75/50/25) for mixed values like 87/62. Live-verified numbers in the deploy report.
 
 Verification: full API suite 178/178 (177 + 1 new); diff limited to scanner.ts, scanner test, ai-routes.ts version gate, HANDOFF.md.
+
+## Step 126 - 2026-09-23 - Asset deep-dive action area cleanup (mobile-first)
+
+Marius reviewed the asset page on mobile (screenshot): the action/menu zone was disorganized, with the timeframe selector rendered twice in the header zone and mixed button styles. His instructions: remove the "Plan alert" button entirely, remove the extra "TradingView extern" button next to the Bullish badge (Pine Script section stays), and tidy the whole action area mobile-first.
+
+- `AssetDeepDiveView.tsx`: removed the mobile flip-row "TradingView extern" button (and the now-unused controlled `chartTab` state/props). The Bullish badge + flip age row is now clean.
+- `InteractiveChart.tsx`: removed the duplicate timeframe interval controls from the chart header — the page header timeframe pills are the single selector (they already drive the chart via the `timeframe` prop sync). Removed the "Plan alert" (bullish plan alert) button from the Cloud status bar along with its now-dead status-fetch effect, toggle handler, state and API imports. Price alert (target price + direction) stays untouched. The "TradingView extern" tab is now visible on mobile too (it was reachable only through the deleted flip-row button), and the mobile CoinGecko shortcut + external TradingView link use the same pill style as the other tabs for a consistent bar.
+- No API changes; existing server-side alert rules are unaffected.
+
+Verification: `tsc && vite build` clean; web unit tests 5/5. Mobile + desktop visual pass on the live site after deploy.
