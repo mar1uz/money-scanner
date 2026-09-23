@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { UI_PAIRS } from './i18n-ui-dictionary';
+import { UI_PAIRS_2, UI_EXACT_PAIRS } from './i18n-ui-dictionary-2';
 import { CONTENT_PAIRS } from './i18n-content-dictionary';
 
 export type Language = 'ro' | 'en';
@@ -483,7 +484,7 @@ export const BASE_PAIRS: Array<[string, string]> = [
   ['Mai multă claritate. Mai puțin zgomot.', 'More clarity. Less noise.']
 ];
 
-export const ALL_PAIRS: Array<[string, string]> = [...BASE_PAIRS, ...UI_PAIRS, ...CONTENT_PAIRS];
+export const ALL_PAIRS: Array<[string, string]> = [...BASE_PAIRS, ...UI_PAIRS, ...UI_PAIRS_2, ...CONTENT_PAIRS];
 
 const normalise = (value: string) => value.replace(/[\s\u00a0]+/g, ' ').trim();
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -492,8 +493,13 @@ interface CompiledTemplate { regex: RegExp; target: string; }
 interface CompiledPhrase { source: string; regex: RegExp; target: string; }
 interface Direction { exact: Map<string, string>; templates: CompiledTemplate[]; phrases: CompiledPhrase[]; }
 
-function compileDirection(pairs: Array<[string, string]>): Direction {
+function compileDirection(pairs: Array<[string, string]>, exactOnly: Array<[string, string]> = []): Direction {
   const exact = new Map<string, string>();
+  for (const [rawSource, rawTarget] of exactOnly) {
+    const source = normalise(rawSource);
+    const target = normalise(rawTarget);
+    if (source && source !== target && !exact.has(source)) exact.set(source, target);
+  }
   const templates: CompiledTemplate[] = [];
   const phrases: CompiledPhrase[] = [];
   for (const [rawSource, rawTarget] of pairs) {
@@ -519,8 +525,8 @@ let compiled: { en: Direction; ro: Direction } | null = null;
 function directions() {
   if (!compiled) {
     compiled = {
-      en: compileDirection(ALL_PAIRS),
-      ro: compileDirection(ALL_PAIRS.map(([ro, en]) => [en, ro] as [string, string]))
+      en: compileDirection(ALL_PAIRS, UI_EXACT_PAIRS),
+      ro: compileDirection(ALL_PAIRS.map(([ro, en]) => [en, ro] as [string, string]), UI_EXACT_PAIRS.map(([ro, en]) => [en, ro] as [string, string]))
     };
   }
   return compiled;

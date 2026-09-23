@@ -46,7 +46,7 @@ function collectLeaks(): string[] {
       else if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) text = node.text;
       else if (ts.isTemplateExpression(node)) text = node.head.text + node.templateSpans.map(span => '{}' + span.literal.text).join('');
       if (text && RO.test(text) && !insideLanguageConditional(node) && !ts.isImportDeclaration(node.parent)) {
-        const probe = text.replace(/\{\}/g, '7');
+        const probe = text.replace(/\{\}/g, '7').replace(/&amp;/g, '&');
         if (RO.test(translateText(probe, 'en'))) leaks.add(`${path.relative(here, file)} :: ${text.trim()}`);
       }
       ts.forEachChild(node, visit);

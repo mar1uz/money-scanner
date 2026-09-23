@@ -4195,7 +4195,7 @@ Marius chose option 2 for "Ask the AI analyst": "Rămâne, dar răspunde doar di
 - Tests: guard suite 14/14 (3 new ask-box cases).
 - Deployed from a clean git worktree of HEAD so uncommitted work from the parallel i18n task was not shipped.
 
-## Step 129 - 2026-09-23 - i18n mechanism rebuilt (no cross-language leaks, no name mangling) - phase 1
+## Step 132 - 2026-09-23 - i18n mechanism rebuilt (no cross-language leaks, no name mangling) - phase 1
 
 Marius: every text on the page must be fully English or fully Romanian per the menu selection. Found: "Mai mult" in English mode, RAY shown as "Razădium", Watchlist as "De urmăritlist", Gains Network as "Creșteres Network", "Gaina veniturilor" in English analysis text.
 
@@ -4210,3 +4210,10 @@ Changes:
 - Guard: `i18n-coverage.test.ts` scans every component literal with the TypeScript AST and fails on any new Romanian UI string that doesn't translate; `i18n-leak-baseline.json` holds the known remainder and may only shrink (regenerate with I18N_WRITE_BASELINE=1).
 
 Remaining (phase 2): baseline of Romanian literals in Backtest, Crypto Radar, USA Macro, X Trends, Crypto market-only, Bubble views and service error strings; English-source literals in System Status/AssetDetailModal for RO mode; special-case asset analysis prose (AAPL/NVDA/ASML/GOLD) in packages/ai-analysis.
+
+### Step 132 addendum - phase 2 (i18n burn-down + market-class routing)
+- Renumbered from 129 (collided with the ask-box step; 130 = menu, 131 = ask removal).
+- `i18n-ui-dictionary-2.ts`: ~200 more RO<->EN pairs (Alerts, Backtest, Bubbles, Crypto Radar, USA Macro, market-only page, service errors, System Status/asset headings in RO mode). `UI_EXACT_PAIRS` holds single generic words (Rețea/Network, Peste/Above, și/and...) that match only a whole text node, so "Gains Network" never becomes "Gains Rețea".
+- Leak baseline: 176 -> 5 (remaining are intentional: the "Română" label, the Pine script source, two Romanian search-intent keywords, one composite relative-time template handled at runtime).
+- `resolveAssetIntelligence` picks the template by verified `marketClass` (scanner-routes passes `assetInfo.marketClass`); unlisted crypto such as RAY/SKY no longer gets the equity template. Regression test in ai-analysis index.test.ts.
+- crypto-market-only test updated for the 551b8cc sparse-candle rule (DEX chart needs >= 15 candles) plus a new fallback test.
