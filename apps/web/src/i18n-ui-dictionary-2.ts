@@ -1,5 +1,14 @@
 // UI dictionary, part 2 (phase 2 burn-down): [Romanian, English] pairs.
 export const UI_PAIRS_2: Array<[string, string]> = [
+  ['▲ Peste', '▲ Above'],
+  ['▼ Sub', '▼ Below'],
+  ['▼ Sub (Bear)', '▼ Below (Bear)'],
+  ['▼ Sub SMA 200', '▼ Below SMA 200'],
+  ['Sub SMA 200', 'Below SMA 200'],
+  ['Peste ambele', 'Above both'],
+  ['Peste Slow', 'Above Slow'],
+  ['Sub Slow', 'Below Slow'],
+  ['Status nor:', 'Cloud Status:'],
   ['acum {} min', '{} min ago'],
   ['acum {}m', '{}m ago'],
   // Alerts
