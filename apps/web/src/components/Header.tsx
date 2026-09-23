@@ -11,14 +11,10 @@ import {
   RefreshCw,
   CornerDownLeft,
   Bell,
-  Languages,
-  Check,
   LogOut
 } from 'lucide-react';
 import { Timeframe, AssetScannerRow } from '../types.js';
 import { buildSearchUniverse, performAISearchMatch, SearchMatchResult } from '../services/ai-search.js';
-import { ThemeSwitcher } from './ThemeSwitcher.js';
-import { useLanguage, Language } from '../i18n.js';
 import { UserProfile } from '@money-scanner/shared';
 
 interface HeaderProps {
@@ -36,6 +32,7 @@ interface HeaderProps {
   isRefreshing?: boolean;
   onOpenSearchModal?: () => void;
   hasSidebar?: boolean;
+  hideTimeframe?: boolean;
   currentUser?: UserProfile;
   onLogout?: () => Promise<void>;
 }
@@ -54,17 +51,15 @@ export const Header: React.FC<HeaderProps> = ({
   isRefreshing = false,
   onOpenSearchModal,
   hasSidebar = false,
+  hideTimeframe = false,
   currentUser,
   onLogout
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isLanguageOpen, setIsLanguageOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState<number>(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const languageRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const { language, setLanguage } = useLanguage();
 
   // Build semantic searchable asset universe
   const searchUniverse = useMemo(() => buildSearchUniverse(allAssets), [allAssets]);
@@ -137,9 +132,6 @@ export const Header: React.FC<HeaderProps> = ({
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsDropdownOpen(false);
-      }
-      if (languageRef.current && !languageRef.current.contains(event.target as Node)) {
-        setIsLanguageOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -390,22 +382,24 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right Controls: Timeframe Pills, Live Status, Refresh */}
       <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 sm:flex-none sm:gap-2.5">
-        {/* Timeframe Selector */}
-        <div className="flex min-w-0 flex-1 items-center rounded-full border border-white/[0.08] bg-white/[0.03] p-1 sm:flex-none">
-          {(['1h', '4h', '8h', '1d', '1w', '1m'] as Timeframe[]).map((tf) => (
-            <button
-              key={tf}
-              onClick={() => onTimeframeChange(tf)}
-              className={`min-w-0 min-h-0 flex-1 px-2.5 py-1.5 text-[12px] font-mono rounded-full transition-all sm:flex-none sm:px-3.5 sm:text-[13px] ${
-                timeframe === tf
-                  ? 'bg-cyan-500/25 text-cyan-200 font-bold shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {tf.toUpperCase()}
-            </button>
-          ))}
-        </div>
+        {/* Timeframe pills hidden on the asset detail page, which has its own single row */}
+        {!hideTimeframe && (
+          <div className="flex min-w-0 flex-1 items-center rounded-full border border-white/[0.08] bg-white/[0.03] p-1 sm:flex-none">
+            {(['1h', '4h', '8h', '1d', '1w', '1m'] as Timeframe[]).map((tf) => (
+              <button
+                key={tf}
+                onClick={() => onTimeframeChange(tf)}
+                className={`min-w-0 min-h-0 flex-1 px-2.5 py-1.5 text-[12px] font-mono rounded-full transition-all sm:flex-none sm:px-3.5 sm:text-[13px] ${
+                  timeframe === tf
+                    ? 'bg-cyan-500/25 text-cyan-200 font-bold shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {tf.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Refresh Button (desktop only) */}
         {onRefreshMarket && (
@@ -447,47 +441,8 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         )}
 
-        {/* Theme switcher (zi / seară) */}
-        <ThemeSwitcher />
-
-        {/* Persistent language selector */}
-        <div ref={languageRef} className="relative shrink-0">
-          <button
-            onClick={() => setIsLanguageOpen(open => !open)}
-            title={language === 'ro' ? 'Schimbă limba' : 'Change language'}
-            aria-label={language === 'ro' ? 'Schimbă limba' : 'Change language'}
-            aria-expanded={isLanguageOpen}
-            className="flex items-center justify-center w-9 h-9 min-h-0 rounded-full text-slate-300 hover:text-cyan-300 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] transition-all"
-          >
-            <Languages className="w-4 h-4 text-cyan-400" />
-          </button>
-
-          {isLanguageOpen && (
-            <div className="absolute right-0 top-full mt-2 min-w-[150px] overflow-hidden rounded-xl border border-cyan-500/30 bg-[var(--t-surface-raised)] shadow-2xl z-50 animate-fade-in">
-              {([
-                { id: 'ro' as Language, label: 'Română' },
-                { id: 'en' as Language, label: 'English' }
-              ]).map(option => (
-                <button
-                  key={option.id}
-                  onClick={() => {
-                    setLanguage(option.id);
-                    setIsLanguageOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 text-xs font-mono transition-colors ${
-                    language === option.id
-                      ? 'bg-cyan-500/15 text-cyan-200'
-                      : 'text-slate-300 hover:bg-white/[0.05] hover:text-white'
-                  }`}
-                >
-                  <span>{option.label}</span>
-                  {language === option.id && <Check className="w-3.5 h-3.5 text-cyan-400" />}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
       </div>
     </header>
   );
 };
+

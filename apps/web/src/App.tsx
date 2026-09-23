@@ -341,6 +341,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
           isRefreshing={loading}
           onOpenSearchModal={() => setIsSearchModalOpen(true)}
           hasSidebar={!selectedAssetSymbol && !sidebarCollapsed}
+          hideTimeframe={Boolean(selectedAssetSymbol)}
           currentUser={user}
           onLogout={onLogout}
         />

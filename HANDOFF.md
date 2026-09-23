@@ -4210,3 +4210,19 @@ Changes:
 - Guard: `i18n-coverage.test.ts` scans every component literal with the TypeScript AST and fails on any new Romanian UI string that doesn't translate; `i18n-leak-baseline.json` holds the known remainder and may only shrink (regenerate with I18N_WRITE_BASELINE=1).
 
 Remaining (phase 2): baseline of Romanian literals in Backtest, Crypto Radar, USA Macro, X Trends, Crypto market-only, Bubble views and service error strings; English-source literals in System Status/AssetDetailModal for RO mode; special-case asset analysis prose (AAPL/NVDA/ASML/GOLD) in packages/ai-analysis.
+
+
+## Step 130 - 2026-09-23 - Asset page menu consolidation (Variant 1, approved by Marius, not deployed)
+
+Marius picked Variant 1 from two chat mockups ("varianta 1 si da e ok ca restul e mai jos"): the menu/action area gets consolidated, nothing hidden deeper than one tap.
+
+- `Header.tsx`: new optional `hideTimeframe` prop. While an asset detail page is open the global header no longer repeats the 1H-1M pills; the asset view's own row (pills + watchlist/alert/refresh icons) is the single timeframe row.
+- `Header.tsx`: theme switcher and language selector removed from the header (all pages).
+- `Sidebar.tsx` mobile "Mai mult" menu: new "Tema" row (ThemeSwitcher) and "Limba" row (Romana/English toggle); styles in `index.css` (`.mobile-more-sep`, `.mobile-more-setting`, `.mobile-more-langs`).
+- `InteractiveChart.tsx`: chart tab bar no longer wraps on mobile - one segmented row, equal-width buttons under sm, short labels on mobile ("Cloud", "Pine", "CoinGecko"), full labels from sm up. TradingView-extern tab visibility rules unchanged (still reached from the flip-row button on mobile crypto).
+- `InteractiveChart.tsx`: "Copiaza Pine Script" removed from the Cloud status bar and from the TradingView-extern tab; the Pine Script tab keeps the single copy button next to the code.
+- `App.tsx`: passes `hideTimeframe={Boolean(selectedAssetSymbol)}` to Header.
+
+Checks: web tsc + vite build clean. Web tests 80/81 - the one failure (crypto-market-only DEX fallback OHLCV title) also fails on clean HEAD 2640272, so it is pre-existing from the i18n phase-1 commit and owned by the i18n task, not by this change.
+
+NOT deployed. Combined deploy with the i18n + ask-box changes ships when Marius says go.

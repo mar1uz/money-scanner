@@ -17,6 +17,8 @@ import {
   Scale
 } from 'lucide-react';
 import { AppTab } from '../types.js';
+import { ThemeSwitcher } from './ThemeSwitcher.js';
+import { useLanguage } from '../i18n.js';
 import { useMobileViewport } from '../hooks/useMobileViewport.js';
 
 interface SidebarProps {
@@ -52,6 +54,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [lens, setLens] = useState({ x: 0, width: 64 });
   const [moreOpen, setMoreOpen] = useState(false);
+  const { language, setLanguage } = useLanguage();
 
   const navItems: { id: AppTab; label: string; shortLabel: string; icon: any; accent?: string; badge?: string }[] = [
     { id: 'market', label: 'Market Scanner', shortLabel: 'Scanner', icon: LayoutGrid, accent: 'text-cyan-400' },
@@ -139,8 +142,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {moreOpen && <div className="mobile-more-menu" role="menu">
           {navItems.filter(item => item.id !== 'market' && item.id !== 'status').map(item => { const Icon = item.icon; return <button role="menuitem" key={item.id} onClick={() => { setMoreOpen(false); onTabChange(item.id); }}><Icon size={17} /><span>{item.label}</span></button>; })}
           <button role="menuitem" onClick={() => { setMoreOpen(false); onTabChange('status'); }}><Activity size={17} /><span>System & Bot Health</span></button>
+          <div className="mobile-more-sep" aria-hidden="true" />
+          <div className="mobile-more-setting">
+            <span className="mobile-more-setting-label">Temă</span>
+            <ThemeSwitcher />
+          </div>
+          <div className="mobile-more-setting">
+            <span className="mobile-more-setting-label">Limbă</span>
+            <span className="mobile-more-langs">
+              <button type="button" data-active={language === 'ro'} aria-pressed={language === 'ro'} onClick={() => setLanguage('ro')}>Română</button>
+              <button type="button" data-active={language === 'en'} aria-pressed={language === 'en'} onClick={() => setLanguage('en')}>English</button>
+            </span>
+          </div>
         </div>}
       </nav>
     </>
   );
 };
+

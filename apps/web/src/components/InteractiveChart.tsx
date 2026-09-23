@@ -1163,22 +1163,23 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="âš ï¸
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-background-border">
         {/* Navigation Mode */}
         <div className="flex items-center gap-2">
-          <div className="flex flex-wrap items-center max-w-full bg-background-card/90 border border-background-border rounded-xl p-1 shadow-inner">
+          <div className="flex w-full items-center max-w-full overflow-x-auto no-scrollbar bg-background-card/90 border border-background-border rounded-xl p-1 shadow-inner">
             <button
               onClick={() => setActiveTab('chart')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all ${
+              className={`flex flex-1 sm:flex-none justify-center items-center gap-1.5 px-2 sm:px-3.5 py-1.5 text-xs font-mono whitespace-nowrap rounded-lg transition-all ${
                 activeTab === 'chart'
                   ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold shadow-glow-emerald'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               <Zap className="w-3.5 h-3.5 text-emerald-400" />
-              <span>MoneyLine Cloud</span>
+              <span className="sm:hidden">Cloud</span>
+              <span className="hidden sm:inline">MoneyLine Cloud</span>
             </button>
 
             <button
               onClick={() => setActiveTab('tv_embed')}
-              className={`${coinGeckoUrl ? 'hidden sm:flex' : 'flex'} items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all ${
+              className={`${coinGeckoUrl ? 'hidden sm:flex' : 'flex'} flex-1 sm:flex-none justify-center items-center gap-1.5 px-2 sm:px-3.5 py-1.5 text-xs font-mono whitespace-nowrap rounded-lg transition-all ${
                 activeTab === 'tv_embed'
                   ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 font-bold shadow-glow-cyan'
                   : 'text-slate-400 hover:text-slate-200'
@@ -1194,7 +1195,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="âš ï¸
                 target="_blank"
                 rel="noopener noreferrer"
                 title="Deschide pe CoinGecko"
-                className="sm:hidden flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all text-slate-400 hover:text-slate-200"
+                className="sm:hidden flex flex-1 justify-center items-center gap-1.5 px-2 py-1.5 text-xs font-mono whitespace-nowrap rounded-lg transition-all text-slate-400 hover:text-slate-200"
               >
                 <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
                 <span>CoinGecko</span>
@@ -1203,14 +1204,15 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="âš ï¸
 
             <button
               onClick={() => setActiveTab('pinescript')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all ${
+              className={`flex flex-1 sm:flex-none justify-center items-center gap-1.5 px-2 sm:px-3.5 py-1.5 text-xs font-mono whitespace-nowrap rounded-lg transition-all ${
                 activeTab === 'pinescript'
                   ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               <Code className="w-3.5 h-3.5 text-purple-400" />
-              <span>Pine Script v6 Code</span>
+              <span className="sm:hidden">Pine</span>
+              <span className="hidden sm:inline">Pine Script v6 Code</span>
             </button>
 
           </div>
@@ -1338,14 +1340,6 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="âš ï¸
                 </span>
               )}
 
-              <button
-                onClick={handleCopyPineScript}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold transition-all ml-2"
-                title="CopiazÄƒ codul MoneyLine Overlay Force v1 pentru contul tÄƒu TradingView"
-              >
-                {copiedPine ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-emerald-400" />}
-                <span>{copiedPine ? 'COPIAT!' : 'CopiazÄƒ Pine Script'}</span>
-              </button>
             </div>
           </div>
 
@@ -2275,17 +2269,6 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="âš ï¸
               </div>
             )}
 
-            <button
-              onClick={handleCopyPineScript}
-              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-mono rounded-lg transition-all ${
-                copiedPine
-                  ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 font-bold'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
-              }`}
-            >
-              {copiedPine ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-cyan-400" />}
-              <span>{copiedPine ? 'COPIAT!' : 'CopiazÄƒ Pine Script'}</span>
-            </button>
           </div>
 
           {/* Official TradingView Container with Full Native Toolbars */}
@@ -2355,3 +2338,4 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="âš ï¸
     </div>
   );
 };
+
