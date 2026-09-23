@@ -48,6 +48,7 @@ interface DefiLlamaProtocolRow {
   tvl?: number | null;
   change_7d?: number | null;
   chains?: string[];
+  category?: string;
 }
 
 interface DefiLlamaMetricRow {
@@ -91,6 +92,8 @@ export interface CryptoScannerInput {
   /** Coins discovered via DefiLlama coverage beyond the market-cap top list;
       unmeasured candidates are dropped from the returned universe. */
   candidateIds?: Set<string>;
+  /** CoinGecko narrative membership: coin id -> category ids (best effort). */
+  coinCategories?: Map<string, string[]>;
   generatedAt?: number;
 }
 
@@ -153,6 +156,59 @@ export const meetsUndervaluedNetworkGate = (asset: CryptoFourCriteriaAsset): boo
   (asset.metrics.fees30d ?? 0) >= NETWORK_MIN_FEES_30D &&
   (asset.metrics.tvl === undefined || asset.metrics.tvl >= NETWORK_MIN_TVL);
 
+// v11 (Marius, 2026-09-23 17:33, "Da"): stablecoins are excluded from
+// Undervalued - P/R means nothing for a $1-pegged token (USDT, RLUSD entered
+// once the TVL gate was relaxed). Fiat-pegged and tokenized-cash tickers only;
+// governance tokens of stablecoin protocols (FXS, FPIS, CHIP, ENA) stay in.
+const STABLECOIN_SYMBOLS = new Set(['DAI', 'SDAI', 'FRAX', 'GHO', 'BUIDL', 'USDY', 'LUSD', 'BOLD']);
+const STABLECOIN_TICKER = /USD|^EUR/;
+export const isStablecoin = (asset: Pick<CryptoFourCriteriaAsset, 'symbol'>): boolean => {
+  const symbol = asset.symbol.toUpperCase();
+  return STABLECOIN_SYMBOLS.has(symbol) || STABLECOIN_TICKER.test(symbol);
+};
+// v11: Undervalued uses the same >= 3/4 criteria floor as Top Score
+// (3/4 and 4/4 still rank the same - pure P/R).
+export const UNDERVALUED_MIN_CRITERIA = 3;
+
+// Narrative tag (Marius, 2026-09-23 17:37): every coin carries one main
+// "what it does" label (DeFi, L1, Meme, RWA, Liquid Staking...). Specific
+// CoinGecko narratives win, then the DefiLlama protocol category, then
+// CoinGecko L2/L1, then chain detection, then the generic "Crypto".
+export const COINGECKO_NARRATIVE_CATEGORIES: Array<{ id: string; label: string; priority: 'high' | 'low' }> = [
+  { id: 'stablecoins', label: 'Stablecoin', priority: 'high' },
+  { id: 'meme-token', label: 'Meme', priority: 'high' },
+  { id: 'artificial-intelligence', label: 'AI', priority: 'high' },
+  { id: 'real-world-assets-rwa', label: 'RWA', priority: 'high' },
+  { id: 'depin', label: 'DePIN', priority: 'high' },
+  { id: 'gaming', label: 'Gaming', priority: 'high' },
+  { id: 'privacy-coins', label: 'Privacy', priority: 'high' },
+  { id: 'layer-2', label: 'L2', priority: 'low' },
+  { id: 'layer-1', label: 'L1', priority: 'low' }
+];
+const DEFILLAMA_NARRATIVE: Record<string, string> = {
+  'liquid staking': 'Liquid Staking', 'liquid restaking': 'Liquid Staking', restaking: 'Liquid Staking', 'staking pool': 'Liquid Staking',
+  rwa: 'RWA', 'rwa lending': 'RWA', bridge: 'Bridge', 'cross chain bridge': 'Bridge', 'canonical bridge': 'Bridge',
+  launchpad: 'Launchpad', oracle: 'Oracle', chain: 'L1', gaming: 'Gaming', sofi: 'SocialFi', 'nft marketplace': 'NFT',
+  'nft lending': 'NFT', wallets: 'Infra', services: 'Infra', infrastructure: 'Infra', 'decentralized stablecoin': 'Stablecoin',
+  'stablecoin issuer': 'Stablecoin', 'ai agents': 'AI', memes: 'Meme', meme: 'Meme', depin: 'DePIN', privacy: 'Privacy'
+};
+export const narrativeFromDefiLlamaCategory = (category?: string): string | undefined => {
+  const key = String(category || '').trim().toLowerCase();
+  if (!key) return undefined;
+  return DEFILLAMA_NARRATIVE[key] || 'DeFi';
+};
+export const resolveNarrative = (coinCategories: string[] | undefined, defiLlamaCategory: string | undefined, isChain: boolean): string => {
+  const ids = new Set(coinCategories || []);
+  const high = COINGECKO_NARRATIVE_CATEGORIES.find(entry => entry.priority === 'high' && ids.has(entry.id));
+  if (high) return high.label;
+  // Chains before DefiLlama: a chain coin's biggest DefiLlama row is often a
+  // bridge or staking wrapper (BTC -> "Bridge", ETH -> "DeFi"), not what it is.
+  const low = COINGECKO_NARRATIVE_CATEGORIES.find(entry => entry.priority === 'low' && ids.has(entry.id));
+  if (low) return low.label;
+  if (isChain) return 'L1';
+  return narrativeFromDefiLlamaCategory(defiLlamaCategory) || 'Crypto';
+};
+
 const scoreForStatus = (status: CryptoCriteriaStatus): number => {
   if (status === 'pass') return 25;
   if (status === 'watch') return 12;
@@ -188,6 +244,9 @@ const buildUndervaluedRanking = (assets: CryptoFourCriteriaAsset[]): { undervalu
       // Market-cap floor (v8): a $2M token next to a P/R of 1.3x is noise
       // on an illiquid float, not an opportunity (the COOK case).
       if (!(asset.marketCap >= UNDERVALUED_MIN_MARKET_CAP)) return undefined;
+      // v11: no stablecoins, and at least 3/4 criteria.
+      if (isStablecoin(asset)) return undefined;
+      if (asset.passedCriteria < UNDERVALUED_MIN_CRITERIA) return undefined;
       const qualityScore = scoreForStatus(asset.criteria.networkEffect.status)
         + scoreForStatus(asset.criteria.sustainableRevenue.status)
         + scoreForStatus(asset.criteria.holderValue.status);
@@ -451,6 +510,7 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
     familyCoinIds.set(protocol.parentProtocol, ids);
   }
   const protocolToCoinId = new Map<string, string>();
+  const llamaCategoryByCoin = new Map<string, { category: string; tvl: number }>();
   const protocolAggregates = new Map<string, ProtocolAggregate>();
   for (const protocol of input.protocols) {
     const slug = String(protocol.slug || '').toLowerCase();
@@ -478,6 +538,10 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
     };
     const tvl = finitePositive(protocol.tvl);
     const change7d = finiteNumber(protocol.change_7d);
+    if (protocol.category) {
+      const best = llamaCategoryByCoin.get(coin.id);
+      if (!best || tvl > best.tvl) llamaCategoryByCoin.set(coin.id, { category: protocol.category, tvl });
+    }
     current.tvl += tvl;
     current.matchedRows += 1;
     if (tvl > 0 && change7d !== undefined) {
@@ -544,6 +608,11 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
     evaluated.protocolSlugs = [...protocolToCoinId].filter(([, id]) => id === coin.id).map(([slug]) => slug);
     evaluated.priceChange24h = finiteNumber(coin.price_change_percentage_24h);
     evaluated.priceChange7d = finiteNumber(coin.price_change_percentage_7d_in_currency);
+    evaluated.narrative = resolveNarrative(
+      input.coinCategories?.get((coin.coin_gecko_id || coin.id).toLowerCase()),
+      llamaCategoryByCoin.get(coin.id)?.category,
+      chainCoinIds.has(coin.id)
+    );
     return evaluated;
   }).sort((left, right) =>
     right.passedCriteria - left.passedCriteria ||
@@ -566,7 +635,7 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
   const { undervalued, unrankedCount } = buildUndervaluedRanking(universe);
   const topScore = buildTopScoreRanking(universe);
   return {
-    methodologyVersion: 10,
+    methodologyVersion: 11,
     scannedCount: coins.length,
     coveredCount,
     allFourCount: universe.filter(asset => asset.classification === 'all-four').length,
@@ -587,7 +656,7 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
       'Ordine Subevaluate (v9): pur după P/R, cel mai ieftin primul; 3/4 și 4/4 criterii sunt tratate la fel (criteriile rămân afișate, nu mai sortează). Indexul și calitatea decid doar la egalitate.',
       'Scor top (v9): scor fundamental = 10 × log10(revenue 30z) − 10 × log10(P/R); un ordin de mărime în plus la revenue valorează cât un P/R de 10 ori mai mic. Eligibil doar cu revenue 30z ≥ $100K, market cap ≥ $10M și minim 3/4 criterii (3/4 și 4/4 tratate la fel, cu sau fără TVL). Criteriile nu sortează (doar la egalitate).',
       'Evaluare: P/R = market cap / (revenue 30z × 365/30); fallback P/H din buyback/burn anualizat când revenue lipsește. Activele cu doar fees (fără revenue/holderi) sunt excluse din clasamentul de subevaluate - P/F nu măsoară captura de valoare.',
-      'Eligibilitate Subevaluate (filtru hard, v10): fees 30z complete ≥ $100K ȘI market cap ≥ $10M ȘI TVL ≥ $10M. TVL absent ≠ TVL prea mic: când DefiLlama nu are deloc TVL pentru activ (launchpad-uri, aplicații, rețele unde TVL nu se aplică), filtrul trece doar pe fees; când TVL există dar e sub $10M, activul nu e clasat.',
+      'Eligibilitate Subevaluate (filtru hard, v10): fees 30z complete ≥ $100K ȘI market cap ≥ $10M ȘI TVL ≥ $10M. TVL absent ≠ TVL prea mic: când DefiLlama nu are deloc TVL pentru activ (launchpad-uri, aplicații, rețele unde TVL nu se aplică), filtrul trece doar pe fees; când TVL există dar e sub $10M, activul nu e clasat. v11: minim 3/4 criterii (3/4 și 4/4 tratate la fel) și fără stablecoins (USDT, USDC, RLUSD, DAI etc. - P/R nu are sens la un token legat de $1).',
       'Index subevaluare = percentila calității − percentila scumpirii (log P/R) între active cu aceeași bază (revenue/holderi), cu percentile centrate pentru egalități; afișat ca informație și folosit doar la egalitate de P/R.',
       'Randament holderi: (holders revenue 30z × 365/30) / MC × 100; varianta /FDV include diluția. Ritm extrapolat, nu APY garantat.',
       'Selecție secțiune (vizualizarea 4 criterii din AI Briefing): sunt listate doar monedele cu fees/revenue observabile sau buyback/burn raportat; sortare după criterii trecute, apoi factorul de dimensiune (log10 din revenue 30z; distribuțiile către holderi contează ca revenue, iar fees sunt fallback doar când datele de revenue lipsesc complet), apoi ritmul revenue (7z vs 30z) și rank.'
@@ -656,6 +725,48 @@ const fetchCoinsByIds = async (fetcher: typeof fetch, ids: string[]): Promise<Co
   return result;
 };
 
+/**
+ * Best-effort CoinGecko narrative membership: one markets call per narrative
+ * category (top 250 by market cap each). A failed call only drops that tag.
+ */
+const fetchCoinCategories = async (fetcher: typeof fetch): Promise<Map<string, string[]>> => {
+  const result = new Map<string, string[]>();
+  let attempt = 0;
+  for (let index = 0; index < COINGECKO_NARRATIVE_CATEGORIES.length; index += 1) {
+    const entry = COINGECKO_NARRATIVE_CATEGORIES[index];
+    try {
+      const response = await fetcher(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&category=${entry.id}`, {
+        headers: {
+          accept: 'application/json',
+          'user-agent': 'MoneyScanner360/1.0',
+          ...(process.env.COINGECKO_API_KEY ? { 'x-cg-demo-api-key': process.env.COINGECKO_API_KEY } : {})
+        },
+        signal: AbortSignal.timeout(25_000)
+      });
+      if (response.status === 429 && attempt === 0) {
+        // No-key CoinGecko throttles bursts; wait once and retry this category.
+        await new Promise(resolve => setTimeout(resolve, 20_000));
+        index -= 1;
+        attempt = 1;
+        continue;
+      }
+      attempt = 0;
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const rows = await response.json() as Array<{ id?: string }>;
+      for (const row of Array.isArray(rows) ? rows : []) {
+        const id = String(row.id || '').toLowerCase();
+        if (!id) continue;
+        result.set(id, [...(result.get(id) || []), entry.id]);
+      }
+    } catch (error) {
+      console.warn(`CoinGecko narrative ${entry.id} failed:`, error instanceof Error ? error.message : error);
+    }
+    attempt = 0;
+    if (index + 1 < COINGECKO_NARRATIVE_CATEGORIES.length) await new Promise(resolve => setTimeout(resolve, 2500));
+  }
+  return result;
+};
+
 export async function scanCryptoFourCriteria(fetcher: typeof fetch = fetch): Promise<CryptoFourCriteriaScan> {
   const [coins, protocols, feeResponse, revenueResponse, holderRevenueResponse] = await Promise.all([
     fetchCoinMarkets(fetcher),
@@ -691,7 +802,10 @@ export async function scanCryptoFourCriteria(fetcher: typeof fetch = fetch): Pro
       candidateIds.push(geckoId);
     }
   }
-  const extraCoins = await fetchCoinsByIds(fetcher, candidateIds);
+  const [extraCoins, coinCategories] = await Promise.all([
+    fetchCoinsByIds(fetcher, candidateIds),
+    fetchCoinCategories(fetcher)
+  ]);
   const canonicalCoins = coins.map(coin => {
     if (coin.market_data_source !== 'coinpaprika') return coin;
     const matches = extraCoins.filter(extra => normalize(extra.name) === normalize(coin.name) && extra.symbol.toLowerCase() === coin.symbol.toLowerCase());
@@ -705,6 +819,7 @@ export async function scanCryptoFourCriteria(fetcher: typeof fetch = fetch): Pro
     fees,
     revenue,
     holdersRevenue,
-    candidateIds: extraIdSet
+    candidateIds: extraIdSet,
+    coinCategories
   });
 }

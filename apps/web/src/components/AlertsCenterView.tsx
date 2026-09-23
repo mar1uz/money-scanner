@@ -20,6 +20,8 @@ import {
   Zap
 } from 'lucide-react';
 import { AssetScannerRow, Timeframe } from '../types.js';
+import { NarrativeTag } from './NarrativeTag.js';
+import { CryptoFundamentals, formatPriceToRevenue, formatRevenue30d, useCryptoFundamentals } from '../services/crypto-fundamentals.js';
 import { DailySmaReclaimResult, DailySmaReclaimResultStatus, TRADING_360_ASSETS } from '@money-scanner/shared';
 import {
   ActiveAlertDashboardItem,
@@ -248,6 +250,18 @@ export function filterConfirmedFlips(
 
 export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets, watchlist, onOpenAsset }) => {
   const [data, setData] = useState<AlertsDashboardResponse | null>(() => peekAlertsDashboardCache());
+  const cryptoFundamentals = useCryptoFundamentals();
+  // Sort by P/R (Marius, 2026-09-23): applies to the current filtered
+  // selection on every tab; cheapest first, coins without revenue last.
+  const [sortByPriceToRevenue, setSortByPriceToRevenue] = useState(false);
+  const priceToRevenueOf = useCallback((symbol: string, marketClass?: string) =>
+    marketClass === 'crypto' ? cryptoFundamentals.get(symbol.toUpperCase())?.priceToRevenue : undefined,
+  [cryptoFundamentals]);
+  const sortByPR = useCallback(<T extends { symbol: string; marketClass?: string }>(items: T[]): T[] => {
+    if (!sortByPriceToRevenue) return items;
+    const value = (item: T) => priceToRevenueOf(item.symbol, item.marketClass) ?? Number.POSITIVE_INFINITY;
+    return items.slice().sort((left, right) => value(left) - value(right));
+  }, [priceToRevenueOf, sortByPriceToRevenue]);
   const [loading, setLoading] = useState(() => shouldAutoLoadAlertsDashboard());
   const [error, setError] = useState('');
   const [scanScope, setScanScope] = useState<ManualAlertScanScope | null>(null);
@@ -488,11 +502,10 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
     return filterFlipCandidates(data?.flipCandidates, { ...candidateOptions, limit: Number.POSITIVE_INFINITY });
   }, [candidateOptions, data?.flipCandidates]);
   const visibleCandidates = useMemo(() => {
-    return filterFlipCandidates(data?.flipCandidates, {
-      ...candidateOptions,
-      limit: showAllCandidates ? Number.POSITIVE_INFINITY : UPCOMING_FLIP_DISPLAY_LIMIT
-    });
-  }, [candidateOptions, data?.flipCandidates, showAllCandidates]);
+    const limit = showAllCandidates ? Number.POSITIVE_INFINITY : UPCOMING_FLIP_DISPLAY_LIMIT;
+    if (sortByPriceToRevenue) return sortByPR(allMatchingCandidates).slice(0, limit);
+    return filterFlipCandidates(data?.flipCandidates, { ...candidateOptions, limit });
+  }, [allMatchingCandidates, candidateOptions, data?.flipCandidates, showAllCandidates, sortByPR, sortByPriceToRevenue]);
   const visibleCoverage = useMemo(() => {
     const query = coverageSearch.trim().toUpperCase();
     return (data?.scanCoverage || []).filter(item => {
@@ -502,7 +515,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
         || (item.name || '').toUpperCase().includes(query);
     });
   }, [coverageSearch, coverageStatusFilter, data?.scanCoverage]);
-  const topConfirmedFlips = useMemo(() => {
+  const topConfirmedFlipsRaw = useMemo(() => {
     return filterConfirmedFlips(data?.confirmedFlips, {
       confirmedFilter,
       confirmedTimeframe,
@@ -511,6 +524,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
       knownAssets
     });
   }, [confirmedFilter, confirmedMarketClass, confirmedSearch, confirmedTimeframe, data?.confirmedFlips, knownAssets]);
+  const topConfirmedFlips = useMemo(() => sortByPR(topConfirmedFlipsRaw), [sortByPR, topConfirmedFlipsRaw]);
   const cryptoRankBySymbol = useMemo(() => new Map(
     (data?.scanCoverage || [])
       .filter(item => item.marketClass === 'crypto' && Number.isFinite(item.rank))
@@ -644,6 +658,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
             alert.symbol === candidate.symbol && alert.timeframe === candidate.timeframe
           ))}
           knownAssets={knownAssets}
+          fundamentals={candidate.marketClass === 'crypto' ? cryptoFundamentals.get(candidate.symbol.toUpperCase()) : undefined}
           onPrepare={() => void prepareCandidateAlert(candidate)}
           onOpen={() => onOpenAsset(candidate.symbol, candidate.marketClass, candidate.timeframe)}
         />
@@ -894,6 +909,24 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
         >
           ALERTE URMĂRITE ({summary.active})
         </button>
+        <div className="ml-auto flex items-center gap-1 rounded-lg border border-white/[0.06] bg-white/[0.025] p-1" role="group" aria-label="Sortare">
+          <span className="px-1.5 text-[10px] font-bold uppercase text-slate-500">Sortare</span>
+          <button
+            type="button"
+            onClick={() => setSortByPriceToRevenue(false)}
+            className={`rounded-md px-2.5 py-1 text-[10px] font-bold transition ${!sortByPriceToRevenue ? 'bg-cyan-500/20 text-cyan-300' : 'text-slate-400 hover:text-slate-200'}`}
+          >
+            Implicit
+          </button>
+          <button
+            type="button"
+            onClick={() => setSortByPriceToRevenue(true)}
+            title="P/R = market cap / (revenue 30z × 365/30); cel mai ieftin primul, fără revenue la final"
+            className={`rounded-md px-2.5 py-1 text-[10px] font-bold transition ${sortByPriceToRevenue ? 'bg-cyan-500/20 text-cyan-300' : 'text-slate-400 hover:text-slate-200'}`}
+          >
+            P/R ↑
+          </button>
+        </div>
       </div>
 
       {/* 1. ISTORICUL CELUI MAI RECENT FLIP CONFIRMAT PER ASSET */}
@@ -944,6 +977,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                     rank={index + 1}
                     coinGeckoRank={candidate.marketCapRank ?? cryptoRankBySymbol.get(candidate.symbol.toUpperCase())}
                     knownAssets={knownAssets}
+                    fundamentals={candidate.marketClass === 'crypto' ? cryptoFundamentals.get(candidate.symbol.toUpperCase()) : undefined}
                     onOpen={() => onOpenAsset(candidate.symbol, candidate.marketClass, candidate.timeframe)}
                   />
                 ))}
@@ -1043,9 +1077,9 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
               </div>
             ) : data?.activeAlerts.length ? (
               <div className="grid gap-3 lg:grid-cols-2">
-                {data.activeAlerts
+                {sortByPR(data.activeAlerts
                   .slice()
-                  .sort((left, right) => right.progressPercent - left.progressPercent)
+                  .sort((left, right) => right.progressPercent - left.progressPercent))
                   .map(alert => (
                     <ActiveAlertCard
                       key={alert.id}
@@ -1199,9 +1233,10 @@ const FlipCandidateCard: React.FC<{
   preparing: boolean;
   alertActive: boolean;
   knownAssets?: AssetScannerRow[];
+  fundamentals?: CryptoFundamentals;
   onPrepare: () => void;
   onOpen: () => void;
-}> = ({ candidate, rank, coinGeckoRank, preparing, alertActive, knownAssets, onPrepare, onOpen }) => {
+}> = ({ candidate, rank, coinGeckoRank, preparing, alertActive, knownAssets, fundamentals, onPrepare, onOpen }) => {
   const bullish = candidate.direction === 'BULLISH';
   const directionTone = bullish
     ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
@@ -1249,6 +1284,7 @@ const FlipCandidateCard: React.FC<{
                 {candidate.marketClass === 'crypto' && coinGeckoRank && (
                   <span className="rounded-md border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-200">CoinGecko #{coinGeckoRank}</span>
                 )}
+                {candidate.marketClass === 'crypto' && <NarrativeTag narrative={fundamentals?.narrative} />}
                 <span className="rounded-md border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-cyan-300">{candidate.timeframe.toUpperCase()}</span>
                 <span className="rounded-md border border-white/[0.07] bg-white/[0.03] px-1.5 py-0.5 text-[9px] uppercase text-slate-500">{candidate.marketClass}</span>
               </div>
@@ -1277,13 +1313,14 @@ const FlipCandidateCard: React.FC<{
         </div>
 
         {candidate.status === 'CONFIRMED' ? (
-          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <LevelBox label="Închidere flip" value={formatPrice(confirmationPrice)} tone={bullish ? 'emerald' : 'rose'} />
             <LevelBox label="Preț acum" value={formatPrice(candidate.currentPrice)} tone="cyan" />
             <LevelBox label="Față de flip" value={moveFromFlipLabel} tone={moveFromFlip >= 0 ? 'emerald' : 'rose'} />
             <LevelBox label="Confirmat" value={formatRelativeAge(getFlipConfirmedAt(candidate))} tone="slate" />
             <LevelBox label="ML 1W" value={`${candidate.weeklyTier} · ${candidate.weeklyScore > 0 ? '+' : ''}${candidate.weeklyScore}`} tone={candidate.weeklyAligned ? (bullish ? 'emerald' : 'rose') : 'slate'} />
             <LevelBox label="Prioritate" value={`${candidate.priorityScore.toFixed(0)}/100`} tone={candidate.priorityScore >= 80 ? 'amber' : 'slate'} />
+            {candidate.marketClass === 'crypto' && <FundamentalBoxes fundamentals={fundamentals} />}
           </div>
         ) : (
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -1291,6 +1328,7 @@ const FlipCandidateCard: React.FC<{
             <LevelBox label={`${bullish ? 'Peste' : 'Sub'} Slow`} value={formatPrice(candidate.triggerPrice)} tone={bullish ? 'emerald' : 'rose'} />
             <LevelBox label="ML 1W" value={`${candidate.weeklyTier} · ${candidate.weeklyScore > 0 ? '+' : ''}${candidate.weeklyScore}`} tone={candidate.weeklyAligned ? (bullish ? 'emerald' : 'rose') : 'slate'} />
             <LevelBox label="Prioritate" value={`${candidate.priorityScore.toFixed(0)}/100`} tone={candidate.priorityScore >= 80 ? 'amber' : 'slate'} />
+            {candidate.marketClass === 'crypto' && <FundamentalBoxes fundamentals={fundamentals} />}
           </div>
         )}
 
@@ -1328,8 +1366,9 @@ const ConfirmedFlipCard: React.FC<{
   rank: number;
   coinGeckoRank?: number;
   knownAssets?: AssetScannerRow[];
+  fundamentals?: CryptoFundamentals;
   onOpen: () => void;
-}> = ({ candidate, rank, coinGeckoRank, knownAssets, onOpen }) => {
+}> = ({ candidate, rank, coinGeckoRank, knownAssets, fundamentals, onOpen }) => {
   const bullish = candidate.direction === 'BULLISH';
   const tone = bullish
     ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
@@ -1360,6 +1399,7 @@ const ConfirmedFlipCard: React.FC<{
               {candidate.marketClass === 'crypto' && coinGeckoRank && (
                 <span className="rounded-md border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-200">CoinGecko #{coinGeckoRank}</span>
               )}
+              {candidate.marketClass === 'crypto' && <NarrativeTag narrative={fundamentals?.narrative} />}
               <span className="rounded-md border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-cyan-300">{candidate.timeframe.toUpperCase()}</span>
               <span className="rounded-md border border-white/[0.07] bg-white/[0.03] px-1.5 py-0.5 text-[9px] uppercase text-slate-500">{candidate.marketClass}</span>
             </div>
@@ -1376,13 +1416,14 @@ const ConfirmedFlipCard: React.FC<{
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <LevelBox label="Închidere flip" value={formatPrice(confirmationPrice)} tone={bullish ? 'emerald' : 'rose'} />
         <LevelBox label="Preț actual" value={formatPrice(candidate.currentPrice)} tone="cyan" />
         <LevelBox label="Față de flip" value={moveFromFlipLabel} tone={moveFromFlip >= 0 ? 'emerald' : 'rose'} />
         <LevelBox label="Scor setup" value={`${candidate.priorityScore.toFixed(0)}/100`} tone={candidate.priorityScore >= 80 ? 'amber' : 'cyan'} />
         <LevelBox label="ML 1W" value={`${candidate.weeklyTier} · ${candidate.weeklyScore > 0 ? '+' : ''}${candidate.weeklyScore}`} tone={candidate.weeklyAligned ? (bullish ? 'emerald' : 'rose') : 'slate'} />
         <LevelBox label="RVOL" value={`${candidate.rvol.toFixed(2)}x`} tone={candidate.rvol >= 1.2 ? 'emerald' : 'slate'} />
+        {candidate.marketClass === 'crypto' && <FundamentalBoxes fundamentals={fundamentals} />}
       </div>
 
       <button type="button" onClick={onOpen} className="mt-3 flex w-full items-center justify-between border-t border-white/[0.05] pt-3 text-[11px] text-slate-500 transition hover:text-cyan-300">
@@ -1468,6 +1509,14 @@ const ActiveAlertCard: React.FC<{ alert: ActiveAlertDashboardItem; removing: boo
     </article>
   );
 };
+
+// P/R = MC / (revenue 30d x 365/30); "—" when revenue is missing.
+const FundamentalBoxes: React.FC<{ fundamentals?: CryptoFundamentals }> = ({ fundamentals }) => (
+  <>
+    <LevelBox label="P/R" value={formatPriceToRevenue(fundamentals?.priceToRevenue)} tone={fundamentals?.priceToRevenue !== undefined ? 'cyan' : 'slate'} />
+    <LevelBox label="Revenue 30z" value={formatRevenue30d(fundamentals?.revenue30d)} tone="slate" />
+  </>
+);
 
 const LevelBox: React.FC<{ label: string; value: string; tone: 'slate' | 'cyan' | 'rose' | 'amber' | 'emerald' }> = ({ label, value, tone }) => {
   const colors = { slate: 'text-slate-200', cyan: 'text-cyan-300', rose: 'text-rose-300', amber: 'text-amber-300', emerald: 'text-emerald-300' };

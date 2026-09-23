@@ -128,7 +128,7 @@ it('hard Network gate: Undervalued needs complete fees >= $100K AND TVL >= $10M 
     revenue: ['ok', 'thin-fees', 'small-tvl', 'no-fees', 'edge', 'micro'].map(id => metric(id, 50_000)),
     holdersRevenue: []
   });
-  assert.equal(scan.methodologyVersion, 10);
+  assert.equal(scan.methodologyVersion, 11);
   assert.deepEqual(scan.undervalued.map(a => a.assetId).sort(), ['edge', 'ok']);
   // 'micro' passes Network but sits below the $10M market-cap floor (v8).
   assert.equal(scan.unrankedCount, 4);
@@ -416,4 +416,27 @@ it('Top Score applies the $10M market-cap floor (v10)', () => {
     holdersRevenue: [metric('micro', 500_000), metric('okcap', 500_000)]
   });
   assert.deepEqual(scan.topScore!.map(e => e.assetId), ['okcap']);
+});
+
+it('Undervalued v11: stablecoins are excluded and 2/4 assets do not rank', () => {
+  const scan = buildCryptoFourCriteriaScan({
+    coins: [coin('usdt', 300_000_000), coin('rlusd', 300_000_000), coin('good', 300_000_000), coin('weak', 300_000_000)],
+    protocols: tvlRows('usdt', 'rlusd', 'good'), // weak: TVL absent -> passes the relaxed gate, but only 2/4
+    fees: [metric('usdt', 20_000_000), metric('rlusd', 20_000_000), metric('good', 20_000_000), metric('weak', 20_000_000)],
+    revenue: [metric('usdt', 20_000_000), metric('rlusd', 20_000_000), metric('good', 20_000_000), metric('weak', 20_000_000)],
+    holdersRevenue: [metric('usdt', 5_000_000), metric('rlusd', 5_000_000), metric('good', 5_000_000)]
+  });
+  const weak = scan.assets.find(a => a.id === 'weak')!;
+  assert.ok(weak.passedCriteria < 3, `weak passed ${weak.passedCriteria}`);
+  assert.deepEqual(scan.undervalued.map(a => a.assetId), ['good']);
+});
+
+it('narrative tag: CoinGecko narrative first, chains are L1, DefiLlama category next, Crypto fallback', async () => {
+  const { resolveNarrative } = await import('./crypto-four-criteria-scanner.js');
+  assert.equal(resolveNarrative(['meme-token'], 'Liquid Staking', false), 'Meme');
+  assert.equal(resolveNarrative([], 'Bridge', true), 'L1');
+  assert.equal(resolveNarrative(['layer-2'], 'Bridge', true), 'L2');
+  assert.equal(resolveNarrative(undefined, 'Yield', false), 'DeFi');
+  assert.equal(resolveNarrative(undefined, 'Liquid Staking', false), 'Liquid Staking');
+  assert.equal(resolveNarrative(undefined, undefined, false), 'Crypto');
 });

@@ -194,6 +194,8 @@ export interface CryptoFourCriteriaAsset {
   priceChange24h?: number;
   /** Price change % over the last 7d at scan time (CoinGecko markets). */
   priceChange7d?: number;
+  /** Main narrative tag (DeFi, L1, Meme, RWA, Liquid Staking...; "Crypto" fallback). */
+  narrative?: string;
   score: number;
   passedCriteria: number;
   classification: 'all-four' | 'first-three' | 'partial' | 'insufficient-data';

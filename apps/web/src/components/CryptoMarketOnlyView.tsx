@@ -4,6 +4,8 @@ import type { AssetDetailResponse } from '../types.js';
 import type { Candle, Timeframe } from '../types.js';
 import { useLanguage } from '../i18n.js';
 import { BusinessQualityAssetCard } from './BusinessQualityAssetCard.js';
+import { AssetExternalLinks } from './AssetExternalLinks.js';
+import { useCryptoFundamentals } from '../services/crypto-fundamentals.js';
 
 const money = (value: unknown) => typeof value === 'number' && Number.isFinite(value)
   ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumSignificantDigits: 7 }).format(value)
@@ -56,6 +58,7 @@ export const CryptoMarketOnlyView: React.FC<{
 }> = ({ data, timeframe, onBack, onRefresh, loading, onTimeframeChange }) => {
   const { info, quote } = data;
   const { language } = useLanguage();
+  const cryptoFundamentals = useCryptoFundamentals();
   const dex = data.dexMarket;
   const sourceUrl = info.coinGeckoId
     ? `https://www.coingecko.com/en/coins/${encodeURIComponent(info.coinGeckoId)}`
@@ -77,7 +80,8 @@ export const CryptoMarketOnlyView: React.FC<{
     <div className="flex flex-wrap items-center gap-3">
       <button onClick={onBack} className="rounded-xl border border-white/10 p-2.5 text-slate-300" aria-label="Înapoi"><ArrowLeft className="h-5 w-5" /></button>
       <div className="min-w-0 flex-1"><h1 className="text-xl font-bold text-white">{info.name} <span className="text-slate-400">${info.symbol}</span></h1>
-        <p className="text-xs text-slate-400">Crypto · {quote.source}{info.rank > 0 ? ` · #${info.rank}` : ''}</p></div>
+        <p className="text-xs text-slate-400">Crypto · {quote.source}{info.rank > 0 ? ` · #${info.rank}` : ''}</p>
+        <AssetExternalLinks className="mt-2" symbol={info.symbol} marketClass="crypto" coinGeckoId={info.coinGeckoId} protocolSlugs={data.businessQuality?.asset?.protocolSlugs} contractAddress={dex?.contractAddress} narrative={data.businessQuality?.asset?.narrative || cryptoFundamentals.get(String(info.symbol).toUpperCase())?.narrative} language={language} /></div>
       {onTimeframeChange && (
         <div className="flex items-center rounded-lg border border-white/[0.06] bg-white/[0.03] p-0.5">
           {(['1h', '4h', '8h', '1d', '1w'] as Timeframe[]).map((tf) => (

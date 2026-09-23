@@ -2,6 +2,8 @@ import React from 'react';
 import { cryptoValuation } from '@money-scanner/shared';
 import { Activity, Network, Banknote, HandCoins, Scale, Coins } from 'lucide-react';
 import type { CryptoCriteriaStatus, CryptoFourCriteriaAsset, CryptoUndervaluedEntry } from '@money-scanner/shared';
+import { computePriceToRevenue, formatPriceToRevenue } from '../services/crypto-fundamentals.js';
+import { NarrativeTag } from './NarrativeTag.js';
 
 const chipTone = (status: CryptoCriteriaStatus): string =>
   status === 'pass'
@@ -53,6 +55,7 @@ export const CryptoBqAssetCard: React.FC<{
     tvlPace ? `TVL 7z ${tvlPace}` : null,
   ].filter(Boolean).join(' \u00b7 ');
   const valuation = cryptoValuation(asset);
+  const priceToRevenue = computePriceToRevenue(asset.marketCap, metrics.revenue30d);
   const tvlMeetsGate = (metrics.tvl ?? 0) >= 10_000_000;
   const multipleBasis = valuation.basis === 'revenue' ? 'P/R' : valuation.basis === 'fees' ? 'P/F' : 'P/H';
   const percent = (value?: number) => value === undefined ? '—' : `${value.toFixed(2)}%`;
@@ -79,6 +82,7 @@ export const CryptoBqAssetCard: React.FC<{
             <div className="flex flex-wrap items-center gap-2">
               <span translate="no" className="text-sm font-bold text-slate-100">${asset.symbol}</span>
               <span className="text-[10px] font-mono text-slate-600">{asset.marketCapRank > 0 ? `#${asset.marketCapRank}` : ''}</span>
+              <NarrativeTag narrative={asset.narrative} />
               {(feePace || revPace) && (
                 <span className="inline-flex flex-wrap items-center gap-1 text-[9px] font-mono" title={paceTip}>
                   {feePace && (
@@ -143,9 +147,15 @@ export const CryptoBqAssetCard: React.FC<{
           <span className="block mt-1 text-sm font-mono font-bold text-slate-100">{fmtUsd(metrics.holdersRevenue30d)}</span>
         </div>
         <div className="rounded-lg border border-cyan-500/25 bg-cyan-500/[0.07] p-2.5">
-          <span className="inline-flex items-center gap-1 text-[9px] font-mono uppercase text-cyan-300"><Scale className="w-3 h-3" />{valuation.multiple === undefined ? (isRo ? 'Multiplu' : 'Multiple') : multipleBasis}</span>
-          <span className="block mt-1 text-sm font-mono font-bold text-cyan-100">{valuation.multiple === undefined ? '—' : `${valuation.multiple.toFixed(1)}x`}</span>
-          <span className="block text-[8px] font-mono text-cyan-300/70">{valuation.multiple === undefined ? (isRo ? 'date insuficiente' : 'insufficient data') : `MC / (${basisLabel} 30d × 365/30)`}</span>
+          <span className="inline-flex items-center gap-1 text-[9px] font-mono uppercase text-cyan-300"><Scale className="w-3 h-3" />P/R</span>
+          <span className="block mt-1 text-sm font-mono font-bold text-cyan-100">{formatPriceToRevenue(priceToRevenue)}</span>
+          <span className="block text-[8px] font-mono text-cyan-300/70">
+            {priceToRevenue !== undefined
+              ? 'MC / (revenue 30d \u00d7 365/30)'
+              : valuation.multiple !== undefined
+                ? `${isRo ? 'fără revenue' : 'no revenue'} \u00b7 ${multipleBasis} ${valuation.multiple.toFixed(1)}x`
+                : (isRo ? 'fără revenue' : 'no revenue')}
+          </span>
         </div>
         <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/[0.05] p-2.5">
           <span className="block text-[9px] font-mono uppercase text-emerald-300">{isRo ? 'Randament holderi' : 'Holder yield'}</span>

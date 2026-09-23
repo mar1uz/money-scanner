@@ -11,6 +11,8 @@ import { CryptoBusinessQualityCard } from './CryptoBusinessQualityCard.js';
 import { StockBusinessQualityCard } from './StockBusinessQualityCard.js';
 import { AssetProfileOverviewCard } from './AssetProfileOverviewCard.js';
 import { CryptoMarketOnlyView } from './CryptoMarketOnlyView.js';
+import { AssetExternalLinks } from './AssetExternalLinks.js';
+import { useCryptoFundamentals } from '../services/crypto-fundamentals.js';
 import {
   ArrowLeft,
   Zap,
@@ -139,6 +141,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   const [activeInfoTab, setActiveInfoTab] = useState<InfoTab>('ai');
   const [chartTab, setChartTab] = useState<'chart' | 'tv_embed' | 'pinescript'>('chart');
   const { language } = useLanguage();
+  const cryptoFundamentals = useCryptoFundamentals();
   const [showFlipTooltip, setShowFlipTooltip] = useState(false);
   const [loadingOlderHistory, setLoadingOlderHistory] = useState(false);
   const [hasMoreHistory, setHasMoreHistory] = useState(true);
@@ -292,6 +295,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
           <h2 className="text-base font-bold text-slate-100">${symbol} · date indisponibile temporar</h2>
           <p className="mt-2 text-sm text-slate-400">{loadError}</p>
         </div>
+        <AssetExternalLinks className="justify-center" symbol={symbol} marketClass={marketClass} coinGeckoId={coinGeckoId} language={language} />
         <div className="flex items-center justify-center gap-3">
           <button onClick={onBack} className="px-4 py-2 rounded-xl border border-white/[0.08] text-slate-300 hover:bg-white/[0.04]">
             Înapoi
@@ -526,6 +530,16 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
             TradingView extern
           </button>
         </div>
+        <AssetExternalLinks
+          className="mt-2 max-w-[1600px] mx-auto"
+          symbol={symbol}
+          marketClass={resolvedMarketClass}
+          coinGeckoId={resolvedCoinGeckoId}
+          protocolSlugs={data?.businessQuality?.asset?.protocolSlugs}
+          contractAddress={data?.dexMarket?.contractAddress}
+          narrative={data?.businessQuality?.asset?.narrative || cryptoFundamentals.get(symbol.toUpperCase())?.narrative}
+          language={language}
+        />
       </div>
 
 
@@ -597,7 +611,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
                 <AssetProfileOverviewCard
                   symbol={symbol}
                   name={data?.info?.name || explanation?.assetName}
-                  category={data?.info?.category || explanation?.sectorOrNarrative}
+                  category={data?.info?.category || explanation?.sectorOrNarrative || data?.businessQuality?.asset?.narrative || cryptoFundamentals.get(symbol.toUpperCase())?.narrative}
                   marketClass={resolvedMarketClass}
                   coinGeckoId={resolvedCoinGeckoId}
                   instinctTake={profileTake}
