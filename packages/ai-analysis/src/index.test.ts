@@ -120,6 +120,16 @@ describe('AI Market Analyst Engine', () => {
     assert.ok(explanation.evidence.length > 0);
   });
 
+  it('routes unlisted crypto to the crypto template when the market class is known', async () => {
+    const analyst = new AIMarketAnalystService();
+    const signal: any = { symbol: 'RAY', timeframe: '1d', score: 80, tier: 'Strong Bullish', rawIndicators: { rsi14: 60, rvol: 1.2, atr14: 0.05 }, contributions: { emaAlignmentScore: 1, rocScore: 1, macdScore: 1, rvolScore: 1 }, calculationTimestamp: Date.now(), version: 'v1.0.0' };
+    const crypto = await analyst.generateAssetExplanation('RAY', 1.79, signal, [], [], 'crypto');
+    assert.equal(crypto.assetClass, 'crypto');
+    assert.ok(!JSON.stringify(crypto).includes('dividende'));
+    const legacy = await analyst.generateAssetExplanation('RAY', 1.79, signal, [], []);
+    assert.equal(legacy.assetClass, 'stocks');
+  });
+
   it('builds a deterministic cited news synthesis when no AI key is configured', async () => {
     const previousKey = process.env.GEMINI_API_KEY;
     delete process.env.GEMINI_API_KEY;
