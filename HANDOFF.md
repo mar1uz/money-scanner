@@ -4226,3 +4226,15 @@ Marius picked Variant 1 from two chat mockups ("varianta 1 si da e ok ca restul 
 Checks: web tsc + vite build clean. Web tests 80/81 - the one failure (crypto-market-only DEX fallback OHLCV title) also fails on clean HEAD 2640272, so it is pre-existing from the i18n phase-1 commit and owned by the i18n task, not by this change.
 
 NOT deployed. Combined deploy with the i18n + ask-box changes ships when Marius says go.
+
+## Step 131 - 2026-09-23 - "Ask the AI analyst" removed completely
+
+Marius: "Ask the AI analyst poti sa o scoti complet". This replaces Step 129 (the first of the two sections labelled "Step 129", the ask box answering from the Instinct briefing); the feature is gone, not reworked.
+
+- Web (`AIBriefingView.tsx`): removed the whole chat surface on the AI Briefing page - the left sidebar (New chat, Inspirație questions, saved Chats list), the "Ask AI Briefing" divider, the message thread and thinking indicators, and the bottom input bar with mobile quick questions. Removed the chat state, localStorage chat persistence (`ms360_ai_chats` is no longer read or written), the X-posts fetch that only fed chat answers, and the now-unused markdown renderer and icon imports. The briefing dashboard, Business Quality scanners, scope selector and refresh button are unchanged and now take the full width.
+- Web (`services/api.ts`): `askAIAnalyst` removed.
+- API (`routes/ai-routes.ts`): `POST /api/ai/ask` removed; unknown route, so it now returns 404. `server.ts`: the scheduler-token session bypass for `/ai/ask` removed.
+- `narrative-guard.ts`: ask-only helpers removed (`answerIssues`, `ASK_FIXED_REPLY`, `ASK_NO_BRIEFING_REPLY`, number-grounding regexes) plus their 3 tests. The narrative guard itself (`findNarrativeIssues`, `takeIssues`, `isServableTake`, `buildInstinctReport`) is untouched and still used by the briefing pipeline.
+- `packages/ai-analysis/ai-analyst.ts`: dead ask code removed - `askFromInstinctBriefing`, `askMarketIntelligenceQuestion` (legacy report Q&A, no callers since Step 129) and the legacy `askAnalyst` template Q&A; the one test assertion that called `askMarketIntelligenceQuestion` dropped.
+- Instinct-authored briefing content and publishing are unchanged.
+- Not deployed yet (held for one combined deploy).

@@ -1,4 +1,3 @@
-import { validateScheduledRequestToken } from './services/scheduler-auth.js';
 import express from 'express';
 import { radarRouter } from './routes/radar-routes.js';
 import cors from 'cors';
@@ -51,8 +50,6 @@ export function createServer() {
       || req.path === '/alerts/structure-scanner/scheduled'
       || req.path === '/ai/daily-warmup'
       || req.path === '/ai/publish-content'
-      // Ops verification of the Instinct-briefing ask box (scheduler token only).
-      || (req.path === '/ai/ask' && validateScheduledRequestToken(req.get('x-daily-scan-token')))
       || req.path === '/scanner/warm'
       || req.path === '/tape/scan'
       || req.path === '/tape/proof'

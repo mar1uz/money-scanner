@@ -24,7 +24,7 @@ import { lookupCryptoFourCriteria, normalizeLookupQuery } from '../services/cryp
 import { scanStockBusinessQuality } from '../services/stock-business-quality-scanner.js';
 import { readPersistentAICache, writePersistentAICache } from '../services/ai-cache-store.js';
 import { validateScheduledRequestToken } from '../services/scheduler-auth.js';
-import { answerIssues, ASK_FIXED_REPLY, ASK_NO_BRIEFING_REPLY, buildInstinctReport, isServableTake, takeIssues } from '../services/narrative-guard.js';
+import { buildInstinctReport, isServableTake, takeIssues } from '../services/narrative-guard.js';
 
 export const aiRouter = Router();
 
@@ -744,41 +744,4 @@ aiRouter.post('/ai/analyze/:symbol', async (req, res) => {
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to generate asset AI analysis', details: err.message });
   }
-});
-
-aiRouter.post('/ai/ask', async (req, res) => {
-  // Marius 2026-09-23: the ask box stays, but answers ONLY from today's
-  // Instinct briefing, with the narrative guard (units, dated central-bank
-  // news, every number must be in the briefing) on each answer. Any failure
-  // returns a fixed reply instead of model text.
-  const language: 'ro' | 'en' = req.body?.language === 'en' ? 'en' : 'ro';
-  const question = req.body?.question;
-  if (!question || typeof question !== 'string') {
-    return res.status(400).json({ error: 'Question string is required in request body' });
-  }
-  const reply = (answer: string, guard: 'pass' | 'fixed-reply' | 'no-briefing', issues: string[] = []) => {
-    res.set('Cache-Control', 'no-store');
-    res.set('X-Answer-Guard', guard);
-    if (issues.length) console.warn('ask-box guard rejected answer:', issues.slice(0, 5).join(' | '));
-    return res.json({ answer, relatedSymbols: [], evidenceCitations: [], source: 'instinct-briefing', guard });
-  };
-  const takes = (await Promise.all(
-    ['briefing', 'market-intelligence', 'capital-rotation', 'intelligence-brief'].map(key => readAiContentTake(key, language))
-  )).filter((take): take is AIContentTake => Boolean(take));
-  if (!takes.some(take => take.headline)) return reply(ASK_NO_BRIEFING_REPLY[language], 'no-briefing');
-  const briefingText = takes.map(take => [take.headline, ...take.paragraphs, ...(take.bullets || [])].join('\n')).join('\n\n');
-  let answer: string;
-  // Ops verification hook (scheduler token only): run the guard on a given answer.
-  if (typeof req.body?.verifyAnswer === 'string' && validateScheduledRequestToken(req.get('x-daily-scan-token'))) {
-    answer = req.body.verifyAnswer.slice(0, 2000);
-  } else {
-    try {
-      answer = await AppState.getInstance().ai.askFromInstinctBriefing(question, briefingText, language);
-    } catch {
-      return reply(ASK_FIXED_REPLY[language], 'fixed-reply', ['model call failed']);
-    }
-  }
-  const issues = answerIssues(answer, briefingText);
-  if (issues.length) return reply(ASK_FIXED_REPLY[language], 'fixed-reply', issues);
-  return reply(answer, 'pass');
 });

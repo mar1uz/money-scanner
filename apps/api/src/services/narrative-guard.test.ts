@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AIContentTake, MarketIntelligenceReport } from '@money-scanner/shared';
-import { answerIssues, buildInstinctReport, findNarrativeIssues, isServableTake } from './narrative-guard.js';
+import { buildInstinctReport, findNarrativeIssues, isServableTake } from './narrative-guard.js';
 
 const take = (over: Partial<AIContentTake> = {}): AIContentTake => ({
   headline: 'Crypto majors hold above weekly triggers',
@@ -87,19 +87,5 @@ describe('buildInstinctReport', () => {
 describe('narrative guard - single asset caps stay allowed', () => {
   it('does not flag a single-asset cap in a crypto sentence', () => {
     assert.deepEqual(findNarrativeIssues(['Crypto: SOL market cap is $90B after a 3% day.']), []);
-  });
-});
-
-describe('ask box answer guard', () => {
-  const briefing = 'Crypto majors hold above weekly triggers\nBTC $87,120, +1.4% 24h. Total crypto market cap is $2.96T.\nNVDA leads AI chips, +3.2% on the week.';
-  it('passes an answer that only uses briefing numbers', () => {
-    assert.deepEqual(answerIssues('BTC is at $87,120 (+1.4% in 24h) and NVDA is up 3.2% on the week.', briefing), []);
-  });
-  it('rejects numbers that are not in the briefing', () => {
-    assert.ok(answerIssues('BTC could reach $95,000 soon.', briefing).some(i => i.startsWith('ungrounded-number')));
-  });
-  it('rejects unit errors and undated Fed news', () => {
-    assert.ok(answerIssues('Total market cap is $2.96 billion.', briefing).some(i => i.startsWith('unit')));
-    assert.ok(answerIssues('The Fed raised rates for the first time since 2023.', briefing).length > 0);
   });
 });

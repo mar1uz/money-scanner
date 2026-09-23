@@ -169,8 +169,6 @@ describe('AI Market Analyst Engine', () => {
       assert.equal(report.mode, 'deterministic');
       assert.equal(report.narratives[0].name, 'Metale Prețioase');
       assert.equal(report.discoveries.length, 0);
-      const answer = await analyst.askMarketIntelligenceQuestion('Ce influențează aurul?', report, 'ro');
-      assert.match(answer.answer, /raportul metals/i);
     } finally {
       if (previousKey === undefined) delete process.env.GEMINI_API_KEY;
       else process.env.GEMINI_API_KEY = previousKey;
