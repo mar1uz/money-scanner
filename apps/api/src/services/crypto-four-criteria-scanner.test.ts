@@ -128,7 +128,7 @@ it('hard Network gate: Undervalued needs complete fees >= $100K AND TVL >= $10M 
     revenue: ['ok', 'thin-fees', 'small-tvl', 'no-fees', 'edge', 'micro'].map(id => metric(id, 50_000)),
     holdersRevenue: []
   });
-  assert.equal(scan.methodologyVersion, 9);
+  assert.equal(scan.methodologyVersion, 10);
   assert.deepEqual(scan.undervalued.map(a => a.assetId).sort(), ['edge', 'ok']);
   // 'micro' passes Network but sits below the $10M market-cap floor (v8).
   assert.equal(scan.unrankedCount, 4);
@@ -393,4 +393,27 @@ it('ranks $0-revenue protocols by real capture; fees are fallback only when reve
   assert.equal(scan.assets[1].passedCriteria, 3);
   assert.equal(scan.assets[2].passedCriteria, 3);
   assert.equal(scan.assets[3].passedCriteria, 3);
+});
+
+it('Network gate v10: TVL absent passes on fees alone, TVL present but < $10M fails', () => {
+  const scan = buildCryptoFourCriteriaScan({
+    coins: [coin('notvl', 300_000_000), coin('smalltvl', 300_000_000)],
+    protocols: [{ slug: 'smalltvl', gecko_id: 'smalltvl', tvl: 9_999_999, change_7d: 2, chains: ['Ethereum'] }],
+    fees: [metric('notvl', 20_000_000), metric('smalltvl', 20_000_000)],
+    revenue: [metric('notvl', 20_000_000), metric('smalltvl', 20_000_000)],
+    holdersRevenue: [metric('notvl', 5_000_000), metric('smalltvl', 5_000_000)]
+  });
+  assert.equal(scan.assets.find(a => a.id === 'notvl')!.metrics.tvl, undefined);
+  assert.deepEqual(scan.undervalued.map(a => a.assetId), ['notvl']);
+});
+
+it('Top Score applies the $10M market-cap floor (v10)', () => {
+  const scan = buildCryptoFourCriteriaScan({
+    coins: [coin('micro', 4_000_000), coin('okcap', 300_000_000)],
+    protocols: tvlRows('micro', 'okcap'),
+    fees: [metric('micro', 3_000_000), metric('okcap', 3_000_000)],
+    revenue: [metric('micro', 2_000_000), metric('okcap', 2_000_000)],
+    holdersRevenue: [metric('micro', 500_000), metric('okcap', 500_000)]
+  });
+  assert.deepEqual(scan.topScore!.map(e => e.assetId), ['okcap']);
 });

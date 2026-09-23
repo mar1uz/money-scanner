@@ -145,8 +145,13 @@ export const UNDERVALUED_MIN_MARKET_CAP = 10_000_000;
  * fees >= $100K AND TVL >= $10M. Incomplete fees cannot prove the threshold,
  * so they do not pass the gate. Top Score membership is not affected.
  */
+// v10 (Marius, 2026-09-23 17:27, "Relaxează"): TVL ABSENT is not the same as
+// TVL too small. When DefiLlama has no TVL at all for the asset (launchpads,
+// apps, chains where TVL does not apply - PONS, STONK), the gate passes on
+// complete fees >= $100K alone. When TVL exists and is below $10M, it fails.
 export const meetsUndervaluedNetworkGate = (asset: CryptoFourCriteriaAsset): boolean =>
-  (asset.metrics.fees30d ?? 0) >= NETWORK_MIN_FEES_30D && (asset.metrics.tvl ?? 0) >= NETWORK_MIN_TVL;
+  (asset.metrics.fees30d ?? 0) >= NETWORK_MIN_FEES_30D &&
+  (asset.metrics.tvl === undefined || asset.metrics.tvl >= NETWORK_MIN_TVL);
 
 const scoreForStatus = (status: CryptoCriteriaStatus): number => {
   if (status === 'pass') return 25;
@@ -285,6 +290,8 @@ const buildTopScoreRanking = (assets: CryptoFourCriteriaAsset[]): CryptoTopScore
       const revenue30d = asset.metrics.revenue30d ?? 0;
       if (!(revenue30d >= TOP_SCORE_MIN_REVENUE_30D)) return [];
       if (asset.passedCriteria < TOP_SCORE_MIN_CRITERIA) return [];
+      // Same $10M market-cap floor as Undervalued (Marius, 2026-09-23 17:27).
+      if (!(asset.marketCap >= UNDERVALUED_MIN_MARKET_CAP)) return [];
       const { basis, multiple } = cryptoValuation(asset);
       if (basis !== 'revenue' || multiple === undefined || !Number.isFinite(multiple) || multiple <= 0) return [];
       const size = Math.log10(1 + sizeBasisUsd(asset)) * 10;
@@ -559,7 +566,7 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
   const { undervalued, unrankedCount } = buildUndervaluedRanking(universe);
   const topScore = buildTopScoreRanking(universe);
   return {
-    methodologyVersion: 9,
+    methodologyVersion: 10,
     scannedCount: coins.length,
     coveredCount,
     allFourCount: universe.filter(asset => asset.classification === 'all-four').length,
@@ -578,9 +585,9 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
       'Valoare către holderi: necesită raportare completă buyback/burn, distribuții sau staking finanțat din venit ȘI valoare > $0 pe 30z; zero raportat nu trece criteriul.',
       'Model de subevaluare (tab Calitate Business): scor calitate 0-75 = completitudinea datelor pentru Efect de rețea + Venit sustenabil + Valoare către holderi.',
       'Ordine Subevaluate (v9): pur după P/R, cel mai ieftin primul; 3/4 și 4/4 criterii sunt tratate la fel (criteriile rămân afișate, nu mai sortează). Indexul și calitatea decid doar la egalitate.',
-      'Scor top (v9): scor fundamental = 10 × log10(revenue 30z) − 10 × log10(P/R); un ordin de mărime în plus la revenue valorează cât un P/R de 10 ori mai mic. Eligibil doar cu revenue 30z ≥ $100K și minim 3/4 criterii (3/4 și 4/4 tratate la fel, cu sau fără TVL). Criteriile nu sortează (doar la egalitate).',
+      'Scor top (v9): scor fundamental = 10 × log10(revenue 30z) − 10 × log10(P/R); un ordin de mărime în plus la revenue valorează cât un P/R de 10 ori mai mic. Eligibil doar cu revenue 30z ≥ $100K, market cap ≥ $10M și minim 3/4 criterii (3/4 și 4/4 tratate la fel, cu sau fără TVL). Criteriile nu sortează (doar la egalitate).',
       'Evaluare: P/R = market cap / (revenue 30z × 365/30); fallback P/H din buyback/burn anualizat când revenue lipsește. Activele cu doar fees (fără revenue/holderi) sunt excluse din clasamentul de subevaluate - P/F nu măsoară captura de valoare.',
-      'Eligibilitate Subevaluate (filtru hard, v8): apar doar activele cu fees 30z complete ≥ $100K ȘI TVL ≥ $10M (regula Efect de rețea) ȘI market cap ≥ $10M; cele sub prag nu sunt clasate deloc, indiferent de multiplu.',
+      'Eligibilitate Subevaluate (filtru hard, v10): fees 30z complete ≥ $100K ȘI market cap ≥ $10M ȘI TVL ≥ $10M. TVL absent ≠ TVL prea mic: când DefiLlama nu are deloc TVL pentru activ (launchpad-uri, aplicații, rețele unde TVL nu se aplică), filtrul trece doar pe fees; când TVL există dar e sub $10M, activul nu e clasat.',
       'Index subevaluare = percentila calității − percentila scumpirii (log P/R) între active cu aceeași bază (revenue/holderi), cu percentile centrate pentru egalități; afișat ca informație și folosit doar la egalitate de P/R.',
       'Randament holderi: (holders revenue 30z × 365/30) / MC × 100; varianta /FDV include diluția. Ritm extrapolat, nu APY garantat.',
       'Selecție secțiune (vizualizarea 4 criterii din AI Briefing): sunt listate doar monedele cu fees/revenue observabile sau buyback/burn raportat; sortare după criterii trecute, apoi factorul de dimensiune (log10 din revenue 30z; distribuțiile către holderi contează ca revenue, iar fees sunt fallback doar când datele de revenue lipsesc complet), apoi ritmul revenue (7z vs 30z) și rank.'
