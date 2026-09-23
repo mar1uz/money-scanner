@@ -12,12 +12,6 @@
 > - **Crypto Fear & Greed Index**: MUST be fetched directly from Alternative.me official public API (`https://api.alternative.me/fng/?limit=1`).
 > - **USA Macro & Economic Status**: Real official U.S. Treasury National Debt ($36.2T+), BLS Consumer Price Index (CPI/PCE), Federal Reserve Funds Rate, and Treasury Yield Curve.
 > - **News & Social Intelligence**: 100% verified news from Bloomberg, Reuters, CoinDesk, Decrypt, and authentic posts from verified analysts.
-> 
-> ### 🚀 MANDATORY OPERATIONAL DIRECTIVE #2: ALWAYS PROVIDE APPLICATION LINK ON EVERY DEPLOY
-> **AFTER EVERY DEPLOYMENT (Cloud Run / Production), THE ASSISTANT MUST ALWAYS INCLUDE THE DIRECT ACCESSIBLE APPLICATION LINKS IN THE FINAL USER RESPONSE:**
-> - Primary Cloud Run URL: `https://market-scanner-360-384051756749.europe-west3.run.app`
-> - Production Domain: `https://scanner.relayhub.no`
-> - Plus the exact Cloud Run revision name and health status verification.
 
 ## 1. Project purpose
 
