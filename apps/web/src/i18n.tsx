@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { UI_PAIRS } from './i18n-ui-dictionary';
+import { CONTENT_PAIRS } from './i18n-content-dictionary';
 
 export type Language = 'ro' | 'en';
 
@@ -24,7 +26,30 @@ const LanguageContext = createContext<LanguageContextValue>({
 // Romanian is the source language of the current UI. These replacements are
 // deliberately phrase-based so they also cover text returned by existing
 // components without forcing every component to duplicate language state.
-const RO_TO_EN = ([
+
+// ---------------------------------------------------------------------------
+// Translation engine
+//
+// Romanian is the source language of most of the UI; some components are
+// written in English. Every user-visible string must have a pair in one of the
+// dictionaries (BASE_PAIRS here, UI_PAIRS, CONTENT_PAIRS). The DOM translator
+// below applies the selected language to every text node and to
+// placeholder/title/aria-label attributes under #root.
+//
+// Matching rules (in this order):
+//   1. exact match of the whole (whitespace-normalised) text node;
+//   2. template match: pairs containing "{}" placeholders match whole nodes
+//      whose dynamic parts (numbers, symbols, names) are carried over as-is;
+//   3. phrase fallback with Unicode word boundaries only. A phrase never
+//      matches inside a longer word, so "Ray" can no longer turn "Raydium"
+//      into "Razădium" and "Watch" can no longer turn "Watchlist" into
+//      "De urmăritlist".
+// Anything rendered inside translate="no" / data-i18n-skip (asset names,
+// tickers, protocol names, third-party headlines) is never touched.
+// i18n-coverage.test.ts fails the build when a new user-visible literal is
+// added without a dictionary pair.
+// ---------------------------------------------------------------------------
+export const BASE_PAIRS: Array<[string, string]> = [
   ['Narative & Sectoare Alpha (Minim 30 Active / Sector)', 'Alpha Narratives & Sectors (Minimum 30 Active / Sector)'],
   ['Giganți de inteligență artificială, LLM-uri, compute și protocoale AI onchain', 'Artificial-intelligence giants, LLMs, compute and onchain AI protocols'],
   ['Performanță live 24h agregată și compoziția sectorială selectată de AI după Market Cap', 'Aggregated live 24h performance and AI-selected sector composition by Market Cap'],
@@ -456,18 +481,84 @@ const RO_TO_EN = ([
   ['EXPLORARE', 'EXPLORE'],
   ['CERCETARE', 'RESEARCH'],
   ['Mai multă claritate. Mai puțin zgomot.', 'More clarity. Less noise.']
-] as Array<[string, string]>).sort((a, b) => b[0].length - a[0].length);
+];
 
-const EN_TO_RO = RO_TO_EN
-  .map(([ro, en]) => [en, ro] as [string, string])
-  .sort((a, b) => b[0].length - a[0].length);
+export const ALL_PAIRS: Array<[string, string]> = [...BASE_PAIRS, ...UI_PAIRS, ...CONTENT_PAIRS];
+
+const normalise = (value: string) => value.replace(/[\s\u00a0]+/g, ' ').trim();
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+interface CompiledTemplate { regex: RegExp; target: string; }
+interface CompiledPhrase { source: string; regex: RegExp; target: string; }
+interface Direction { exact: Map<string, string>; templates: CompiledTemplate[]; phrases: CompiledPhrase[]; }
+
+function compileDirection(pairs: Array<[string, string]>): Direction {
+  const exact = new Map<string, string>();
+  const templates: CompiledTemplate[] = [];
+  const phrases: CompiledPhrase[] = [];
+  for (const [rawSource, rawTarget] of pairs) {
+    const source = normalise(rawSource);
+    const target = normalise(rawTarget);
+    if (!source || source === target) continue;
+    if (source.includes('{}')) {
+      const pattern = source.split('{}').map(escapeRegex).join('(.+?)');
+      templates.push({ regex: new RegExp(`^${pattern}$`, 'u'), target });
+      continue;
+    }
+    if (!exact.has(source)) exact.set(source, target);
+    if (source.length >= 3) {
+      phrases.push({ source, target, regex: new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegex(source)}(?![\\p{L}\\p{N}])`, 'gu') });
+    }
+  }
+  templates.sort((a, b) => b.regex.source.length - a.regex.source.length);
+  phrases.sort((a, b) => b.source.length - a.source.length);
+  return { exact, templates, phrases };
+}
+
+let compiled: { en: Direction; ro: Direction } | null = null;
+function directions() {
+  if (!compiled) {
+    compiled = {
+      en: compileDirection(ALL_PAIRS),
+      ro: compileDirection(ALL_PAIRS.map(([ro, en]) => [en, ro] as [string, string]))
+    };
+  }
+  return compiled;
+}
+
+function fillTemplate(target: string, captures: string[], direction: Direction): string {
+  let index = 0;
+  return target.replace(/\{\}/g, () => {
+    const value = captures[index++] ?? '';
+    return direction.exact.get(normalise(value)) ?? value;
+  });
+}
+
+function translateCore(core: string, language: Language): string {
+  const direction = directions()[language];
+  const key = normalise(core);
+  const exact = direction.exact.get(key);
+  if (exact !== undefined) return exact;
+  for (const template of direction.templates) {
+    const match = key.match(template.regex);
+    if (match) return fillTemplate(template.target, match.slice(1), direction);
+  }
+  let output = core;
+  for (const phrase of direction.phrases) {
+    if (!output.includes(phrase.source)) continue;
+    phrase.regex.lastIndex = 0;
+    output = output.replace(phrase.regex, phrase.target);
+  }
+  return output;
+}
 
 export function translateText(value: string, language: Language): string {
-  let output = value;
-  const replacements = language === 'en' ? RO_TO_EN : EN_TO_RO;
-  for (const [source, target] of replacements) {
-    if (output.includes(source)) output = output.split(source).join(target);
-  }
+  const match = value.match(/^(\s*)([\s\S]*?)(\s*)$/);
+  const lead = match?.[1] ?? '';
+  const core = match?.[2] ?? value;
+  const trail = match?.[3] ?? '';
+  if (!core || !/\p{L}/u.test(core)) return value;
+  let output = translateCore(core, language);
 
   if (language === 'en') {
     output = output
@@ -481,7 +572,7 @@ export function translateText(value: string, language: Language): string {
       .replace(/acum (\d+) zil?e?/g, '$1 days ago');
   }
 
-  return output;
+  return lead + output + trail;
 }
 
 const sourceText = new WeakMap<Text, string>();
@@ -490,9 +581,13 @@ const sourceAttrs = new WeakMap<Element, Map<string, string>>();
 const lastAttrs = new WeakMap<Element, Map<string, string>>();
 const TRANSLATED_ATTRIBUTES = ['placeholder', 'title', 'aria-label'];
 
+const SKIP_SELECTOR = '[translate="no"],[data-i18n-skip]';
+
 function shouldSkipText(node: Text): boolean {
-  const tag = node.parentElement?.tagName;
-  return tag === 'SCRIPT' || tag === 'STYLE' || tag === 'CODE' || tag === 'PRE' || tag === 'TEXTAREA';
+  const parent = node.parentElement;
+  const tag = parent?.tagName;
+  if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'CODE' || tag === 'PRE' || tag === 'TEXTAREA') return true;
+  return Boolean(parent?.closest(SKIP_SELECTOR));
 }
 
 function translateNode(node: Node, language: Language): void {
@@ -509,6 +604,7 @@ function translateNode(node: Node, language: Language): void {
 
   if (node.nodeType !== Node.ELEMENT_NODE) return;
   const element = node as Element;
+  if (element.closest?.(SKIP_SELECTOR)) return;
   const attrSources = sourceAttrs.get(element) || new Map<string, string>();
   const attrLast = lastAttrs.get(element) || new Map<string, string>();
   for (const attr of TRANSLATED_ATTRIBUTES) {
@@ -530,6 +626,49 @@ function translateDocument(language: Language): void {
   if (root) translateNode(root, language);
 }
 
+let activeLanguage: Language = 'ro';
+let dialogsPatched = false;
+
+/** Native dialogs (alert/confirm/prompt) never pass through the DOM, so their
+ * messages are translated here with the same dictionaries. */
+function patchNativeDialogs(): void {
+  if (dialogsPatched || typeof window === 'undefined') return;
+  dialogsPatched = true;
+  const originalAlert = window.alert.bind(window);
+  const originalConfirm = window.confirm.bind(window);
+  const originalPrompt = window.prompt.bind(window);
+  window.alert = (message?: unknown) => originalAlert(translateText(String(message ?? ''), activeLanguage));
+  window.confirm = (message?: string) => originalConfirm(translateText(String(message ?? ''), activeLanguage));
+  window.prompt = (message?: string, value?: string) => originalPrompt(translateText(String(message ?? ''), activeLanguage), value);
+}
+
+const RO_MARKERS = /[ăâîșțşţĂÂÎȘȚ]|(^|[^\p{L}])(și|sau|pentru|este|sunt|după|fără|toate|niciun|nicio|acum|mai mult)(?=$|[^\p{L}])/iu;
+const EN_MARKERS = /(^|[^\p{L}])(the|and|with|for|is|are|loading|show|hide|more|ago|failed|latest|read|view|what|does)(?=$|[^\p{L}])/iu;
+
+/** Lists visible text that is in the other language (skip zones excluded).
+ * Exposed as window.__msI18nAudit() for verification and debugging. */
+export function auditLanguageLeaks(language: Language, root: HTMLElement | null = document.getElementById('root')): string[] {
+  if (!root) return [];
+  const marker = language === 'en' ? RO_MARKERS : EN_MARKERS;
+  const leaks = new Set<string>();
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node: Node | null;
+  while ((node = walker.nextNode())) {
+    const text = normalise(node.nodeValue || '');
+    if (text.length < 2 || shouldSkipText(node as Text)) continue;
+    if (!(node.parentElement?.getClientRects().length)) continue;
+    if (marker.test(text)) leaks.add(text.slice(0, 160));
+  }
+  for (const element of Array.from(root.querySelectorAll('[placeholder],[title],[aria-label]'))) {
+    if (element.closest(SKIP_SELECTOR)) continue;
+    for (const attr of TRANSLATED_ATTRIBUTES) {
+      const value = element.getAttribute(attr);
+      if (value && marker.test(value)) leaks.add(`@${attr}: ${value.slice(0, 140)}`);
+    }
+  }
+  return Array.from(leaks);
+}
+
 export const LanguageProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const [language, setLanguageState] = useState<Language>(() => {
     try {
@@ -548,6 +687,9 @@ export const LanguageProvider: React.FC<React.PropsWithChildren> = ({ children }
 
   useEffect(() => {
     document.documentElement.lang = language;
+    activeLanguage = language;
+    patchNativeDialogs();
+    (window as unknown as { __msI18nAudit?: () => string[] }).__msI18nAudit = () => auditLanguageLeaks(language);
     translateDocument(language);
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {

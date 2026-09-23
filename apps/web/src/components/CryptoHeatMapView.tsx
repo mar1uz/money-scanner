@@ -454,7 +454,7 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
                       loading="lazy"
                     />
                   )}
-                  <span className="truncate">{rect.coin.name}</span>
+                  <span translate="no" className="truncate">{rect.coin.name}</span>
                 </span>
                 <span
                   className={`mt-px max-w-full truncate font-mono font-black ${positive ? 'text-emerald-50' : 'text-rose-50'}`}
@@ -614,7 +614,7 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
                                 ${coin.symbol}
                               </span>
                               <span className="text-[10px] text-slate-500 font-sans truncate max-w-[140px]">
-                                {coin.name}
+                                <bdi translate="no">{coin.name}</bdi>
                               </span>
                             </div>
                           </div>
@@ -716,7 +716,7 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
                           ${coin.symbol}
                         </span>
                         <span className="text-[11px] text-slate-400 font-sans truncate">
-                          {coin.name}
+                          <bdi translate="no">{coin.name}</bdi>
                         </span>
                       </div>
                     </div>

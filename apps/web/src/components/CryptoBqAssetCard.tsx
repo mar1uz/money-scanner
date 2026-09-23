@@ -76,7 +76,7 @@ export const CryptoBqAssetCard: React.FC<{
           {asset.image ? <img src={asset.image} alt="" className="w-8 h-8 rounded-full bg-white/[0.04]" loading="lazy" /> : <Coins className="w-8 h-8 text-slate-600" />}
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-bold text-slate-100">${asset.symbol}</span>
+              <span translate="no" className="text-sm font-bold text-slate-100">${asset.symbol}</span>
               <span className="text-[10px] font-mono text-slate-600">{asset.marketCapRank > 0 ? `#${asset.marketCapRank}` : ''}</span>
               {(feePace || revPace) && (
                 <span className="inline-flex flex-wrap items-center gap-1 text-[9px] font-mono" title={paceTip}>
@@ -95,7 +95,7 @@ export const CryptoBqAssetCard: React.FC<{
                 </span>
               )}
             </div>
-            <span className="block text-[10px] text-slate-500 truncate">{asset.name} · MC {fmtUsd(asset.marketCap)}</span>
+            <span className="block text-[10px] text-slate-500 truncate"><bdi translate="no">{asset.name}</bdi> · MC {fmtUsd(asset.marketCap)}</span>
           </div>
         </div>
         <div className="text-right" title={isRo ? 'Scor intern: pass = 25, watch = 12, fail/necunoscut = 0. Nu este probabilitate sau randament.' : 'Internal score: pass = 25, watch = 12, fail/unknown = 0. Not a probability or return.'}>

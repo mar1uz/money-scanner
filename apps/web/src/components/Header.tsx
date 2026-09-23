@@ -317,7 +317,7 @@ export const Header: React.FC<HeaderProps> = ({
                         <div>
                           <div className="flex flex-wrap items-center gap-1.5">
                             <span className="font-semibold text-xs text-slate-100 group-hover:text-cyan-300 font-mono">
-                              {asset.name}
+                              <bdi translate="no">{asset.name}</bdi>
                             </span>
                             <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/[0.04] text-slate-400 font-mono">
                               {asset.category}

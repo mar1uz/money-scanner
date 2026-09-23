@@ -60,12 +60,12 @@ const StockBqCard: React.FC<{
           <span className={`w-7 text-center text-sm font-mono font-black ${rank <= 3 ? 'text-emerald-300' : 'text-slate-500'}`}>{rank}</span>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-slate-100">${asset.symbol}</span>
+              <span translate="no" className="text-sm font-bold text-slate-100">${asset.symbol}</span>
               {asset.criteria.growth.status !== 'unknown' && (
                 <span className={`text-[10px] font-mono ${asset.criteria.growth.status === 'pass' ? 'text-emerald-300' : asset.criteria.growth.status === 'watch' ? 'text-amber-300' : 'text-rose-300'}`}>{asset.criteria.growth.value}</span>
               )}
             </div>
-            <span className="block text-[10px] text-slate-500 truncate">{asset.name} · MC {fmtUsd(asset.marketCap)}{asset.sector ? ` · ${asset.sector}` : ''}</span>
+            <span className="block text-[10px] text-slate-500 truncate"><bdi translate="no">{asset.name}</bdi> · MC {fmtUsd(asset.marketCap)}{asset.sector ? ` · ${asset.sector}` : ''}</span>
           </div>
         </div>
         <div className="text-right">

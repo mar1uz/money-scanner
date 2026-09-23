@@ -921,7 +921,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                             )}
                           </div>
                           <div className="text-[11px] text-slate-400 font-sans font-normal truncate max-w-[120px]">
-                            {row.name}
+                            <bdi translate="no">{row.name}</bdi>
                           </div>
                         </div>
                       </div>

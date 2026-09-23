@@ -4194,3 +4194,19 @@ Marius chose option 2 for "Ask the AI analyst": "Rămâne, dar răspunde doar di
 - Ops verification: `/ai/ask` is reachable with the scheduler token (`x-daily-scan-token`) without a session; with that token, `verifyAnswer` runs the guard on a supplied answer instead of calling the model.
 - Tests: guard suite 14/14 (3 new ask-box cases).
 - Deployed from a clean git worktree of HEAD so uncommitted work from the parallel i18n task was not shipped.
+
+## Step 129 - 2026-09-23 - i18n mechanism rebuilt (no cross-language leaks, no name mangling) - phase 1
+
+Marius: every text on the page must be fully English or fully Romanian per the menu selection. Found: "Mai mult" in English mode, RAY shown as "Razădium", Watchlist as "De urmăritlist", Gains Network as "Creșteres Network", "Gaina veniturilor" in English analysis text.
+
+Root cause: the DOM translator in `apps/web/src/i18n.tsx` did raw substring replacement across all text, so short dictionary entries ("Ray"->"Rază", "Watch"->"De urmărit", "Gain"->"Creștere") rewrote the inside of asset names and words. Plus hundreds of literals had no dictionary pair.
+
+Changes:
+- Engine (`i18n.tsx`): exact whole-node match -> "{}" template match (dynamic values kept) -> phrase fallback with Unicode word boundaries only. A phrase can no longer match inside a word.
+- Skip zones: anything inside `translate="no"` / `data-i18n-skip` is never translated. Asset names/symbols wrapped in Top Alpha, BQ cards, scanner table, search, header, heat map.
+- Native dialogs (alert/confirm/prompt) now pass through the same translator.
+- `window.__msI18nAudit()` lists visible text in the wrong language (used for verification).
+- Dictionaries split: `i18n-ui-dictionary.ts` (component literals, nav, alerts, asset page, Top Alpha, Intelligence, market overview) and `i18n-content-dictionary.ts` (fixed text the API sends from the deterministic asset analysis, both directions).
+- Guard: `i18n-coverage.test.ts` scans every component literal with the TypeScript AST and fails on any new Romanian UI string that doesn't translate; `i18n-leak-baseline.json` holds the known remainder and may only shrink (regenerate with I18N_WRITE_BASELINE=1).
+
+Remaining (phase 2): baseline of Romanian literals in Backtest, Crypto Radar, USA Macro, X Trends, Crypto market-only, Bubble views and service error strings; English-source literals in System Status/AssetDetailModal for RO mode; special-case asset analysis prose (AAPL/NVDA/ASML/GOLD) in packages/ai-analysis.

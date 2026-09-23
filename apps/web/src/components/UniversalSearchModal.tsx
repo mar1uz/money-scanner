@@ -406,7 +406,7 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
                           </div>
 
                           <div className="text-xs text-slate-400 truncate font-sans mt-0.5">
-                            {item.name}
+                            <bdi translate="no">{item.name}</bdi>
                           </div>
                         </div>
                       </div>
