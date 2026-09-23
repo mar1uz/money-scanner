@@ -16,6 +16,8 @@ import {
 import { Timeframe, AssetScannerRow } from '../types.js';
 import { buildSearchUniverse, performAISearchMatch, SearchMatchResult } from '../services/ai-search.js';
 import { UserProfile } from '@money-scanner/shared';
+import { ThemeSwitcher } from './ThemeSwitcher.js';
+import { useLanguage } from '../i18n.js';
 
 interface HeaderProps {
   timeframe: Timeframe;
@@ -55,6 +57,7 @@ export const Header: React.FC<HeaderProps> = ({
   currentUser,
   onLogout
 }) => {
+  const { language, setLanguage } = useLanguage();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState<number>(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -412,6 +415,26 @@ export const Header: React.FC<HeaderProps> = ({
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-cyan-400' : ''}`} />
           </button>
         )}
+
+        {/* Theme + language on desktop (Marius, 2026-09-23: the web version had
+            no way to switch them; the mobile "Mai mult" menu is phone-only). */}
+        <div className="header-desktop-settings hidden md:flex items-center gap-1.5">
+          <ThemeSwitcher />
+          <div className="flex items-center rounded-full border border-white/[0.06] bg-white/[0.03] p-0.5 text-[10px] font-mono font-bold" role="group" aria-label="Limbă / Language">
+            {(['ro', 'en'] as const).map(code => (
+              <button
+                key={code}
+                type="button"
+                aria-pressed={language === code}
+                onClick={() => setLanguage(code)}
+                title={code === 'ro' ? 'Română' : 'English'}
+                className={`min-h-0 rounded-full px-2 py-1 transition-colors ${language === code ? 'bg-cyan-500/20 text-cyan-200' : 'text-slate-400 hover:text-slate-200'}`}
+              >
+                {code.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Central Alerts Page */}
         {onOpenAlerts && (
