@@ -4407,3 +4407,16 @@ crypto-scanner-web:ec3e72b, revision market-scanner-360-00268-7wn serving 100%. 
 criteria cache regenerated right away with the deployed code path (local ADC): v8, 410 assets,
 49 undervalued. Live /api/tape/proof undervalued top 5: GNS, USUAL, RAY, BONK, CAKE, each with
 TVL; /tape rows show "mcap · TVL" (verified in a headless mobile render).
+
+### Step 138 - Criteria-neutral rankings, methodology v9 (Marius, 2026-09-23 16:22-17:02, NOT deployed)
+
+- Undervalued: sort is pure P/R ascending (index, quality only on exact ties). 3/4 and 4/4 rank
+  the same ("3/4 și 4/4 din criterii sa nu conteze in ranking"). Gates unchanged (revenue basis,
+  fees30d >= $100K + TVL >= $10M, MC >= $10M). passedCriteria is display-only.
+- Top Score: new scan.topScore ranking. fundamentalScore = 10*log10(1+revenue30d, holders count as
+  revenue) - 10*log10(P/R). Eligible: revenue30d >= $100K AND >= 3/4 criteria (his "Cel puțin 3 din
+  4 și 4/4. Chiar daca are TVL sau nu"). Criteria only break exact ties. scan.assets order unchanged
+  (AI Briefing 4-criteria view still sorts by criteria). TopAlphaView + /tape top score use topScore.
+- methodologyVersion 8 -> 9 (scanner + ai-routes cache check). Methodology + RO/EN notes updated.
+- Tests: new Undervalued P/R-order test and Top Score test; tape order test. 24/24 pass; api/web tsc clean.
+- After deploy, regenerate the criteria cache (v9).

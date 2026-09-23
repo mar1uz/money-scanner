@@ -128,7 +128,7 @@ it('hard Network gate: Undervalued needs complete fees >= $100K AND TVL >= $10M 
     revenue: ['ok', 'thin-fees', 'small-tvl', 'no-fees', 'edge', 'micro'].map(id => metric(id, 50_000)),
     holdersRevenue: []
   });
-  assert.equal(scan.methodologyVersion, 8);
+  assert.equal(scan.methodologyVersion, 9);
   assert.deepEqual(scan.undervalued.map(a => a.assetId).sort(), ['edge', 'ok']);
   // 'micro' passes Network but sits below the $10M market-cap floor (v8).
   assert.equal(scan.unrankedCount, 4);
@@ -264,7 +264,7 @@ it('rejects malformed provider payloads instead of caching an empty successful s
   await assert.rejects(scanCryptoFourCriteria(fetcher), /incomplete response/);
 });
 
-it('orders undervalued by criteria passed first, then undervaluation index within the group', () => {
+it('orders undervalued purely by P/R: 3/4 and 4/4 criteria are treated the same (v9)', () => {
   const scan = buildCryptoFourCriteriaScan({
     coins: [coin('full', 600_000_000), coin('mid', 24_000_000), coin('cheap', 10_000_000)],
     protocols: [
@@ -279,8 +279,46 @@ it('orders undervalued by criteria passed first, then undervaluation index withi
   const cheap = scan.undervalued.find(a => a.assetId === 'cheap')!;
   assert.equal(full.passedCriteria, 4);
   assert.equal(cheap.passedCriteria, 3);
-  assert.ok(cheap.undervaluationIndex > full.undervaluationIndex);
-  assert.deepEqual(scan.undervalued.map(a => a.assetId), ['full', 'cheap', 'mid']);
+  assert.ok(cheap.valuationRatio < full.valuationRatio);
+  // cheap (3/4) is the lowest P/R, so it leads even though full passes 4/4.
+  const ratios = scan.undervalued.map(a => a.valuationRatio);
+  assert.deepEqual(ratios, [...ratios].sort((a, b) => a - b));
+  assert.equal(scan.undervalued[0].assetId, 'cheap');
+  assert.deepEqual(scan.undervalued.map(a => a.assetId), ['cheap', 'mid', 'full']);
+});
+
+it('ranks Top Score on size + P/R, ignores criteria count, and requires revenue >= $100K/30d (v9)', () => {
+  // big: $25M/30d revenue at a low multiple, Network only "watch" (no TVL) -> 3/4.
+  // tiny: $987/30d revenue, passes criteria -> not eligible at all.
+  // mid: $1M/30d, 4/4, fair multiple -> ranks below big.
+  const scan = buildCryptoFourCriteriaScan({
+    coins: [coin('mid', 200_000_000), coin('tiny', 3_000_000), coin('big', 450_000_000)],
+    protocols: [
+      { slug: 'mid', gecko_id: 'mid', tvl: 50_000_000, change_7d: 5, chains: ['Ethereum', 'Base'] },
+      { slug: 'tiny', gecko_id: 'tiny', tvl: 11_000_000, change_7d: 5, chains: ['Ethereum', 'Base'] }
+    ],
+    fees: [
+      { slug: 'mid', total24h: 60_000, total7d: 500_000, total30d: 2_000_000 },
+      { slug: 'tiny', total24h: 5_000, total7d: 40_000, total30d: 150_000 },
+      { slug: 'big', total24h: 5_000_000, total7d: 36_000_000, total30d: 145_000_000 }
+    ],
+    revenue: [
+      { slug: 'mid', total24h: 30_000, total7d: 250_000, total30d: 1_000_000 },
+      { slug: 'tiny', total24h: 30, total7d: 250, total30d: 987 },
+      { slug: 'big', total24h: 800_000, total7d: 6_000_000, total30d: 25_000_000 }
+    ],
+    holdersRevenue: [metric('mid', 100_000), metric('tiny', 987), metric('big', 15_000_000)]
+  });
+  const top = scan.topScore!;
+  assert.deepEqual(top.map(entry => entry.assetId), ['big', 'mid']);
+  assert.ok(!top.some(entry => entry.assetId === 'tiny'));
+  assert.ok(top.every(entry => scan.assets.find(asset => asset.id === entry.assetId)!.passedCriteria >= 3));
+  const big = scan.assets.find(asset => asset.id === 'big')!;
+  const mid = scan.assets.find(asset => asset.id === 'mid')!;
+  assert.ok(big.passedCriteria < mid.passedCriteria);
+  // fundamentalScore = 10*log10(1+revenue) - 10*log10(P/R)
+  const expected = Math.log10(1 + 25_000_000) * 10 - Math.log10(450_000_000 / (25_000_000 * 365 / 30)) * 10;
+  assert.ok(Math.abs(top[0].fundamentalScore - Math.round(expected * 10) / 10) < 1e-9);
 });
 
 it('breaks 4/4 ties on absolute 30-day size before acceleration (size factor, 2026-09-23)', () => {

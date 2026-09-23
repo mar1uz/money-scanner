@@ -5,7 +5,7 @@ import {
   CryptoCriteriaStatus,
   CryptoFourCriteriaAsset,
   CryptoFourCriteriaScan,
-  CryptoUndervaluedEntry
+  CryptoUndervaluedEntry, CryptoTopScoreEntry
 } from '@money-scanner/shared';
 
 const COINGECKO_MARKETS_URL = 'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=24h,7d';
@@ -220,12 +220,15 @@ const buildUndervaluedRanking = (assets: CryptoFourCriteriaAsset[]): { undervalu
       undervaluationIndex: qualityPercentile - expensivenessPercentile
     };
   }).sort((left, right) =>
-    // Marius (2026-09-22): 4/4 undervalued first, then 3/4, then 2/4;
-    // the index only orders assets inside the same criteria group.
-    right.passedCriteria - left.passedCriteria ||
+    // Marius (2026-09-23 16:22, v9): "la undervalued 3/4 și 4/4 din criterii
+    // sa nu conteze in ranking și să fie tratate la fel" - the criteria count
+    // no longer orders the list (MET at 5.2x sat #26 behind RAIN at 9,640x).
+    // Every ranked asset already passed the hard gates above and has revenue
+    // > 0, so the order is pure undervaluation: cheapest P/R first. The index
+    // and quality only break exact ties. passedCriteria stays display-only.
+    left.valuationRatio - right.valuationRatio ||
     right.undervaluationIndex - left.undervaluationIndex ||
-    right.qualityScore - left.qualityScore ||
-    left.valuationRatio - right.valuationRatio
+    right.qualityScore - left.qualityScore
   );
 
   return { undervalued, unrankedCount: assets.length - undervalued.length };
@@ -257,6 +260,50 @@ const sizeBasisUsd = (asset: CryptoFourCriteriaAsset): number => {
 };
 const sizeScore = (asset: CryptoFourCriteriaAsset): number =>
   Math.round(Math.log10(1 + sizeBasisUsd(asset)) * 10);
+
+// Top Score eligibility (Marius, 2026-09-23 17:02, v9): at least $100K of
+// revenue in 30 days, so a $987/month token cannot sit in the top 40.
+export const TOP_SCORE_MIN_REVENUE_30D = 100_000;
+// Membership (Marius, 2026-09-23 16:59): "Cel puțin 3 din 4 și 4/4. Chiar daca
+// are TVL sau nu." 3/4 and 4/4 are in and ranked the same; 2/4 or less is out.
+export const TOP_SCORE_MIN_CRITERIA = 3;
+
+/**
+ * Top Score (Marius, 2026-09-23 16:59-17:02, v9): rank on fundamentals, not
+ * on criteria count - "luate după marketcap și P/E ratio lăsând criteriile
+ * deoparte". fundamentalScore = size (10 x log10 of 30d revenue, holder
+ * distributions count as revenue, same basis as sizeScore) minus price
+ * (10 x log10 of P/R). One decade more revenue is worth exactly as much as
+ * one decade cheaper P/R: big real businesses at a fair price rise (PONS,
+ * $25M/30d at 1.5x), tiny or expensive ones fall. Criteria are display-only
+ * badges and only break exact ties. Undervalued answers "what is cheapest";
+ * Top Score answers "what is best" - size is what separates the two.
+ */
+const buildTopScoreRanking = (assets: CryptoFourCriteriaAsset[]): CryptoTopScoreEntry[] =>
+  assets
+    .flatMap(asset => {
+      const revenue30d = asset.metrics.revenue30d ?? 0;
+      if (!(revenue30d >= TOP_SCORE_MIN_REVENUE_30D)) return [];
+      if (asset.passedCriteria < TOP_SCORE_MIN_CRITERIA) return [];
+      const { basis, multiple } = cryptoValuation(asset);
+      if (basis !== 'revenue' || multiple === undefined || !Number.isFinite(multiple) || multiple <= 0) return [];
+      const size = Math.log10(1 + sizeBasisUsd(asset)) * 10;
+      const price = Math.log10(multiple) * 10;
+      return [{ asset, entry: {
+        assetId: asset.id,
+        symbol: asset.symbol,
+        sizeScore: Math.round(size * 10) / 10,
+        valuationRatio: multiple,
+        fundamentalScore: Math.round((size - price) * 10) / 10
+      } }];
+    })
+    .sort((left, right) =>
+      right.entry.fundamentalScore - left.entry.fundamentalScore ||
+      right.asset.passedCriteria - left.asset.passedCriteria ||
+      (right.asset.metrics.revenueRunRateChange ?? Number.NEGATIVE_INFINITY) - (left.asset.metrics.revenueRunRateChange ?? Number.NEGATIVE_INFINITY) ||
+      (left.asset.marketCapRank || Number.MAX_SAFE_INTEGER) - (right.asset.marketCapRank || Number.MAX_SAFE_INTEGER)
+    )
+    .map(item => item.entry);
 
 export interface FourCriteriaCoinInput {
   id: string;
@@ -510,14 +557,16 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
 
   const coveredCount = universe.filter(asset => asset.classification !== 'insufficient-data').length;
   const { undervalued, unrankedCount } = buildUndervaluedRanking(universe);
+  const topScore = buildTopScoreRanking(universe);
   return {
-    methodologyVersion: 8,
+    methodologyVersion: 9,
     scannedCount: coins.length,
     coveredCount,
     allFourCount: universe.filter(asset => asset.classification === 'all-four').length,
     firstThreeCount: universe.filter(asset => asset.classification === 'all-four' || asset.classification === 'first-three').length,
     assets: universe,
     undervalued,
+    topScore,
     unrankedCount,
     generatedAt: input.generatedAt || Date.now(),
     dataFreshness: 'Snapshot CoinGecko/CoinPaprika + DefiLlama; cache până la 26 ore, rescanare manuală disponibilă',
@@ -528,11 +577,13 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
       'Venit sustenabil: necesită o observație completă de revenue pe 30z; pentru L1-uri (BTC, ETH, SOL) se folosesc fees rețelei.',
       'Valoare către holderi: necesită raportare completă buyback/burn, distribuții sau staking finanțat din venit ȘI valoare > $0 pe 30z; zero raportat nu trece criteriul.',
       'Model de subevaluare (tab Calitate Business): scor calitate 0-75 = completitudinea datelor pentru Efect de rețea + Venit sustenabil + Valoare către holderi.',
+      'Ordine Subevaluate (v9): pur după P/R, cel mai ieftin primul; 3/4 și 4/4 criterii sunt tratate la fel (criteriile rămân afișate, nu mai sortează). Indexul și calitatea decid doar la egalitate.',
+      'Scor top (v9): scor fundamental = 10 × log10(revenue 30z) − 10 × log10(P/R); un ordin de mărime în plus la revenue valorează cât un P/R de 10 ori mai mic. Eligibil doar cu revenue 30z ≥ $100K și minim 3/4 criterii (3/4 și 4/4 tratate la fel, cu sau fără TVL). Criteriile nu sortează (doar la egalitate).',
       'Evaluare: P/R = market cap / (revenue 30z × 365/30); fallback P/H din buyback/burn anualizat când revenue lipsește. Activele cu doar fees (fără revenue/holderi) sunt excluse din clasamentul de subevaluate - P/F nu măsoară captura de valoare.',
       'Eligibilitate Subevaluate (filtru hard, v8): apar doar activele cu fees 30z complete ≥ $100K ȘI TVL ≥ $10M (regula Efect de rețea) ȘI market cap ≥ $10M; cele sub prag nu sunt clasate deloc, indiferent de multiplu.',
-      'Index subevaluare = percentila calității − percentila scumpirii (log P/R) între active cu aceeași bază (revenue/holderi), cu percentile centrate pentru egalități; activele fără revenue sau date de holderi nu sunt clasate.',
+      'Index subevaluare = percentila calității − percentila scumpirii (log P/R) între active cu aceeași bază (revenue/holderi), cu percentile centrate pentru egalități; afișat ca informație și folosit doar la egalitate de P/R.',
       'Randament holderi: (holders revenue 30z × 365/30) / MC × 100; varianta /FDV include diluția. Ritm extrapolat, nu APY garantat.',
-      'Selecție secțiune: sunt listate doar monedele cu fees/revenue observabile sau buyback/burn raportat; sortare după criterii trecute, apoi factorul de dimensiune (log10 din revenue 30z; distribuțiile către holderi contează ca revenue, iar fees sunt fallback doar când datele de revenue lipsesc complet), apoi ritmul revenue (7z vs 30z) și rank.'
+      'Selecție secțiune (vizualizarea 4 criterii din AI Briefing): sunt listate doar monedele cu fees/revenue observabile sau buyback/burn raportat; sortare după criterii trecute, apoi factorul de dimensiune (log10 din revenue 30z; distribuțiile către holderi contează ca revenue, iar fees sunt fallback doar când datele de revenue lipsesc complet), apoi ritmul revenue (7z vs 30z) și rank.'
     ],
     sources: [
       { id: 'video', title: 'Criteriile din interviu (30:03–30:35)', url: 'https://youtu.be/oZWS5eB5YsQ?t=1803', domain: 'youtube.com' },

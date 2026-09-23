@@ -152,7 +152,14 @@ export const TopAlphaView: React.FC = () => {
     () => new Map((cryptoScan?.assets || []).flatMap(asset => [[asset.id, asset] as const, ...(asset.coinGeckoId ? [[asset.coinGeckoId, asset] as const] : [])])),
     [cryptoScan]
   );
-  const topScoreAssets = (cryptoScan?.assets || []).filter(isMeasured);
+  // v9: Top Score order comes from the scan's fundamentals ranking (size +
+  // P/R, revenue >= $100K/30d); criteria are badges only.
+  const topScoreAssets = cryptoScan?.topScore
+    ? cryptoScan.topScore.flatMap(entry => {
+        const asset = cryptoAssetsById.get(entry.assetId);
+        return asset ? [asset] : [];
+      })
+    : (cryptoScan?.assets || []).filter(isMeasured);
   const undervaluedRows = (cryptoScan?.undervalued || [])
     .flatMap(entry => {
       const asset = cryptoAssetsById.get(entry.assetId);
@@ -272,7 +279,7 @@ export const TopAlphaView: React.FC = () => {
             <div className="space-y-2.5">
               <div>
                 <h3 className="text-[11px] font-bold uppercase tracking-wide text-emerald-300">{isRo ? 'Scor top' : 'Top score'} · {topScoreAssets.length}</h3>
-                <p className="text-[10px] text-slate-500">{isRo ? 'Calitate + accelera\u021bie, f\u0103r\u0103 s\u0103 se uite la pre\u021b. Sortat după criterii trecute, apoi revenue absolut pe 30z (log), apoi ritm de creștere.' : 'Quality + acceleration, price ignored. Sorted by criteria passed, then absolute 30d revenue (log), then growth pace.'}</p>
+                <p className="text-[10px] text-slate-500">{isRo ? 'Business-uri mari la preț corect: sortat după mărime (revenue 30z, log) combinată cu P/R (mai mic = mai bine). Doar cu revenue ≥ $100K/30z și minim 3/4 criterii; 3/4 și 4/4 sunt tratate la fel.' : 'Big businesses at a fair price: sorted by size (30d revenue, log) blended with P/R (lower is better). Revenue ≥ $100K/30d and at least 3/4 criteria; 3/4 and 4/4 rank the same.'}</p>
               </div>
               {topScoreAssets.map((asset, index) => (
                 <CryptoBqAssetCard
@@ -290,7 +297,7 @@ export const TopAlphaView: React.FC = () => {
             <div className="space-y-2.5">
               <div>
                 <h3 className="text-[11px] font-bold uppercase tracking-wide text-amber-300">{isRo ? 'Subevaluate' : 'Undervalued'} · {undervaluedRows.length}</h3>
-                <p className="text-[10px] text-slate-500">{isRo ? 'Mai întâi criteriile trecute (4/4, apoi 3/4, 2/4); în grupă: percentila calității minus percentila multiplului în aceeași grupă P/R sau P/H. Activele pe bază de fees sunt excluse. Clasament relativ, nu preț țintă.' : 'Criteria passed first (4/4, then 3/4, 2/4); within each group: quality percentile minus valuation percentile within the same P/R or P/H group. Fees-basis assets are excluded. Relative ranking, not a price target.'}</p>
+                <p className="text-[10px] text-slate-500">{isRo ? 'Cel mai ieftin raportat la revenue, indiferent de mărime: sortat pur după P/R. 3/4 și 4/4 criterii sunt tratate la fel. Activele pe bază de fees sunt excluse. Clasament relativ, nu preț țintă.' : 'Cheapest against revenue, regardless of size: sorted purely by P/R. 3/4 and 4/4 criteria are treated the same. Fees-basis assets are excluded. Relative ranking, not a price target.'}</p>
               </div>
               {undervaluedRows.map(({ entry, asset }, index) => (
                 <CryptoBqAssetCard

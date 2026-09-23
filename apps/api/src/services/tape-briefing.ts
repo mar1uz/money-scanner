@@ -99,11 +99,17 @@ const isMeasured = (asset: TapeCriteriaAssetInput) =>
   (asset.metrics?.fees30d || 0) > 0 || (asset.metrics?.revenue30d || 0) > 0 || (asset.metrics?.holdersRevenue30d || 0) > 0;
 
 /**
- * The AI Briefing "Top score" tab: the first measured assets in scan order
- * (the scan already sorts by criteria). Only checkable inputs leave the product.
+ * The "Top score" tab mirrored on the Tape. `order` (v9 scans) is the scan's
+ * Top Score ranking by asset id (size + P/R, revenue >= $100K/30d); without it
+ * (older payloads) the measured assets in scan order are used as before.
+ * Only checkable inputs leave the product.
  */
-export const buildTopScore = (assets: TapeCriteriaAssetInput[] | undefined, limit = 5): TapeTopScoreEntry[] =>
-  (assets ?? []).filter(isMeasured).slice(0, limit).map(asset => ({
+export const buildTopScore = (assets: TapeCriteriaAssetInput[] | undefined, limit = 5, order?: Array<{ assetId: string }>): TapeTopScoreEntry[] => {
+  const byId = new Map((assets ?? []).map(asset => [asset.id, asset] as const));
+  const ranked = order
+    ? order.flatMap(entry => { const asset = byId.get(entry.assetId); return asset ? [asset] : []; })
+    : (assets ?? []).filter(isMeasured);
+  return ranked.slice(0, limit).map(asset => ({
     symbol: asset.symbol,
     name: asset.name,
     marketCap: finite(asset.marketCap),
@@ -120,6 +126,7 @@ export const buildTopScore = (assets: TapeCriteriaAssetInput[] | undefined, limi
       holderValue: normalizeCriterion(asset.criteria?.holderValue?.status)
     }
   }));
+};
 
 /** Plain regime label; drops anything that reads like a score. */
 export const publicRegimeLabel = (value: unknown): string | null => {

@@ -23,6 +23,7 @@ interface TapeBqReport {
     };
   }>;
   undervalued?: Array<{ assetId: string; symbol: string; name: string; marketCap?: number; priceChange24h?: number; priceChange7d?: number }>;
+  topScore?: Array<{ assetId: string }>;
 }
 
 interface TapeBriefingSection {
@@ -168,7 +169,7 @@ tapeRouter.get('/tape/proof', async (_req, res) => {
         };
       });
       // AI Briefing "Top score" tab, mirrored daily (Marius, 2026-09-23).
-      const topScore = buildTopScore(cached.payload.assets);
+      const topScore = buildTopScore(cached.payload.assets, 5, cached.payload.topScore);
       if (entries.length || topScore.length) businessQuality = { generatedAt: cached.payload.generatedAt ?? cached.updatedAt, entries, topScore };
     }
   } catch { /* business quality is optional on the public tape */ }

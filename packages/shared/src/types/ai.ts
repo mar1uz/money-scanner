@@ -215,6 +215,17 @@ export interface CryptoFourCriteriaAsset {
   };
 }
 
+export interface CryptoTopScoreEntry {
+  assetId: string;
+  symbol: string;
+  /** 10 x log10(30d revenue, holder distributions count as revenue). */
+  sizeScore: number;
+  /** P/R = marketCap / (revenue30d x 365/30). */
+  valuationRatio: number;
+  /** sizeScore - 10 x log10(P/R); higher is better. */
+  fundamentalScore: number;
+}
+
 export interface CryptoUndervaluedEntry {
   assetId: string;
   symbol: string;
@@ -233,7 +244,7 @@ export interface CryptoUndervaluedEntry {
   };
   /** 0-75: networkEffect + sustainableRevenue + holderValue scores. */
   qualityScore: number;
-  /** 0-4: 4x200 criteria passed (growth + networkEffect + sustainableRevenue + holderValue). Primary sort key. */
+  /** 0-4: 4x200 criteria passed (growth + networkEffect + sustainableRevenue + holderValue). Display only since v9 (not a sort key). */
   passedCriteria: number;
   /** 0-100 percentile of qualityScore across ranked assets. */
   qualityPercentile: number;
@@ -255,6 +266,8 @@ export interface CryptoFourCriteriaScan {
   assets: CryptoFourCriteriaAsset[];
   /** Ranked most-undervalued first; only assets with observable fees/revenue. */
   undervalued: CryptoUndervaluedEntry[];
+  /** Top Score order (v9): fundamentalScore desc; only revenue30d >= $100K. Older payloads lack it. */
+  topScore?: CryptoTopScoreEntry[];
   /** Assets that could not be ranked (no fees/revenue or market cap). */
   unrankedCount: number;
   generatedAt: number;

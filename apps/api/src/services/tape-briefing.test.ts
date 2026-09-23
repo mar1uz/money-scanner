@@ -31,6 +31,13 @@ test('top score takes the first five measured assets and exposes no score fields
   assert.ok(!JSON.stringify(out).includes('score'));
 });
 
+test('top score follows the v9 scan order when provided', () => {
+  const asset = (symbol: string) => ({ id: symbol.toLowerCase(), symbol, name: symbol, marketCap: 1e8, criteria: {}, metrics: { fees30d: 1e6, revenue30d: 5e5 } });
+  const assets = [asset('AAA'), asset('BBB'), asset('CCC')];
+  assert.deepEqual(buildTopScore(assets, 5, [{ assetId: 'ccc' }, { assetId: 'aaa' }]).map(e => e.symbol), ['CCC', 'AAA']);
+  assert.deepEqual(buildTopScore(assets).map(e => e.symbol), ['AAA', 'BBB', 'CCC']);
+});
+
 test('regime label passes plain words and drops numbers', () => {
   assert.equal(publicRegimeLabel('Bullish Trend'), 'Bullish Trend');
   assert.equal(publicRegimeLabel('Score 72'), null);
