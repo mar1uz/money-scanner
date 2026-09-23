@@ -4263,3 +4263,12 @@ Marius (WhatsApp, 2026-09-23 11:26): "în /tape poți să întorci zilnic toate 
   Instinct takes as cards, narrative cards, and Business Quality top 5 by criteria next to top 5
   undervalued. Light editorial default and dark theme both styled; mobile stacks to one column.
 - Tests: `tape-briefing.test.ts` (4). Branch `tape-briefing`, worktree `tmp/tape-briefing-wt`.
+
+### Step 133 addendum - Marius's calls on the preview (2026-09-23)
+
+- Stocks added: `stockQuality` on `/api/tape/proof` = AI Briefing stock "Top picks" (top-pick class or
+  top band, first 5), reported financials only (net margin, ROE, revenue YoY, P/E) and pass/fail on the
+  six checks. Score, AI verdict, sector (stored labels are Romanian) and the placeholder price are dropped.
+- The "Today's AI Briefing" block now sits above the proof cards.
+- Login page: English copy was being run through the RO DOM translator ("Money Line semnale"). AuthGate
+  picks its own language, so the login and session-check screens are now `data-i18n-skip`.

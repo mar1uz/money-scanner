@@ -66,7 +66,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
 
   if (checking) {
     return (
-      <div className="min-h-screen grid place-items-center bg-[var(--t-surface-raised)] text-slate-300">
+      <div data-i18n-skip className="min-h-screen grid place-items-center bg-[var(--t-surface-raised)] text-slate-300">
         <div className="flex items-center gap-3 font-mono text-sm"><Loader2 className="h-5 w-5 animate-spin text-cyan-400" />{language === 'ro' ? 'Verific sesiunea securizată…' : 'Checking the secure session…'}</div>
       </div>
     );
@@ -89,7 +89,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
       };
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[var(--t-surface-raised)] px-5 py-10 text-slate-100">
+    <main data-i18n-skip className="min-h-screen overflow-hidden bg-[var(--t-surface-raised)] px-5 py-10 text-slate-100">
       <div className="pointer-events-none fixed inset-0 opacity-50" style={{ background: 'radial-gradient(circle at 50% 28%, rgba(200,241,105,0.14), transparent 31%), radial-gradient(circle at 15% 90%, rgba(61,220,151,0.08), transparent 28%)' }} />
       <section className="relative mx-auto flex min-h-[78vh] max-w-md flex-col items-center justify-center text-center">
         <div className="mb-7 grid h-20 w-20 place-items-center rounded-[32px] border border-cyan-400/30 bg-cyan-500/10 shadow-[0_0_45px_rgba(205,238,127,0.18)]">

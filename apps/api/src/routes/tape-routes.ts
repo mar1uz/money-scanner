@@ -6,7 +6,7 @@ import { buildXPreview } from '../services/regime-tape-service.js';
 import { REGIME_TAPE_PAGE_HTML } from '../services/regime-tape-page.js';
 import { readAiContentTake } from './ai-routes.js';
 import { readPersistentAICache } from '../services/ai-cache-store.js';
-import { buildTapeNarratives, buildTopScore, narrativeTickers, publicRegimeLabel, TapeCriteriaAssetInput, TapeNarrative, TapeNarrativeInput, TapeTopScoreEntry } from '../services/tape-briefing.js';
+import { buildStockTop, buildTapeNarratives, buildTopScore, TapeStockAssetInput, TapeStockEntry, narrativeTickers, publicRegimeLabel, TapeCriteriaAssetInput, TapeNarrative, TapeNarrativeInput, TapeTopScoreEntry } from '../services/tape-briefing.js';
 
 // Minimal structural view of the cached Business Quality report. The public
 // tape reads only these fields and never exposes internal ranking scores.
@@ -170,6 +170,16 @@ tapeRouter.get('/tape/proof', async (_req, res) => {
       if (entries.length || topScore.length) businessQuality = { generatedAt: cached.payload.generatedAt ?? cached.updatedAt, entries, topScore };
     }
   } catch { /* business quality is optional on the public tape */ }
+  // AI Briefing stock Business Quality "Top picks" (Marius, 2026-09-23: add
+  // stocks to the Tape too). Latest cached daily scan only.
+  let stockQuality: { generatedAt: number; entries: TapeStockEntry[] } | null = null;
+  try {
+    const cachedStocks = await readPersistentAICache<{ generatedAt?: number; assets?: TapeStockAssetInput[] }>('stock-business-quality-top');
+    if (cachedStocks?.payload && Date.now() - cachedStocks.updatedAt <= 4 * 24 * 60 * 60_000) {
+      const entries = buildStockTop(cachedStocks.payload.assets);
+      if (entries.length) stockQuality = { generatedAt: cachedStocks.payload.generatedAt ?? cachedStocks.updatedAt, entries };
+    }
+  } catch { /* stock quality is optional on the public tape */ }
   // The rest of the AI Briefing page: market regime and the narrative cards
   // (only served when the daily report is fresh; never regenerated here).
   let briefingDashboard: { generatedAt: number; regime: string | null; narratives: TapeNarrative[] } | null = null;
@@ -187,7 +197,7 @@ tapeRouter.get('/tape/proof', async (_req, res) => {
   res.set('Cache-Control', 'public, max-age=300');
   return res.json({ disclosure: REGIME_TAPE_DISCLOSURE, tapeVersion: REGIME_TAPE_VERSION,
     selection: { minimumReturnPct: 20, maximumItems: 6, curated: true }, updatedAt: new Date().toISOString(),
-    evidence: evidenceWithRegime, briefing, briefingFull, briefingDashboard, businessQuality });
+    evidence: evidenceWithRegime, briefing, briefingFull, briefingDashboard, businessQuality, stockQuality });
 });
 
 // Authenticated product endpoints. Global middleware protects these paths.

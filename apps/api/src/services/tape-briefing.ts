@@ -124,3 +124,48 @@ export const publicRegimeLabel = (value: unknown): string | null => {
   if (!label || label.length > 40 || /\d/.test(label) || /score/i.test(label)) return null;
   return label;
 };
+
+export interface TapeStockAssetInput {
+  symbol: string;
+  name: string;
+  sector?: string;
+  marketCap?: number;
+  price?: number;
+  score?: number;
+  classification?: string;
+  criteria?: Partial<Record<'profitability' | 'capitalEfficiency' | 'growth' | 'solvency' | 'freeCashFlow' | 'valuation', { status?: string }>>;
+  metrics?: { netMargin?: number; roe?: number; revenueGrowthYoY?: number; fcfMargin?: number; forwardPE?: number; trailingPE?: number };
+}
+
+export interface TapeStockEntry {
+  symbol: string;
+  name: string;
+  marketCap: number | null;
+  netMargin: number | null;
+  roe: number | null;
+  revenueGrowthYoY: number | null;
+  fcfMargin: number | null;
+  pe: number | null;
+  criteria: Record<'profitability' | 'capitalEfficiency' | 'growth' | 'solvency' | 'freeCashFlow' | 'valuation', TapeCriterionStatus>;
+}
+
+const STOCK_CRITERIA = ['profitability', 'capitalEfficiency', 'growth', 'solvency', 'freeCashFlow', 'valuation'] as const;
+
+/**
+ * The AI Briefing stock "Top picks" tab (same filter as the app: top-pick
+ * class or the app's top band), first five in scan order. Reported financials
+ * and pass/fail per criterion only - the score and AI verdict stay private.
+ */
+export const buildStockTop = (assets: TapeStockAssetInput[] | undefined, limit = 5): TapeStockEntry[] =>
+  (assets ?? []).filter(asset => asset && asset.symbol && (asset.classification === 'top-pick' || (asset.score ?? 0) >= 80))
+    .slice(0, limit).map(asset => ({
+      symbol: asset.symbol,
+      name: asset.name,
+      marketCap: finite(asset.marketCap),
+      netMargin: finite(asset.metrics?.netMargin),
+      roe: finite(asset.metrics?.roe),
+      revenueGrowthYoY: finite(asset.metrics?.revenueGrowthYoY),
+      fcfMargin: finite(asset.metrics?.fcfMargin),
+      pe: finite(asset.metrics?.forwardPE) ?? finite(asset.metrics?.trailingPE),
+      criteria: Object.fromEntries(STOCK_CRITERIA.map(key => [key, normalizeCriterion(asset.criteria?.[key]?.status)])) as TapeStockEntry['criteria']
+    }));

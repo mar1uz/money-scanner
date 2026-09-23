@@ -36,3 +36,19 @@ test('regime label passes plain words and drops numbers', () => {
   assert.equal(publicRegimeLabel('Score 72'), null);
   assert.equal(publicRegimeLabel(''), null);
 });
+
+test('stock top picks follow the app filter and drop score and verdict', async () => {
+  const { buildStockTop } = await import('./tape-briefing.js');
+  const s = (symbol: string, score: number, classification = 'partial') => ({
+    symbol, name: symbol + ' Inc', sector: 'Tech', marketCap: 2e12, price: 100, score, classification, aiVerdict: 'Top AI Pick',
+    criteria: { profitability: { status: 'pass' }, valuation: { status: 'fail' } },
+    metrics: { netMargin: 30, roe: 40, revenueGrowthYoY: 12, fcfMargin: 25, forwardPE: 28 }
+  });
+  const out = buildStockTop([s('AAA', 50), s('BBB', 85), s('CCC', 60, 'top-pick'), s('DDD', 90)] as any);
+  assert.deepEqual(out.map(e => e.symbol), ['BBB', 'CCC', 'DDD']);
+  assert.equal(out[0].pe, 28);
+  assert.equal(out[0].criteria.profitability, 'pass');
+  assert.equal(out[0].criteria.growth, 'unknown');
+  const json = JSON.stringify(out);
+  assert.ok(!json.includes('score') && !json.includes('Verdict') && !json.includes('Top AI Pick'));
+});

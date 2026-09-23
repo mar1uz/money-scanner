@@ -139,7 +139,7 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
   .bf-head { margin: 0 0 10px; font-size: 16px; }
   .bf-section p { color: var(--muted); font-size: 13px; line-height: 1.6; margin: 0 0 10px; }
   #briefingSections .briefing-list li:first-child { color: var(--muted); font-weight: 400; }
-  .edition { margin-top: 64px; border: 1px solid var(--line); border-radius: 22px; background: var(--surface); overflow: hidden; }
+  .edition { margin-top: 0; margin-bottom: 64px; border: 1px solid var(--line); border-radius: 22px; background: var(--surface); overflow: hidden; }
   .ed-head { padding: 28px 28px 24px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
   .ed-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 16px; }
   .ed-date { font: 700 11px 'JetBrains Mono'; letter-spacing: .12em; text-transform: uppercase; color: var(--text); margin-right: 6px; }
@@ -177,7 +177,8 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
   .bq-list { display: grid; gap: 10px; }
   .bq-row { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: var(--bg); }
   .bq-row-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-  .bq-row-top .l { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+  .bq-row-top .l { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1 1 auto; overflow: hidden; }
+  .stock-grid > *, .bq-list > *, .bq-cols > * { min-width: 0; }
   .bq-row-top .n { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .bq-row-top .r { font: 600 11px 'JetBrains Mono'; white-space: nowrap; }
   .bq-mini { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
@@ -187,6 +188,7 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
   .crit { padding: 3px 7px; border-radius: 6px; font: 600 9px 'JetBrains Mono'; border: 1px solid var(--line); color: var(--muted); }
   .crit.pass { color: var(--lime); background: var(--lime-soft); border-color: transparent; }
   .crit.fail { color: var(--red); background: var(--red-soft); border-color: transparent; }
+  .stock-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
   .ed-foot { color: var(--muted); font: 500 10px 'JetBrains Mono'; margin-top: 14px; }
   .footer { border-top: 1px solid var(--line); margin-top: 64px; padding-top: 22px; color: var(--muted); display: flex; justify-content: space-between; gap: 20px; font-size: 11px; }
   @media (max-width: 780px) {
@@ -219,10 +221,10 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
     .metric { min-width: 0; }
     .metric label { display: block; color: var(--muted); font: 600 9px 'JetBrains Mono'; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
     .metric span { font: 600 11px 'JetBrains Mono'; }
-    .edition { margin-top: 50px; border-radius: 18px; }
+    .edition { margin-bottom: 50px; border-radius: 18px; }
     .ed-head { padding: 20px 18px; }
     .ed-block { padding: 20px 18px; }
-    .take-grid, .narr-grid, .bq-cols { grid-template-columns: 1fr; }
+    .take-grid, .narr-grid, .bq-cols, .stock-grid { grid-template-columns: 1fr; }
     .bq-cols { gap: 26px; }
     .bq-mini { grid-template-columns: repeat(2, 1fr); }
     .lower-grid { grid-template-columns: 1fr; margin-top: 50px; }
@@ -252,12 +254,6 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
 
   <section class="stats" id="scan"><div class="stat"><div class="stat-label">Evidence status</div><div class="stat-value muted">Loading</div></div></section>
 
-  <section>
-    <div class="section-head"><div><div class="eyebrow" style="margin-bottom:10px">Selected evidence</div><h2>Performance Tape</h2></div><div class="section-kicker">CLOSED CANDLES · UTC</div></div>
-    <div class="proof-grid" id="proofCards"><div class="proof-card muted">Loading verified outcomes...</div></div>
-    <p class="boundary"><strong>What is not shown:</strong> live entries, the complete active watchlist, current scores, exhaustive regimes or data that substitutes for the paid product.</p>
-  </section>
-
   <section class="edition" id="edition" style="display:none">
     <div class="ed-head">
       <div class="ed-meta"><span class="ed-date" id="edDate"></span><span class="chip regime" id="edRegime" style="display:none"></span><span class="chip">Written by Instinct</span><span class="chip">New edition every morning</span></div>
@@ -273,6 +269,16 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
       <p class="bq-note">Fees, revenue and holder value are trailing 30-day protocol figures. The four criteria are growth, network effect, sustainable revenue and value returned to holders. Rankings are a research screen - not fair value and not a buy signal.</p>
       <div class="ed-foot" id="edBqDate"></div>
     </div>
+    <div class="ed-block" id="edStockBlock" style="display:none"><div class="ed-kicker">Business Quality · stocks</div><h3 class="ed-h3">Top 5 quality stocks</h3><div class="stock-grid" id="edStocks"></div>
+      <p class="bq-note">Reported financials: net margin, return on equity, revenue growth year over year, and P/E. The six checks are profitability, capital efficiency, growth, solvency, free cash flow and valuation. A research screen, not a buy signal.</p>
+      <div class="ed-foot" id="edStockDate"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><div><div class="eyebrow" style="margin-bottom:10px">Selected evidence</div><h2>Performance Tape</h2></div><div class="section-kicker">CLOSED CANDLES · UTC</div></div>
+    <div class="proof-grid" id="proofCards"><div class="proof-card muted">Loading verified outcomes...</div></div>
+    <p class="boundary"><strong>What is not shown:</strong> live entries, the complete active watchlist, current scores, exhaustive regimes or data that substitutes for the paid product.</p>
   </section>
 
   <section class="lower-grid">
@@ -307,7 +313,7 @@ function applyTheme(t) {
 function setTheme(t) { try { localStorage.setItem('money_scanner_tape_theme', t); } catch (e) {} applyTheme(t); }
 applyTheme((function () { try { return localStorage.getItem('money_scanner_tape_theme') === 'dark' ? 'dark' : 'light'; } catch (e) { return 'light'; } })());
 function renderEdition(d) {
-  const fmtUsd = v => v > 0 ? (v >= 1e9 ? '$' + (v / 1e9).toFixed(2) + 'B' : v >= 1e6 ? '$' + (v / 1e6).toFixed(2) + 'M' : v >= 1e3 ? '$' + (v / 1e3).toFixed(1) + 'K' : '$' + Math.round(v)) : '-';
+  const fmtUsd = v => v > 0 ? (v >= 1e12 ? '$' + (v / 1e12).toFixed(2) + 'T' : v >= 1e9 ? '$' + (v / 1e9).toFixed(2) + 'B' : v >= 1e6 ? '$' + (v / 1e6).toFixed(2) + 'M' : v >= 1e3 ? '$' + (v / 1e3).toFixed(1) + 'K' : '$' + Math.round(v)) : '-';
   const fmtPct = v => v != null && Number.isFinite(Number(v)) ? (Number(v) >= 0 ? '+' : '') + Number(v).toFixed(2) + '%' : '-';
   const tone = v => v == null || !Number.isFinite(Number(v)) ? 'muted' : Number(v) >= 0 ? 'pos' : 'neg';
   const b = d.briefing, f = d.briefingFull, dash = d.briefingDashboard, q = d.businessQuality;
@@ -316,7 +322,8 @@ function renderEdition(d) {
   const takes = sections;
   const narratives = (dash && dash.narratives) || [];
   const top = (q && q.topScore) || [], under = (q && q.entries) || [];
-  if (!sections.length && !narratives.length && !top.length && !under.length) return;
+  const stocks = (d.stockQuality && d.stockQuality.entries) || [];
+  if (!sections.length && !narratives.length && !top.length && !under.length && !stocks.length) return;
   document.getElementById('edition').style.display = 'block';
   const stamp = (f && f.generatedAt) || (b && b.generatedAt) || (dash && dash.generatedAt) || (q && q.generatedAt);
   document.getElementById('edDate').textContent = stamp ? new Date(stamp).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Oslo' }) : '';
@@ -343,6 +350,14 @@ function renderEdition(d) {
     document.getElementById('edUnder').innerHTML = under.length ? under.map((e, i) => row(e, i, '')).join('') : '<p class="muted">Not in today&#39;s scan.</p>';
     document.getElementById('edBqDate').textContent = q.generatedAt ? 'Scan generated ' + new Date(q.generatedAt).toISOString().slice(0, 10) + ' UTC' : '';
     jump.push(['edBqBlock', 'Business Quality']);
+  }
+  if (stocks.length) {
+    document.getElementById('edStockBlock').style.display = 'block';
+    const pct1 = v => v == null ? '-' : Number(v).toFixed(1) + '%';
+    const sLabels = [['profitability', 'Profitability'], ['capitalEfficiency', 'Capital eff.'], ['growth', 'Growth'], ['solvency', 'Solvency'], ['freeCashFlow', 'FCF'], ['valuation', 'Valuation']];
+    document.getElementById('edStocks').innerHTML = stocks.map((e, i) => '<article class="bq-row"><div class="bq-row-top"><span class="l"><span class="bq-rank">#' + (i + 1) + '</span><span class="bq-symbol">' + esc(e.symbol) + '</span><span class="n">' + esc(e.name || '') + '</span></span><span class="r">' + (e.marketCap ? fmtUsd(e.marketCap) + ' mcap' : '') + '</span></div>' + '<div class="bq-mini"><div><label>Net margin</label><span>' + pct1(e.netMargin) + '</span></div><div><label>ROE</label><span>' + pct1(e.roe) + '</span></div><div><label>Revenue YoY</label><span class="' + tone(e.revenueGrowthYoY) + '">' + (e.revenueGrowthYoY == null ? '-' : (e.revenueGrowthYoY >= 0 ? '+' : '') + Number(e.revenueGrowthYoY).toFixed(1) + '%') + '</span></div><div><label>P/E</label><span>' + (e.pe == null ? '-' : Number(e.pe).toFixed(1)) + '</span></div></div><div class="crit-row">' + sLabels.map(([k, l]) => '<span class="crit ' + esc(e.criteria && e.criteria[k]) + '">' + (e.criteria && e.criteria[k] === 'pass' ? '✓ ' : '') + l + '</span>').join('') + '</div></article>').join('');
+    document.getElementById('edStockDate').textContent = d.stockQuality.generatedAt ? 'Scan generated ' + new Date(d.stockQuality.generatedAt).toISOString().slice(0, 10) + ' UTC' : '';
+    jump.push(['edStockBlock', 'Stocks']);
   }
   document.getElementById('edJump').innerHTML = jump.map(([id, l]) => '<a href="#' + id + '">' + l + '</a>').join('');
 }
