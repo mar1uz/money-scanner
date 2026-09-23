@@ -139,6 +139,57 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
   .bf-head { margin: 0 0 10px; font-size: 16px; }
   .bf-section p { color: var(--muted); font-size: 13px; line-height: 1.6; margin: 0 0 10px; }
   #briefingSections .briefing-list li:first-child { color: var(--muted); font-weight: 400; }
+  .edition { margin-top: 0; margin-bottom: 64px; border: 1px solid var(--line); border-radius: 22px; background: var(--surface); overflow: hidden; }
+  .ed-head { padding: 28px 28px 24px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+  .ed-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 16px; }
+  .ed-date { font: 700 11px 'JetBrains Mono'; letter-spacing: .12em; text-transform: uppercase; color: var(--text); margin-right: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; min-height: 24px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font: 600 10px 'JetBrains Mono'; letter-spacing: .06em; text-transform: uppercase; }
+  .chip.regime { color: var(--lime); border-color: rgba(31,92,56,.35); background: var(--lime-soft); }
+  .ed-title { margin: 0; font-size: clamp(26px, 3.4vw, 38px); line-height: 1.1; letter-spacing: -.03em; max-width: 900px; }
+  html:not([data-theme="dark"]) .ed-title, html:not([data-theme="dark"]) .ed-h3 { font-family: Fraunces, Georgia, serif; }
+  .ed-lines { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 8px; max-width: 900px; }
+  .ed-lines li { position: relative; padding-left: 20px; color: var(--muted); font-size: 14px; }
+  .ed-lines li:before { content: ''; position: absolute; left: 0; top: 9px; width: 8px; height: 2px; background: var(--lime); }
+  .ed-jump { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  .ed-jump a { color: var(--text); text-decoration: none; font: 600 10px 'JetBrains Mono'; letter-spacing: .08em; text-transform: uppercase; padding: 7px 11px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); }
+  .ed-block { padding: 26px 28px; border-bottom: 1px solid var(--line); }
+  .ed-block:last-child { border-bottom: 0; }
+  .ed-kicker { color: var(--lime); font: 600 10px 'JetBrains Mono'; text-transform: uppercase; letter-spacing: .14em; margin-bottom: 6px; }
+  .ed-h3 { margin: 0 0 16px; font-size: 21px; letter-spacing: -.02em; }
+  .take-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .take { border: 1px solid var(--line); border-radius: 14px; padding: 18px; background: var(--bg); }
+  .take h4 { margin: 0 0 10px; font-size: 16px; line-height: 1.3; }
+  html:not([data-theme="dark"]) .take h4 { font-family: Fraunces, Georgia, serif; }
+  .take p { color: var(--muted); font-size: 13px; line-height: 1.6; margin: 0 0 10px; }
+  .take ul { margin: 6px 0 0; padding-left: 18px; color: var(--text); font-size: 13px; line-height: 1.55; }
+  .take li { margin-bottom: 6px; }
+  .narr-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .narr { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; padding: 16px 16px 16px 19px; background: var(--bg); }
+  .narr:before { content: ''; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--tone, var(--muted)); }
+  .narr.HOT { --tone: var(--lime); } .narr.BEARISH { --tone: var(--red); } .narr.EMERGING { --tone: var(--blue); }
+  .narr-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .narr-name { font: 700 14px 'JetBrains Mono'; }
+  .narr-status { font: 700 9px 'JetBrains Mono'; letter-spacing: .1em; color: var(--tone, var(--muted)); }
+  .narr p { color: var(--muted); font-size: 12px; margin: 8px 0 10px; }
+  .tick-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tick { display: inline-flex; gap: 5px; padding: 4px 7px; border-radius: 6px; background: var(--surface-3); font: 600 10px 'JetBrains Mono'; }
+  .bq-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .bq-list { display: grid; gap: 10px; }
+  .bq-row { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: var(--bg); }
+  .bq-row-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .bq-row-top .l { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1 1 auto; overflow: hidden; }
+  .stock-grid > *, .bq-list > *, .bq-cols > * { min-width: 0; }
+  .bq-row-top .n { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bq-row-top .r { font: 600 11px 'JetBrains Mono'; white-space: nowrap; }
+  .bq-mini { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+  .bq-mini label { display: block; color: var(--muted); font: 600 8.5px 'JetBrains Mono'; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
+  .bq-mini span { font: 600 11px 'JetBrains Mono'; }
+  .crit-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+  .crit { padding: 3px 7px; border-radius: 6px; font: 600 9px 'JetBrains Mono'; border: 1px solid var(--line); color: var(--muted); }
+  .crit.pass { color: var(--lime); background: var(--lime-soft); border-color: transparent; }
+  .crit.fail { color: var(--red); background: var(--red-soft); border-color: transparent; }
+  .stock-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+  .ed-foot { color: var(--muted); font: 500 10px 'JetBrains Mono'; margin-top: 14px; }
   .footer { border-top: 1px solid var(--line); margin-top: 64px; padding-top: 22px; color: var(--muted); display: flex; justify-content: space-between; gap: 20px; font-size: 11px; }
   @media (max-width: 780px) {
     .shell { padding: 0 16px calc(48px + env(safe-area-inset-bottom)); }
@@ -170,6 +221,12 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
     .metric { min-width: 0; }
     .metric label { display: block; color: var(--muted); font: 600 9px 'JetBrains Mono'; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
     .metric span { font: 600 11px 'JetBrains Mono'; }
+    .edition { margin-bottom: 50px; border-radius: 18px; }
+    .ed-head { padding: 20px 18px; }
+    .ed-block { padding: 20px 18px; }
+    .take-grid, .narr-grid, .bq-cols, .stock-grid { grid-template-columns: 1fr; }
+    .bq-cols { gap: 26px; }
+    .bq-mini { grid-template-columns: repeat(2, 1fr); }
     .lower-grid { grid-template-columns: 1fr; margin-top: 50px; }
     .panel { padding: 20px; }
     .footer { display: block; }
@@ -197,33 +254,31 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
 
   <section class="stats" id="scan"><div class="stat"><div class="stat-label">Evidence status</div><div class="stat-value muted">Loading</div></div></section>
 
+  <section class="edition" id="edition" style="display:none">
+    <div class="ed-head">
+      <div class="ed-meta"><span class="ed-date" id="edDate"></span><span class="chip regime" id="edRegime" style="display:none"></span><span class="chip">Written by Instinct</span><span class="chip">New edition every morning</span></div>
+      <div class="eyebrow" style="margin-bottom:10px">Today's AI Briefing</div>
+      <h2 class="ed-title" id="edTitle"></h2>
+      <ul class="ed-lines" id="edLines"></ul>
+      <nav class="ed-jump" id="edJump"></nav>
+    </div>
+    <div class="ed-block" id="edTakesBlock" style="display:none"><div class="ed-kicker">The full briefing</div><h3 class="ed-h3">Macro, rotation and trigger map</h3><div class="take-grid" id="edTakes"></div></div>
+    <div class="ed-block" id="edNarrBlock" style="display:none"><div class="ed-kicker">Narratives</div><h3 class="ed-h3">Hot, emerging and bearish today</h3><div class="narr-grid" id="edNarr"></div><div class="ed-foot" id="edNarrFoot">Moves are live 24h prices of the tracked assets.</div></div>
+    <div class="ed-block" id="edBqBlock" style="display:none"><div class="ed-kicker">Business Quality screen</div><h3 class="ed-h3">Top 5 by criteria and top 5 undervalued</h3>
+      <div class="bq-cols"><div id="edTopCol"><div class="ed-kicker" style="color:var(--text)">Top score · passes the 4 criteria</div><div class="bq-list" id="edTop"></div></div><div id="edUnderCol"><div class="ed-kicker" style="color:var(--text)">Most undervalued · price vs protocol revenue</div><div class="bq-list" id="edUnder"></div></div></div>
+      <p class="bq-note">Fees, revenue and holder value are trailing 30-day protocol figures. The four criteria are growth, network effect, sustainable revenue and value returned to holders. Rankings are a research screen - not fair value and not a buy signal.</p>
+      <div class="ed-foot" id="edBqDate"></div>
+    </div>
+    <div class="ed-block" id="edStockBlock" style="display:none"><div class="ed-kicker">Business Quality · stocks</div><h3 class="ed-h3">Top 5 quality stocks</h3><div class="stock-grid" id="edStocks"></div>
+      <p class="bq-note">Reported financials: net margin, return on equity, revenue growth year over year, and P/E. The six checks are profitability, capital efficiency, growth, solvency, free cash flow and valuation. A research screen, not a buy signal.</p>
+      <div class="ed-foot" id="edStockDate"></div>
+    </div>
+  </section>
+
   <section>
     <div class="section-head"><div><div class="eyebrow" style="margin-bottom:10px">Selected evidence</div><h2>Performance Tape</h2></div><div class="section-kicker">CLOSED CANDLES · UTC</div></div>
     <div class="proof-grid" id="proofCards"><div class="proof-card muted">Loading verified outcomes...</div></div>
     <p class="boundary"><strong>What is not shown:</strong> live entries, the complete active watchlist, current scores, exhaustive regimes or data that substitutes for the paid product.</p>
-  </section>
-
-  <section class="panel" id="briefing" style="display:none;margin-top:64px">
-    <div class="eyebrow" style="margin-bottom:10px">Today's AI Briefing</div>
-    <h3 style="margin:0">The day's context, in three lines</h3>
-    <ul class="briefing-list" id="briefingList"></ul>
-    <div class="briefing-date" id="briefingDate"></div>
-  </section>
-
-  <section class="panel" id="briefingFull" style="display:none;margin-top:64px">
-    <div class="eyebrow" style="margin-bottom:10px">AI Briefing</div>
-    <h3 style="margin:0">The full daily briefing</h3>
-    <div id="briefingSections"></div>
-    <div class="briefing-date" id="briefingFullDate"></div>
-  </section>
-
-  <section class="panel" id="bq" style="display:none;margin-top:64px">
-    <div class="eyebrow" style="margin-bottom:10px">Business Quality screen</div>
-    <h3 style="margin:0">Top 5 undervalued assets</h3>
-    <p style="margin-top:9px">Real protocol inputs from the daily Business Quality scan. Free while the community grows.</p>
-    <div class="bq-grid" id="bqGrid"></div>
-    <p class="bq-note">Fees, revenue and holder value are trailing 30-day protocol figures. Growth compares the recent 7-day fee pace with the trailing 30 days. The ranking is a heuristic - not fair value or a buy signal.</p>
-    <div class="bq-date" id="bqDate"></div>
   </section>
 
   <section class="lower-grid">
@@ -257,6 +312,55 @@ function applyTheme(t) {
 }
 function setTheme(t) { try { localStorage.setItem('money_scanner_tape_theme', t); } catch (e) {} applyTheme(t); }
 applyTheme((function () { try { return localStorage.getItem('money_scanner_tape_theme') === 'dark' ? 'dark' : 'light'; } catch (e) { return 'light'; } })());
+function renderEdition(d) {
+  const fmtUsd = v => v > 0 ? (v >= 1e12 ? '$' + (v / 1e12).toFixed(2) + 'T' : v >= 1e9 ? '$' + (v / 1e9).toFixed(2) + 'B' : v >= 1e6 ? '$' + (v / 1e6).toFixed(2) + 'M' : v >= 1e3 ? '$' + (v / 1e3).toFixed(1) + 'K' : '$' + Math.round(v)) : '-';
+  const fmtPct = v => v != null && Number.isFinite(Number(v)) ? (Number(v) >= 0 ? '+' : '') + Number(v).toFixed(2) + '%' : '-';
+  const tone = v => v == null || !Number.isFinite(Number(v)) ? 'muted' : Number(v) >= 0 ? 'pos' : 'neg';
+  const b = d.briefing, f = d.briefingFull, dash = d.briefingDashboard, q = d.businessQuality;
+  const sections = (f && f.sections) || [];
+  const lead = sections.find(s => s.key === 'briefing');
+  const takes = sections;
+  const narratives = (dash && dash.narratives) || [];
+  const top = (q && q.topScore) || [], under = (q && q.entries) || [];
+  const stocks = (d.stockQuality && d.stockQuality.entries) || [];
+  if (!sections.length && !narratives.length && !top.length && !under.length && !stocks.length) return;
+  document.getElementById('edition').style.display = 'block';
+  const stamp = (f && f.generatedAt) || (b && b.generatedAt) || (dash && dash.generatedAt) || (q && q.generatedAt);
+  document.getElementById('edDate').textContent = stamp ? new Date(stamp).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Oslo' }) : '';
+  if (dash && dash.regime) { const r = document.getElementById('edRegime'); r.style.display = 'inline-flex'; r.textContent = 'Regime: ' + dash.regime; }
+  document.getElementById('edTitle').textContent = (lead && lead.headline) || (b && b.highlights && b.highlights[0]) || 'The market today';
+  const lines = ((b && b.highlights) || []).filter(h => !lead || h !== lead.headline).slice(0, 3);
+  document.getElementById('edLines').innerHTML = lines.map(h => '<li>' + esc(h) + '</li>').join('');
+  const jump = [];
+  if (takes.length) {
+    document.getElementById('edTakesBlock').style.display = 'block';
+    document.getElementById('edTakes').innerHTML = takes.map(s => '<article class="take"><div class="ed-kicker">' + esc(s.title) + '</div>' + (s.headline && s !== lead ? '<h4>' + esc(s.headline) + '</h4>' : '') + (s.paragraphs || []).map(p => '<p>' + esc(p) + '</p>').join('') + ((s.bullets && s.bullets.length) ? '<ul>' + s.bullets.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '') + '</article>').join('');
+    jump.push(['edTakesBlock', 'Briefing']);
+  }
+  if (narratives.length) {
+    document.getElementById('edNarrBlock').style.display = 'block';
+    document.getElementById('edNarr').innerHTML = narratives.map(n => '<article class="narr ' + esc(n.status) + '"><div class="narr-top"><span class="narr-name">' + esc(n.name) + '</span><span class="narr-status">' + esc(n.status) + '</span></div><p>' + esc(n.summary) + '</p><div class="tick-row">' + (n.assets || []).map(a => '<span class="tick">$' + esc(a.symbol) + (a.change24h == null ? '' : ' <span class="' + tone(a.change24h) + '">' + fmtPct(a.change24h) + '</span>') + '</span>').join('') + '</div></article>').join('');
+    jump.push(['edNarrBlock', 'Narratives']);
+  }
+  if (top.length || under.length) {
+    document.getElementById('edBqBlock').style.display = 'block';
+    const critLabels = [['growth', 'Growth'], ['networkEffect', 'Network'], ['sustainableRevenue', 'Revenue'], ['holderValue', 'Holder value']];
+    const row = (e, i, extra) => '<article class="bq-row"><div class="bq-row-top"><span class="l"><span class="bq-rank">#' + (i + 1) + '</span><span class="bq-symbol">' + esc(e.symbol) + '</span><span class="n">' + esc(e.name || '') + '</span></span><span class="r">' + (e.marketCap ? fmtUsd(e.marketCap) + ' mcap' : '') + '</span></div><div class="bq-mini"><div><label>Fees 30d</label><span>' + fmtUsd(e.fees30d) + '</span></div><div><label>Revenue 30d</label><span>' + fmtUsd(e.revenue30d) + '</span></div><div><label>To holders 30d</label><span>' + fmtUsd(e.holderValue30d) + '</span></div><div><label>Price 7d</label><span class="' + tone(e.priceChange7d) + '">' + fmtPct(e.priceChange7d) + '</span></div></div>' + extra + '</article>';
+    document.getElementById('edTop').innerHTML = top.length ? top.map((e, i) => row(e, i, '<div class="crit-row">' + critLabels.map(([k, l]) => '<span class="crit ' + esc(e.criteria && e.criteria[k]) + '">' + (e.criteria && e.criteria[k] === 'pass' ? '✓ ' : '') + l + '</span>').join('') + '</div>')).join('') : '<p class="muted">Not in today&#39;s scan.</p>';
+    document.getElementById('edUnder').innerHTML = under.length ? under.map((e, i) => row(e, i, '')).join('') : '<p class="muted">Not in today&#39;s scan.</p>';
+    document.getElementById('edBqDate').textContent = q.generatedAt ? 'Scan generated ' + new Date(q.generatedAt).toISOString().slice(0, 10) + ' UTC' : '';
+    jump.push(['edBqBlock', 'Business Quality']);
+  }
+  if (stocks.length) {
+    document.getElementById('edStockBlock').style.display = 'block';
+    const pct1 = v => v == null ? '-' : Number(v).toFixed(1) + '%';
+    const sLabels = [['profitability', 'Profitability'], ['capitalEfficiency', 'Capital eff.'], ['growth', 'Growth'], ['solvency', 'Solvency'], ['freeCashFlow', 'FCF'], ['valuation', 'Valuation']];
+    document.getElementById('edStocks').innerHTML = stocks.map((e, i) => '<article class="bq-row"><div class="bq-row-top"><span class="l"><span class="bq-rank">#' + (i + 1) + '</span><span class="bq-symbol">' + esc(e.symbol) + '</span><span class="n">' + esc(e.name || '') + '</span></span><span class="r">' + (e.marketCap ? fmtUsd(e.marketCap) + ' mcap' : '') + '</span></div>' + '<div class="bq-mini"><div><label>Net margin</label><span>' + pct1(e.netMargin) + '</span></div><div><label>ROE</label><span>' + pct1(e.roe) + '</span></div><div><label>Revenue YoY</label><span class="' + tone(e.revenueGrowthYoY) + '">' + (e.revenueGrowthYoY == null ? '-' : (e.revenueGrowthYoY >= 0 ? '+' : '') + Number(e.revenueGrowthYoY).toFixed(1) + '%') + '</span></div><div><label>P/E</label><span>' + (e.pe == null ? '-' : Number(e.pe).toFixed(1)) + '</span></div></div><div class="crit-row">' + sLabels.map(([k, l]) => '<span class="crit ' + esc(e.criteria && e.criteria[k]) + '">' + (e.criteria && e.criteria[k] === 'pass' ? '✓ ' : '') + l + '</span>').join('') + '</div></article>').join('');
+    document.getElementById('edStockDate').textContent = d.stockQuality.generatedAt ? 'Scan generated ' + new Date(d.stockQuality.generatedAt).toISOString().slice(0, 10) + ' UTC' : '';
+    jump.push(['edStockBlock', 'Stocks']);
+  }
+  document.getElementById('edJump').innerHTML = jump.map(([id, l]) => '<a href="#' + id + '">' + l + '</a>').join('');
+}
 async function loadProof() {
   const d = await (await fetch('/api/tape/proof')).json();
   const selected = (d.evidence || []).map(e=>({e,o:{label:e.window,value:e.returnPct}}));
@@ -266,26 +370,7 @@ async function loadProof() {
     ['Access','Public proof','live intelligence withheld'],
     ['Updated',d.updatedAt?new Date(d.updatedAt).toLocaleDateString('en-GB',{dateStyle:'medium',timeZone:'UTC'}):'—','UTC']
   ].map(x=>'<div class="stat"><div class="stat-label">'+x[0]+'</div><div class="stat-value">'+x[1]+'</div><div class="stat-meta">'+x[2]+'</div></div>').join('');
-  const b = d.briefing;
-  if (b && b.highlights && b.highlights.length) {
-    document.getElementById('briefing').style.display = 'block';
-    document.getElementById('briefingList').innerHTML = b.highlights.map(h => '<li>' + esc(h) + '</li>').join('');
-    document.getElementById('briefingDate').textContent = b.generatedAt ? 'Generated ' + new Date(b.generatedAt).toISOString().slice(0, 10) + ' UTC' : '';
-  }
-  const q = d.businessQuality;
-  if (q && q.entries && q.entries.length) {
-    const fmtUsd = v => v > 0 ? (v >= 1e9 ? '$' + (v / 1e9).toFixed(2) + 'B' : v >= 1e6 ? '$' + (v / 1e6).toFixed(2) + 'M' : v >= 1e3 ? '$' + (v / 1e3).toFixed(1) + 'K' : '$' + Math.round(v)) : '-';
-    const fmtPct = v => Number.isFinite(v) ? (v >= 0 ? '+' : '') + Number(v).toFixed(1) + '%' : '-';
-    document.getElementById('bq').style.display = 'block';
-    document.getElementById('bqGrid').innerHTML = q.entries.map((entry, i) => '<article class="bq-card"><div class="bq-top"><div><div class="bq-symbol">' + esc(entry.symbol) + '</div><div class="bq-name">' + esc(entry.name || '') + '</div></div><span class="bq-rank">#' + (i + 1) + '</span></div><div class="bq-facts"><div><label>Fees / 30d</label><span>' + fmtUsd(entry.fees30d) + '</span></div><div><label>Revenue / 30d</label><span>' + fmtUsd(entry.revenue30d) + '</span></div><div><label>Holder value / 30d</label><span>' + fmtUsd(entry.holderValue30d) + '</span></div><div><label>Growth run-rate</label><span>' + fmtPct(entry.growthRunRatePct) + '</span></div><div><label>Price 7d</label><span class="' + (entry.priceChange7d == null ? 'muted' : Number(entry.priceChange7d) >= 0 ? 'pos' : 'neg') + '">' + fmtPct(entry.priceChange7d) + '</span></div></div></article>').join('');
-    document.getElementById('bqDate').textContent = q.generatedAt ? 'Scan generated ' + new Date(q.generatedAt).toISOString().slice(0, 10) + ' UTC' : '';
-  }
-  const f = d.briefingFull;
-  if (f && f.sections && f.sections.length) {
-    document.getElementById('briefingFull').style.display = 'block';
-    document.getElementById('briefingSections').innerHTML = f.sections.map(s => '<div class="bf-section"><div class="bf-kicker">' + esc(s.title) + '</div>' + (s.headline ? '<h4 class="bf-head">' + esc(s.headline) + '</h4>' : '') + (s.paragraphs || []).map(p => '<p>' + esc(p) + '</p>').join('') + ((s.bullets && s.bullets.length) ? '<ul class="briefing-list">' + s.bullets.map(b => '<li>' + esc(b) + '</li>').join('') + '</ul>' : '') + '</div>').join('');
-    document.getElementById('briefingFullDate').textContent = f.generatedAt ? 'Generated ' + new Date(f.generatedAt).toISOString().slice(0, 10) + ' UTC' : '';
-  }
+  renderEdition(d);
   document.getElementById('proofCards').innerHTML = selected.length ? selected.map(({e,o})=>'<article class="proof-card"><div class="proof-top"><div><div class="proof-symbol">'+esc(e.asset)+'</div><div class="proof-name">'+esc(e.name||'')+'</div></div><span>'+(e.currentRegime?'<span class="tier tier-'+esc(e.currentRegime).replace(/\s/g,'')+'">'+esc(e.currentRegime)+'</span> ':'')+'<span class="tf">'+esc(e.timeframe).toUpperCase()+'</span></span></div><div class="proof-return">+'+Number(o.value).toFixed(2)+'%</div><div class="proof-label">verified '+o.label.toLowerCase()+' return from flip close</div><div class="proof-facts"><div><label>Flip date</label><span>'+new Date(e.flipDate).toISOString().slice(0,10)+'</span></div><div><label>Flip close</label><span>'+fmtPrice(e.flipClose)+'</span></div><div><label>Current regime</label><span>'+esc(e.currentRegime||'-')+'</span></div></div></article>').join('') : '<div class="proof-card muted">Verified performance evidence will appear here after an outcome window closes and is selected for publication.</div>';
 }
 async function joinWaitlist() { const email=document.getElementById('wlemail').value.trim(), pricePointEur=parseInt(document.getElementById('wlprice').value,10), msg=document.getElementById('wlmsg'); try { const r=await fetch('/api/tape/waitlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,source:'tape-page',pricePointEur:Number.isFinite(pricePointEur)?pricePointEur:undefined})}); const d=await r.json(); if(!r.ok) throw new Error(d.error||'failed'); msg.textContent=(d.added?'You are on the list.':'Already registered.')+' Total signups: '+d.total; } catch(e) { msg.textContent='Could not save that email: '+e.message; } }
