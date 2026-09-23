@@ -631,7 +631,7 @@ export class AIMarketAnalystService {
    * Resolves deep, asset-specific economic outlook, financial reports, and investment guidance.
    * Guarantees 100% domain relevance (no crypto hallucinations on Apple, Nvidia, or Gold).
    */
-  private resolveAssetIntelligence(symbol: string, price: number, signal: MoneyLineSignal): {
+  private resolveAssetIntelligence(symbol: string, price: number, signal: MoneyLineSignal, marketClass?: string): {
     assetName: string;
     assetClass: 'stocks' | 'crypto' | 'metals' | 'forex' | 'macro';
     sectorOrNarrative: string;
@@ -1021,8 +1021,15 @@ export class AIMarketAnalystService {
     // ─────────────────────────────────────────────────────────────────────────────
     // 6. DEFAULT INTELLIGENCE (Equities, Crypto, Metals, Forex - Asset-Class Aware)
     // ─────────────────────────────────────────────────────────────────────────────
-    const isCrypto = ['ETH', 'SOL', 'BNB', 'XRP', 'DOGE', 'ADA', 'AVAX', 'SUI', 'NEAR', 'APT', 'LINK', 'AAVE', 'UNI', 'RENDER', 'TAO', 'FET', 'PEPE', 'SHIB', 'KAS', 'INJ', 'TIA', 'MATIC', 'POL', 'TON', 'TRX'].includes(s) || s.endsWith('USDT') || s.endsWith('USD');
-    const isMetal = ['SILVER', 'XAG', 'OIL', 'BRENT', 'COPPER', 'NATGAS', 'PLATINUM', 'PALLADIUM', 'CCJ'].includes(s);
+    // The caller's verified market class wins; the symbol lists are only a
+    // fallback for callers that don't know it. Without this, any coin missing
+    // from the list (RAY, SKY...) got the equity template with dividends and
+    // quarterly reports.
+    const knownClass = marketClass === 'crypto' || marketClass === 'stocks' || marketClass === 'metals' || marketClass === 'forex' || marketClass === 'macro' ? marketClass : undefined;
+    const listedCrypto = ['ETH', 'SOL', 'BNB', 'XRP', 'DOGE', 'ADA', 'AVAX', 'SUI', 'NEAR', 'APT', 'LINK', 'AAVE', 'UNI', 'RENDER', 'TAO', 'FET', 'PEPE', 'SHIB', 'KAS', 'INJ', 'TIA', 'MATIC', 'POL', 'TON', 'TRX'].includes(s) || s.endsWith('USDT') || s.endsWith('USD');
+    const isCrypto = knownClass ? knownClass === 'crypto' : listedCrypto;
+    const listedMetal = ['SILVER', 'XAG', 'OIL', 'BRENT', 'COPPER', 'NATGAS', 'PLATINUM', 'PALLADIUM', 'CCJ'].includes(s);
+    const isMetal = knownClass ? knownClass === 'metals' : listedMetal;
     const isForexOrMacro = ['DXY', 'EURUSD', 'GBPUSD', 'USDJPY', 'US10Y', 'US02Y', 'US30Y', 'VIX', 'SPY', 'QQQ', 'DIA', 'IWM'].includes(s);
 
     if (isCrypto) {
@@ -1225,7 +1232,8 @@ export class AIMarketAnalystService {
     price: number,
     signal: MoneyLineSignal,
     xPosts: XTrendTopic[],
-    news: NewsItem[]
+    news: NewsItem[],
+    marketClass?: string
   ): Promise<AssetAIExplanation> {
     const evidence: EvidenceLink[] = [];
 
@@ -1282,7 +1290,7 @@ export class AIMarketAnalystService {
     const r2 = Number((price + atr * 3.0).toPrecision(4));
 
     // Resolve tailored economic outlook, financial reports and investment guidance
-    const intel = this.resolveAssetIntelligence(symbol, price, signal);
+    const intel = this.resolveAssetIntelligence(symbol, price, signal, marketClass);
 
     return {
       symbol,

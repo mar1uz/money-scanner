@@ -697,7 +697,7 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
 
     let aiExplanation = null;
     if (activeSignal) {
-      aiExplanation = await appState.ai.generateAssetExplanation(symbol, quote.price, activeSignal, trendingTopics, news);
+      aiExplanation = await appState.ai.generateAssetExplanation(symbol, quote.price, activeSignal, trendingTopics, news, assetInfo?.marketClass);
     }
 
     // Instinct-authored per-asset investment guide (outbox contract, 36h
