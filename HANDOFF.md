@@ -4339,3 +4339,18 @@ as v5 on first authenticated Top Alpha open or the next scheduled scan.
   JUP (11.5x), ETHFI (15.0x), CVX (16.6x), LIT (22.9x). MORPHO, EIGEN, FF and 17 other
   fees-basis assets leave the list entirely.
 - NOT deployed. Marius sees the before/after first.
+
+### Step 135 deploy - 2026-09-23 14:24 UTC
+
+Deployed to Cloud Run from ae5aadb ("da" on WhatsApp 14:15, answering "Fac deploy?" after the
+before/after): revision market-scanner-360-00267-gsb, image crypto-scanner-web:ae5aadb, build
+af100e69 SUCCESS (4m39s). Verified: revision ready and serving 100% of traffic.
+The v5 criteria payload in the Firestore ai-cache would have kept serving the OLD Undervalued
+top-5 on the public /tape until the 07:00 scheduled scan, so the cache was regenerated
+immediately from the Mac with the exact deployed code path (scanCryptoFourCriteria + local
+ADC, no secrets handled): doc operations/ai-cache-crypto-four-criteria-top-200 now holds
+methodologyVersion 6, 207 undervalued entries, basis counts {"revenue":205,"holders":2},
+EIGEN/FF/MORPHO absent. Live checks: /api/tape/proof shows COOK, GNS, INV, QUICK, RSUP with
+real revenue; /tape renders the new Business Quality screen (screenshot verified). The
+authenticated Top Alpha Undervalued tab reads the same cache, so it serves the cleaned list
+on first open without an 80s rescan.
