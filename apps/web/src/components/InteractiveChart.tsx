@@ -54,10 +54,12 @@ interface InteractiveChartProps {
   onLoadMoreHistory?: () => void | Promise<void>;
   isLoadingHistory?: boolean;
   hasMoreHistory?: boolean;
-  /** CoinGecko page URL. When provided (asset deep-dive, crypto), the nav bar
-      also shows a CoinGecko shortcut next to the tabs on mobile. */
+  /** CoinGecko page URL. When provided (asset deep-dive, crypto), the mobile
+      nav bar shows CoinGecko in place of the TradingView-extern tab, which
+      moves up into the flip-info row. Desktop layout is unchanged. */
   coinGeckoUrl?: string;
-  /** Controlled tab state (optional). */
+  /** Controlled tab state (optional). Lets the parent switch tabs from
+      outside (the flip-row TradingView extern button on mobile). */
   activeTab?: 'chart' | 'tv_embed' | 'pinescript';
   onActiveTabChange?: (tab: 'chart' | 'tv_embed' | 'pinescript') => void;
 }
@@ -1176,7 +1178,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="âš ï¸
 
             <button
               onClick={() => setActiveTab('tv_embed')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all ${
+              className={`${coinGeckoUrl ? 'hidden sm:flex' : 'flex'} items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all ${
                 activeTab === 'tv_embed'
                   ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 font-bold shadow-glow-cyan'
                   : 'text-slate-400 hover:text-slate-200'
@@ -1211,21 +1213,6 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="âš ï¸
               <span>Pine Script v6 Code</span>
             </button>
 
-            {effectiveTvSymbol && (
-              <a
-                href={`https://www.tradingview.com/chart/?symbol=${effectiveTvSymbol}&interval=${
-                  activeInterval === '1h' ? '60' : (activeInterval === '4h' ? '240' : (activeInterval === '8h' ? '480' : (activeInterval === '1d' ? 'D' : (activeInterval === '1w' ? 'W' : 'M'))))
-                }`}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={`Deschide ${effectiveTvSymbol} Ã®n TradingView Oficial`}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-mono rounded-lg transition-all text-slate-400 hover:text-slate-200"
-              >
-                <BarChart2 className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="hidden sm:inline">Deschide Tab TradingView</span>
-                <ExternalLink className="w-3 h-3 text-slate-400" />
-              </a>
-            )}
           </div>
 
         </div>

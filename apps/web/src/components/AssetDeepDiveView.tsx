@@ -137,6 +137,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [alertSent, setAlertSent] = useState(false);
   const [activeInfoTab, setActiveInfoTab] = useState<InfoTab>('ai');
+  const [chartTab, setChartTab] = useState<'chart' | 'tv_embed' | 'pinescript'>('chart');
   const { language } = useLanguage();
   const [showFlipTooltip, setShowFlipTooltip] = useState(false);
   const [loadingOlderHistory, setLoadingOlderHistory] = useState(false);
@@ -513,6 +514,17 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
           <span className="text-[11px] text-slate-500 font-mono">
             {formatFlipAge(currentTfSignal?.transitionTime)}
           </span>
+          <button
+            onClick={() => setChartTab('tv_embed')}
+            title="Deschide graficul TradingView extern"
+            className={`ml-auto inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[10px] font-bold transition-all ${
+              chartTab === 'tv_embed'
+                ? 'border-blue-500/40 bg-blue-500/20 text-blue-200'
+                : 'border-blue-500/25 bg-blue-500/[0.08] text-blue-200 hover:bg-blue-500/[0.14]'
+            }`}
+          >
+            TradingView extern
+          </button>
         </div>
       </div>
 
@@ -532,6 +544,8 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
           isLoadingHistory={loadingOlderHistory}
           hasMoreHistory={hasMoreHistory}
           coinGeckoUrl={resolvedMarketClass === 'crypto' ? coinGeckoUrl : undefined}
+          activeTab={chartTab}
+          onActiveTabChange={setChartTab}
         />
       </div>
 

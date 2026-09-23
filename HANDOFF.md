@@ -4175,3 +4175,12 @@ Pipeline after this step:
 Still model-generated (by design, reported for decision): `POST /api/ai/ask` (live analyst Q&A on the AI Briefing page, Gemini). It cannot be pre-authored daily. `/api/ai/briefing` (template text incl. a hardcoded Apple outlook) is not used by the web app.
 
 Verification: guard suite 11/11; the 52 live Instinct takes in Firestore all pass the guard (0 flagged); packages + API tsc clean; web vite build clean.
+
+
+## Step 128 - 2026-09-23 - Asset page: correction to Step 126 (TradingView extern back, chart/link pill removed)
+
+Marius clarified with an annotated screenshot: the button he wanted gone was the small pill with the bar-chart + external-link icons to the right of "Pine Script v6 Code" in the chart tab bar, not the "TradingView extern" button next to the Bullish badge, which must stay.
+
+- `AssetDeepDiveView.tsx`: restored the flip-row "TradingView extern" button exactly as before Step 126 (controlled `chartTab` state, `activeTab`/`onActiveTabChange` passed to the chart; the button switches the chart to the TradingView embed).
+- `InteractiveChart.tsx`: removed the small external TradingView link pill (BarChart2 + ExternalLink, text "Deschide Tab TradingView" on desktop) from the tab bar entirely. Reverted the Step 126 change that showed the "TradingView extern" tab on mobile: on crypto asset pages (CoinGecko shortcut present) it is hidden on mobile again and reached only via the flip-row button, so there is one access path per width. Desktop tab bar unchanged.
+- Kept from Step 126: "Plan alert" removal and the single timeframe selector.
