@@ -1145,7 +1145,7 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
           </div>
           <div className="text-xs font-mono text-purple-300/70 flex items-center gap-2">
             <Globe2 className="w-3.5 h-3.5" />
-            {language === 'ro' ? 'Gemini caută și verifică sursele curente…' : 'Gemini is searching and verifying current sources…'}
+            {language === 'ro' ? 'Se încarcă briefingul de azi…' : "Loading today's briefing…"}
           </div>
         </div>
       );
@@ -1170,13 +1170,17 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
               <div className="flex items-center gap-2 text-[10px] sm:text-xs font-mono uppercase tracking-wider">
                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${intelligence.mode === 'ai-grounded' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : intelligence.mode === 'ai-sources' ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-300' : 'border-amber-500/30 bg-amber-500/10 text-amber-300'}`}>
                   <BadgeCheck className="w-3 h-3" />
-                  {intelligence.mode === 'ai-grounded'
+                  {intelligence.mode === 'instinct'
+                    ? (language === 'ro' ? 'Scris de Instinct' : 'Written by Instinct')
+                    : intelligence.mode === 'ai-grounded'
                     ? 'Gemini + Google Search'
                     : intelligence.mode === 'ai-sources'
                       ? (language === 'ro' ? 'Gemini + surse verificate' : 'Gemini + verified sources')
-                      : (language === 'ro' ? 'Fallback local' : 'Local fallback')}
+                      : (language === 'ro' ? 'Doar date live' : 'Live data only')}
                 </span>
-                <span className="text-slate-500">{intelligence.confidenceScore}% confidence</span>
+                {(intelligence.mode === 'ai-grounded' || intelligence.mode === 'ai-sources') && (
+                  <span className="text-slate-500">{intelligence.confidenceScore}% confidence</span>
+                )}
               </div>
               <span className="text-[10px] font-mono text-slate-500">
                 {new Date(intelligence.generatedAt).toLocaleString(language === 'ro' ? 'ro-RO' : 'en-US', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
@@ -1189,7 +1193,7 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
                 <span className="text-xs font-mono text-cyan-300 uppercase tracking-wider">{intelligence.macroRegime}</span>
               </div>
               <h2 className="text-xl sm:text-2xl font-bold text-slate-50 leading-tight">{intelligence.headline}</h2>
-              <p className="mt-3 text-sm text-slate-300 leading-relaxed max-w-5xl">{intelligence.executiveSummary}</p>
+              <p className="mt-3 text-sm text-slate-300 leading-relaxed max-w-5xl whitespace-pre-line">{intelligence.executiveSummary}</p>
             </div>
             {intelligence.aiTake && (
               <div className="mt-4 rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-4 max-w-5xl">
@@ -1231,6 +1235,7 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
           </div>
         </section>
 
+        {intelligence.macroDrivers.length > 0 && (
         <section>
           <div className="flex items-center gap-2 mb-3">
             <Radar className="w-4 h-4 text-cyan-300" />
@@ -1256,7 +1261,9 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
             })}
           </div>
         </section>
+        )}
 
+        {intelligence.narratives.length > 0 && (
         <section>
           <div className="flex items-center gap-2 mb-3">
             <Flame className="w-4 h-4 text-orange-300" />
@@ -1316,7 +1323,9 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
             ))}
           </div>
         </section>
+        )}
 
+        {intelligence.discoveries.length > 0 && (
         <section>
           <div className="flex items-center gap-2 mb-1">
             <Sparkles className="w-4 h-4 text-purple-300" />
@@ -1353,8 +1362,10 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
             </div>
           )}
         </section>
+        )}
 
-        <section className="grid grid-cols-1 lg:grid-cols-[0.8fr_1.2fr] gap-4">
+        <section className={`grid grid-cols-1 ${intelligence.riskRadar.length > 0 ? 'lg:grid-cols-[0.8fr_1.2fr]' : ''} gap-4`}>
+          {intelligence.riskRadar.length > 0 && (
           <div className="rounded-xl border border-rose-500/15 bg-rose-500/[0.035] p-4">
             <div className="flex items-center gap-2 mb-3">
               <ShieldAlert className="w-4 h-4 text-rose-300" />
@@ -1364,11 +1375,12 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
               {intelligence.riskRadar.map((risk, index) => <p key={`${risk}_${index}`} className="text-[11px] text-slate-400 leading-relaxed">• {risk}</p>)}
             </div>
           </div>
+          )}
           <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
             <div className="flex items-center justify-between gap-3 mb-3">
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-cyan-300" />
-                <h3 className="text-sm font-bold text-slate-100">{language === 'ro' ? 'Surse folosite' : 'Sources used'}</h3>
+                <h3 className="text-sm font-bold text-slate-100">{intelligence.mode === 'ai-grounded' || intelligence.mode === 'ai-sources' ? (language === 'ro' ? 'Surse folosite' : 'Sources used') : (language === 'ro' ? 'Știri recente' : 'Recent news')}</h3>
               </div>
               <span className="text-[10px] font-mono text-slate-600">{intelligence.sources.length}</span>
             </div>

@@ -145,6 +145,11 @@ const PAGE_INSTRUCTIONS = {
 };
 
 async function main() {
+  // RETIRED 2026-09-23 (Marius): user-visible narrative text is written by
+  // Instinct. This model writer produced unit errors (market cap in billions)
+  // and stale news; the API now refuses its publishes (403). Kept for history.
+  console.error('retired: narrative text is Instinct-authored (see HANDOFF Step 127)');
+  process.exit(3);
   if (!ensureGatewayKey()) { console.error('blocked: no AI gateway key'); process.exit(2); }
   const token = schedulerToken();
   if (!token) { console.error('blocked: no scheduler token'); process.exit(2); }

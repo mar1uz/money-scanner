@@ -24,6 +24,7 @@ import { lookupCryptoFourCriteria, normalizeLookupQuery } from '../services/cryp
 import { scanStockBusinessQuality } from '../services/stock-business-quality-scanner.js';
 import { readPersistentAICache, writePersistentAICache } from '../services/ai-cache-store.js';
 import { validateScheduledRequestToken } from '../services/scheduler-auth.js';
+import { buildInstinctReport, isServableTake, takeIssues } from '../services/narrative-guard.js';
 
 export const aiRouter = Router();
 
@@ -58,16 +59,18 @@ const AI_CONTENT_KEY_PATTERN = /^(?:investment-guide|asset-profile|business-qual
 const isAllowedContentKey = (key: string) => AI_CONTENT_KEYS.has(key) || AI_CONTENT_KEY_PATTERN.test(key);
 const AI_CONTENT_MAX_AGE_MS = 36 * 60 * 60_000;
 
-/** AI take written by the local Mac executor via the AI Gateway or by the
- * Instinct content agent; fresh for 36h. The per-language copy is preferred;
- * the legacy language-agnostic key remains as the (Romanian) fallback. */
+/** Daily AI take, fresh for 36h. Only Instinct-authored takes that pass the
+ * narrative guard (unit sanity + no undated central-bank news) are served;
+ * model-written takes (legacy local AI Gateway writer) are never shown.
+ * The per-language copy is preferred; the legacy language-agnostic key
+ * remains as the (Romanian) fallback. */
 export const readAiContentTake = async (key: string, language?: 'ro' | 'en'): Promise<AIContentTake | undefined> => {
   if (language) {
     const localized = await readPersistentAICache<AIContentTake>(`ai-content-${key}-${language}`);
-    if (localized && Date.now() - localized.updatedAt <= AI_CONTENT_MAX_AGE_MS) return localized.payload;
+    if (localized && Date.now() - localized.updatedAt <= AI_CONTENT_MAX_AGE_MS && isServableTake(localized.payload)) return localized.payload;
   }
   const entry = await readPersistentAICache<AIContentTake>(`ai-content-${key}`);
-  if (!entry || Date.now() - entry.updatedAt > AI_CONTENT_MAX_AGE_MS) return undefined;
+  if (!entry || Date.now() - entry.updatedAt > AI_CONTENT_MAX_AGE_MS || !isServableTake(entry.payload)) return undefined;
   return entry.payload;
 };
 
@@ -477,11 +480,14 @@ aiRouter.get('/ai/market-intelligence', async (req, res) => {
       : 'crypto';
     const language: 'ro' | 'en' = req.query.language === 'en' ? 'en' : 'ro';
     const payload = await getMarketIntelligenceReport(scope, language, req.query.refresh === '1');
-    const enriched = await attachLiveNarrativeChanges(payload, scope);
-    const take = await readAiContentTake('market-intelligence', language);
-    if (take) enriched.aiTake = take;
-    const rotation = await readAiContentTake('capital-rotation', language);
-    if (rotation) enriched.capitalRotation = rotation;
+    const [briefing, marketIntelligence, capitalRotation] = await Promise.all([
+      readAiContentTake('briefing', language),
+      readAiContentTake('market-intelligence', language),
+      readAiContentTake('capital-rotation', language)
+    ]);
+    // Narrative text is Instinct-authored; model prose in the stored report is dropped.
+    const instinct = buildInstinctReport(payload, { briefing, marketIntelligence, capitalRotation }, language);
+    const enriched = await attachLiveNarrativeChanges(instinct, scope);
     res.set('Cache-Control', 'private, max-age=30');
     res.json(enriched);
   } catch (err: any) {
@@ -597,7 +603,7 @@ aiRouter.get('/ai/stock-business-quality', async (req, res) => {
 // Cloud Scheduler calls this once daily at 07:00 Europe/Oslo. Both UI
 // languages and all three market scopes are generated ahead of the user's
 // visit, then persisted so another Cloud Run instance can serve them instantly.
-// Local AI-content publisher (Mac executor -> Vercel AI Gateway). Token-protected.
+// Instinct content publisher (Mac bridge outbox -> this endpoint). Token-protected; narrative-guarded.
 aiRouter.post('/ai/publish-content', async (req, res) => {
   if (!validateScheduledRequestToken(req.get('x-daily-scan-token'))) {
     return res.status(401).json({ error: 'Invalid daily scan token.' });
@@ -608,7 +614,16 @@ aiRouter.post('/ai/publish-content', async (req, res) => {
     return res.status(400).json({ error: 'Invalid AI content payload.' });
   }
   const language = req.body?.language === 'en' || req.body?.language === 'ro' ? req.body.language : null;
-  const source = req.body?.source === 'instinct-agent' ? 'instinct-agent' as const : 'ai-gateway' as const;
+  // Only Instinct-authored narrative is accepted (Marius, 2026-09-23). The
+  // legacy local AI Gateway writer is retired and its publishes are refused.
+  if (req.body?.source !== 'instinct-agent') {
+    return res.status(403).json({ error: 'Only Instinct-authored content is accepted.' });
+  }
+  const issues = takeIssues(take);
+  if (issues.length) {
+    return res.status(422).json({ error: 'Narrative guard rejected the take.', issues });
+  }
+  const source = 'instinct-agent' as const;
   const cacheKey = language ? `ai-content-${key}-${language}` : `ai-content-${key}`;
   await writePersistentAICache(cacheKey, { payload: { ...take, source }, updatedAt: Date.now() });
   res.set('Cache-Control', 'no-store');

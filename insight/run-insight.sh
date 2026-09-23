@@ -157,10 +157,9 @@ print(len(c))
           run_pipeline "requested-siglab-crypto-fallback" --scan tmp/scans/nearflip-latest.json --ath || rc=$?
         fi
       elif [ "$mode" = "aicontent" ]; then
-        # AI content for the Briefing/Intelligence pages via the AI Gateway.
-        # Publishes through the token-protected /api/ai/publish-content endpoint.
-        (cd "$REPO" && node scripts/ai-content-writer.mjs) >> "$DIR/ai-content.log" 2>&1
-        log "aicontent exit=$?"
+        # Model-written AI content retired 2026-09-23: narrative text is
+        # Instinct-authored (tmp/ai-content-outbox + instinct-content-publisher).
+        log "aicontent skipped (model writer retired; Instinct authors narrative)"
       elif [ "$mode" = "reclaim" ]; then
         if [ -f "$REPO/tmp/scans/reclaim-latest.json" ]; then
           run_pipeline "requested-reclaim" --scan tmp/scans/reclaim-latest.json || rc=$?
@@ -177,8 +176,7 @@ print(len(c))
             run_pipeline "requested-nearflip" --scan tmp/scans/nearflip-latest.json --ath || rc=$?
           else
             run_pipeline "scheduled-or-requested" --scan tmp/scans/nearflip-latest.json --ath || rc=$?
-            # Refresh the AI Briefing/Intelligence page content after the daily run.
-            (node scripts/ai-content-writer.mjs) >> "$DIR/ai-content.log" 2>&1 && log "aicontent ok" || log "WARN aicontent failed"
+            # Model-written AI content retired 2026-09-23 (Instinct authors the narrative).
           fi
         else
           log "FAIL nearflip-scan-missing (tmp/scans/nearflip-latest.json) - generic default fallback"

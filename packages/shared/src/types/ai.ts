@@ -138,7 +138,7 @@ export interface MarketIntelligenceReport {
   confidenceScore: number;
   generatedAt: number;
   dataFreshness: string;
-  mode: 'ai-grounded' | 'ai-sources' | 'deterministic';
+  mode: 'ai-grounded' | 'ai-sources' | 'deterministic' | 'instinct';
   model?: string;
   searchQueries: string[];
   disclaimer: string;

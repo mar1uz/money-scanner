@@ -32,7 +32,7 @@ const SENT = join(OUTBOX, 'sent');
 const BASE_URL = process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app';
 const KEYS = new Set(['capital-rotation', 'briefing', 'intelligence-brief', 'market-intelligence']);
 // Per-asset Instinct investment guides: investment-guide-<SYMBOL>.
-const KEY_PATTERN = /^(?:investment-guide|asset-profile)-[A-Z0-9][A-Z0-9.-]{0,19}$/;
+const KEY_PATTERN = /^(?:investment-guide|asset-profile|business-quality)-[A-Z0-9][A-Z0-9.-]{0,19}$/;
 
 function schedulerToken() {
   const out = execFileSync('gcloud', [
@@ -58,7 +58,7 @@ async function publish(token, doc) {
     body: JSON.stringify({ key: doc.key, language: doc.language, take: doc.take, source: 'instinct-agent' }),
     signal: AbortSignal.timeout(30_000)
   });
-  if (!res.ok) throw new Error(`publish ${doc.key} (${doc.language}) HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`publish ${doc.key} (${doc.language}) HTTP ${res.status}: ${(await res.text().catch(() => '')).slice(0, 600)}`);
 }
 
 async function main() {
@@ -76,7 +76,14 @@ async function main() {
       process.exitCode = 1;
       continue;
     }
-    await publish(token, doc);
+    try {
+      await publish(token, doc);
+    } catch (e) {
+      // e.g. 422 from the narrative guard: leave the file in place, keep going.
+      console.error(`rejected, left in place: ${file}: ${String(e?.message || e).slice(0, 700)}`);
+      process.exitCode = 1;
+      continue;
+    }
     renameSync(join(OUTBOX, file), join(SENT, `${Date.now()}-${file}`));
     console.log(`published ${doc.key} (${doc.language}) from ${file}`);
     published++;

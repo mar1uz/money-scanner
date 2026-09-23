@@ -19,6 +19,7 @@ import { readPersistentAICache } from '../services/ai-cache-store.js';
 import { getCryptoCriteriaReport } from './ai-routes.js';
 import { onchainMetrics } from '../services/onchain-metrics.js';
 import type { AIContentTake } from '@money-scanner/shared';
+import { isServableTake } from '../services/narrative-guard.js';
 
 export const scannerRouter = Router();
 
@@ -477,7 +478,7 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
           && ((qualityAsset!.metrics.fees30d || 0) > 0 || (qualityAsset!.metrics.revenue30d || 0) > 0 || (qualityAsset!.metrics.holdersRevenue30d || 0) > 0);
         const readNarrativeTake = async (narrativeLanguage: 'ro' | 'en') => {
           const entry = await readPersistentAICache<AIContentTake>(`ai-content-business-quality-${symbol}-${narrativeLanguage}`);
-          return entry && Date.now() - entry.updatedAt <= GUIDE_MAX_AGE_MS ? entry.payload : undefined;
+          return entry && Date.now() - entry.updatedAt <= GUIDE_MAX_AGE_MS && isServableTake(entry.payload) ? entry.payload : undefined;
         };
         const [narrativeRo, narrativeEn] = await Promise.all([readNarrativeTake('ro'), readNarrativeTake('en')]);
         const narrative = narrativeRo || narrativeEn
@@ -704,11 +705,11 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
     const GUIDE_MAX_AGE_MS = 36 * 60 * 60_000;
     const readGuideTake = async (guideLanguage: 'ro' | 'en') => {
       const entry = await readPersistentAICache<AIContentTake>(`ai-content-investment-guide-${symbol}-${guideLanguage}`);
-      return entry && Date.now() - entry.updatedAt <= GUIDE_MAX_AGE_MS ? entry.payload : undefined;
+      return entry && Date.now() - entry.updatedAt <= GUIDE_MAX_AGE_MS && isServableTake(entry.payload) ? entry.payload : undefined;
     };
     const readProfileTake = async (profileLanguage: 'ro' | 'en') => {
       const entry = await readPersistentAICache<AIContentTake>(`ai-content-asset-profile-${symbol}-${profileLanguage}`);
-      return entry && Date.now() - entry.updatedAt <= GUIDE_MAX_AGE_MS ? entry.payload : undefined;
+      return entry && Date.now() - entry.updatedAt <= GUIDE_MAX_AGE_MS && isServableTake(entry.payload) ? entry.payload : undefined;
     };
     const [guideRo, guideEn, profileTakeRo, profileTakeEn] = await Promise.all([
       readGuideTake('ro'), readGuideTake('en'), readProfileTake('ro'), readProfileTake('en')

@@ -24,10 +24,16 @@ import {
 export class AIMarketAnalystService {
   private geminiApiKey?: string;
   private geminiModel: string;
+  private modelNarrativeEnabled: boolean;
 
   constructor(geminiApiKey?: string) {
     this.geminiApiKey = geminiApiKey || process.env.GEMINI_API_KEY;
     this.geminiModel = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
+    // Model-written narrative (Gemini report + news synthesis) is OFF unless
+    // MODEL_NARRATIVE=on. User-visible narrative text is Instinct-authored;
+    // with the flag off these paths return their deterministic, source-only
+    // output (real headlines, prices, links).
+    this.modelNarrativeEnabled = process.env.MODEL_NARRATIVE === 'on';
   }
 
   /**
@@ -54,7 +60,7 @@ export class AIMarketAnalystService {
       news,
       overview
     );
-    if (!this.geminiApiKey) return fallback();
+    if (!this.geminiApiKey || !this.modelNarrativeEnabled) return fallback();
     const apiKey = this.geminiApiKey;
 
     const safeModel = /^[a-zA-Z0-9._-]+$/.test(this.geminiModel)
@@ -401,8 +407,8 @@ export class AIMarketAnalystService {
       headline: isRo ? `${scopeName}: snapshot verificabil al pieței` : `${scopeName}: verifiable market snapshot`,
       macroRegime: scope === 'crypto' && overview ? overview.regime : (isRo ? 'Necesită confirmare macro AI' : 'Requires AI macro confirmation'),
       executiveSummary: isRo
-        ? `Raportul Gemini cu căutare web nu este disponibil momentan. Snapshotul local indică drept lideri 24h: ${leaders.map(item => `${item.symbol} ${item.change24h >= 0 ? '+' : ''}${item.change24h.toFixed(2)}%`).join(', ') || 'date insuficiente'}.`
-        : `The Gemini web-grounded report is temporarily unavailable. Local 24h leaders: ${leaders.map(item => `${item.symbol} ${item.change24h >= 0 ? '+' : ''}${item.change24h.toFixed(2)}%`).join(', ') || 'insufficient data'}.`,
+        ? `Lideri 24h din snapshotul live: ${leaders.map(item => `${item.symbol} ${item.change24h >= 0 ? '+' : ''}${item.change24h.toFixed(2)}%`).join(', ') || 'date insuficiente'}.`
+        : `Live snapshot 24h leaders: ${leaders.map(item => `${item.symbol} ${item.change24h >= 0 ? '+' : ''}${item.change24h.toFixed(2)}%`).join(', ') || 'insufficient data'}.`,
       macroDrivers: [{
         title: isRo ? 'Disponibilitate analiză AI' : 'AI analysis availability',
         impact: 'Mixed',
@@ -415,7 +421,7 @@ export class AIMarketAnalystService {
       sources,
       confidenceScore: 35,
       generatedAt: Date.now(),
-      dataFreshness: isRo ? 'Snapshot local; Gemini indisponibil' : 'Local snapshot; Gemini unavailable',
+      dataFreshness: isRo ? 'Snapshot live' : 'Live snapshot',
       mode: 'deterministic',
       searchQueries: [],
       disclaimer: isRo
@@ -1344,7 +1350,7 @@ export class AIMarketAnalystService {
       };
     };
 
-    if (!inputs.length || !this.geminiApiKey) return fallback();
+    if (!inputs.length || !this.geminiApiKey || !this.modelNarrativeEnabled) return fallback();
 
     try {
       const prompt = [

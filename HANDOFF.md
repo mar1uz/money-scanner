@@ -4155,3 +4155,23 @@ Marius reviewed the asset page on mobile (screenshot): the action/menu zone was 
 - No API changes; existing server-side alert rules are unaffected.
 
 Verification: `tsc && vite build` clean; web unit tests 5/5. Mobile + desktop visual pass on the live site after deploy.
+
+## Step 127 - 2026-09-23 - Narrative text is Instinct-authored; model prose removed from the app
+
+Marius: "Vreau sa rezolvi și cu generarea textului sa fie corect și scris de tine, vreau că tu să fii integrat in generarea de text și răspuns". Trigger: the 23 Sep briefing said total market cap "2.96 billion" (trillion) and presented the Sep 16 Fed hike as new. Sources of that text: the Gemini market-intelligence report cached at 07:00 (headline "Bitcoin Breaks Above $87,000 Amid Hawkish Fed Rate Hike"), and the local model writer (`scripts/ai-content-writer.mjs`, inception/mercury-2.5) that overwrote the daily takes at ~07:49 until Instinct republished at ~08:57.
+
+Pipeline after this step:
+- Daily takes `ai-content-{briefing,market-intelligence,intelligence-brief,capital-rotation}-{en,ro}` and per-asset `ai-content-{investment-guide,asset-profile,business-quality}-<SYM>-<lang>`: written only by Instinct (outbox -> `scripts/instinct-content-publisher.mjs` -> `POST /api/ai/publish-content` with `source: instinct-agent`).
+- `apps/api/src/services/narrative-guard.ts` (new, tests in `narrative-guard.test.ts`):
+  - Unit rule: an aggregate market cap (total/global/overall/"crypto market cap"/"capitalizarea totală") stated under $100B or above $1,000T is rejected.
+  - Stale-news rule: any sentence mentioning a central-bank rate decision (Fed/FOMC/ECB/BoE/BoJ/Norges Bank + hike/cut/hold/raised/majorat/...) must carry an explicit date in the same sentence ("Sep 16", "16 sept.", "2026-09-16").
+  - `isServableTake`: source must be `instinct-agent` and zero guard issues.
+- `publish-content`: refuses any source other than `instinct-agent` (403) and guard failures (422 with `issues`). `readAiContentTake` and the three per-asset readers in `scanner-routes.ts` serve only servable takes, so /tape, AI Briefing, Intelligence and asset pages never show model or failing text.
+- `/ai/market-intelligence` (AI Briefing page): `buildInstinctReport` drops model prose from the stored report (headline, executive summary, macro drivers, risk radar, discoveries, model narrative cards). Header = Instinct `briefing` take; AI take = Instinct `market-intelligence`; Capital Rotation unchanged. Narrative cards kept only when deterministic (24h average moves from live quotes). Without a fresh Instinct briefing the header says so; it never falls back to model prose.
+- `AIAnalyst`: `MODEL_NARRATIVE=on` env flag (default off) gates Gemini in `generateMarketIntelligence` and `generateNewsSynthesis`. Off = deterministic output: price-computed narrative cards, and on the Intelligence page the real dated headlines with their source (extractive mode). Fallback wording no longer says "Gemini unavailable".
+- Web `AIBriefingView`: "Written by Instinct" badge, confidence only for Gemini modes, empty sections (macro drivers, narratives, discoveries, risk radar) hidden, sources labelled "Recent news" outside Gemini modes, summary keeps paragraph breaks.
+- Local: `insight/run-insight.sh` no longer runs `ai-content-writer.mjs`; the script itself exits 3 ("retired"). Publisher now continues past a rejected file and prints the server's reason. Also includes the 23 Sep one-line publisher fix accepting `business-quality-<SYM>` keys (from the daily content run).
+
+Still model-generated (by design, reported for decision): `POST /api/ai/ask` (live analyst Q&A on the AI Briefing page, Gemini). It cannot be pre-authored daily. `/api/ai/briefing` (template text incl. a hardcoded Apple outlook) is not used by the web app.
+
+Verification: guard suite 11/11; the 52 live Instinct takes in Firestore all pass the guard (0 flagged); packages + API tsc clean; web vite build clean.
