@@ -272,7 +272,7 @@ export const TopAlphaView: React.FC = () => {
             <div className="space-y-2.5">
               <div>
                 <h3 className="text-[11px] font-bold uppercase tracking-wide text-emerald-300">{isRo ? 'Scor top' : 'Top score'} · {topScoreAssets.length}</h3>
-                <p className="text-[10px] text-slate-500">{isRo ? 'Calitate + accelera\u021bie, f\u0103r\u0103 s\u0103 se uite la pre\u021b. Sortat după criterii trecute, apoi scor și ritm de creștere.' : 'Quality + acceleration, price ignored. Sorted by criteria passed, then score and growth pace.'}</p>
+                <p className="text-[10px] text-slate-500">{isRo ? 'Calitate + accelera\u021bie, f\u0103r\u0103 s\u0103 se uite la pre\u021b. Sortat după criterii trecute, apoi revenue absolut pe 30z (log), apoi ritm de creștere.' : 'Quality + acceleration, price ignored. Sorted by criteria passed, then absolute 30d revenue (log), then growth pace.'}</p>
               </div>
               {topScoreAssets.map((asset, index) => (
                 <CryptoBqAssetCard

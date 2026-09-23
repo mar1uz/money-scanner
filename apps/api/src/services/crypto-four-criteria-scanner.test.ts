@@ -16,11 +16,13 @@ describe('Crypto four-criteria scanner', () => {
         { name: 'Beta Protocol', slug: 'beta-protocol', symbol: 'BET', tvl: 50_000_000, change_7d: 7, chains: ['Solana', 'Base'] }
       ],
       fees: [
-        { name: 'Alpha Protocol', slug: 'alpha-protocol', total24h: 50_000, total7d: 400_000, total30d: 1_000_000 },
+        // Alpha deliberately larger than Beta: since 2026-09-23 the 4/4 tie is
+        // broken on absolute 30-day size before acceleration (size factor).
+        { name: 'Alpha Protocol', slug: 'alpha-protocol', total24h: 50_000, total7d: 400_000, total30d: 3_000_000 },
         { name: 'Beta Protocol', slug: 'beta-protocol', total24h: 60_000, total7d: 600_000, total30d: 2_000_000 }
       ],
       revenue: [
-        { name: 'Alpha Protocol', slug: 'alpha-protocol', total24h: 40_000, total7d: 400_000, total30d: 1_000_000 },
+        { name: 'Alpha Protocol', slug: 'alpha-protocol', total24h: 40_000, total7d: 400_000, total30d: 2_000_000 },
         { name: 'Beta Protocol', slug: 'beta-protocol', total24h: 40_000, total7d: 300_000, total30d: 1_000_000 }
       ],
       holdersRevenue: [
@@ -225,4 +227,76 @@ it('orders undervalued by criteria passed first, then undervaluation index withi
   assert.equal(cheap.passedCriteria, 2);
   assert.ok(cheap.undervaluationIndex > full.undervaluationIndex);
   assert.deepEqual(scan.undervalued.map(a => a.assetId), ['full', 'cheap', 'mid']);
+});
+
+it('breaks 4/4 ties on absolute 30-day size before acceleration (size factor, 2026-09-23)', () => {
+  // Both assets pass all four criteria. The small one accelerates far faster,
+  // but $100K-$1M/month cannot outrank $25M-$50M/month on acceleration alone.
+  const scan = buildCryptoFourCriteriaScan({
+    coins: [coin('small'), coin('big')],
+    protocols: [
+      { slug: 'big', gecko_id: 'big', tvl: 500_000_000, change_7d: 1, chains: ['Ethereum'] },
+      { slug: 'small', gecko_id: 'small', tvl: 20_000_000, change_7d: 300, chains: ['Ethereum'] }
+    ],
+    fees: [
+      { slug: 'big', total24h: 1_600_000, total7d: 11_000_000, total30d: 50_000_000 },
+      { slug: 'small', total24h: 10_000, total7d: 60_000, total30d: 100_000 }
+    ],
+    revenue: [
+      { slug: 'big', total24h: 800_000, total7d: 5_500_000, total30d: 25_000_000 },
+      { slug: 'small', total24h: 5_000, total7d: 40_000, total30d: 100_000 }
+    ],
+    holdersRevenue: [metric('big'), metric('small')]
+  });
+  assert.equal(scan.assets[0].passedCriteria, 4);
+  assert.equal(scan.assets[1].passedCriteria, 4);
+  assert.deepEqual(scan.assets.slice(0, 2).map(asset => asset.id), ['big', 'small']);
+});
+
+it('lets acceleration decide inside the same size decade', () => {
+  const scan = buildCryptoFourCriteriaScan({
+    coins: [coin('slow'), coin('fast')],
+    protocols: [
+      { slug: 'slow', gecko_id: 'slow', tvl: 50_000_000, change_7d: 1, chains: ['Ethereum'] },
+      { slug: 'fast', gecko_id: 'fast', tvl: 50_000_000, change_7d: 1, chains: ['Ethereum'] }
+    ],
+    fees: [
+      { slug: 'slow', total24h: 60_000, total7d: 350_000, total30d: 2_000_000 },
+      { slug: 'fast', total24h: 60_000, total7d: 700_000, total30d: 2_000_000 }
+    ],
+    revenue: [
+      { slug: 'slow', total24h: 30_000, total7d: 175_000, total30d: 1_000_000 },
+      { slug: 'fast', total24h: 30_000, total7d: 350_000, total30d: 1_000_000 }
+    ],
+    holdersRevenue: [metric('slow'), metric('fast')]
+  });
+  assert.deepEqual(scan.assets.slice(0, 2).map(asset => asset.id), ['fast', 'slow']);
+});
+it('ranks $0-revenue protocols by real capture; fees are fallback only when revenue data is missing', () => {
+  // hollow: $40M/month fees but revenue reported as $0 -> size basis 0, last of the 4/4 group.
+  // feechain/smallchain: L1 chains with no revenue/holder rows at all -> fees fallback decides their 3/4 order.
+  const chain = (slug: string, tvl: number) => ({ slug, gecko_id: slug, tvl, change_7d: 2, chains: ['Ethereum'] });
+  const scan = buildCryptoFourCriteriaScan({
+    coins: [coin('hollow'), coin('earner'), coin('feechain'), coin('smallchain')],
+    protocols: [chain('hollow', 500_000_000), chain('earner', 50_000_000), chain('feechain', 50_000_000), chain('smallchain', 50_000_000)],
+    fees: [
+      { slug: 'hollow', category: 'Chain', total24h: 1_300_000, total7d: 9_000_000, total30d: 40_000_000 },
+      { slug: 'earner', total24h: 30_000, total7d: 200_000, total30d: 1_000_000 },
+      { slug: 'feechain', category: 'Chain', total24h: 60_000, total7d: 400_000, total30d: 2_000_000 },
+      { slug: 'smallchain', category: 'Chain', total24h: 3_000, total7d: 20_000, total30d: 100_000 }
+    ],
+    revenue: [
+      { slug: 'hollow', total24h: 0, total7d: 0, total30d: 0 },
+      { slug: 'earner', total24h: 20_000, total7d: 140_000, total30d: 700_000 }
+    ],
+    holdersRevenue: [
+      { slug: 'hollow', total24h: 0, total7d: 0, total30d: 0 },
+      { slug: 'earner', total24h: 1_000, total7d: 7_000, total30d: 30_000 }
+    ]
+  });
+  assert.deepEqual(scan.assets.map(asset => asset.id), ['earner', 'hollow', 'feechain', 'smallchain']);
+  assert.equal(scan.assets[0].passedCriteria, 4);
+  assert.equal(scan.assets[1].passedCriteria, 4);
+  assert.equal(scan.assets[2].passedCriteria, 3);
+  assert.equal(scan.assets[3].passedCriteria, 3);
 });

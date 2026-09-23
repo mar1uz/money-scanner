@@ -4272,3 +4272,36 @@ Marius (WhatsApp, 2026-09-23 11:26): "în /tape poți să întorci zilnic toate 
 - The "Today's AI Briefing" block now sits above the proof cards.
 - Login page: English copy was being run through the RO DOM translator ("Money Line semnale"). AuthGate
   picks its own language, so the login and session-check screens are now `data-i18n-skip`.
+
+## Step 134 - 2026-09-23 - Top Score size factor (option 2, approved by Marius, not deployed)
+
+Marius (WhatsApp, 2026-09-23): AVAX ranked #2 on Top Score with $168K revenue/30d and P/R 2406x.
+He picked option 2: absolute size must matter in the ranking, not only acceleration.
+
+- `apps/api/src/services/crypto-four-criteria-scanner.ts`: new deterministic size factor in the
+  scan sort. Inside the same criteria/score tier, ties now break on `sizeScore` BEFORE revenue
+  acceleration: `sizeBasis = max(fees30d, revenue30d, holdersRevenue30d)` (largest observed 30-day
+  cash flow; for L1 chains fees are the real economy) and `sizeScore = round(log10(1 + basis) * 10)`,
+  so every decade of magnitude is 10 points and same-decade assets still fall through to
+  acceleration, then fee acceleration, then market-cap rank.
+- `methodologyVersion` 4 -> 5 (cache check in `ai-routes.ts` updated); methodology text now
+  documents the size factor; the Top Alpha explainer line (RO + EN) says the sort is
+  criteria -> absolute 30d size (log) -> growth pace.
+- Tests: new pair in `crypto-four-criteria-scanner.test.ts` (a $100K-$1M/month asset cannot
+  outrank a $25M-$50M/month one on acceleration alone; acceleration still decides inside the same
+  size decade). The original Alpha/Beta fixture makes Alpha deliberately larger so its first-place
+  assertion keeps testing classification, not size. Suite: 197/197 pass.
+- Effect on the fresh 2026-09-23 10:55 UTC scan (top-200 universe): Top Score #1-10 becomes UNI,
+  HYPE, LDO, RAY, AAVE, SKY, CAKE, JUP, ETHFI, MORPHO. AVAX moves #2 -> #26, BONK #1 -> #11.
+- NOT deployed. Marius sees the before/after first.
+
+### Step 134 addendum - revenue-first basis (Marius, 2026-09-23 13:03: "vreau revenue sa fie mai important")
+
+- `sizeBasis` is now revenue-first: `revenue30d` primary, holder distributions count as revenue
+  where that is the retention route (`max(revenue, holders)` when both exist), and `fees30d` is the
+  fallback ONLY when no revenue/holder data exists at all. A protocol reporting $0 revenue with big
+  fees (MORPHO) ranks by its real capture, i.e. low - gross activity no longer substitutes for capture.
+- Top Alpha explainer now says "revenue absolut pe 30z (log)"; methodology text updated; new test pins
+  the $0-revenue-no-fallback rule and the L1 fees-fallback lower down the sort. Suite: 198/198.
+- Fresh 11:07 UTC scan top 10: HYPE, UNI, SKY, JUP, CAKE, RAY, LIT, AAVE, EDGE, ETHFI.
+  AVAX #21, BONK #11, MORPHO #28. Still NOT deployed.

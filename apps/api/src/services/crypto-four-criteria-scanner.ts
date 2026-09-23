@@ -201,6 +201,28 @@ const runRateChange = (total7d: number, total30d: number): number | undefined =>
   return ((total7d * (30 / 7)) / total30d - 1) * 100;
 };
 
+/**
+ * Size factor (Marius, 2026-09-23, option 2, revenue-first revision): inside
+ * the same criteria/score tier, absolute 30-day size breaks the tie BEFORE
+ * acceleration, so a chain earning $168K/month cannot outrank protocols
+ * earning millions on acceleration alone. Revenue is the primary measure and
+ * holder distributions count as revenue where that is the retention route;
+ * fees are the fallback ONLY when no revenue/holder data exists at all (the
+ * L1-chain case) - a protocol reporting $0 revenue with big fees ranks by its
+ * real capture (low), not by gross activity. Deterministic: the log10 scale
+ * makes every decade of magnitude worth 10 points, so assets inside the same
+ * decade fall through to acceleration.
+ */
+const sizeBasisUsd = (asset: CryptoFourCriteriaAsset): number => {
+  const revenue = asset.metrics.revenue30d;
+  const holders = asset.metrics.holdersRevenue30d;
+  const capture = revenue === undefined ? holders : Math.max(revenue, holders ?? 0);
+  if (capture === undefined) return asset.metrics.fees30d ?? 0;
+  return capture;
+};
+const sizeScore = (asset: CryptoFourCriteriaAsset): number =>
+  Math.round(Math.log10(1 + sizeBasisUsd(asset)) * 10);
+
 export interface FourCriteriaCoinInput {
   id: string;
   coinGeckoId?: string;
@@ -433,6 +455,7 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
   }).sort((left, right) =>
     right.passedCriteria - left.passedCriteria ||
     right.score - left.score ||
+    sizeScore(right) - sizeScore(left) ||
     (right.metrics.revenueRunRateChange ?? Number.NEGATIVE_INFINITY) - (left.metrics.revenueRunRateChange ?? Number.NEGATIVE_INFINITY) ||
     (right.metrics.feeRunRateChange ?? Number.NEGATIVE_INFINITY) - (left.metrics.feeRunRateChange ?? Number.NEGATIVE_INFINITY) ||
     (left.marketCapRank || Number.MAX_SAFE_INTEGER) - (right.marketCapRank || Number.MAX_SAFE_INTEGER)
@@ -449,7 +472,7 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
   const coveredCount = universe.filter(asset => asset.classification !== 'insufficient-data').length;
   const { undervalued, unrankedCount } = buildUndervaluedRanking(universe);
   return {
-    methodologyVersion: 4,
+    methodologyVersion: 5,
     scannedCount: coins.length,
     coveredCount,
     allFourCount: universe.filter(asset => asset.classification === 'all-four').length,
@@ -469,7 +492,7 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
       'Evaluare: P/R = market cap / (revenue 30z × 365/30); fallback P/F din fees, respectiv P/H din buyback/burn anualizat când lipsesc ambele.',
       'Index subevaluare = percentila calității − percentila scumpirii (log P/R) între active cu aceeași bază (revenue/fees/holderi), cu percentile centrate pentru egalități; activele fără fees/revenue nu sunt clasate.',
       'Randament holderi: (holders revenue 30z × 365/30) / MC × 100; varianta /FDV include diluția. Ritm extrapolat, nu APY garantat.',
-      'Selecție secțiune: sunt listate doar monedele cu fees/revenue observabile sau buyback/burn raportat; sortare după criterii trecute, apoi ritmul revenue (7z vs 30z) și rank — nu dimensiunea absolută.'
+      'Selecție secțiune: sunt listate doar monedele cu fees/revenue observabile sau buyback/burn raportat; sortare după criterii trecute, apoi factorul de dimensiune (log10 din revenue 30z; distribuțiile către holderi contează ca revenue, iar fees sunt fallback doar când datele de revenue lipsesc complet), apoi ritmul revenue (7z vs 30z) și rank.'
     ],
     sources: [
       { id: 'video', title: 'Criteriile din interviu (30:03–30:35)', url: 'https://youtu.be/oZWS5eB5YsQ?t=1803', domain: 'youtube.com' },
