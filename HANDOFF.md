@@ -4420,3 +4420,16 @@ TVL; /tape rows show "mcap · TVL" (verified in a headless mobile render).
 - methodologyVersion 8 -> 9 (scanner + ai-routes cache check). Methodology + RO/EN notes updated.
 - Tests: new Undervalued P/R-order test and Top Score test; tape order test. 24/24 pass; api/web tsc clean.
 - After deploy, regenerate the criteria cache (v9).
+
+### Steps 138b-138d - v10/v11 rankings, narrative tag, coin-card P/R, Alerts P/R sort, coin-page buttons (Marius, 2026-09-23 17:17-17:54)
+
+- 138b (d8ddaf4): desktop header (md+) gets the ThemeSwitcher (Dark/L1-L5) and an RO/EN toggle next to the Alerts bell.
+- 138c (df6632c), v10 ("Relaxează"): Undervalued TVL gate - TVL ABSENT passes on complete fees >= $100K alone; TVL present but < $10M still fails. Top Score gets the same MC >= $10M floor.
+- 138d (eddfcc1), v11 ("Da" to both, 17:33): Undervalued excludes stablecoins (ticker contains USD / starts with EUR, plus DAI, SDAI, FRAX, GHO, BUIDL, USDY, LUSD, BOLD) and needs >= 3/4 criteria (3/4 = 4/4, pure P/R order). methodologyVersion 11 (scanner + ai-routes cache check).
+- Narrative tag: scan assets carry `narrative`. Order: CoinGecko narratives (stablecoins, meme-token, artificial-intelligence, real-world-assets-rwa, depin, gaming, privacy-coins; one /coins/markets?category= call each, 2.5s apart, one 20s retry on 429, best effort) -> CoinGecko layer-2/layer-1 -> chain (fees category Chain) = L1 -> DefiLlama protocol category (largest-TVL row; Yield/Lending/Dexs/... = DeFi, Liquid Staking, Launchpad, Bridge, Oracle, RWA...) -> "Crypto". Shown by `NarrativeTag` on Top Score/Undervalued/BQ cards, confirmed + near-flip cards, and the coin page (normal, DEX fallback). Also feeds the "Despre activ" category when no curated profile exists.
+- P/R + Revenue 30z tiles on flip cards (`services/crypto-fundamentals.ts`: one shared four-criteria fetch, symbol map, collisions -> better-ranked coin). CryptoBqAssetCard multiple tile is always P/R; "—" plus the P/F/P/H fallback noted when there is no revenue.
+- Alerts: "Sortare: Implicit | P/R ↑" in the tab bar; sorts the current filtered selection on every tab (confirmed, near-flip incl. before the Top 20 cut, watched). No revenue = last.
+- Coin page (`AssetExternalLinks`): narrative · TradingView (/symbols/<T>USD/) · DefiLlama (/protocol/<slug> when the scan knows it, else /token/<ticker>) · Copy address (DEX contract -> CoinGecko platforms fetched in the browser -> CoinGecko id -> ticker; label says which). Shown on the normal view, the DEX/no-chart view and the error state.
+- Local rerun on the 17:16 data: Undervalued 64 - GP 0.6x, STONK 1.0x, ORE 1.2x, PONS 1.5x, GNS 1.8x, EDGE 2.3x, PUMP 4.2x, MET 5.2x, DOLO 5.3x, USUAL 6.1x. Top Score 60 - STONK, PONS, PUMP, CC, GP, ORE, HYPE, SKY, RAY, CAKE.
+- Tests: scanner + tape 28/28 (new: TVL absent/small, Top Score MC floor, stablecoin + 2/4 exclusion, narrative precedence). api/web tsc clean.
+- Visual check before deploy not possible (Google sign-in gate, no session in headless Chrome); Marius chose deploy + check on phone ("Gata deploy?").
