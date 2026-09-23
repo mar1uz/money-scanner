@@ -4433,3 +4433,9 @@ TVL; /tape rows show "mcap · TVL" (verified in a headless mobile render).
 - Local rerun on the 17:16 data: Undervalued 64 - GP 0.6x, STONK 1.0x, ORE 1.2x, PONS 1.5x, GNS 1.8x, EDGE 2.3x, PUMP 4.2x, MET 5.2x, DOLO 5.3x, USUAL 6.1x. Top Score 60 - STONK, PONS, PUMP, CC, GP, ORE, HYPE, SKY, RAY, CAKE.
 - Tests: scanner + tape 28/28 (new: TVL absent/small, Top Score MC floor, stablecoin + 2/4 exclusion, narrative precedence). api/web tsc clean.
 - Visual check before deploy not possible (Google sign-in gate, no session in headless Chrome); Marius chose deploy + check on phone ("Gata deploy?").
+
+### Step 138e - Deploy (2026-09-23 18:50 CEST)
+- Cloud Build c41348de-109c-4410-95ca-ec072cb71791 from 67ff50f: SUCCESS. Live revision market-scanner-360-00269-sdv, 100% traffic.
+- Firestore cache operations/ai-cache-crypto-four-criteria-top-200 regenerated with the deployed code (local ADC): methodology v11, 411 assets, 64 undervalued, 60 top score, 634 KB.
+- CoinGecko category calls for artificial-intelligence and real-world-assets-rwa hit HTTP 429 during regen, so some coins carry the generic "Crypto" narrative (50 of 411). The next cache refresh fills them in; no code change needed.
+- Verified live without sign-in: /tape 200 with mcap rows and the new v11 order (Top Score STONK, PONS...; Undervalued GP, STONK, ORE...), /api/tape/proof 200.
