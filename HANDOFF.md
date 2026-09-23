@@ -4245,3 +4245,21 @@ Marius: "Ask the AI analyst poti sa o scoti complet". This replaces Step 129 (th
 - Leak baseline: 176 -> 5 (remaining are intentional: the "Română" label, the Pine script source, two Romanian search-intent keywords, one composite relative-time template handled at runtime).
 - `resolveAssetIntelligence` picks the template by verified `marketClass` (scanner-routes passes `assetInfo.marketClass`); unlisted crypto such as RAY/SKY no longer gets the equity template. Regression test in ai-analysis index.test.ts.
 - crypto-market-only test updated for the 551b8cc sparse-candle rule (DEX chart needs >= 15 candles) plus a new fallback test.
+
+## Step 133 - 2026-09-23 - Tape mirrors the full daily AI Briefing (not deployed, awaiting Marius)
+
+Marius (WhatsApp, 2026-09-23 11:26): "în /tape poți să întorci zilnic toate datele din AI briefing".
+
+- `/api/tape/proof` now also returns `briefingDashboard` (market regime label + the deterministic
+  narrative cards from the cached `market-intelligence-en-crypto` report, fresh <= 36h, with live
+  24h chips per asset; quote round memoised 10 min) and `businessQuality.topScore` (the AI Briefing
+  "Top score" tab: first 5 measured assets with market cap, 24h/7d, fees/revenue/holder value 30d
+  and pass/watch per criterion). Undervalued entries gain `marketCap` and `priceChange24h`.
+- Builders live in `apps/api/src/services/tape-briefing.ts` (pure, unit-tested). The route only
+  reads cached daily artifacts; no rescan, no model call. Public rule kept: no internal scores
+  (narrative 0-100 score, quality/valuation scores are dropped), no Sources block.
+- `/tape` page: the three briefing/BQ panels are replaced by one "Today's AI Briefing" edition
+  block under the proof cards - date + regime chip, headline, key lines, jump links, the four
+  Instinct takes as cards, narrative cards, and Business Quality top 5 by criteria next to top 5
+  undervalued. Light editorial default and dark theme both styled; mobile stacks to one column.
+- Tests: `tape-briefing.test.ts` (4). Branch `tape-briefing`, worktree `tmp/tape-briefing-wt`.

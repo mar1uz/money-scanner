@@ -6,13 +6,13 @@ import { buildXPreview } from '../services/regime-tape-service.js';
 import { REGIME_TAPE_PAGE_HTML } from '../services/regime-tape-page.js';
 import { readAiContentTake } from './ai-routes.js';
 import { readPersistentAICache } from '../services/ai-cache-store.js';
+import { buildTapeNarratives, buildTopScore, narrativeTickers, publicRegimeLabel, TapeCriteriaAssetInput, TapeNarrative, TapeNarrativeInput, TapeTopScoreEntry } from '../services/tape-briefing.js';
 
 // Minimal structural view of the cached Business Quality report. The public
 // tape reads only these fields and never exposes internal ranking scores.
 interface TapeBqReport {
   generatedAt?: number;
-  assets?: Array<{
-    id: string;
+  assets?: Array<TapeCriteriaAssetInput & {
     metrics: {
       fees30d?: number;
       revenue30d?: number;
@@ -21,7 +21,7 @@ interface TapeBqReport {
       tvlChange7d?: number;
     };
   }>;
-  undervalued?: Array<{ assetId: string; symbol: string; name: string; priceChange7d?: number }>;
+  undervalued?: Array<{ assetId: string; symbol: string; name: string; marketCap?: number; priceChange24h?: number; priceChange7d?: number }>;
 }
 
 interface TapeBriefingSection {
@@ -33,6 +33,29 @@ interface TapeBriefingSection {
 }
 
 export const tapeRouter = Router();
+
+// Narrative 24h chips on the public page: one quote round per 10 minutes at
+// most, whatever the traffic. The AI Briefing report itself is only read.
+const NARRATIVE_QUOTES_TTL_MS = 10 * 60_000;
+let narrativeQuotesMemo: { key: string; at: number; changes: Record<string, number> } | null = null;
+const narrativeQuoteChanges = async (tickers: string[]): Promise<Record<string, number>> => {
+  const key = tickers.join(',');
+  if (narrativeQuotesMemo && narrativeQuotesMemo.key === key && Date.now() - narrativeQuotesMemo.at < NARRATIVE_QUOTES_TTL_MS) {
+    return narrativeQuotesMemo.changes;
+  }
+  const changes: Record<string, number> = {};
+  const marketData = AppState.getInstance().marketData;
+  for (let index = 0; index < tickers.length; index += 6) {
+    const batch = tickers.slice(index, index + 6);
+    const settled = await Promise.allSettled(batch.map(symbol => marketData.getPriceQuote(symbol, 'crypto')));
+    settled.forEach((result, batchIndex) => {
+      if (result.status === 'fulfilled' && Number.isFinite(result.value?.change24h)) changes[batch[batchIndex]] = Number(result.value.change24h);
+    });
+  }
+  narrativeQuotesMemo = { key, at: Date.now(), changes };
+  return changes;
+};
+const AI_BRIEFING_MAX_AGE_MS = 36 * 60 * 60_000;
 
 const VALID_TIMEFRAMES = new Set(['1d', '1w']);
 
@@ -119,9 +142,9 @@ tapeRouter.get('/tape/proof', async (_req, res) => {
   // and valuation scores never leave the product. Serves the latest cached
   // daily scan; a public route must never trigger a rescan.
   let businessQuality: { generatedAt: number; entries: Array<{
-    symbol: string; name: string; fees30d: number; revenue30d: number;
-    holderValue30d: number; growthRunRatePct: number | null; priceChange7d: number | null;
-  }> } | null = null;
+    symbol: string; name: string; marketCap: number | null; fees30d: number; revenue30d: number;
+    holderValue30d: number; growthRunRatePct: number | null; priceChange24h: number | null; priceChange7d: number | null;
+  }>; topScore: TapeTopScoreEntry[] } | null = null;
   try {
     const cached = await readPersistentAICache<TapeBqReport>('crypto-four-criteria-top-200');
     if (cached?.payload) {
@@ -133,20 +156,38 @@ tapeRouter.get('/tape/proof', async (_req, res) => {
         return {
           symbol: entry.symbol,
           name: entry.name,
+          marketCap: typeof entry.marketCap === 'number' && Number.isFinite(entry.marketCap) ? entry.marketCap : null,
           fees30d: asset?.metrics.fees30d ?? 0,
           revenue30d: asset?.metrics.revenue30d ?? 0,
           holderValue30d: asset?.metrics.holdersRevenue30d ?? 0,
           growthRunRatePct: growthCandidates.length ? Math.max(...growthCandidates) : null,
+          priceChange24h: typeof entry.priceChange24h === 'number' && Number.isFinite(entry.priceChange24h) ? entry.priceChange24h : null,
           priceChange7d: typeof entry.priceChange7d === 'number' && Number.isFinite(entry.priceChange7d) ? entry.priceChange7d : null
         };
       });
-      if (entries.length) businessQuality = { generatedAt: cached.payload.generatedAt ?? cached.updatedAt, entries };
+      // AI Briefing "Top score" tab, mirrored daily (Marius, 2026-09-23).
+      const topScore = buildTopScore(cached.payload.assets);
+      if (entries.length || topScore.length) businessQuality = { generatedAt: cached.payload.generatedAt ?? cached.updatedAt, entries, topScore };
     }
   } catch { /* business quality is optional on the public tape */ }
+  // The rest of the AI Briefing page: market regime and the narrative cards
+  // (only served when the daily report is fresh; never regenerated here).
+  let briefingDashboard: { generatedAt: number; regime: string | null; narratives: TapeNarrative[] } | null = null;
+  try {
+    const report = await readPersistentAICache<{ macroRegime?: string; mode?: string; narratives?: TapeNarrativeInput[] }>('market-intelligence-en-crypto');
+    if (report?.payload && Date.now() - report.updatedAt <= AI_BRIEFING_MAX_AGE_MS) {
+      // Same rule as the app: only the deterministic, price-computed cards.
+      const source = report.payload.mode === 'deterministic' ? report.payload.narratives : [];
+      const changes = await narrativeQuoteChanges(narrativeTickers(source));
+      const narratives = buildTapeNarratives(source, changes);
+      const regime = publicRegimeLabel(report.payload.macroRegime);
+      if (regime || narratives.length) briefingDashboard = { generatedAt: report.updatedAt, regime, narratives };
+    }
+  } catch { /* the dashboard block is optional on the public tape */ }
   res.set('Cache-Control', 'public, max-age=300');
   return res.json({ disclosure: REGIME_TAPE_DISCLOSURE, tapeVersion: REGIME_TAPE_VERSION,
     selection: { minimumReturnPct: 20, maximumItems: 6, curated: true }, updatedAt: new Date().toISOString(),
-    evidence: evidenceWithRegime, briefing, briefingFull, businessQuality });
+    evidence: evidenceWithRegime, briefing, briefingFull, briefingDashboard, businessQuality });
 });
 
 // Authenticated product endpoints. Global middleware protects these paths.
