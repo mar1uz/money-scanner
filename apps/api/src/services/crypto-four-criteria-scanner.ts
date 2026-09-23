@@ -139,15 +139,26 @@ const scoreForStatus = (status: CryptoCriteriaStatus): number => {
 /**
  * Undervaluation ranking on Marius's 3 factors: quality (network effect +
  * sustainable revenue + holder value, same thresholds) versus expensiveness
- * (mcap / annualized revenue, fees as fallback for L1s without revenue).
+ * (mcap / annualized revenue, holder distributions as fallback).
  * Index = quality percentile - expensiveness percentile, most undervalued
- * first. Assets without any observable fees/revenue are never ranked.
+ * first. Assets without any observable fees/revenue are never ranked, and
+ * since 2026-09-23 fees-basis assets (no revenue, no holder data) are
+ * excluded entirely - see below.
  */
 const buildUndervaluedRanking = (assets: CryptoFourCriteriaAsset[]): { undervalued: CryptoUndervaluedEntry[]; unrankedCount: number } => {
   const candidates = assets
     .map(asset => {
       const { basis, multiple: valuationRatio } = cryptoValuation(asset);
       if (!basis || valuationRatio === undefined || !Number.isFinite(valuationRatio)) return undefined;
+      // Marius (2026-09-23, revenue-first): an asset with no revenue and no
+      // holder data falls back to a P/F multiple, which says nothing about
+      // value capture - EIGEN ranked #2 at 88x P/F and FF #3 at 128x, above
+      // real P/R 5-12x names, because fees-basis assets were only compared
+      // against each other. On a public "undervalued" list that is
+      // misleading, so fees-basis assets are excluded from the ranking
+      // entirely. They still appear in `assets` with their metrics; they are
+      // simply not ranked on value.
+      if (basis === 'fees') return undefined;
       const qualityScore = scoreForStatus(asset.criteria.networkEffect.status)
         + scoreForStatus(asset.criteria.sustainableRevenue.status)
         + scoreForStatus(asset.criteria.holderValue.status);
@@ -472,7 +483,7 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
   const coveredCount = universe.filter(asset => asset.classification !== 'insufficient-data').length;
   const { undervalued, unrankedCount } = buildUndervaluedRanking(universe);
   return {
-    methodologyVersion: 5,
+    methodologyVersion: 6,
     scannedCount: coins.length,
     coveredCount,
     allFourCount: universe.filter(asset => asset.classification === 'all-four').length,
@@ -489,8 +500,8 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
       'Venit sustenabil: necesită o observație completă de revenue pe 30z; pentru L1-uri (BTC, ETH, SOL) se folosesc fees rețelei.',
       'Valoare către holderi: necesită raportare completă buyback/burn, distribuții sau staking finanțat din venit; zero raportat este dată validă.',
       'Model de subevaluare (tab Calitate Business): scor calitate 0-75 = completitudinea datelor pentru Efect de rețea + Venit sustenabil + Valoare către holderi.',
-      'Evaluare: P/R = market cap / (revenue 30z × 365/30); fallback P/F din fees, respectiv P/H din buyback/burn anualizat când lipsesc ambele.',
-      'Index subevaluare = percentila calității − percentila scumpirii (log P/R) între active cu aceeași bază (revenue/fees/holderi), cu percentile centrate pentru egalități; activele fără fees/revenue nu sunt clasate.',
+      'Evaluare: P/R = market cap / (revenue 30z × 365/30); fallback P/H din buyback/burn anualizat când revenue lipsește. Activele cu doar fees (fără revenue/holderi) sunt excluse din clasamentul de subevaluate - P/F nu măsoară captura de valoare.',
+      'Index subevaluare = percentila calității − percentila scumpirii (log P/R) între active cu aceeași bază (revenue/holderi), cu percentile centrate pentru egalități; activele fără revenue sau date de holderi nu sunt clasate.',
       'Randament holderi: (holders revenue 30z × 365/30) / MC × 100; varianta /FDV include diluția. Ritm extrapolat, nu APY garantat.',
       'Selecție secțiune: sunt listate doar monedele cu fees/revenue observabile sau buyback/burn raportat; sortare după criterii trecute, apoi factorul de dimensiune (log10 din revenue 30z; distribuțiile către holderi contează ca revenue, iar fees sunt fallback doar când datele de revenue lipsesc complet), apoi ritmul revenue (7z vs 30z) și rank.'
     ],

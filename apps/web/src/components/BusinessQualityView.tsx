@@ -95,8 +95,8 @@ export const BusinessQualityView: React.FC = () => {
     'Sustainable revenue: material revenue observed concurrently across 24h, 7d and 30d windows.',
     'Holder value: holder revenue reported as buyback/burn, direct distribution or revenue-funded staking.',
     'Undervaluation model: quality score 0-75 = Network Effect + Sustainable Revenue + Holder Value (same thresholds).',
-    'Valuation: P/R = market cap / (30d revenue x 365/30); fallbacks P/F from fees and P/H from annualized buyback/burn when those are the only data.',
-    'Undervaluation index = quality percentile minus expensiveness percentile (log P/R) within the same valuation basis, with midranks for ties. Assets without fees/revenue are not ranked.'
+    'Valuation: P/R = market cap / (30d revenue x 365/30); fallback P/H from annualized buyback/burn when that is the only data. Fees-only assets (no revenue/holder data) are excluded from Undervalued.',
+    'Undervaluation index = quality percentile minus expensiveness percentile (log P/R) within the same valuation basis, with midranks for ties. Assets without revenue/holder data are not ranked.'
   ];
 
   return (
@@ -132,8 +132,8 @@ export const BusinessQualityView: React.FC = () => {
           <Info className="w-3.5 h-3.5 text-amber-300 shrink-0 mt-0.5" />
           <p className="text-[10px] leading-relaxed text-slate-400">
             {isRo
-              ? 'Index subevaluare = percentila calității (scor 0-75 din cei 3 factori) minus percentila scumpirii (log P/R; fallback P/F din fees sau P/H din buyback). +100 = calitate maximă la preț minim; -100 = invers. Activele fără fees/revenue/buyback nu sunt clasate.'
-              : 'Undervaluation index = quality percentile (0-75 score from the 3 factors) minus expensiveness percentile (log P/R; P/F from fees or P/H from buyback as fallback). +100 = top quality at the lowest price; -100 = the opposite. Assets without fees/revenue/buyback are not ranked.'}
+              ? 'Index subevaluare = percentila calității (scor 0-75 din cei 3 factori) minus percentila scumpirii (log P/R; fallback P/H din buyback). +100 = calitate maximă la preț minim; -100 = invers. Activele fără revenue/holderi (inclusiv cele doar pe fees) nu sunt clasate.'
+              : 'Undervaluation index = quality percentile (0-75 score from the 3 factors) minus expensiveness percentile (log P/R; P/H from buyback as fallback). +100 = top quality at the lowest price; -100 = the opposite. Assets without revenue/holder data (including fees-only ones) are not ranked.'}
           </p>
         </div>
 

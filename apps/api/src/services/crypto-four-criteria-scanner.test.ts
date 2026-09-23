@@ -50,7 +50,10 @@ describe('Crypto four-criteria scanner', () => {
     coins: [coin('stonk-like', 50_000_000)],
     protocols: [{ slug: 'stonk-like', gecko_id: 'stonk-like', tvl: 100_000, change_7d: -25, chains: ['Base'] }],
     fees: [{ slug: 'stonk-like', total24h: 1, total7d: 7, total30d: 30 }],
-    revenue: [{ slug: 'stonk-like', total24h: 0, total7d: 0, total30d: 0 }],
+    // Revenue kept positive so the asset stays revenue-basis: since
+    // 2026-09-23 fees-basis fallbacks are excluded from the undervalued
+    // ranking, and a $0-revenue asset would no longer appear there.
+    revenue: [{ slug: 'stonk-like', total24h: 1, total7d: 7, total30d: 3_000 }],
     holdersRevenue: [{ slug: 'stonk-like', total24h: 0, total7d: 0, total30d: 0 }]
   });
   const asset = scan.assets[0];
@@ -167,12 +170,28 @@ it('ranks tied quality fairly and compares multiples only within the same basis'
   });
   const cheap = scan.undervalued.find(a => a.assetId === 'cheap')!;
   const costly = scan.undervalued.find(a => a.assetId === 'costly')!;
-  const fees = scan.undervalued.find(a => a.assetId === 'fees-only')!;
   assert.equal(cheap.qualityPercentile, 50);
   assert.equal(costly.qualityPercentile, 50);
   assert.equal(cheap.undervaluationIndex, 50);
   assert.equal(costly.undervaluationIndex, -50);
-  assert.equal(fees.undervaluationIndex, 0);
+  // Revenue-first (2026-09-23): the fees-basis fallback is excluded, not
+  // ranked in its own tiny peer group.
+  assert.equal(scan.undervalued.find(a => a.assetId === 'fees-only'), undefined);
+});
+
+it('excludes fees-basis fallback assets from the undervalued ranking (revenue-first, 2026-09-23)', () => {
+  // The EIGEN/FF case: revenue $0 fell back to P/F, so an 88x multiple ranked
+  // #2 above real P/R 5-12x names. Fees-only assets now leave the ranking;
+  // holder-distribution assets stay.
+  const scan = buildCryptoFourCriteriaScan({
+    coins: [coin('rev'), coin('fees-only'), coin('holders-only')],
+    protocols: [], fees: [metric('fees-only')],
+    revenue: [metric('rev')], holdersRevenue: [metric('holders-only')]
+  });
+  assert.deepEqual(scan.undervalued.map(a => a.assetId).sort(), ['holders-only', 'rev']);
+  assert.equal(scan.unrankedCount, 1);
+  // Excluded from the ranking, not from the scan: metrics stay visible.
+  assert.ok(scan.assets.some(a => a.id === 'fees-only'));
 });
 
 it('keeps zero 7-day activity as contraction but does not turn a missing series into -100%', () => {

@@ -260,7 +260,7 @@ export const TopAlphaView: React.FC = () => {
             <p>{isRo ? 'Scanare' : 'Snapshot'}: {new Date((assetClass === 'crypto' ? cryptoScan! : stockScan!).generatedAt).toLocaleString(isRo ? 'ro-RO' : 'en-GB')} · {isRo ? 'Date păstrate până la 26h; Rescanează cere o actualizare (minimum 2 minute între cereri).' : 'Cached up to 26h; Rescan requests an update (minimum 2 minutes between requests).'}</p>
             {assetClass === 'crypto' && <>
               <p>{isRo ? 'Fees = comisioane totale; revenue = partea reținută de protocol; holderi = partea destinată deținătorilor. FEES/REV % compară media zilnică 7z cu media 30z, nu prețul.' : 'Fees = total user fees; revenue = protocol share; holders = tokenholder share. FEES/REV % compares 7d and 30d daily averages, not price.'}</p>
-              <p>{isRo ? 'Scor intern: 25 puncte/pass, 12/watch, 0/fail sau necunoscut. Indicele compară doar aceeași bază P/R, P/F sau P/H; +80 nu înseamnă 80% subevaluare.' : 'Internal score: 25 points/pass, 12/watch, 0/fail or unknown. The index compares the same basis P/R, P/F or P/H; +80 does not mean 80% undervalued.'}</p>
+              <p>{isRo ? 'Scor intern: 25 puncte/pass, 12/watch, 0/fail sau necunoscut. Indicele compară doar aceeași bază P/R sau P/H; +80 nu înseamnă 80% subevaluare. Activele doar pe fees (fără revenue/holderi) nu sunt clasate la Subevaluate.' : 'Internal score: 25 points/pass, 12/watch, 0/fail or unknown. The index compares the same basis P/R or P/H only; +80 does not mean 80% undervalued. Fees-only assets (no revenue/holder data) are not ranked in Undervalued.'}</p>
               <a className="inline-block underline" href="https://defillama.com/data-definitions" target="_blank" rel="noreferrer">{isRo ? 'Definiții și metodologie DefiLlama' : 'DefiLlama definitions and methodology'}</a>
             </>}
           </div>
@@ -290,7 +290,7 @@ export const TopAlphaView: React.FC = () => {
             <div className="space-y-2.5">
               <div>
                 <h3 className="text-[11px] font-bold uppercase tracking-wide text-amber-300">{isRo ? 'Subevaluate' : 'Undervalued'} · {undervaluedRows.length}</h3>
-                <p className="text-[10px] text-slate-500">{isRo ? 'Mai întâi criteriile trecute (4/4, apoi 3/4, 2/4); în grupă: percentila calității minus percentila multiplului în aceeași grupă P/R, P/F sau P/H. Clasament relativ, nu preț țintă.' : 'Criteria passed first (4/4, then 3/4, 2/4); within each group: quality percentile minus valuation percentile within the same P/R, P/F or P/H group. Relative ranking, not a price target.'}</p>
+                <p className="text-[10px] text-slate-500">{isRo ? 'Mai întâi criteriile trecute (4/4, apoi 3/4, 2/4); în grupă: percentila calității minus percentila multiplului în aceeași grupă P/R sau P/H. Activele pe bază de fees sunt excluse. Clasament relativ, nu preț țintă.' : 'Criteria passed first (4/4, then 3/4, 2/4); within each group: quality percentile minus valuation percentile within the same P/R or P/H group. Fees-basis assets are excluded. Relative ranking, not a price target.'}</p>
               </div>
               {undervaluedRows.map(({ entry, asset }, index) => (
                 <CryptoBqAssetCard

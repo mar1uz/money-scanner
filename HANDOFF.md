@@ -4314,3 +4314,28 @@ c611df9f SUCCESS (4m29s). Verified: revision ready and serving; /tape renders (s
 old ordering from the daily artifact - it picks up the new sort on the next daily scan);
 the app criteria cache (methodologyVersion 4) is discarded by the new code and regenerates
 as v5 on first authenticated Top Alpha open or the next scheduled scan.
+
+### Step 135 - Undervalued: fees-basis fallback excluded (Marius, 2026-09-23 13:55: "repara fallback")
+
+- Problem: assets with $0 revenue fell back to a P/F multiple and were compared only against
+  the ~20 other fees-basis assets, so EIGEN (P/F 88x) ranked #2 and FF (128x) #3 on the public
+  Undervalued list, above real P/R 4.9-12x names (EDGE, RAY, BONK).
+- Fix (`crypto-four-criteria-scanner.ts` `buildUndervaluedRanking`): assets whose valuation
+  basis is `fees` (no revenue, no holder data) are EXCLUDED from the Undervalued ranking.
+  Under the revenue-first philosophy an 88x P/F name is not "undervalued"; fees-basis assets
+  cannot be meaningfully compared on value capture. They stay in `assets` with their metrics;
+  they are just not ranked. Revenue and holder-distribution bases are unchanged; the Network
+  criterion stays a criterion (no hard gate - not asked for).
+- `methodologyVersion` 5 -> 6 (cache check in `ai-routes.ts` updated); methodology text
+  (scanner RO, Top Alpha explainer, Business Quality page - RO + EN) now documents that
+  fees-only assets are not ranked in Undervalued.
+- Tests: the tied-quality test now asserts the fees-only asset is absent from the ranking;
+  a new test pins the exclusion (fees-only out, revenue and holders-only in, unrankedCount);
+  the stonk-like fixture keeps positive revenue so it stays revenue-basis. Suite: 199/199 pass.
+- Effect on the fresh 2026-09-23 12:00 UTC scan (top-200 universe): 88 ranked -> 68
+  (67 revenue + 1 holders). Top 10 before: MORPHO (P/F 10.7x), EIGEN (P/F 88x), FF (P/F 125x),
+  EDGE (P/R 4.9x), RAY (7.1x), BONK (8.2x), CAKE (9.2x), LDO (9.5x), SKY (10.5x), JUP (11.6x).
+  Top 10 after: EDGE (P/R 4.9x), RAY (7.1x), BONK (8.1x), CAKE (9.2x), LDO (9.5x), SKY (10.5x),
+  JUP (11.5x), ETHFI (15.0x), CVX (16.6x), LIT (22.9x). MORPHO, EIGEN, FF and 17 other
+  fees-basis assets leave the list entirely.
+- NOT deployed. Marius sees the before/after first.
