@@ -93,6 +93,61 @@ const krakenFirstDailyTs = async (pairName: string): Promise<number | null> => {
   return Number.isFinite(ts) && ts > 0 ? ts * 1000 : null;
 };
 
+const MEXC_URL = process.env.MEXC_API_URL || 'https://api.mexc.com/api/v3';
+const GATE_URL = process.env.GATE_API_URL || 'https://api.gateio.ws/api/v4';
+const BITGET_URL = process.env.BITGET_API_URL || 'https://api.bitget.com/api/v2';
+const KUCOIN_URL = process.env.KUCOIN_API_URL || 'https://api.kucoin.com';
+
+// TradingView carries these smaller venues; they supply the external chart
+// symbol for assets the majors do not list (Marius, 2026-09-23: BP is
+// MEXC:BPUSDT on TradingView, not "TradingView-less").
+const smallVenueCache = new Map<string, { values: Set<string>; updatedAt: number }>();
+const smallVenueUsdtBases = async (key: string, load: () => Promise<Set<string>>): Promise<Set<string>> => {
+  const cached = smallVenueCache.get(key);
+  if (cached && Date.now() - cached.updatedAt < 30 * 60_000) return cached.values;
+  const values = await load();
+  smallVenueCache.set(key, { values, updatedAt: Date.now() });
+  return values;
+};
+
+const mexcUsdtBases = () => smallVenueUsdtBases('mexc', async () => {
+  const body = await fetchJson<{ symbols?: Array<{ status?: string; baseAsset?: string; quoteAsset?: string; isSpotTradingAllowed?: boolean }> }>(`${MEXC_URL}/exchangeInfo`);
+  const values = new Set<string>();
+  for (const market of body.symbols || []) {
+    if (market.quoteAsset === 'USDT' && market.baseAsset && market.status !== '3' && market.isSpotTradingAllowed !== false) {
+      values.add(market.baseAsset.toUpperCase());
+    }
+  }
+  return values;
+});
+
+const gateUsdtBases = () => smallVenueUsdtBases('gate', async () => {
+  const rows = await fetchJson<Array<{ base?: string; quote?: string; trade_status?: string }>>(`${GATE_URL}/spot/currency_pairs`);
+  const values = new Set<string>();
+  for (const row of rows || []) {
+    if (row.quote === 'USDT' && row.base && row.trade_status === 'tradable') values.add(row.base.toUpperCase());
+  }
+  return values;
+});
+
+const bitgetUsdtBases = () => smallVenueUsdtBases('bitget', async () => {
+  const body = await fetchJson<{ data?: Array<{ baseCoin?: string; quoteCoin?: string; status?: string }> }>(`${BITGET_URL}/spot/public/symbols`);
+  const values = new Set<string>();
+  for (const market of body.data || []) {
+    if (market.quoteCoin === 'USDT' && market.baseCoin && market.status === 'online') values.add(market.baseCoin.toUpperCase());
+  }
+  return values;
+});
+
+const kucoinUsdtBases = () => smallVenueUsdtBases('kucoin', async () => {
+  const body = await fetchJson<{ data?: Array<{ baseCurrency?: string; quoteCurrency?: string; enableTrading?: boolean }> }>(`${KUCOIN_URL}/api/v2/symbols`);
+  const values = new Set<string>();
+  for (const market of body.data || []) {
+    if (market.quoteCurrency === 'USDT' && market.baseCurrency && market.enableTrading) values.add(market.baseCurrency.toUpperCase());
+  }
+  return values;
+});
+
 /** Builds the resolver dependency probes from the live adapters and public exchange APIs. */
 export function buildChartMarketResolverDeps(
   binance: BinanceMarketAdapter,
@@ -139,6 +194,10 @@ export function buildChartMarketResolverDeps(
       const row = Object.values(body.result || {})[0];
       const volume = Number(row?.v?.[1]) * Number(row?.c?.[0]);
       return Number.isFinite(volume) ? volume : null;
-    }
+    },
+    isOnMexcSpot: async base => (await mexcUsdtBases()).has(base),
+    isOnGateSpot: async base => (await gateUsdtBases()).has(base),
+    isOnBitgetSpot: async base => (await bitgetUsdtBases()).has(base),
+    isOnKucoinSpot: async base => (await kucoinUsdtBases()).has(base)
   };
 }

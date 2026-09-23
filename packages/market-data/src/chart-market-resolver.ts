@@ -5,7 +5,8 @@ import { AssetMarketDataSource } from '@money-scanner/shared';
  *
  * For a crypto base symbol (GRASS, not GRASSUSDT.P) it checks which major
  * exchanges list the asset (Binance spot/futures, Bybit, OKX, Coinbase,
- * Kraken, Hyperliquid), probes listing start and 24h quote volume, and picks:
+ * Kraken, Hyperliquid, plus the TradingView-carried smaller venues MEXC,
+ * Gate, Bitget and KuCoin), probes listing start and 24h quote volume, and picks:
  *  - the candle source (only exchanges with a local candle adapter), and
  *  - the TradingView symbol for the external chart tab and deep link.
  *
@@ -56,6 +57,11 @@ export interface ChartMarketResolverDeps {
   isOnKraken(base: string): Promise<boolean>;
   krakenFirstDailyTs(base: string): Promise<number | null>;
   krakenQuoteVolume24h(base: string): Promise<number | null>;
+  /** TradingView-carried smaller venues: TV-symbol candidates only, no candle adapter. */
+  isOnMexcSpot?(base: string): Promise<boolean>;
+  isOnGateSpot?(base: string): Promise<boolean>;
+  isOnBitgetSpot?(base: string): Promise<boolean>;
+  isOnKucoinSpot?(base: string): Promise<boolean>;
 }
 
 const PREFERENCE: AssetMarketDataSource[] = [
@@ -65,7 +71,11 @@ const PREFERENCE: AssetMarketDataSource[] = [
   'binance_futures',
   'coinbase',
   'kraken',
-  'hyperliquid'
+  'hyperliquid',
+  'mexc_spot',
+  'gate_spot',
+  'bitget_spot',
+  'kucoin_spot'
 ];
 
 /** Listing dates this close are decided by 24h quote volume instead. */
@@ -142,13 +152,17 @@ export class ChartMarketResolver {
       return { symbol, candle: candidate, tv: candidate, candidates: [candidate], resolvedAt: Date.now() };
     }
 
-    const [onFutures, onBybit, okxInstrument, onHyperliquid, onCoinbase, onKraken] = await Promise.all([
+    const [onFutures, onBybit, okxInstrument, onHyperliquid, onCoinbase, onKraken, onMexc, onGate, onBitget, onKucoin] = await Promise.all([
       this.safe(this.deps.isOnBinanceFutures(symbol)),
       this.safe(this.deps.isOnBybitSpot(symbol)),
       this.safe(this.deps.okxSpotInstrument(symbol)),
       this.safe(this.deps.isOnHyperliquid(symbol)),
       this.safe(this.deps.isOnCoinbase(symbol)),
-      this.safe(this.deps.isOnKraken(symbol))
+      this.safe(this.deps.isOnKraken(symbol)),
+      this.deps.isOnMexcSpot ? this.safe(this.deps.isOnMexcSpot(symbol)) : Promise.resolve(null),
+      this.deps.isOnGateSpot ? this.safe(this.deps.isOnGateSpot(symbol)) : Promise.resolve(null),
+      this.deps.isOnBitgetSpot ? this.safe(this.deps.isOnBitgetSpot(symbol)) : Promise.resolve(null),
+      this.deps.isOnKucoinSpot ? this.safe(this.deps.isOnKucoinSpot(symbol)) : Promise.resolve(null)
     ]);
 
     const candidates: ChartMarketCandidate[] = [];
@@ -207,6 +221,54 @@ export class ChartMarketResolver {
         providerSymbol: `${symbol}USD`,
         tvSymbol: `KRAKEN:${symbol}USD`,
         quoteCurrency: 'USD',
+        listingStart: null,
+        volume24hQuote: null,
+        candleCapable: false
+      });
+    }
+    if (onMexc) {
+      candidates.push({
+        source: 'mexc_spot',
+        exchange: 'MEXC',
+        providerSymbol: `${symbol}USDT`,
+        tvSymbol: `MEXC:${symbol}USDT`,
+        quoteCurrency: 'USDT',
+        listingStart: null,
+        volume24hQuote: null,
+        candleCapable: false
+      });
+    }
+    if (onGate) {
+      candidates.push({
+        source: 'gate_spot',
+        exchange: 'GATE',
+        providerSymbol: `${symbol}_USDT`,
+        tvSymbol: `GATE:${symbol}USDT`,
+        quoteCurrency: 'USDT',
+        listingStart: null,
+        volume24hQuote: null,
+        candleCapable: false
+      });
+    }
+    if (onBitget) {
+      candidates.push({
+        source: 'bitget_spot',
+        exchange: 'BITGET',
+        providerSymbol: `${symbol}USDT`,
+        tvSymbol: `BITGET:${symbol}USDT`,
+        quoteCurrency: 'USDT',
+        listingStart: null,
+        volume24hQuote: null,
+        candleCapable: false
+      });
+    }
+    if (onKucoin) {
+      candidates.push({
+        source: 'kucoin_spot',
+        exchange: 'KUCOIN',
+        providerSymbol: `${symbol}-USDT`,
+        tvSymbol: `KUCOIN:${symbol}USDT`,
+        quoteCurrency: 'USDT',
         listingStart: null,
         volume24hQuote: null,
         candleCapable: false
