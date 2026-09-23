@@ -558,8 +558,8 @@ export function translateText(value: string, language: Language): string {
   const core = match?.[2] ?? value;
   const trail = match?.[3] ?? '';
   if (!core || !/\p{L}/u.test(core)) return value;
-  let output = translateCore(core, language);
-
+  let output = core;
+  // Relative-time patterns first, so templates never split them.
   if (language === 'en') {
     output = output
       .replace(/Afișate (\d+) din (\d+) active/g, 'Showing $1 of $2 assets')
@@ -571,6 +571,8 @@ export function translateText(value: string, language: Language): string {
       .replace(/acum (\d+) or[ăe]/g, '$1 hours ago')
       .replace(/acum (\d+) zil?e?/g, '$1 days ago');
   }
+
+  output = translateCore(output, language);
 
   return lead + output + trail;
 }
