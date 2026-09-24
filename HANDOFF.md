@@ -4480,3 +4480,11 @@ Marius does not want invented numbers on cards.
 - EN sector names: TopAlphaView, AIBriefingView and StockBusinessQualityCard now pass `asset.sector` through `translateText`. i18n pairs added: Chips & Siliciu -> Chips & Silicon, Energie & Petrol -> Energy & Oil, Indici & ETF-uri -> Indices & ETFs.
 - Whole-word chips (Step 145, STOCK_CHIP_SHORT) confirmed at 390px: PROFIT, CAPITAL, GROWTH, P/R, FCF, VALUE.
 - Verified locally at 390px EN: GOOGL/EOG cards with whole chips, EOG shows "Energy & Oil", and VOO shows Insufficient Data with every company criterion at N/A.
+
+### Steps 144-146 combined deploy - 2026-09-24 13:11 CEST
+- Marius approved one combined deploy once everything was ready (WhatsApp, 11:15 / 11:18).
+- Cloud Build ee60db5f-5df6-4725-a588-308866076d0f from ab47f6d: SUCCESS in 3m35s, image crypto-scanner-web:ab47f6d. Live revision market-scanner-360-00274-g4k, serving 100%.
+- A manual submit needs `--substitutions=COMMIT_SHA=<short sha>`.
+- The live bundle (assets/index-CXEZ5yOG.js) contains the new EN strings: Energy & Oil, Chips & Silicon, Indices & ETFs, "Insufficient data: no company financials", "Insufficient data for valuation", Solvency.
+- A signed-in visual check was not possible from automation because of the Google sign-in gate. Marius checks on his phone.
+- `npm test`: one failure in packages/ai-analysis ("uses Gemini with verified feeds when Google Search quota is unavailable"). That package was not touched by Steps 144-146. Everything else passes.
