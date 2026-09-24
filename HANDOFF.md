@@ -4573,3 +4573,4 @@ Marius (WhatsApp 19:12): every card (crypto, stocks, metals) should show market 
 - AI Briefing: crypto 4-criteria and stock 6-criteria list cards show "Name · MC $X".
 - Metals: "MC —" everywhere (no honest live source; static catalog numbers not used). Open: Marius to pick (a) live estimate or (b) remove static numbers from Scanner table/heat map.
 - Commits 0a809c6 (tile version) + 84aabed (inline, tiles removed). tsc clean; web suites 57/57.
+- Deploy: Cloud Build 434f5900-ae6a-4e13-a5f0-debef6cfa83f from 0cd85bc (on top of c9cc05e, already live as 00278): SUCCESS in 5m8s; revision market-scanner-360-00279-76f at 100%; /api/health 200. Live bundle: StockBqBlocks chunk has the `MC ${...||"—"}` helper, imported by the TopAlphaView, CryptoBqAssetCard, AlertsCenterView and AIBriefingView chunks; no MarketCapTile/CardMarketCap left. Signed-in views not checkable from automation (Google sign-in gate).
