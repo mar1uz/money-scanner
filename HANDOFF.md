@@ -4550,3 +4550,9 @@ Scaling review (save/restore):
 - Reads per restore: 2 + segment count (about 30 today, about 60 at 2x, about 120 at 10x). Restore runs at most every 30 s per instance while someone has the dashboard open. Local restore of the full state took about 1.7 s.
 - Real limit: `mergeConfirmedFlips` caps confirmedFlips at 1000, newest first. Today there are 915, and the natural maximum is about universe x 4 timeframes (277 x 4 = 1108). Once the cap is hit, the oldest flips drop first, which are old 1W flips like TRX (May 2023). Needs changing: raise the cap (the list is already one per asset/timeframe) or cap per timeframe. Not changed yet.
 - Also: flips for assets that leave the scan universe (CoinGecko top-150 flip universe) are removed on every scheduled scan (`activeKeys` filter), so the count can drop when rankings shift.
+
+## Step 151 - 2026-09-24 - Confirmed-flip cap raised 1000 -> 5000 (deployed)
+- `mergeConfirmedFlips` kept the newest 1000 confirmed flips. The list is one entry per asset/timeframe, and its natural maximum is about 277 x 4 = 1108 (915 today). Near the cap, the oldest flips (old Weekly ones, e.g. TRX May 2023) would have been dropped silently. That contradicts the UI promise that flips are kept regardless of age.
+- New constant `CONFIRMED_FLIPS_CAP = 5_000`, used in the merge and in the legacy v1 restore path. Segments stay at 80 items (about 48 KB each).
+- Kept by decision: flips for coins that leave the top-150 flip universe are still removed on each scheduled scan.
+- Verification: tsc clean; API suite 205/206 (same unrelated live-data stock BQ test). Cloud Build cb02b082-ac56-486b-9049-cc0266111002 from 9e11b7c: SUCCESS; revision market-scanner-360-00277-d6g at 100%; /api/health 200.
