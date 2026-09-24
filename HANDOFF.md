@@ -4513,3 +4513,25 @@ Requested by Marius on WhatsApp, 24 Sep 13:25-13:28: P/E and P/R on the Alerts f
 - Live revision market-scanner-360-00275-dh4 serving; bundle assets/index-CqRVnAwe.js contains the Step 148 strings: "P/R · P/E", "since flip", "CONFIRMED FLIPS", "Default", border-violet-500/50 (combined highlighted tile).
 - A signed-in visual check was not possible from automation because of the Google sign-in gate. Marius checks on his phone.
 - Note: gcloud needs the project ID, not the number - submit without --project (configured project) or use gen-lang-client-0610749770.
+
+## Step 149 - 2026-09-24 - Automated sub-1D (4H/8H) scanning stopped; 1D/1W automation kept; 4H/8H manual only (local, NOT deployed)
+Marius, WhatsApp 2026-09-24 16:21: "Da scanarea sub 1 dau vreau sa fie oprită. O rulez eu manual daca am nevoie sau din botul de telegram."
+
+Changed (automation only, capability kept):
+- `apps/api/src/services/app-state.ts`: new `AUTOMATED_FLIP_TIMEFRAMES = ['1d','1w']`. `runDailyRegimeScan({ timeframes })` and `scanFlipAsset(symbol, class, timeframes)` take an optional timeframe set (default = all four, so manual paths are unchanged). 4H/8H candles are not even fetched when excluded.
+- In-process 08:00 Europe/Bucharest timer (startBullishAlertMonitor) now runs the regime scan with 1D/1W only.
+- Paper structure scanner: automated trigger moved from every 4h UTC boundary to the Daily close only (00:00-00:05 UTC) and scans 1D only. `StructureScannerRunner.run(now, timeframes)` keeps 4H/8H available.
+- `apps/api/src/routes/telegram-routes.ts`: Cloud Scheduler target `POST /api/alerts/daily-regime-scan` scans 1D/1W only; `POST /api/alerts/structure-scanner/scheduled` scans 1D only.
+- `apps/api/scripts/scan-1w-parity.ts` (local near-flip packet used by insight/run-insight.sh -> tmp/scans/nearflip-latest.json -> JEV insight / Signal Lab): 1D/1W by default; `--all-timeframes` for a manual 4H/8H run. Packet now records `timeframes`.
+
+Unchanged / still manual:
+- Alerts page Scan buttons (Complet/Flips -> executeManualFullScan -> runDailyRegimeScan() with all four timeframes; quick watchlist scan) still cover 4H/8H.
+- Telegram bot scan commands (executeTelegramMoneyLineScan) untouched, 4H/8H included. Telegram flip-alert preferences still list 4H/8H, but automated pushes now only carry 1D/1W flips; 4H/8H flips only appear after a manual scan.
+- Cloud Scheduler jobs unchanged (no job is sub-1D scan-specific): daily-regime-scan 08:00 Bucharest, daily-sma-reclaim 08:00 Oslo, regime-tape-scan 07:30 Oslo (1D/1W), cache-warmer every minute (1W signals + market overview), radar-collect/report, ai-warmup.
+- launchd `no.moneyscanner.jev-insight` not touched (note: `launchctl print` on 2026-09-24 showed it loaded, state "spawn scheduled", 07:45 daily + WatchPaths). Its run now produces a 1D/1W-only near-flip packet through the script change above.
+
+Downstream effect: after deploy, the Alerts "Top 20 aproape de flip" list and confirmed-flip list from the scheduled scan hold only 1D/1W entries (older 4H/8H confirmed history stays until replaced; 4H/8H upcoming candidates disappear until Marius runs a manual scan). The local near-flip packet (Signal Lab / JEV insight / X content inputs) is 1D/1W-only immediately (no deploy needed). Last packet (2026-09-23) had 1w 9, 1d 5, 8h 4, 4h 2 of 20.
+
+Verification: `tsc --noEmit` clean; API suite 205/206 (the 1 failure is the live-data stock Business Quality test "Expected at least 4 verified sources", CoinGecko/Yahoo HTTP 429s, unrelated). Stubbed-data check: automated set fetched 1d,1w only and returned 1d,1w; default fetched and returned 4h,8h,1d,1w.
+
+Deploy: HELD. The Cloud Run changes (scheduled regime scan, in-process timer, structure scanner) take effect only after a deploy; until then production keeps scanning 4H/8H at 08:00 and every 4h (structure scanner).

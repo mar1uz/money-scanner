@@ -20,7 +20,8 @@ const RETENTION_MS = 90 * DAY_MS;
 const LOCK_TTL_MS = 20 * 60_000;
 const MIN_MARKET_CAP = 100_000_000;
 const STABLE_SYMBOLS = new Set(['USDT', 'USDC', 'DAI', 'FDUSD', 'USDE', 'USDS', 'TUSD', 'USDP', 'BUSD', 'PYUSD', 'USD1', 'RLUSD', 'USDG', 'USDD', 'USDY', 'USDF', 'USDGO', 'USYC', 'USDTB', 'USDAI', 'USD0', 'GHO', 'EURC', 'EUTBL', 'USTB', 'SOFID', 'APXUSD']);
-const TIMEFRAMES: ('4h' | '8h' | '1d')[] = ['4h', '8h', '1d'];
+export type StructureScanTimeframe = '4h' | '8h' | '1d';
+const TIMEFRAMES: StructureScanTimeframe[] = ['4h', '8h', '1d'];
 
 const firestore = () => {
   const app = getApps()[0] || initializeApp({ projectId: process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || 'gen-lang-client-0610749770' });
@@ -67,9 +68,9 @@ export class StructureScannerRunner {
 
   constructor(private readonly marketData: MarketDataService) {}
 
-  public run(now = Date.now()): Promise<StructureScanReport> {
+  public run(now = Date.now(), timeframes: StructureScanTimeframe[] = TIMEFRAMES): Promise<StructureScanReport> {
     if (this.running) return this.running;
-    this.running = this.execute(now).finally(() => { this.running = undefined; });
+    this.running = this.execute(now, timeframes).finally(() => { this.running = undefined; });
     return this.running;
   }
 
@@ -108,7 +109,7 @@ export class StructureScannerRunner {
     return closes[lastIndex] > sma50 && sma50 > sma200;
   }
 
-  private async execute(now: number): Promise<StructureScanReport> {
+  private async execute(now: number, timeframes: StructureScanTimeframe[] = TIMEFRAMES): Promise<StructureScanReport> {
     const startedAt = Date.now();
     const dateLabel = new Date(now).toISOString().slice(0, 13).replace('T', 'h'); // day + UTC hour bucket
     const report: StructureScanReport = {
@@ -136,7 +137,7 @@ export class StructureScannerRunner {
 
       for (let index = 0; index < universe.length; index += 5) {
         const batch = universe.slice(index, index + 5);
-        const settled = await Promise.all(batch.map(asset => this.scanAsset(asset, btcLabel, dateLabel)));
+        const settled = await Promise.all(batch.map(asset => this.scanAsset(asset, btcLabel, dateLabel, timeframes)));
         for (const outcome of settled) {
           if (outcome.error) { report.errors += 1; continue; }
           report.scanned += 1;
@@ -162,14 +163,15 @@ export class StructureScannerRunner {
   private async scanAsset(
     asset: AssetInfo,
     btcLabel: string | undefined,
-    dateLabel: string
+    dateLabel: string,
+    timeframes: StructureScanTimeframe[] = TIMEFRAMES
   ): Promise<{ error?: string; confluences: number; logged: number }> {
     let lastError: unknown;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
         const [fourH, eightH, daily] = await Promise.all([
-          withTimeout(this.marketData.getCandles(asset.symbol, '4h', 200, 'crypto'), 18_000),
-          withTimeout(this.marketData.getCandles(asset.symbol, '8h', 200, 'crypto'), 18_000),
+          timeframes.includes('4h') ? withTimeout(this.marketData.getCandles(asset.symbol, '4h', 200, 'crypto'), 18_000) : Promise.resolve([]),
+          timeframes.includes('8h') ? withTimeout(this.marketData.getCandles(asset.symbol, '8h', 200, 'crypto'), 18_000) : Promise.resolve([]),
           withTimeout(this.marketData.getCandles(asset.symbol, '1d', 250, 'crypto'), 18_000)
         ]);
         const candlesByTf: Record<'4h' | '8h' | '1d', typeof fourH> = { '4h': fourH, '8h': eightH, '1d': daily };
@@ -181,7 +183,7 @@ export class StructureScannerRunner {
 
         let confluences = 0;
         let logged = 0;
-        for (const timeframe of TIMEFRAMES) {
+        for (const timeframe of timeframes) {
           const snapshot = detectStructure(asset.symbol, timeframe, candlesByTf[timeframe]);
           if (!snapshot?.confluence || !snapshot.confluenceSide) continue;
           confluences += 1;

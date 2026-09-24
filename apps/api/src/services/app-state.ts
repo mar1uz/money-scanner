@@ -41,7 +41,7 @@ import { evaluateDailyStrategyAlerts, StrategyAlertEvaluation } from './strategy
 import { PriceAlertService } from './price-alert-service.js';
 import { DailySmaReclaimRunner } from './daily-sma-reclaim-runner.js';
 import { MaCrossAlertRunner } from './ma-cross-alert-runner.js';
-import { StructureScannerRunner } from './structure-scanner-runner.js';
+import { StructureScannerRunner, StructureScanTimeframe } from './structure-scanner-runner.js';
 import { calculateFlipPriorityScore } from './flip-priority-score.js';
 import { RegimeTapeService } from './regime-tape-service.js';
 import { DailySmaReclaimReport } from '@money-scanner/shared';
@@ -210,6 +210,10 @@ const formatAlertPrice = (value: number) => `$${value.toLocaleString('en-US', {
 })}`;
 
 const TELEGRAM_FLIP_TIMEFRAMES: TelegramFlipTimeframe[] = ['4h', '8h', '1d', '1w'];
+// Automated (scheduled) flip scans cover Daily and Weekly only. 4H/8H stay
+// available on demand: Alerts manual scans and the Telegram bot commands use
+// the full set. Marius, 2026-09-24: sub-1D scanning runs only when he starts it.
+export const AUTOMATED_FLIP_TIMEFRAMES: TelegramFlipTimeframe[] = ['1d', '1w'];
 const FLIP_TIMEFRAME_DURATION_MS: Record<TelegramFlipTimeframe, number> = {
   '4h': 4 * 60 * 60 * 1_000,
   '8h': 8 * 60 * 60 * 1_000,
@@ -706,8 +710,8 @@ export class AppState {
     return this.maCrossAlerts.run(now);
   }
 
-  public runStructureScannerScan(now = Date.now()) {
-    return this.structureScanner.run(now);
+  public runStructureScannerScan(now = Date.now(), timeframes?: StructureScanTimeframe[]) {
+    return this.structureScanner.run(now, timeframes);
   }
 
   public getDailySmaReclaimReport(): Promise<DailySmaReclaimReport | null> {
@@ -1089,16 +1093,16 @@ export class AppState {
    * the latest Daily candle must cross into the opposite tier and confirm on
    * the correct side of SMA 50.
    */
-  public runDailyRegimeScan(): Promise<DailyRegimeScanStatus> {
+  public runDailyRegimeScan(options: { timeframes?: TelegramFlipTimeframe[] } = {}): Promise<DailyRegimeScanStatus> {
     if (this.dailyRegimeScanPromise) return this.dailyRegimeScanPromise;
 
-    this.dailyRegimeScanPromise = this.executeDailyRegimeScan().finally(() => {
+    this.dailyRegimeScanPromise = this.executeDailyRegimeScan(options.timeframes || TELEGRAM_FLIP_TIMEFRAMES).finally(() => {
       this.dailyRegimeScanPromise = undefined;
     });
     return this.dailyRegimeScanPromise;
   }
 
-  private async executeDailyRegimeScan(): Promise<DailyRegimeScanStatus> {
+  private async executeDailyRegimeScan(timeframes: TelegramFlipTimeframe[] = TELEGRAM_FLIP_TIMEFRAMES): Promise<DailyRegimeScanStatus> {
     // Restore the last persisted results first so scheduler retries or cold
     // starts cannot duplicate a signal for the same closed Daily candle.
     await this.restoreDailyRegimeState(true);
@@ -1136,7 +1140,7 @@ export class AppState {
       for (let index = 0; index < universe.length; index += concurrency) {
         const batch = universe.slice(index, index + concurrency);
         const settled = await Promise.allSettled(batch.map(asset =>
-          this.scanFlipAsset(asset.symbol, asset.marketClass as AssetMarketClass)
+          this.scanFlipAsset(asset.symbol, asset.marketClass as AssetMarketClass, timeframes)
         ));
 
         settled.forEach((result, batchIndex) => {
@@ -1804,13 +1808,18 @@ export class AppState {
     };
   }
 
-  private async scanFlipAsset(symbol: string, marketClass: AssetMarketClass): Promise<FlipAssetScanResult> {
+  private async scanFlipAsset(
+    symbol: string,
+    marketClass: AssetMarketClass,
+    timeframes: TelegramFlipTimeframe[] = TELEGRAM_FLIP_TIMEFRAMES
+  ): Promise<FlipAssetScanResult> {
+    const include = new Set(timeframes);
     const [quote, dailyRaw, weekly, candles4h, candles8h] = await Promise.all([
       this.marketData.getPriceQuote(symbol, marketClass).catch(() => undefined),
       this.marketData.getCandles(symbol, '1d', 320, marketClass),
       this.marketData.getCandles(symbol, '1w', 260, marketClass),
-      this.marketData.getCandles(symbol, '4h', 320, marketClass).catch(() => []),
-      this.marketData.getCandles(symbol, '8h', 320, marketClass).catch(() => [])
+      include.has('4h') ? this.marketData.getCandles(symbol, '4h', 320, marketClass).catch(() => []) : Promise.resolve([]),
+      include.has('8h') ? this.marketData.getCandles(symbol, '8h', 320, marketClass).catch(() => []) : Promise.resolve([])
     ]);
     const currentUtcDay = new Date();
     currentUtcDay.setUTCHours(0, 0, 0, 0);
@@ -1828,12 +1837,12 @@ export class AppState {
       coverage: { status: 'INSUFFICIENT_DATA', weeklyCandidate: false, weeklyConfirmed: false, candidateCount: 0, confirmedCount: 0 }
     };
 
-    const timeframeCandles = [
+    const timeframeCandles = ([
       ['4h', candles4h],
       ['8h', candles8h],
       ['1d', dailyClosed],
       ['1w', weeklyClosed]
-    ] as const;
+    ] as const).filter(([timeframe]) => include.has(timeframe));
     const latestCandidates = timeframeCandles.map(([timeframe, timeframeSeries]) =>
       this.calculateFlipCandidate(symbol, marketClass, timeframe, timeframeSeries, price, weeklySignal.tier, weeklySignal.score)
     ).filter((candidate): candidate is FlipCandidate => Boolean(candidate));
@@ -2531,7 +2540,7 @@ export class AppState {
         const [hour, minute] = (timePart || '').split(':').map(Number);
         if (hour === 8 && minute <= 5 && this.lastScheduledScanDateBucharest !== datePart && !this.dailyRegimeScanStatus.running) {
           this.lastScheduledScanDateBucharest = datePart;
-          this.runDailyRegimeScan().catch(error => console.error('Automated 08:00 AM scan failed:', error));
+          this.runDailyRegimeScan({ timeframes: AUTOMATED_FLIP_TIMEFRAMES }).catch(error => console.error('Automated 08:00 AM scan failed:', error));
         }
 
         // Automated daily 08:00 Europe/Oslo 2x2 MA cross/retest alert pass
@@ -2551,12 +2560,13 @@ export class AppState {
           this.runMaCrossAlertScan().catch(error => console.error('Automated 08:00 Europe/Oslo MA cross scan failed:', error));
         }
 
-        // Paper structure scanner on 4H/8H/1D candle closes (every 4h UTC boundary)
+        // Paper structure scanner, automated on the Daily close only (00:00 UTC).
+        // 4H/8H automation stopped 2026-09-24 at Marius's request.
         const utcNow = new Date();
         const structureKey = utcNow.toISOString().slice(0, 13);
-        if (utcNow.getUTCHours() % 4 === 0 && utcNow.getUTCMinutes() <= 5 && this.lastStructureScanKey !== structureKey) {
+        if (utcNow.getUTCHours() === 0 && utcNow.getUTCMinutes() <= 5 && this.lastStructureScanKey !== structureKey) {
           this.lastStructureScanKey = structureKey;
-          this.runStructureScannerScan().catch(error => console.error('Structure scanner scan failed:', error));
+          this.runStructureScannerScan(utcNow.getTime(), ['1d']).catch(error => console.error('Structure scanner scan failed:', error));
         }
       } catch (err) {
         console.warn('Scheduled daily scan check error:', err);

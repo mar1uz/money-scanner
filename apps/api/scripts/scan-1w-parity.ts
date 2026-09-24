@@ -4,7 +4,11 @@
 // no Google auth - public data only (CoinGecko/Binance/Hyperliquid/Yahoo).
 // Run: cd apps/api && node_modules/.bin/tsx scripts/scan-1w-parity.ts
 import { writeFileSync, mkdirSync, appendFileSync, readFileSync, existsSync } from 'node:fs';
-import { AppState } from '../src/services/app-state.js';
+import { AppState, AUTOMATED_FLIP_TIMEFRAMES } from '../src/services/app-state.js';
+
+// Automated local runs (insight pipeline) scan 1D + 1W only since 2026-09-24.
+// Pass --all-timeframes to include 4H/8H for a manual run.
+const SCAN_TIMEFRAMES = process.argv.includes('--all-timeframes') ? ['4h', '8h', '1d', '1w'] : AUTOMATED_FLIP_TIMEFRAMES;
 import { getScannerAssets } from '@money-scanner/shared';
 
 const OUT_JSON = '../../tmp/paper-trades/scan-1w-parity.json';
@@ -29,7 +33,7 @@ async function main() {
   const concurrency = 4;
   for (let index = 0; index < universe.length; index += concurrency) {
     const batch = universe.slice(index, index + concurrency);
-    const settled = await Promise.allSettled(batch.map((a: any) => state.scanFlipAsset(a.symbol, a.marketClass)));
+    const settled = await Promise.allSettled(batch.map((a: any) => state.scanFlipAsset(a.symbol, a.marketClass, SCAN_TIMEFRAMES)));
     settled.forEach((result, bi) => {
       const asset = batch[bi];
       if (result.status === 'fulfilled') {
@@ -55,6 +59,7 @@ async function main() {
     generatedAt,
     method: 'local AppState.scanFlipAsset via tsx - same code as daily regime scan; no Firestore, no Google auth',
     universeCount: universe.length,
+    timeframes: SCAN_TIMEFRAMES,
     scannedCount: coverage.filter(i => i.status !== 'ERROR').length,
     outcomes, byMarket,
     coverage,

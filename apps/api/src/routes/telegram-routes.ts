@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { AppState } from '../services/app-state.js';
+import { AppState, AUTOMATED_FLIP_TIMEFRAMES } from '../services/app-state.js';
 import { fetchRadarDigestText } from '../services/radar-digest-service.js';
 import { AssetMarketClass, MoneyLineSignal, TelegramFlipTimeframe, Timeframe } from '@money-scanner/shared';
 import { AuthenticatedRequest, validateCsrfToken } from '../middleware/auth.js';
@@ -525,7 +525,8 @@ telegramRouter.post('/alerts/daily-regime-scan', async (req, res) => {
   if (!validateScheduledRequestToken(req.get('x-daily-scan-token'))) {
     return res.status(401).json({ error: 'Invalid daily scan token.' });
   }
-  const status = await AppState.getInstance().runDailyRegimeScan();
+  // Scheduled scan: Daily + Weekly only (sub-1D automation stopped 2026-09-24).
+  const status = await AppState.getInstance().runDailyRegimeScan({ timeframes: AUTOMATED_FLIP_TIMEFRAMES });
   res.set('Cache-Control', 'no-store');
   res.json(status);
 });
@@ -541,12 +542,13 @@ telegramRouter.post('/alerts/daily-sma-reclaim/scheduled', async (req, res) => {
   return res.json(report);
 });
 
-// Paper-only structure scanner pass (4H/8H/1D closes). Logs to Firestore, never sends Telegram.
+// Paper-only structure scanner pass. Scheduled runs cover the Daily close only
+// (4H/8H automation stopped 2026-09-24). Logs to Firestore, never sends Telegram.
 telegramRouter.post('/alerts/structure-scanner/scheduled', async (req, res) => {
   if (!validateScheduledRequestToken(req.get('x-daily-scan-token'))) {
     return res.status(401).json({ error: 'Invalid daily scan token.' });
   }
-  const report = await AppState.getInstance().runStructureScannerScan();
+  const report = await AppState.getInstance().runStructureScannerScan(Date.now(), ['1d']);
   res.set('Cache-Control', 'no-store');
   return res.json(report);
 });
