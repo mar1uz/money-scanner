@@ -5,6 +5,9 @@
 //   tmp/paper-trades/score-bands-forward.jsonl
 // --report writes tmp/paper-trades/score-bands-forward-report.json and prints
 // the band x horizon table (net of costs). Protocol: see core header.
+// Exits (amended 2026-09-24): daily closes come from the repo's own market-data
+// provider (packages/market-data dist, same source the scanner uses), not from
+// the scan's flip list. Only 1d/1w flips are logged (sub-1D scanning stopped).
 // Research only - no orders, no exchange connections, no stored credentials
 // (Firestore read uses a fresh `gcloud auth print-access-token`, never printed).
 
@@ -14,8 +17,24 @@ import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 import {
   LOG_VERSION, LOG_START_UTC, REVIEW_ENTRY_TARGET, REVIEW_DATE, HORIZONS_DAYS,
-  BANDS, parseLog, serializeRecords, updateLog, aggregate
+  BANDS, TRACKED_TIMEFRAMES, MISSING_GRACE_DAYS, DEDUPE_MODE, EXIT_RULE,
+  parseLog, serializeRecords, updateLog, aggregate, entriesNeedingPrice, priceKeyOf
 } from './forward-test-score-bands-core.mjs';
+import { MarketDataService } from '../packages/market-data/dist/index.js';
+
+/** Daily candles per "<marketClass>:<symbol>" for entries with a due, unclosed
+ * horizon. A failed fetch leaves the key absent - that horizon retries next run
+ * and becomes exit-missing after the grace period. */
+async function dailyCandlesFor(entries) {
+  const market = new MarketDataService();
+  const out = new Map(); const failed = [];
+  const wanted = new Map(entries.map(e => [priceKeyOf(e), e]));
+  for (const [pk, e] of wanted) {
+    try { out.set(pk, await market.getCandles(e.symbol, '1d', 120, e.marketClass)); }
+    catch (err) { failed.push(`${pk} (${err.message})`); }
+  }
+  return { candles: out, failed };
+}
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const LOG_DIR = path.join(REPO_ROOT, 'tmp', 'paper-trades');
@@ -103,7 +122,11 @@ async function run() {
         horizonsDays: HORIZONS_DAYS,
         costPerSide: '0.075% fee + 0.05% slippage',
         entryRule: 'confirmationPrice (close of confirming candle), direction-adjusted',
-        exitRule: 'scanner currentPrice at first logger run on/after +7d/+14d/+30d',
+        exitRule: EXIT_RULE,
+        missingGraceDays: MISSING_GRACE_DAYS,
+        trackedTimeframes: TRACKED_TIMEFRAMES,
+        dedupe: DEDUPE_MODE,
+        amendments: '2026-09-24: independent-price exits + exit-missing, 1d/1w only, key+confirmedAt dedupe (approved by Marius before any exit closed)',
         review: { entryTarget: REVIEW_ENTRY_TARGET, date: REVIEW_DATE }
       },
       ...aggregate(records)
@@ -113,14 +136,15 @@ async function run() {
     return;
   }
 
-  const fresh = updateLog(records, flips, runDate, now);
+  const { candles, failed } = await dailyCandlesFor(entriesNeedingPrice(records, runDate));
+  const fresh = updateLog(records, flips, runDate, now, candles);
   if (fresh.length) {
     // Close the concurrent-run race (see the 2026-09-21 top5 double-append):
     // re-read the log immediately before appending and drop records a
     // parallel run already wrote. Key: entry -> entry:<key>, exit ->
     // exit:<key>:<horizonDays>; unknown shapes never dedupe.
-    const dedupeKey = r => r.kind === 'entry' ? `entry:${r.key}`
-      : r.kind === 'exit' ? `exit:${r.key}:${r.horizonDays}` : null;
+    const dedupeKey = r => r.kind === 'entry' ? `entry:${r.entryId || `${r.key}@${r.confirmedAt}`}`
+      : (r.kind === 'exit' || r.kind === 'exit-missing') ? `exit:${r.entryId || r.key}:${r.horizonDays}` : null;
     let existing = [];
     try { existing = parseLog(await readFile(LOG_PATH, 'utf8')); } catch { /* first run */ }
     const seen = new Set(existing.map(dedupeKey).filter(Boolean));
@@ -133,7 +157,9 @@ async function run() {
   }
   const entries = fresh.filter(r => r.kind === 'entry').length;
   const exits = fresh.filter(r => r.kind === 'exit').length;
-  console.log(`score-bands forward log: +${entries} entries, +${exits} exits (read ${flips.size} confirmed flips from ${runPath.split('/').at(-1)})`);
+  const missing = fresh.filter(r => r.kind === 'exit-missing').length;
+  console.log(`score-bands forward log: +${entries} entries, +${exits} exits, +${missing} exit-missing (read ${flips.size} confirmed flips from ${runPath.split('/').at(-1)}; tracked ${TRACKED_TIMEFRAMES.join('/')})`);
+  if (failed.length) console.log(`  price fetch failed (will retry): ${failed.join('; ')}`);
 }
 
-run().catch(err => { console.error(err.message); process.exit(1); });
+run().then(() => process.exit(0)).catch(err => { console.error(err.message); process.exit(1); });
