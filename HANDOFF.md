@@ -4457,3 +4457,16 @@ Requested by Marius on WhatsApp, 24 Sep (09:49 toolbar, 10:10 buttons, 23 Sep 09
 
 3. "Plan alert"
    - The Plan alert button itself was already removed in Step 130. The only leftover was the Alerts empty state telling users to press "Plan alert" (AlertsCenterView.tsx + i18n pair). It now reads "Alertele active vor apărea aici." / "Active alerts will appear here."
+
+## Step 145 - 2026-09-24 - Stock cards: Solvency back + dedicated P/E tile; mobile truncation fixes (local, deployed with the combined deploy)
+
+Requested by Marius on WhatsApp, 24 Sep 10:27 ("pune încă 2 elemente pe fiecare card, solvency și PE care nu se vede acuma. Mai sunt elemente care nu se văd pe mobil?").
+
+- API (stock-business-quality-scanner.ts): two new criteria on every stock, `solvency` (D/E + current ratio) and `peRatio` (trailing + forward P/E). Built only from real data (Yahoo live, curated DB fallback); missing values show N/A and status 'unknown' - no code defaults. Display-only: NOT part of the 6-criteria score or passedCriteria, so rankings are unchanged. Thresholds used only for colour/status: Solvency pass = (D/E <= 1.2 or net cash) and CR >= 1.1, watch = D/E <= 2.5 and CR >= 0.9; P/E pass <= 25, watch <= 40 (trailing, forward if no trailing).
+- Shared type: `criteria.solvency?` and `criteria.peRatio?` (optional so older cached payloads still render).
+- Persistent cache key bumped to `stock-business-quality-top-v2` so the deployed API rescans instead of serving a snapshot without P/R / Solvency / P/E.
+- Top Alpha stock cards (TopAlphaView.tsx): 8 tiles (6 criteria + Solvency + P/E), 2 per row on mobile, 4 on desktop. Tile values now wrap instead of truncating, so "PEG: 1.25 | Forward P/E: 22.67" is fully visible. Tile tooltip is translated.
+- Criteria chips: whole-word short labels (PROFIT, CAPITAL, GROWTH, P/R, FCF, VALUE / RO: CREȘTERE, EVALUARE) instead of an 8-character cut ("PROFITAB", "VALUATIO", "PRICE/RE", "FREE CAS").
+- i18n: EN pairs for the Solvency / P/E labels and explanations.
+- Sample (local scan 24 Sep 12:53): NVDA D/E 0.17 CR 4.59, P/E 28.9 fwd 14.4; TSM D/E 0.17 CR 2.46, P/E 33.2 fwd 20.4; META D/E 0.43 CR 2.23, P/E 28.0 fwd 21.3; MCD D/E N/A (negative equity) CR 1.08, P/E 20.3 fwd 17.1; NKE D/E 0.74 CR 1.96, P/E 17.2 fwd 16.4. Solvency unknown on 10/83 (mostly ETFs), P/E unknown on 3/83.
+- Open, not changed: the Valuation criterion still falls back to PEG 1.6 / Forward P/E 22 when Yahoo has no value (ETFs such as VOO show PEG 1.60); fixing it changes ETF scores, so it needs Marius's call. Sector names such as "Energie & Petrol" still show in Romanian on EN cards.

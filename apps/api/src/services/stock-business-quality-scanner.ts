@@ -1168,6 +1168,53 @@ export function buildStockBusinessQualityScan(options?: StockScannerOptions): St
           : `Evaluare extinsă sau raport PEG dezechilibrat (${formatRatio(peg, '')}).`
     );
 
+    // Display-only tiles (Marius, 2026-09-24): Solvency back next to P/R, plus a
+    // dedicated P/E. Built from real data only (no code defaults) and NOT part of
+    // the 6-criteria score, so rankings are unchanged.
+    const fmtX = (v: number | undefined, digits = 2) =>
+      v === undefined || !Number.isFinite(v) ? 'N/A' : v.toFixed(digits);
+    const realDe = typeof merged.debtToEquity === 'number' && Number.isFinite(merged.debtToEquity) && merged.debtToEquity >= 0 ? merged.debtToEquity : undefined;
+    const realCr = typeof merged.currentRatio === 'number' && Number.isFinite(merged.currentRatio) && merged.currentRatio > 0 ? merged.currentRatio : undefined;
+    const realNetCash = typeof merged.netCashPosition === 'boolean' ? merged.netCashPosition : false;
+    const solvencyStatus: StockCriteriaStatus =
+      realDe === undefined && realCr === undefined
+        ? 'unknown'
+        : ((realDe !== undefined && realDe <= 1.2) || realNetCash) && (realCr === undefined || realCr >= 1.1)
+          ? 'pass'
+          : (realDe === undefined || realDe <= 2.5) && (realCr === undefined || realCr >= 0.9)
+            ? 'watch'
+            : 'fail';
+    const solvency = criterion(
+      solvencyStatus,
+      'Solvabilitate',
+      `D/E: ${fmtX(realDe)} | CR: ${fmtX(realCr)}`,
+      solvencyStatus === 'pass'
+        ? 'Bilanț solid: îndatorare redusă și lichiditate bună.'
+        : solvencyStatus === 'watch'
+          ? 'Îndatorare moderată; de urmărit costul dobânzilor.'
+          : solvencyStatus === 'fail'
+            ? 'Îndatorare ridicată sau lichiditate slabă pe termen scurt.'
+            : 'Date insuficiente pentru solvabilitate.'
+    );
+
+    const realTrailingPe = typeof merged.trailingPE === 'number' && Number.isFinite(merged.trailingPE) && merged.trailingPE > 0 ? merged.trailingPE : undefined;
+    const realForwardPe = typeof merged.forwardPE === 'number' && Number.isFinite(merged.forwardPE) && merged.forwardPE > 0 ? merged.forwardPE : undefined;
+    const peBasis = realTrailingPe ?? realForwardPe;
+    const peStatus: StockCriteriaStatus =
+      peBasis === undefined ? 'unknown' : peBasis <= 25 ? 'pass' : peBasis <= 40 ? 'watch' : 'fail';
+    const peRatio = criterion(
+      peStatus,
+      'P/E',
+      `P/E: ${fmtX(realTrailingPe, 1)} | Fwd: ${fmtX(realForwardPe, 1)}`,
+      peStatus === 'pass'
+        ? 'P/E moderat raportat la profitul realizat.'
+        : peStatus === 'watch'
+          ? 'P/E cu primă; piața plătește pentru creștere.'
+          : peStatus === 'fail'
+            ? 'P/E ridicat; așteptări mari incluse în preț.'
+            : 'Fără P/E valid (profit negativ sau date lipsă).'
+    );
+
     // Compute composite AI Score (0 to 100)
     let score = 0;
     if (profitabilityStatus === 'pass') score += 22;
@@ -1269,7 +1316,9 @@ export function buildStockBusinessQualityScan(options?: StockScannerOptions): St
         growth,
         priceToRevenue,
         freeCashFlow,
-        valuation
+        valuation,
+        solvency,
+        peRatio
       },
       metrics
     };

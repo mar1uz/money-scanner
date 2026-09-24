@@ -82,7 +82,7 @@ const validTake = (value: any): value is AIContentTake => Boolean(value)
   && typeof value.model === 'string' && value.model.length <= 120
   && Number.isFinite(value.generatedAt);
 const cryptoCriteriaPersistentKey = 'crypto-four-criteria-top-200';
-const stockCriteriaPersistentKey = 'stock-business-quality-top';
+const stockCriteriaPersistentKey = 'stock-business-quality-top-v2'; // v2 (2026-09-24): payload adds priceToRevenue + solvency + peRatio; old snapshots lack them
 
 const waitForSourceRefresh = (refresh: Promise<void>): Promise<void> => {
   // The model can produce a grounded fallback from currently cached sources.

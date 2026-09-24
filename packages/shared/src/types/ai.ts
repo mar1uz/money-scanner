@@ -337,6 +337,10 @@ export interface StockBusinessQualityAsset {
     priceToRevenue: StockCriterionResult;
     freeCashFlow: StockCriterionResult;
     valuation: StockCriterionResult;
+    /** Display-only (not scored): Debt/Equity + current ratio from real data. */
+    solvency?: StockCriterionResult;
+    /** Display-only (not scored): trailing + forward P/E from real data. */
+    peRatio?: StockCriterionResult;
   };
   metrics: StockFinancialMetrics;
 }

@@ -29,6 +29,20 @@ const STOCK_CRITERIA: { key: keyof StockBusinessQualityAsset['criteria']; ro: st
   { key: 'freeCashFlow', ro: 'Flux de numerar liber', en: 'Free cash flow' },
   { key: 'valuation', ro: 'Evaluare', en: 'Valuation' }
 ];
+// Whole-word chip labels instead of an 8-char cut ("PROFITAB", "VALUATIO") - Marius, 2026-09-24 mobile audit.
+const STOCK_CHIP_SHORT: Partial<Record<keyof StockBusinessQualityAsset['criteria'], { ro: string; en: string }>> = {
+  profitability: { ro: 'PROFIT', en: 'PROFIT' },
+  capitalEfficiency: { ro: 'CAPITAL', en: 'CAPITAL' },
+  growth: { ro: 'CREȘTERE', en: 'GROWTH' },
+  priceToRevenue: { ro: 'P/R', en: 'P/R' },
+  freeCashFlow: { ro: 'FCF', en: 'FCF' },
+  valuation: { ro: 'EVALUARE', en: 'VALUE' },
+};
+// Display-only tiles (not scored, no chip): Solvency and P/E (Marius, 2026-09-24).
+const STOCK_EXTRA_TILES: { key: keyof StockBusinessQualityAsset['criteria']; ro: string; en: string }[] = [
+  { key: 'solvency', ro: 'Solvabilitate', en: 'Solvency' },
+  { key: 'peRatio', ro: 'P/E', en: 'P/E' },
+];
 
 const fmtUsd = (value?: number): string => {
   if (value === undefined || !Number.isFinite(value) || value <= 0) return '';
@@ -83,20 +97,23 @@ const StockBqCard: React.FC<{
       <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
         {STOCK_CRITERIA.map(item => {
           const criterion = asset.criteria[item.key];
+          if (!criterion) return null;
           return (
             <span key={item.key} title={`${isRo ? item.ro : item.en}: ${criterion.status} - ${translateText(criterion.explanation, language)}`} className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[8px] font-bold tracking-wide ${stockChipTone(criterion.status)}`}>
-              {(isRo ? item.ro : item.en).toUpperCase().slice(0, 8)}
+              {(isRo ? STOCK_CHIP_SHORT[item.key]?.ro : STOCK_CHIP_SHORT[item.key]?.en) ?? (isRo ? item.ro : item.en).toUpperCase()}
             </span>
           );
         })}
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3">
-        {STOCK_CRITERIA.map(item => {
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+        {[...STOCK_CRITERIA, ...STOCK_EXTRA_TILES].map(item => {
           const criterion = asset.criteria[item.key];
+          if (!criterion) return null;
           return (
             <div key={item.key} className="rounded-lg border border-white/[0.07] bg-white/[0.02] p-2.5">
               <span className="block text-[9px] font-mono uppercase text-slate-600">{isRo ? item.ro : item.en}</span>
-              <span className="block mt-1 text-[11px] font-mono font-bold text-slate-100 truncate" title={criterion.explanation}>{criterion.value}</span>
+              {/* Full value, wraps instead of truncating (Marius, 2026-09-24: "Forwar..." was cut on mobile) */}
+              <span className="block mt-1 text-[11px] font-mono font-bold leading-snug text-slate-100 break-words" title={translateText(criterion.explanation, language)}>{criterion.value}</span>
             </div>
           );
         })}
