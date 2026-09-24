@@ -185,8 +185,38 @@ describe('AI Market Analyst Engine', () => {
     }
   });
 
-  it('uses Gemini with verified feeds when Google Search quota is unavailable', async () => {
+  it('keeps model narrative off by default: deterministic fallback, zero Gemini calls', async () => {
     const originalFetch = globalThis.fetch;
+    const previousFlag = process.env.MODEL_NARRATIVE;
+    delete process.env.MODEL_NARRATIVE;
+    let requestCount = 0;
+    globalThis.fetch = (async () => {
+      requestCount += 1;
+      return new Response('{}', { status: 500 });
+    }) as typeof fetch;
+    try {
+      const analyst = new AIMarketAnalystService('fake-key');
+      const report = await analyst.generateMarketIntelligence(
+        'crypto',
+        'en',
+        [{ symbol: 'BTC', name: 'Bitcoin', change24h: 1.2, narrative: 'Layer 1' }],
+        [{ name: 'Layer 1', averageChange24h: 1.2, assetCount: 1, leaders: ['BTC'] }],
+        [],
+        []
+      );
+      assert.equal(requestCount, 0);
+      assert.equal(report.mode, 'deterministic');
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (previousFlag === undefined) delete process.env.MODEL_NARRATIVE;
+      else process.env.MODEL_NARRATIVE = previousFlag;
+    }
+  });
+
+  it('uses Gemini with verified feeds when MODEL_NARRATIVE=on and Google Search quota is unavailable', async () => {
+    const originalFetch = globalThis.fetch;
+    const previousFlag = process.env.MODEL_NARRATIVE;
+    process.env.MODEL_NARRATIVE = 'on';
     let requestCount = 0;
     globalThis.fetch = (async () => {
       requestCount += 1;
@@ -243,6 +273,8 @@ describe('AI Market Analyst Engine', () => {
       assert.equal(report.discoveries[0].status, 'Unverified');
     } finally {
       globalThis.fetch = originalFetch;
+      if (previousFlag === undefined) delete process.env.MODEL_NARRATIVE;
+      else process.env.MODEL_NARRATIVE = previousFlag;
     }
   });
 });

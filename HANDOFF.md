@@ -4488,3 +4488,10 @@ Marius does not want invented numbers on cards.
 - The live bundle (assets/index-CXEZ5yOG.js) contains the new EN strings: Energy & Oil, Chips & Silicon, Indices & ETFs, "Insufficient data: no company financials", "Insufficient data for valuation", Solvency.
 - A signed-in visual check was not possible from automation because of the Google sign-in gate. Marius checks on his phone.
 - `npm test`: one failure in packages/ai-analysis ("uses Gemini with verified feeds when Google Search quota is unavailable"). That package was not touched by Steps 144-146. Everything else passes.
+
+## Step 147 - 2026-09-24 - ai-analysis test aligned with retired model narrative (local, test-only)
+
+- `uses Gemini with verified feeds when Google Search quota is unavailable` had failed since 310b415 (Step 127, 23 Sep): model narrative is gated behind `MODEL_NARRATIVE=on`, so with the flag off the service returns the deterministic fallback and never calls fetch (0 !== 2).
+- Added `keeps model narrative off by default`: fake key, flag unset -> zero fetch calls, mode `deterministic`.
+- Kept the Gemini quota-fallback test, now setting `MODEL_NARRATIVE=on` and restoring it.
+- No product code changed. `npm test -w packages/ai-analysis`: 7/7 pass (dist rebuilt; dist is untracked).
