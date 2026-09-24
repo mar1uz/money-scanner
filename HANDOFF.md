@@ -4439,3 +4439,21 @@ TVL; /tape rows show "mcap · TVL" (verified in a headless mobile render).
 - Firestore cache operations/ai-cache-crypto-four-criteria-top-200 regenerated with the deployed code (local ADC): methodology v11, 411 assets, 64 undervalued, 60 top score, 634 KB.
 - CoinGecko category calls for artificial-intelligence and real-world-assets-rwa hit HTTP 429 during regen, so some coins carry the generic "Crypto" narrative (50 of 411). The next cache refresh fills them in; no code change needed.
 - Verified live without sign-in: /tape 200 with mcap rows and the new v11 order (Top Score STONK, PONS...; Undervalued GP, STONK, ORE...), /api/tape/proof 200.
+
+## Step 144 - 2026-09-24 - Chart drawing toolbar fits the chart; coin-page header buttons cleaned up; "Plan alert" leftover text removed (local, deployed with the combined deploy)
+
+Requested by Marius on WhatsApp, 24 Sep (09:49 toolbar, 10:10 buttons, 23 Sep 09:59 menu declutter re-raised 11:08).
+
+1. Drawing toolbar (InteractiveChart.tsx, MoneyLine Cloud tab)
+   - Before: 13 tools + 2 dividers in an absolute column capped at `max-h-[calc(100%-1rem)]` with `overflow-y-auto`; on a 460px mobile chart the column overflowed and you had to scroll inside it (the last tools - long/short R:R, undo, clear - were hidden).
+   - Now: the column is pinned to the chart (`top-2 bottom-2`, `sm:top-3 sm:bottom-3`), `justify-between`, `overflow-hidden`; every tool button is `flex-1 min-h-0 max-h-12 w-8 sm:w-9`, so all tools share the chart height evenly and never scroll. On 390px mobile each button is ~30px tall (usable tap target); on desktop (540px) they cap at 48px.
+   - Verified at 390px: toolbar scrollHeight == clientHeight (442px) inside a 462px chart, all 13 tools visible.
+
+2. Coin/asset page header (AssetDeepDiveView.tsx + AssetExternalLinks.tsx)
+   - Removed the "TradingView ↗" link from the tags row on the asset page (new prop `showTradingView={false}`; other screens that use AssetExternalLinks, e.g. CryptoMarketOnlyView and the no-data fallback, keep their TradingView link).
+   - The mobile button next to the Bullish/Bearish score, formerly "TradingView extern", now uses the removed button's format and text: "TradingView ↗", same blue tag style (rounded-lg, px-2.5 py-1.5, 11px bold, external-link icon). Its action is unchanged: it opens the in-app TradingView chart tab.
+   - Copy address sits on the same row as the tags (L1, DefiLlama): the chip now shows copy icon + short address (0xb8c7…dd52) only; the full label and full address are in the tooltip / aria-label. When no contract is known it shows "Copy CoinGecko ID" / "Copy ticker".
+   - Stocks: with the TradingView link gone from the tags row the component renders nothing (no empty gap).
+
+3. "Plan alert"
+   - The Plan alert button itself was already removed in Step 130. The only leftover was the Alerts empty state telling users to press "Plan alert" (AlertsCenterView.tsx + i18n pair). It now reads "Alertele active vor apărea aici." / "Active alerts will appear here."

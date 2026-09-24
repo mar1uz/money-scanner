@@ -1095,7 +1095,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
               <div className="rounded-[30px] border border-dashed border-white/[0.10] bg-white/[0.02] px-5 py-12 text-center">
                 <BellRing className="mx-auto h-8 w-8 text-slate-600" />
                 <h3 className="mt-3 text-sm font-semibold text-slate-200">Nu ai alerte active</h3>
-                <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">Deschide un asset, alege timeframe-ul și apasă „Alertă plan”. Aplicația îl va monitoriza automat.</p>
+                <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">Alertele active vor apărea aici.</p>
               </div>
             )
           )}

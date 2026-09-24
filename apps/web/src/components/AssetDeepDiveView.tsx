@@ -521,16 +521,17 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
           <button
             onClick={() => setChartTab('tv_embed')}
             title="Deschide graficul TradingView extern"
-            className={`ml-auto inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[10px] font-bold transition-all ${
+            className={`ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold whitespace-nowrap transition-all ${
               chartTab === 'tv_embed'
-                ? 'border-blue-500/40 bg-blue-500/20 text-blue-200'
-                : 'border-blue-500/25 bg-blue-500/[0.08] text-blue-200 hover:bg-blue-500/[0.14]'
+                ? 'border-blue-500/50 bg-blue-500/20 text-blue-100'
+                : 'border-blue-500/30 bg-blue-500/[0.08] text-blue-200 hover:bg-blue-500/[0.16]'
             }`}
           >
-            TradingView extern
+            TradingView <ExternalLink className="h-3 w-3 shrink-0" />
           </button>
         </div>
         <AssetExternalLinks
+          showTradingView={false}
           className="mt-2 max-w-[1600px] mx-auto"
           symbol={symbol}
           marketClass={resolvedMarketClass}

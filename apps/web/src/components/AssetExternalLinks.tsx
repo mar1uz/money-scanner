@@ -22,6 +22,8 @@ interface Props {
   layout?: 'wrap' | 'strip';
   /** Set false when the caller renders the narrative tag elsewhere (e.g. the meta line). */
   showNarrative?: boolean;
+  /** Set false on the asset page: its header already has the TradingView button (Marius, 2026-09-24). */
+  showTradingView?: boolean;
 }
 
 interface Identifier { value: string; kind: 'contract' | 'coingecko' | 'symbol'; chain?: string }
@@ -64,7 +66,7 @@ export const defiLlamaUrl = (symbol: string, protocolSlugs?: string[]) => {
     : `https://defillama.com/token/${encodeURIComponent(symbol.toLowerCase())}`;
 };
 
-export const AssetExternalLinks: React.FC<Props> = ({ symbol, marketClass, coinGeckoId, protocolSlugs, contractAddress, language = 'ro', className = '', narrative, layout = 'wrap', showNarrative = true }) => {
+export const AssetExternalLinks: React.FC<Props> = ({ symbol, marketClass, coinGeckoId, protocolSlugs, contractAddress, language = 'ro', className = '', narrative, layout = 'wrap', showNarrative = true, showTradingView = true }) => {
   const strip = layout === 'strip';
   const isRo = language === 'ro';
   const isCrypto = marketClass === 'crypto' || !marketClass;
@@ -114,30 +116,30 @@ export const AssetExternalLinks: React.FC<Props> = ({ symbol, marketClass, coinG
     window.setTimeout(() => setCopied(false), 1600);
   };
 
+  if (!isCrypto && !showTradingView) return null;
+
   const btn = 'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition-all whitespace-nowrap';
   const stripBtn = `${btn} w-full min-w-0 justify-center px-1.5`;
   return (
     <div className={strip ? `grid grid-cols-3 gap-2 ${className}` : `flex flex-wrap items-center gap-2 ${className}`}>
       {isCrypto && showNarrative && !strip && <NarrativeTag narrative={narrative} className="py-1.5 text-[11px]" />}
-      <a href={tradingViewUrl(symbol, marketClass)} target="_blank" rel="noopener noreferrer" className={`${strip ? stripBtn : btn} border-blue-500/30 bg-blue-500/[0.08] text-blue-200 hover:bg-blue-500/[0.16]`}>
+      {showTradingView && <a href={tradingViewUrl(symbol, marketClass)} target="_blank" rel="noopener noreferrer" className={`${strip ? stripBtn : btn} border-blue-500/30 bg-blue-500/[0.08] text-blue-200 hover:bg-blue-500/[0.16]`}>
         TradingView <ExternalLink className="h-3 w-3 shrink-0" />
-      </a>
+      </a>}
       {isCrypto && (
         <a href={defiLlamaUrl(symbol, protocolSlugs)} target="_blank" rel="noopener noreferrer" className={`${strip ? stripBtn : btn} border-violet-500/30 bg-violet-500/[0.08] text-violet-200 hover:bg-violet-500/[0.16]`}>
           DefiLlama <ExternalLink className="h-3 w-3 shrink-0" />
         </a>
       )}
       {isCrypto && (
-        <button type="button" onClick={() => void copy()} title={`${copyLabel}: ${identifier.chain ? `${identifier.chain}: ` : ''}${identifier.value}`} className={`${strip ? stripBtn : btn} border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-200 hover:bg-emerald-500/[0.16]`}>
+        <button type="button" onClick={() => void copy()} aria-label={copyLabel} title={`${copyLabel}: ${identifier.chain ? `${identifier.chain}: ` : ''}${identifier.value}`} className={`${strip ? stripBtn : btn} border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-200 hover:bg-emerald-500/[0.16]`}>
           {copied ? <Check className="h-3 w-3 shrink-0" /> : <Copy className="h-3 w-3 shrink-0" />}
           {copied
             ? (isRo ? 'Copiat' : 'Copied')
-            : strip
+            : strip || identifier.kind === 'contract'
               ? <span className="truncate font-mono text-[10px] font-normal">{stripCopyLabel}</span>
               : copyLabel}
-          {!strip && identifier.kind === 'contract' && !copied && (
-            <span className="font-mono text-[10px] font-normal text-emerald-300/70">{identifier.value.slice(0, 6)}…{identifier.value.slice(-4)}</span>
-          )}
+
         </button>
       )}
     </div>

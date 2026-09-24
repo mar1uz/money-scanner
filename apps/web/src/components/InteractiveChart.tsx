@@ -1468,16 +1468,16 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
                 Se încarcă istoric mai vechi…
               </div>
             )}
-            {/* Left Floating Technical Drawing Toolbar (Full TradingView Suite - Visible on mobile & desktop, vertically scrollable) */}
+            {/* Left Floating Technical Drawing Toolbar: pinned to the chart height (top/bottom), every tool shares the height evenly (flex-1), never scrolls (Marius, 2026-09-24) */}
             <div
               onTouchStart={(e) => e.stopPropagation()}
-              className="flex absolute left-1.5 sm:left-3 top-2 sm:top-3 z-30 flex-col items-center gap-1 p-1 sm:p-1.5 bg-[rgb(var(--t-surface-rgb)/0.9)] backdrop-blur-xl border border-white/[0.08] rounded-xl shadow-2xl max-h-[calc(100%-1rem)] overflow-y-auto no-scrollbar touch-pan-y overscroll-y-contain"
+              className="flex absolute left-1.5 sm:left-3 top-2 bottom-2 sm:top-3 sm:bottom-3 z-30 flex-col items-center justify-between gap-0.5 p-1 sm:p-1.5 bg-[rgb(var(--t-surface-rgb)/0.9)] backdrop-blur-xl border border-white/[0.08] rounded-xl shadow-2xl overflow-hidden"
             >
               {/* 1. Pointer / Cursor Mode */}
               <button
                 onClick={() => { setActiveTool('select'); setCurrentStart(null); }}
                 title="Mod Cursor (Pan & Zoom normal)"
-                className={`p-1.5 sm:p-2 rounded-lg transition-all ${
+                className={`flex flex-1 min-h-0 max-h-12 w-8 sm:w-9 items-center justify-center rounded-lg transition-all ${
                   activeTool === 'select'
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-cyan'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -1493,7 +1493,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
                   setCurrentStart(null); 
                 }}
                 title="Riglă de Măsurat Procente (% Variație & Diferență Preț) - Al 2-lea instrument"
-                className={`p-1.5 sm:p-2 rounded-lg transition-all ${
+                className={`flex flex-1 min-h-0 max-h-12 w-8 sm:w-9 items-center justify-center rounded-lg transition-all ${
                   activeTool === 'ruler'
                     ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/50 shadow-glow-emerald'
                     : 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10'
@@ -1502,13 +1502,13 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
                 <Maximize2 className="w-4 h-4" />
               </button>
 
-              <div className="w-4 h-[1px] bg-slate-800 my-0.5" />
+              <div className="shrink-0 w-4 h-[1px] bg-slate-800" />
 
               {/* 3. Trendline Tool */}
               <button
                 onClick={() => { setActiveTool('trendline'); setCurrentStart(null); }}
                 title="Linie de Trend (Click pe start, trage și lasă)"
-                className={`p-1.5 sm:p-2 rounded-lg transition-all ${
+                className={`flex flex-1 min-h-0 max-h-12 w-8 sm:w-9 items-center justify-center rounded-lg transition-all ${
                   activeTool === 'trendline'
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-cyan'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -1521,7 +1521,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
               <button
                 onClick={() => { setActiveTool('ray'); setCurrentStart(null); }}
                 title="Rază Extinsă / Ray Line (Trage linia spre infinit la dreapta)"
-                className={`p-1.5 sm:p-2 rounded-lg transition-all ${
+                className={`flex flex-1 min-h-0 max-h-12 w-8 sm:w-9 items-center justify-center rounded-lg transition-all ${
                   activeTool === 'ray'
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-cyan'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -1534,7 +1534,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
               <button
                 onClick={() => { setActiveTool('horizontal'); setCurrentStart(null); }}
                 title="Nivel Orizontal Suport / Rezistență (Click pentru a plasa)"
-                className={`p-1.5 sm:p-2 rounded-lg transition-all ${
+                className={`flex flex-1 min-h-0 max-h-12 w-8 sm:w-9 items-center justify-center rounded-lg transition-all ${
                   activeTool === 'horizontal'
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-cyan'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -1547,7 +1547,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
               <button
                 onClick={() => { setActiveTool('vertical'); setCurrentStart(null); }}
                 title="Linie Verticală Marcaj Timp / Sesiune (Click pentru a plasa)"
-                className={`p-1.5 sm:p-2 rounded-lg transition-all ${
+                className={`flex flex-1 min-h-0 max-h-12 w-8 sm:w-9 items-center justify-center rounded-lg transition-all ${
                   activeTool === 'vertical'
                     ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-glow-cyan'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -1560,7 +1560,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
               <button
                 onClick={() => { setActiveTool('fibonacci'); setCurrentStart(null); }}
                 title="Fibonacci Retracement (Niveluri 23.6%, 38.2%, 50%, 61.8% Golden Pocket, 78.6%)"
-                className={`p-1.5 sm:p-2 rounded-lg transition-all ${
+                className={`flex flex-1 min-h-0 max-h-12 w-8 sm:w-9 items-center justify-center rounded-lg transition-all ${
                   activeTool === 'fibonacci'
                     ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-glow-gold'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -1573,7 +1573,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
               <button
                 onClick={() => { setActiveTool('channel'); setCurrentStart(null); }}
                 title="Canal de Trend Paralel (Click & Trage)"
-                className={`p-1.5 sm:p-2 rounded-lg transition-all ${
+                className={`flex flex-1 min-h-0 max-h-12 w-8 sm:w-9 items-center justify-center rounded-lg transition-all ${
                   activeTool === 'channel'
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-cyan'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -1586,7 +1586,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
               <button
                 onClick={() => { setActiveTool('rectangle'); setCurrentStart(null); }}
                 title="Dreptunghi / Zonă de Consolidare & Order Block"
-                className={`p-1.5 sm:p-2 rounded-lg transition-all ${
+                className={`flex flex-1 min-h-0 max-h-12 w-8 sm:w-9 items-center justify-center rounded-lg transition-all ${
                   activeTool === 'rectangle'
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-cyan'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -1595,13 +1595,13 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
                 <Square className="w-4 h-4" />
               </button>
 
-              <div className="w-4 h-[1px] bg-slate-800 my-0.5" />
+              <div className="shrink-0 w-4 h-[1px] bg-slate-800" />
 
               {/* 10. Long Position Tool (R:R) */}
               <button
                 onClick={() => { setActiveTool('long_position'); setCurrentStart(null); }}
                 title="Poziție Long (Target Verde, Stop Loss Roșu & Raport Risc:Recompensă)"
-                className={`p-1.5 sm:p-2 rounded-lg transition-all ${
+                className={`flex flex-1 min-h-0 max-h-12 w-8 sm:w-9 items-center justify-center rounded-lg transition-all ${
                   activeTool === 'long_position'
                     ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-glow-emerald'
                     : 'text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10'
@@ -1614,7 +1614,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
               <button
                 onClick={() => { setActiveTool('short_position'); setCurrentStart(null); }}
                 title="Poziție Short (Target Verde, Stop Loss Roșu & Raport Risc:Recompensă)"
-                className={`p-1.5 sm:p-2 rounded-lg transition-all ${
+                className={`flex flex-1 min-h-0 max-h-12 w-8 sm:w-9 items-center justify-center rounded-lg transition-all ${
                   activeTool === 'short_position'
                     ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-glow-ruby'
                     : 'text-slate-400 hover:text-rose-400 hover:bg-rose-500/10'
@@ -1623,14 +1623,14 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
                 <ArrowDownCircle className="w-4 h-4" />
               </button>
 
-              <div className="w-4 h-[1px] bg-slate-800 my-0.5" />
+              <div className="shrink-0 w-4 h-[1px] bg-slate-800" />
 
               {/* Undo Last Drawing */}
               <button
                 onClick={handleUndo}
                 disabled={drawings.length === 0}
                 title="Anulează ultimul desen (Undo)"
-                className="p-1.5 sm:p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                className="flex flex-1 min-h-0 max-h-12 w-8 sm:w-9 items-center justify-center rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
               >
                 <Undo2 className="w-4 h-4" />
               </button>
@@ -1640,7 +1640,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="⚠�
                 onClick={handleClearAll}
                 disabled={drawings.length === 0}
                 title="Șterge toate desenele"
-                className="p-1.5 sm:p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                className="flex flex-1 min-h-0 max-h-12 w-8 sm:w-9 items-center justify-center rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
               >
                 <Trash2 className="w-4 h-4" />
               </button>

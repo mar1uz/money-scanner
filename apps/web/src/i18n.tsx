@@ -146,7 +146,7 @@ export const BASE_PAIRS: Array<[string, string]> = [
   ['Detectează Daily bearish sub SMA 50 în Weekly bullish și Daily bullish peste SMA 50 în Weekly bearish.', 'Detects bearish Daily below SMA 50 in a bullish Weekly regime and bullish Daily above SMA 50 in a bearish Weekly regime.'],
   ['Progresul este normalizat cu ATR până la Marginea Nor Slow, nivelul care confirmă flipul.', 'Progress is ATR-normalized to the Slow Cloud Edge, the level that confirms the flip.'],
   ['Nivelurile sunt snapshot-ul calculat când alerta a fost trimisă; nu se modifică ulterior.', 'Levels are the snapshot calculated when the alert was sent; they do not change afterward.'],
-  ['Deschide un asset, alege timeframe-ul și apasă „Alertă plan”. Aplicația îl va monitoriza automat.', 'Open an asset, choose the timeframe and press “Plan alert”. The app will monitor it automatically.'],
+  ['Alertele active vor apărea aici.', 'Active alerts will appear here.'],
   ['Istoricul se va popula după prima alertă MoneyLine declanșată.', 'History will populate after the first triggered MoneyLine alert.'],
   ['Flip bullish confirmat; alerta așteaptă următorul ciclu.', 'Bullish flip confirmed; the alert is waiting for the next cycle.'],
   ['trebuie să se închidă lumânarea.', 'the candle must close.'],
