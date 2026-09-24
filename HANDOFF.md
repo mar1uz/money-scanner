@@ -4564,3 +4564,12 @@ Scaling review (save/restore):
 - Overview, scanner and narratives load concurrently and each section renders when ready. The fast overview no longer waits for the entire scanner; scanner/narratives no longer repeat the same calculation.
 - Verification: API/web builds pass; 8 targeted API tests pass (including AppState wiring, forced scheduled refresh, expiry, concurrency, scope separation, failure retry and scheduler auth). Web component suite: 78/82, with the same four pre-existing PONS/DEX assertions recorded in Steps 147-148; no changed code in those components. Seven i18n tests pass. Local production-browser smoke with mocked APIs confirms overview renders before a delayed scanner, unopened tabs are not downloaded, Top Alpha crypto/stocks and return navigation work, and missing chunks show Reload app. Mobile viewport 390x844 has no overflow or browser errors. Live authenticated performance remains to be measured after deployment.
 - Confirmed before deployment: money-scanner-cache-warmer is ENABLED on * * * * *, targeting /api/scanner/warm. Deployment pending.
+
+## Step 153 - 2026-09-24 - Market cap on every card, inline grey subtitle text (deployed)
+Marius (WhatsApp 19:12): every card (crypto, stocks, metals) should show market cap. He rejected a full-width MC tile mockup (19:33) and asked for the stock-card subtitle style "Salesforce · MC $195.53B · Technology" everywhere. OK + "Deploy" at 19:55; Top Alpha stays as is (crypto keeps its big MARKET CAP tile next to TVL).
+- Shared helper `mcInline()` in StockBqBlocks.tsx: "MC $X", or "MC —" when there is no verified value.
+- Top Alpha: crypto card subtitle "Name · MC $X"; stock subtitle unchanged except missing -> "MC —".
+- Alerts: `resolveCardMarketCap` (crypto = four-criteria CoinGecko MC, fallback scanner row; stocks = stock BQ scan Yahoo MC; metals = undefined) + `CardMarketCapLine` under the ticker on flip candidate, confirmed flip and active alert cards (stocks add the sector; the duplicate MC/sector line in the stock fundamentals box was removed). SMA50+200 cards: "MC $X · Confirmare: ...".
+- AI Briefing: crypto 4-criteria and stock 6-criteria list cards show "Name · MC $X".
+- Metals: "MC —" everywhere (no honest live source; static catalog numbers not used). Open: Marius to pick (a) live estimate or (b) remove static numbers from Scanner table/heat map.
+- Commits 0a809c6 (tile version) + 84aabed (inline, tiles removed). tsc clean; web suites 57/57.
