@@ -4535,3 +4535,18 @@ Downstream effect: after deploy, the Alerts "Top 20 aproape de flip" list and co
 Verification: `tsc --noEmit` clean; API suite 205/206 (the 1 failure is the live-data stock Business Quality test "Expected at least 4 verified sources", CoinGecko/Yahoo HTTP 429s, unrelated). Stubbed-data check: automated set fetched 1d,1w only and returned 1d,1w; default fetched and returned 4h,8h,1d,1w.
 
 Deploy: HELD. The Cloud Run changes (scheduled regime scan, in-process timer, structure scanner) take effect only after a deploy; until then production keeps scanning 4H/8H at 08:00 and every 4h (structure scanner).
+
+## Step 150 - 2026-09-24 - Fix: confirmed flips truncated on restore (1W bullish crypto 47 -> 5); deployed with Step 149
+Report from Marius 16:45: Alerts > confirmed flips, 1W + BULLISH + Crypto showed "5 confirmate".
+- Ground truth: the active Firestore run (operations/daily-regime-scan, run 1790227739047-rnabw5, 08:28 CEST scan) holds 915 confirmed flips, 47 of them 1W BULLISH crypto (23 Sep: 41). No data was lost.
+- Root cause: `restoreDailyRegimeState` (schema v2) keyed segments by `kind:group`. A group with more than 80 items is written as several segments (confirmed-crypto-1w-001, -002), so the last chunk overwrote the earlier ones on load. crypto-1w passed 80 for the first time today (102), so the API served 595/915 flips and 5/47 1W bull crypto. The same bug hit crypto-1d (139), crypto-4h/8h (135-138), crypto-1w candidates (84) and crypto coverage. Not caused by Step 148 or Step 149.
+- Fix: key each segment by its own id (`kind:group:segmentId`). Checked against live Firestore with the same restore code: before 595 / 5, after 915 / 47. tsc clean; API suite 205/206 (same unrelated live-data stock BQ test).
+- Deploy: Cloud Build a555c967-dc7b-4bc8-b03c-67f02ee63a7f from d2038a9 (includes Step 149 6743719): SUCCESS; revision market-scanner-360-00276-jj9 at 100%. /api/health 200. The signed-in Alerts view could not be checked from automation (login gate).
+- Step 149 is now live: the scheduled regime scan (Cloud Scheduler + 08:00 timer) is 1D/1W only, the structure scanner is Daily-close/1D only, and manual scans keep 4H/8H.
+
+Scaling review (save/restore):
+- Loading uses a manifest: the run doc lists every segmentId and all of them are read in parallel. There is no fixed chunk count.
+- Size: about 600 B per confirmed flip, so an 80-item segment is about 48 KB (the Firestore limit is 1 MB per doc). The manifest is about 30 ids today and about 120 at 10x. Writes are batched at 450.
+- Reads per restore: 2 + segment count (about 30 today, about 60 at 2x, about 120 at 10x). Restore runs at most every 30 s per instance while someone has the dashboard open. Local restore of the full state took about 1.7 s.
+- Real limit: `mergeConfirmedFlips` caps confirmedFlips at 1000, newest first. Today there are 915, and the natural maximum is about universe x 4 timeframes (277 x 4 = 1108). Once the cap is hit, the oldest flips drop first, which are old 1W flips like TRX (May 2023). Needs changing: raise the cap (the list is already one per asset/timeframe) or cap per timeframe. Not changed yet.
+- Also: flips for assets that leave the scan universe (CoinGecko top-150 flip universe) are removed on every scheduled scan (`activeKeys` filter), so the count can drop when rankings shift.
