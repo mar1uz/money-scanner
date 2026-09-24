@@ -1514,7 +1514,11 @@ export class AppState {
         const values = new Map<string, unknown[]>();
         segments.forEach(segment => {
           const data = segment.data();
-          if (data?.kind && Array.isArray(data.items)) values.set(`${data.kind}:${data.group || ''}`, data.items);
+          // Key by segment id: a group with more than 80 items is split into
+          // several segments (confirmed-crypto-1w-001, -002, ...). Keying by
+          // kind+group alone let the last chunk overwrite the others, so large
+          // groups were silently truncated on restore (fixed 2026-09-24).
+          if (data?.kind && Array.isArray(data.items)) values.set(`${data.kind}:${data.group || ''}:${segment.id}`, data.items);
         });
         const collect = (kind: string) => Array.from(values.entries())
           .filter(([key]) => key.startsWith(`${kind}:`))
