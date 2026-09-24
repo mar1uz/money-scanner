@@ -38,7 +38,7 @@ import {
   setBullishAlert
 } from '../services/api.js';
 import { translateText, useLanguage } from '../i18n.js';
-import { StockBqChips, StockBqTiles, MarketCapTile } from './StockBqBlocks.js';
+import { StockBqChips, StockBqTiles, mcInline } from './StockBqBlocks.js';
 
 interface AlertsCenterViewProps {
   knownAssets: AssetScannerRow[];
@@ -117,10 +117,11 @@ const useStockScanAssets = (): Map<string, StockBusinessQualityAsset> => {
   return map;
 };
 
-// Market cap on every Alerts card (Marius, 2026-09-24). Real sources only:
+// Market cap on every Alerts card (Marius, 2026-09-24), inline grey text
+// under the ticker like the stock-card subtitle. Real sources only:
 // crypto = CoinGecko market cap from the four-criteria scan (fallback: the
 // live scanner row), stocks = Yahoo market cap from the stock BQ scan,
-// metals = no verified source, so the card shows the em dash.
+// metals = no verified source, so "MC \u2014".
 const resolveCardMarketCap = (
   marketClass: string | undefined,
   symbol: string,
@@ -137,19 +138,22 @@ const resolveCardMarketCap = (
   return undefined;
 };
 
-// Full-width on mobile so the rest of the 2-column tile grid stays even.
-const CardMarketCap: React.FC<{ value?: number }> = ({ value }) => (
-  <MarketCapTile value={value} compact className="col-span-2 sm:col-span-1" />
-);
+const CardMarketCapLine: React.FC<{ value?: number; sector?: string }> = ({ value, sector }) => {
+  const { language } = useLanguage();
+  return (
+    <div className="mt-0.5 text-[10px] text-slate-500 truncate">
+      {mcInline(value)}{sector ? ` · ${translateText(sector, language)}` : ''}
+    </div>
+  );
+};
 
 // Full Top Alpha stock-card info set on Alerts stock cards (Marius, 2026-09-24):
-// MC + sector subtitle, the 6 criteria chips, and the metric tiles with P/R and
+// the 6 criteria chips (MC + sector now sit inline under the ticker), and the metric tiles with P/R and
 // P/E combined in one highlighted tile. Alert-specific data stays first.
 const StockFundamentalsSection: React.FC<{ asset: StockBusinessQualityAsset }> = ({ asset }) => {
   const { language } = useLanguage();
   return (
     <div className="mt-3 rounded-xl border border-white/[0.06] bg-white/[0.015] p-2.5">
-      {asset.sector ? <div className="text-[10px] text-slate-500">{translateText(asset.sector, language)}</div> : null}
       <StockBqChips asset={asset} language={language} />
       <StockBqTiles asset={asset} language={language} combinedPePr />
     </div>
@@ -1285,7 +1289,7 @@ const DailySmaSignalCard: React.FC<{ result: DailySmaReclaimResult; marketCap?: 
   const signal = result.signal!;
   const dailyMl = signal.dailyMoneyLine;
   const weeklyMl = signal.weeklyMoneyLine;
-  return <article className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.05] p-4"><div className="flex items-start justify-between gap-3"><button type="button" onClick={onOpen} className="min-w-0 text-left"><div className="flex flex-wrap items-center gap-2"><strong className="font-mono text-lg text-white">${result.symbol}</strong><span className="truncate text-xs font-semibold text-slate-300">{result.name}</span><span className="rounded border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-200">{result.rank ? `CoinGecko #${result.rank}` : 'CoinGecko —'}</span></div><div className="mt-1 text-[10px] text-slate-500">Confirmare: {reportDate(result.analyzedDay)}</div></button><span className="rounded border border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-300">▲ SEMNAL NOU</span></div><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4"><CardMarketCap value={marketCap} /><LevelBox label="Închidere confirmare" value={formatPrice(signal.confirmationPrice)} tone="emerald" /><LevelBox label="Preț curent" value={formatPrice(result.currentPrice)} tone="cyan" /><LevelBox label="SMA 50 / 200" value={`${formatPrice(signal.sma50)} / ${formatPrice(signal.sma200)}`} tone="slate" /><LevelBox label="Distanță media superioară" value={formatSmaDistance(signal.distanceToUpperSmaAtr)} tone={signal.distanceLabel === 'EXTENDED' ? 'amber' : 'cyan'} /></div><div className="mt-3 flex flex-wrap gap-1.5 text-[9px] font-bold uppercase tracking-wide"><span className={`rounded border px-2 py-1 ${signal.rvolHighlighted ? 'border-amber-500/30 bg-amber-500/10 text-amber-200' : 'border-white/[0.07] text-slate-500'}`}>RVOL {signal.rvol?.toFixed(2) ?? 'indisponibil'}x</span><span className="rounded border border-white/[0.07] px-2 py-1 text-slate-500">SMA50 {signal.sma50Direction.toLowerCase()}</span><span className="rounded border border-white/[0.07] px-2 py-1 text-slate-500">SMA200 {signal.sma200Direction.toLowerCase()}</span><span className={`rounded border px-2 py-1 ${dailyMl.bullish ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300' : 'border-white/[0.07] text-slate-500'}`}>ML 1D {dailyMl.bullish ? 'bullish' : 'indisponibil/nebullish'}</span><span className={`rounded border px-2 py-1 ${weeklyMl?.bullish ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300' : 'border-white/[0.07] text-slate-500'}`}>ML 1W {weeklyMl?.bullish ? 'bullish' : 'indisponibil/nebullish'}</span></div><button type="button" onClick={onOpen} className="mt-3 flex w-full items-center justify-between border-t border-white/[0.06] pt-3 text-[11px] font-semibold text-cyan-300">Deschide graficul <ChevronRight className="h-3.5 w-3.5" /></button></article>;
+  return <article className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.05] p-4"><div className="flex items-start justify-between gap-3"><button type="button" onClick={onOpen} className="min-w-0 text-left"><div className="flex flex-wrap items-center gap-2"><strong className="font-mono text-lg text-white">${result.symbol}</strong><span className="truncate text-xs font-semibold text-slate-300">{result.name}</span><span className="rounded border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-200">{result.rank ? `CoinGecko #${result.rank}` : 'CoinGecko —'}</span></div><div className="mt-1 text-[10px] text-slate-500">{mcInline(marketCap)} · Confirmare: {reportDate(result.analyzedDay)}</div></button><span className="rounded border border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-300">▲ SEMNAL NOU</span></div><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4"><LevelBox label="Închidere confirmare" value={formatPrice(signal.confirmationPrice)} tone="emerald" /><LevelBox label="Preț curent" value={formatPrice(result.currentPrice)} tone="cyan" /><LevelBox label="SMA 50 / 200" value={`${formatPrice(signal.sma50)} / ${formatPrice(signal.sma200)}`} tone="slate" /><LevelBox label="Distanță media superioară" value={formatSmaDistance(signal.distanceToUpperSmaAtr)} tone={signal.distanceLabel === 'EXTENDED' ? 'amber' : 'cyan'} /></div><div className="mt-3 flex flex-wrap gap-1.5 text-[9px] font-bold uppercase tracking-wide"><span className={`rounded border px-2 py-1 ${signal.rvolHighlighted ? 'border-amber-500/30 bg-amber-500/10 text-amber-200' : 'border-white/[0.07] text-slate-500'}`}>RVOL {signal.rvol?.toFixed(2) ?? 'indisponibil'}x</span><span className="rounded border border-white/[0.07] px-2 py-1 text-slate-500">SMA50 {signal.sma50Direction.toLowerCase()}</span><span className="rounded border border-white/[0.07] px-2 py-1 text-slate-500">SMA200 {signal.sma200Direction.toLowerCase()}</span><span className={`rounded border px-2 py-1 ${dailyMl.bullish ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300' : 'border-white/[0.07] text-slate-500'}`}>ML 1D {dailyMl.bullish ? 'bullish' : 'indisponibil/nebullish'}</span><span className={`rounded border px-2 py-1 ${weeklyMl?.bullish ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300' : 'border-white/[0.07] text-slate-500'}`}>ML 1W {weeklyMl?.bullish ? 'bullish' : 'indisponibil/nebullish'}</span></div><button type="button" onClick={onOpen} className="mt-3 flex w-full items-center justify-between border-t border-white/[0.06] pt-3 text-[11px] font-semibold text-cyan-300">Deschide graficul <ChevronRight className="h-3.5 w-3.5" /></button></article>;
 };
 
 const reportDate = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString(dateLocale(), { dateStyle: 'medium' });
@@ -1370,6 +1374,7 @@ const FlipCandidateCard: React.FC<{
                 <span className="rounded-md border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-cyan-300">{candidate.timeframe.toUpperCase()}</span>
                 <span className="rounded-md border border-white/[0.07] bg-white/[0.03] px-1.5 py-0.5 text-[9px] uppercase text-slate-500">{candidate.marketClass}</span>
               </div>
+              <CardMarketCapLine value={marketCap} sector={stockAsset?.sector} />
               <div className={`mt-1 text-[11px] font-semibold ${statusTone}`}>{statusLabel}</div>
             </div>
           </button>
@@ -1396,7 +1401,6 @@ const FlipCandidateCard: React.FC<{
 
         {candidate.status === 'CONFIRMED' ? (
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <CardMarketCap value={marketCap} />
             <LevelBox label="Închidere flip" value={formatPrice(confirmationPrice)} tone={bullish ? 'emerald' : 'rose'} />
             <LevelBox label="Preț acum" value={formatPrice(candidate.currentPrice)} tone="cyan" />
             <LevelBox label="Față de flip" value={moveFromFlipLabel} tone={moveFromFlip >= 0 ? 'emerald' : 'rose'} />
@@ -1407,7 +1411,6 @@ const FlipCandidateCard: React.FC<{
           </div>
         ) : (
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <CardMarketCap value={marketCap} />
             <LevelBox label="Preț acum" value={formatPrice(candidate.currentPrice)} tone="slate" />
             <LevelBox label={`${bullish ? 'Peste' : 'Sub'} Slow`} value={formatPrice(candidate.triggerPrice)} tone={bullish ? 'emerald' : 'rose'} />
             <LevelBox label="ML 1W" value={`${candidate.weeklyTier} · ${candidate.weeklyScore > 0 ? '+' : ''}${candidate.weeklyScore}`} tone={candidate.weeklyAligned ? (bullish ? 'emerald' : 'rose') : 'slate'} />
@@ -1491,6 +1494,7 @@ const ConfirmedFlipCard: React.FC<{
               <span className="rounded-md border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-cyan-300">{candidate.timeframe.toUpperCase()}</span>
               <span className="rounded-md border border-white/[0.07] bg-white/[0.03] px-1.5 py-0.5 text-[9px] uppercase text-slate-500">{candidate.marketClass}</span>
             </div>
+            <CardMarketCapLine value={marketCap} sector={stockAsset?.sector} />
             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500"><Clock3 className="h-3 w-3 shrink-0" /> Confirmat {formatRelativeAge(confirmedAtTimestamp)} · {formatDate(confirmedAtTimestamp)}</div>
           </div>
         </button>
@@ -1505,7 +1509,6 @@ const ConfirmedFlipCard: React.FC<{
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <CardMarketCap value={marketCap} />
         <LevelBox label="Închidere flip" value={formatPrice(confirmationPrice)} tone={bullish ? 'emerald' : 'rose'} />
         <LevelBox label="Preț actual" value={formatPrice(candidate.currentPrice)} tone="cyan" />
         <LevelBox label="Față de flip" value={moveFromFlipLabel} tone={moveFromFlip >= 0 ? 'emerald' : 'rose'} />
@@ -1544,6 +1547,7 @@ const ActiveAlertCard: React.FC<{ alert: ActiveAlertDashboardItem; removing: boo
             <span className="rounded-md border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-cyan-300">{alert.timeframe.toUpperCase()}</span>
             <span className="rounded-md border border-white/[0.07] bg-white/[0.03] px-1.5 py-0.5 text-[9px] uppercase text-slate-500">{alert.marketClass}</span>
           </div>
+          <CardMarketCapLine value={marketCap} sector={stockAsset?.sector} />
           <div className="mt-1 text-[11px] text-slate-500">ML {alert.moneyLineTier || '—'} {alert.moneyLineScore !== undefined ? `(${alert.moneyLineScore > 0 ? '+' : ''}${alert.moneyLineScore})` : ''}</div>
         </button>
         <div className="flex items-center gap-2">
@@ -1578,7 +1582,6 @@ const ActiveAlertCard: React.FC<{ alert: ActiveAlertDashboardItem; removing: boo
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <CardMarketCap value={marketCap} />
         <LevelBox label="Preț acum" value={formatPrice(alert.currentPrice)} tone="slate" />
         <LevelBox label="Trigger Slow" value={formatPrice(alert.triggerPrice)} tone="cyan" />
         <LevelBox label="Fast" value={alert.fastBullish ? 'Bullish' : 'Bearish'} tone={alert.fastBullish ? 'emerald' : 'rose'} />

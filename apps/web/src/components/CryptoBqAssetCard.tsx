@@ -4,6 +4,7 @@ import { Activity, Network, Banknote, HandCoins, Scale, Coins } from 'lucide-rea
 import type { CryptoCriteriaStatus, CryptoFourCriteriaAsset, CryptoUndervaluedEntry } from '@money-scanner/shared';
 import { computePriceToRevenue, formatPriceToRevenue } from '../services/crypto-fundamentals.js';
 import { NarrativeTag } from './NarrativeTag.js';
+import { mcInline } from './StockBqBlocks.js';
 
 const chipTone = (status: CryptoCriteriaStatus): string =>
   status === 'pass'
@@ -100,7 +101,7 @@ export const CryptoBqAssetCard: React.FC<{
                 </span>
               )}
             </div>
-            <span className="block text-[10px] text-slate-500 truncate"><bdi translate="no">{asset.name}</bdi></span>
+            <span className="block text-[10px] text-slate-500 truncate"><bdi translate="no">{asset.name}</bdi> · {mcInline(asset.marketCap)}</span>
           </div>
         </div>
         <div className="text-right" title={isRo ? 'Scor intern: pass = 25, watch = 12, fail/necunoscut = 0. Nu este probabilitate sau randament.' : 'Internal score: pass = 25, watch = 12, fail/unknown = 0. Not a probability or return.'}>
