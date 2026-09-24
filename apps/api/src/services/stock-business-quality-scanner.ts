@@ -1021,8 +1021,9 @@ export function buildStockBusinessQualityScan(options?: StockScannerOptions): St
       dividendYield: merged.dividendYield ?? 0.8,
       buybackYield: merged.buybackYield ?? 1.0,
       trailingPE: merged.trailingPE ?? 28,
-      forwardPE: merged.forwardPE ?? 22,
-      pegRatio: merged.pegRatio ?? 1.6,
+      // No fabricated defaults (Marius, 2026-09-24): missing PEG / Forward P/E stay undefined -> N/A
+      forwardPE: merged.forwardPE,
+      pegRatio: merged.pegRatio,
       // No fabricated default: without real data the P/R criterion reports 'unknown'
       priceToSales: merged.priceToSales,
       evToEbitda: merged.evToEbitda ?? 16.0,
@@ -1147,25 +1148,31 @@ export function buildStockBusinessQualityScan(options?: StockScannerOptions): St
           : `Cash flow negativ (cash burn); compania depinde de finanțare externă sau diluare.`
     );
 
-    // 6. Valuation & Moat / PEG Criterion
-    const peg = metrics.pegRatio ?? 2.0;
-    const forwardPe = metrics.forwardPE ?? 25;
+    // 6. Valuation & Moat / PEG Criterion - real values only; with neither PEG nor
+    // Forward P/E the criterion is 'unknown' (0 points), like P/R (Marius, 2026-09-24).
+    const realPeg = typeof metrics.pegRatio === 'number' && Number.isFinite(metrics.pegRatio) && metrics.pegRatio > 0 ? metrics.pegRatio : undefined;
+    const realFwdPe = typeof metrics.forwardPE === 'number' && Number.isFinite(metrics.forwardPE) && metrics.forwardPE > 0 ? metrics.forwardPE : undefined;
+    const fmtVal = (v: number | undefined) => (v === undefined ? 'N/A' : formatRatio(v, ''));
     const valuationStatus: StockCriteriaStatus =
-      (peg <= 2.0 && peg > 0) || forwardPe <= 25
-        ? 'pass'
-        : peg <= 3.5 || forwardPe <= 45
-          ? 'watch'
-          : 'fail';
+      realPeg === undefined && realFwdPe === undefined
+        ? 'unknown'
+        : (realPeg !== undefined && realPeg <= 2.0) || (realFwdPe !== undefined && realFwdPe <= 25)
+          ? 'pass'
+          : (realPeg !== undefined && realPeg <= 3.5) || (realFwdPe !== undefined && realFwdPe <= 45)
+            ? 'watch'
+            : 'fail';
 
     const valuation = criterion(
       valuationStatus,
       'Evaluare & Moat (PEG)',
-      `PEG: ${formatRatio(peg, '')} | Forward P/E: ${formatRatio(forwardPe, '')}`,
+      `PEG: ${fmtVal(realPeg)} | Forward P/E: ${fmtVal(realFwdPe)}`,
       valuationStatus === 'pass'
-        ? `Evaluare atractivă sau echitabilă raportată la ritmul de creștere (PEG ${formatRatio(peg, '')}, Forward P/E ${formatRatio(forwardPe, '')}).`
+        ? `Evaluare atractivă sau echitabilă raportată la ritmul de creștere (PEG ${fmtVal(realPeg)}, Forward P/E ${fmtVal(realFwdPe)}).`
         : valuationStatus === 'watch'
-          ? `Evaluare cu primă de creștere (Forward P/E ${formatRatio(forwardPe, '')}); piața include așteptări mari de execuție.`
-          : `Evaluare extinsă sau raport PEG dezechilibrat (${formatRatio(peg, '')}).`
+          ? `Evaluare cu primă de creștere (Forward P/E ${fmtVal(realFwdPe)}); piața include așteptări mari de execuție.`
+          : valuationStatus === 'fail'
+            ? `Evaluare extinsă sau raport PEG dezechilibrat (${fmtVal(realPeg)}).`
+            : 'Date insuficiente pentru evaluare (PEG / Forward P/E).'
     );
 
     // Display-only tiles (Marius, 2026-09-24): Solvency back next to P/R, plus a
@@ -1279,7 +1286,7 @@ export function buildStockBusinessQualityScan(options?: StockScannerOptions): St
       aiVerdict = 'Solid Quality';
       aiVerdictLabelRo = 'Creștere & Cash Flow';
       aiThesis = `$${symbol} combină creșterea accelerată a veniturilor (${formatPercent(revGrowth)}) cu un flux de numerar liber pozitiv (${formatUsd(fcf)}).`;
-    } else if (divYield >= 1.5 && deRatio <= 1.5 && (forwardPe <= 25 || peg <= 2.5)) {
+    } else if (divYield >= 1.5 && deRatio <= 1.5 && ((realFwdPe !== undefined && realFwdPe <= 25) || (realPeg !== undefined && realPeg <= 2.5))) {
       classification = 'dividend-value';
       aiVerdict = 'Solid Quality';
       aiVerdictLabelRo = 'Valoare & Dividende';
@@ -1296,6 +1303,27 @@ export function buildStockBusinessQualityScan(options?: StockScannerOptions): St
       aiThesis = `$${symbol} are un profil fundamental echilibrat cu profitabilitate stabilă și risc moderat.`;
     }
 
+    // Honest ETF / no-fundamentals handling (Marius, 2026-09-24): index funds and any
+    // asset without real company financials must not be scored from code proxies.
+    // Company-level criteria become 'unknown' (N/A), score 0, verdict "Insufficient Data".
+    const hasFundamentals =
+      merged.netMargin !== undefined || merged.operatingMargin !== undefined || merged.roe !== undefined;
+    let finalPassed = passedCriteria;
+    if (!hasFundamentals) {
+      const na = 'Date insuficiente: fără date financiare de companie (ETF / indice).';
+      for (const c of [profitability, capitalEfficiency, growth, freeCashFlow, valuation, priceToRevenue]) {
+        c.status = 'unknown';
+        c.value = 'N/A';
+        c.explanation = na;
+      }
+      score = 0;
+      finalPassed = 0;
+      classification = 'insufficient-data';
+      aiVerdict = 'Insufficient Data';
+      aiVerdictLabelRo = 'Date insuficiente';
+      aiThesis = `$${symbol} nu are date financiare de companie (marje, ROE, creștere, FCF), deci nu primește scor de calitate.`;
+    }
+
     return {
       id: symbol.toLowerCase(),
       symbol,
@@ -1305,7 +1333,7 @@ export function buildStockBusinessQualityScan(options?: StockScannerOptions): St
       marketCapRank: index + 1,
       price,
       score,
-      passedCriteria,
+      passedCriteria: finalPassed,
       classification,
       aiVerdict,
       aiVerdictLabelRo,

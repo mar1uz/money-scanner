@@ -4470,3 +4470,13 @@ Requested by Marius on WhatsApp, 24 Sep 10:27 ("pune încă 2 elemente pe fiecar
 - i18n: EN pairs for the Solvency / P/E labels and explanations.
 - Sample (local scan 24 Sep 12:53): NVDA D/E 0.17 CR 4.59, P/E 28.9 fwd 14.4; TSM D/E 0.17 CR 2.46, P/E 33.2 fwd 20.4; META D/E 0.43 CR 2.23, P/E 28.0 fwd 21.3; MCD D/E N/A (negative equity) CR 1.08, P/E 20.3 fwd 17.1; NKE D/E 0.74 CR 1.96, P/E 17.2 fwd 16.4. Solvency unknown on 10/83 (mostly ETFs), P/E unknown on 3/83.
 - Open, not changed: the Valuation criterion still falls back to PEG 1.6 / Forward P/E 22 when Yahoo has no value (ETFs such as VOO show PEG 1.60); fixing it changes ETF scores, so it needs Marius's call. Sector names such as "Energie & Petrol" still show in Romanian on EN cards.
+
+## Step 146 - 2026-09-24 - Honest N/A instead of fabricated valuation / ETF data; EN sector names (local, deployed with the combined deploy)
+
+Marius does not want invented numbers on cards.
+- Scanner: removed the code defaults for `forwardPE` (22) and `pegRatio` (1.60). Missing values stay undefined and render N/A. When both are missing, the Valuation criterion is 'unknown' (0 points), with the text "Date insuficiente pentru evaluare (PEG / Forward P/E)." / "Insufficient data for valuation (PEG / Forward P/E)." The dividend-value classification only uses a real Forward P/E / PEG.
+- ETFs and any asset without company financials (no net margin, operating margin or ROE from Yahoo/curated data) are no longer scored from sector proxies (the old +10% margin, +8% growth, FCF = 3% of MC, etc.). Profitability, Capital, Growth, P/R, FCF and Valuation are 'unknown' / N/A, score 0, 0/6, classification `insufficient-data`, verdict "Insufficient Data" / "Date insuficiente", plus an EN+RO thesis. This affects the 10 index ETFs (VOO, IVV, VTI, SPY, QQQ, VEA, VWO, IWM, VT, DIA). The other 73 stocks are unchanged. Solvency and P/E still show only real data (e.g. VOO P/E 24.9 from Yahoo).
+- Shared type: `aiVerdict` gains 'Insufficient Data'.
+- EN sector names: TopAlphaView, AIBriefingView and StockBusinessQualityCard now pass `asset.sector` through `translateText`. i18n pairs added: Chips & Siliciu -> Chips & Silicon, Energie & Petrol -> Energy & Oil, Indici & ETF-uri -> Indices & ETFs.
+- Whole-word chips (Step 145, STOCK_CHIP_SHORT) confirmed at 390px: PROFIT, CAPITAL, GROWTH, P/R, FCF, VALUE.
+- Verified locally at 390px EN: GOOGL/EOG cards with whole chips, EOG shows "Energy & Oil", and VOO shows Insufficient Data with every company criterion at N/A.

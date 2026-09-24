@@ -327,7 +327,7 @@ export interface StockBusinessQualityAsset {
   score: number; // 0 to 100
   passedCriteria: number; // 0 to 6
   classification: 'top-pick' | 'all-passed' | 'high-profitability' | 'growth-fcf' | 'dividend-value' | 'partial' | 'insufficient-data';
-  aiVerdict: 'Top AI Pick' | 'Solid Quality' | 'Watchlist' | 'High Risk';
+  aiVerdict: 'Top AI Pick' | 'Solid Quality' | 'Watchlist' | 'High Risk' | 'Insufficient Data';
   aiVerdictLabelRo: string;
   aiThesis: string;
   criteria: {

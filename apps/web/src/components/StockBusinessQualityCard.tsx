@@ -21,7 +21,7 @@ import type {
   StockCriteriaStatus
 } from '../types.js';
 import { fetchStockBusinessQualityScan } from '../services/api.js';
-import { useLanguage } from '../i18n.js';
+import { translateText, useLanguage } from '../i18n.js';
 
 /* ─────────────────────────────────────────────────────────
    Lookup helper — exported for unit-testing without DOM
@@ -220,7 +220,7 @@ export const StockBusinessQualityCard: React.FC<StockBusinessQualityCardProps> =
               </h3>
               {asset.sector && (
                 <span className="hidden sm:inline px-2 py-0.5 rounded-full text-[9px] font-mono bg-white/[0.04] border border-white/[0.08] text-slate-400">
-                  {asset.sector}
+                  {translateText(asset.sector, language)}
                 </span>
               )}
             </div>

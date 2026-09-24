@@ -17,7 +17,7 @@ import {
   fetchStockBusinessQualityScan,
   fetchMarketIntelligence
 } from '../services/api.js';
-import { useLanguage } from '../i18n.js';
+import { translateText, useLanguage } from '../i18n.js';
 import { AssetLink, useAssetNavigation } from './AssetNavigation.js';
 import {
   Sparkles,
@@ -637,7 +637,7 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
                             <span className="text-sm font-bold text-slate-100">${asset.symbol}</span>
                             {asset.sector && (
                               <span className="px-2 py-0.5 rounded-full text-[9px] font-mono bg-white/[0.04] border border-white/[0.08] text-slate-400">
-                                {asset.sector}
+                                {translateText(asset.sector, language)}
                               </span>
                             )}
                             <span className="text-[10px] font-mono text-slate-500">#{asset.marketCapRank}</span>

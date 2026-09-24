@@ -79,7 +79,7 @@ const StockBqCard: React.FC<{
                 <span className={`text-[10px] font-mono ${asset.criteria.growth.status === 'pass' ? 'text-emerald-300' : asset.criteria.growth.status === 'watch' ? 'text-amber-300' : 'text-rose-300'}`}>{asset.criteria.growth.value}</span>
               )}
             </div>
-            <span className="block text-[10px] text-slate-500 truncate"><bdi translate="no">{asset.name}</bdi> · MC {fmtUsd(asset.marketCap)}{asset.sector ? ` · ${asset.sector}` : ''}</span>
+            <span className="block text-[10px] text-slate-500 truncate"><bdi translate="no">{asset.name}</bdi> · MC {fmtUsd(asset.marketCap)}{asset.sector ? ` · ${translateText(asset.sector, language)}` : ''}</span>
           </div>
         </div>
         <div className="text-right">
