@@ -6,52 +6,9 @@ import type { CryptoFourCriteriaAsset, CryptoFourCriteriaScan, StockBusinessQual
 import { translateText, useLanguage } from '../i18n.js';
 import { useAssetNavigation } from './AssetNavigation.js';
 import { CryptoBqAssetCard } from './CryptoBqAssetCard.js';
-
-const stockChipTone = (status: string): string =>
-  status === 'pass'
-    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
-    : status === 'watch'
-      ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
-      : status === 'fail'
-        ? 'border-rose-500/40 bg-rose-500/10 text-rose-300'
-        : 'border-white/[0.08] bg-white/[0.02] text-slate-500';
-
-const indexTone = (index: number): string =>
-  index >= 25 ? 'text-emerald-300' : index >= 0 ? 'text-cyan-300' : index >= -25 ? 'text-amber-300' : 'text-rose-300';
+import { STOCK_CRITERIA, STOCK_CHIP_SHORT, STOCK_EXTRA_TILES, stockChipTone, indexTone, fmtUsd } from './StockBqBlocks.js';
 
 type StockUndervaluedRow = { asset: StockBusinessQualityAsset; ratio: number; basis: string; index: number };
-
-const STOCK_CRITERIA: { key: keyof StockBusinessQualityAsset['criteria']; ro: string; en: string }[] = [
-  { key: 'profitability', ro: 'Profitabilitate', en: 'Profitability' },
-  { key: 'capitalEfficiency', ro: 'Eficien\u021ba capitalului', en: 'Capital efficiency' },
-  { key: 'growth', ro: 'Cre\u0219tere', en: 'Growth' },
-  { key: 'priceToRevenue', ro: 'Preț/Venituri', en: 'Price/Revenue' },
-  { key: 'freeCashFlow', ro: 'Flux de numerar liber', en: 'Free cash flow' },
-  { key: 'valuation', ro: 'Evaluare', en: 'Valuation' }
-];
-// Whole-word chip labels instead of an 8-char cut ("PROFITAB", "VALUATIO") - Marius, 2026-09-24 mobile audit.
-const STOCK_CHIP_SHORT: Partial<Record<keyof StockBusinessQualityAsset['criteria'], { ro: string; en: string }>> = {
-  profitability: { ro: 'PROFIT', en: 'PROFIT' },
-  capitalEfficiency: { ro: 'CAPITAL', en: 'CAPITAL' },
-  growth: { ro: 'CREȘTERE', en: 'GROWTH' },
-  priceToRevenue: { ro: 'P/R', en: 'P/R' },
-  freeCashFlow: { ro: 'FCF', en: 'FCF' },
-  valuation: { ro: 'EVALUARE', en: 'VALUE' },
-};
-// Display-only tiles (not scored, no chip): Solvency and P/E (Marius, 2026-09-24).
-const STOCK_EXTRA_TILES: { key: keyof StockBusinessQualityAsset['criteria']; ro: string; en: string }[] = [
-  { key: 'solvency', ro: 'Solvabilitate', en: 'Solvency' },
-  { key: 'peRatio', ro: 'P/E', en: 'P/E' },
-];
-
-const fmtUsd = (value?: number): string => {
-  if (value === undefined || !Number.isFinite(value) || value <= 0) return '';
-  if (value >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
-  if (value >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
-  if (value >= 1e6) return `$${(value / 1e6).toFixed(1)}M`;
-  if (value >= 1e3) return `$${(value / 1e3).toFixed(1)}K`;
-  return `$${value.toFixed(0)}`;
-};
 
 const StockBqCard: React.FC<{
   rank: number;

@@ -4495,3 +4495,21 @@ Marius does not want invented numbers on cards.
 - Added `keeps model narrative off by default`: fake key, flag unset -> zero fetch calls, mode `deterministic`.
 - Kept the Gemini quota-fallback test, now setting `MODEL_NARRATIVE=on` and restoring it.
 - No product code changed. `npm test -w packages/ai-analysis`: 7/7 pass (dist rebuilt; dist is untracked).
+
+## Step 148 - 2026-09-24 - Alerts stock cards: full Top Alpha fundamentals (combined highlighted P/R · P/E tile) + EN i18n sweep (local, deployed with the combined deploy)
+
+Requested by Marius on WhatsApp, 24 Sep 13:25-13:28: P/E and P/R on the Alerts flip cards, market cap too, then the full Top Alpha info set on every Alerts stock card ("toate informațiile care se găsesc și în Top Alpha"), with P/R and P/E in ONE tile highlighted in a different colour ("PR și PE să fie amândouă în aceeași căsuță și să fie toată căsuța de altă culoare"), plus fixing RO strings leaking in EN mode in the Alerts/history section.
+
+- NEW apps/web/src/components/StockBqBlocks.tsx: shared stock card blocks extracted from TopAlphaView - chip tone helpers, STOCK_CRITERIA, whole-word STOCK_CHIP_SHORT, STOCK_EXTRA_TILES, fmtUsd, StockBqChips, StockBqTiles with a `combinedPePr` option.
+- TopAlphaView.tsx: now imports those blocks; rendering unchanged (P/R and P/E stay separate tiles there).
+- AlertsCenterView.tsx: `useStockScanAssets()` fetches /api/ai/stock-business-quality once (module-level cache, same real Yahoo pipeline as Top Alpha - no fabricated defaults) and renders StockFundamentalsSection on FlipCandidateCard, ConfirmedFlipCard and ActiveAlertCard when marketClass is stocks and the symbol is in the scan: MC + translated sector subtitle, the 6 whole-word criteria chips, and the metric tiles. The combined P/R · P/E tile is one highlighted violet box (border-violet-500/50, bg-violet-500/14) with both values, N/A honest when missing. ETFs (VOO etc.) show MC N/A, greyed chips, N/A tiles. Alert-specific info (distance, prices, ML 1W, confluence) stays first; fundamentals render below it.
+- Flip cards are historical snapshots, so they show the latest fundamentals, same as Top Alpha.
+- i18n: 30+ new pairs in i18n-ui-dictionary-2.ts covering the remaining RO strings in the Alerts/history section ('de la flip' -> 'since flip', 'FLIPURI CONFIRMATE', 'confirmate', 'Implicit' -> 'Default', 1W aliniat/candidat/confirmat, 'Acoperire', 'Prioritate', 'Sortare', 'Ultimul SL/TP2', 'SEMNAL NOU', P/R tooltip, SMA reclaim labels, etc.). Also pairs for 5 pre-existing leaks in CoinPageChart/Header/Sidebar (language switcher labels, TradingView/GeckoTerminal chart descriptions) that predated this step - the i18n-coverage baseline guard failed on them before this change; baseline regenerated (shrank by 1).
+- Verified at 390px EN with mocked dashboard (tmp/alerts-shots.mjs): META confirmed card shows MC $1.45T + sector, chips, and the violet combined P/R · P/E tile; VOO candidate shows MC N/A + greyed chips + N/A tiles; crypto cards unchanged; no RO strings visible in EN mode.
+- Tests: i18n-coverage (baseline may only shrink), i18n, i18n-stock-bq, alerts-asset-name, alerts-candidate-market-class, alerts-confirmed-market-class, alerts-panel-persistence all pass; tsc --noEmit clean. Pre-existing, unrelated: 4 failures in crypto-market-only.test.ts (PONS chart/DEX, fail identically on the pristine tree).
+
+### Steps 147-148 combined deploy - 2026-09-24 14:07 CEST
+- Cloud Build 3c028b1c-b9ce-43fc-8e3a-992403ce4386 from 967aaa3: SUCCESS in 4m20s, image crypto-scanner-web:967aaa3 (project gen-lang-client-0610749770, region europe-west3).
+- Live revision market-scanner-360-00275-dh4 serving; bundle assets/index-CqRVnAwe.js contains the Step 148 strings: "P/R · P/E", "since flip", "CONFIRMED FLIPS", "Default", border-violet-500/50 (combined highlighted tile).
+- A signed-in visual check was not possible from automation because of the Google sign-in gate. Marius checks on his phone.
+- Note: gcloud needs the project ID, not the number - submit without --project (configured project) or use gen-lang-client-0610749770.
