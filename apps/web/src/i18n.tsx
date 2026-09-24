@@ -484,7 +484,51 @@ export const BASE_PAIRS: Array<[string, string]> = [
   ['Mai multă claritate. Mai puțin zgomot.', 'More clarity. Less noise.']
 ];
 
-export const ALL_PAIRS: Array<[string, string]> = [...BASE_PAIRS, ...UI_PAIRS, ...UI_PAIRS_2, ...CONTENT_PAIRS];
+// Stock Business Quality payload (apps/api stock-business-quality-scanner.ts)
+// is authored in Romanian; these pairs localise its criterion values,
+// explanations, theses, methodology and disclaimer when English is selected.
+export const STOCK_BQ_PAIRS: Array<[string, string]> = [
+  ["Marjă Netă: {} | Op: {}", "Net Margin: {} | Op: {}"],
+  ["Venituri: {} | EPS: {}", "Revenue: {} | EPS: {}"],
+  ["FCF: {} | Randament: {}", "FCF: {} | Yield: {}"],
+  ["Putere mare de stabilire a prețului: Marjă operațională {} și netă {} peste pragul de 10-15%.", "Strong pricing power: operating margin {} and net margin {} above the 10-15% threshold."],
+  ["Profitabil, dar marjele ({} net) sunt moderate sau sub presiune concurențială.", "Profitable, but margins ({} net) are moderate or under competitive pressure."],
+  ["Marje negative sau pierderi operaționale/nete.", "Negative margins or operating/net losses."],
+  ["Randament excelent al capitalului propriu (ROE {}), demonstrând alocare eficientă a capitalului și moat competitiv.", "Excellent return on equity (ROE {}), showing efficient capital allocation and a competitive moat."],
+  ["Randament mediu al capitalului propriu ({} ROE); performanță aliniată mediei sectoriale.", "Average return on equity ({} ROE); performance in line with the sector average."],
+  ["Randament scăzut sau distrugere de valoare pentru capitalul acționarilor.", "Low returns or value destruction for shareholders' equity."],
+  ["Accelerare robustă a veniturilor ({} YoY) și a profitului per acțiune ({}).", "Strong acceleration in revenue ({} YoY) and earnings per share ({})."],
+  ["Creștere moderată sau stabilă ({} YoY); companie matură.", "Moderate or steady growth ({} YoY); mature company."],
+  ["Contracție a veniturilor ({} YoY) sau scădere a profitabilității.", "Revenue contraction ({} YoY) or falling profitability."],
+  ["Bilanț solid (Debt/Equity {}, Rata Curentă {}, poziție Net Cash); risc minim de faliment/diluare.", "Solid balance sheet (Debt/Equity {}, Current Ratio {}, net cash position); minimal bankruptcy/dilution risk."],
+  ["Bilanț solid (Debt/Equity {}, Rata Curentă {}); risc minim de faliment/diluare.", "Solid balance sheet (Debt/Equity {}, Current Ratio {}); minimal bankruptcy/dilution risk."],
+  ["Grad moderat de îndatorare ({}); necesită monitorizarea ratelor dobânzilor.", "Moderate leverage ({}); interest rates need monitoring."],
+  ["Grad ridicat de îndatorare sau risc de lichiditate pe termen scurt.", "High leverage or short-term liquidity risk."],
+  ["Generare puternică de numerar liber ({} FCF) combinată cu returnare de capital (dividende {} + răscumpărări {}).", "Strong free cash flow generation ({} FCF) combined with capital returns (dividends {} + buybacks {})."],
+  ["Cash flow pozitiv ({}), dar distribuțiile către acționari sunt reduse sau reinvestite integral.", "Positive cash flow ({}), but shareholder payouts are small or fully reinvested."],
+  ["Cash flow negativ (cash burn); compania depinde de finanțare externă sau diluare.", "Negative cash flow (cash burn); the company depends on external financing or dilution."],
+  ["Evaluare atractivă sau echitabilă raportată la ritmul de creștere (PEG {}, Forward P/E {}).", "Attractive or fair valuation relative to growth (PEG {}, Forward P/E {})."],
+  ["Evaluare cu primă de creștere (Forward P/E {}); piața include așteptări mari de execuție.", "Valuation carries a growth premium (Forward P/E {}); the market prices in high execution expectations."],
+  ["Evaluare extinsă sau raport PEG dezechilibrat ({}).", "Stretched valuation or unbalanced PEG ratio ({})."],
+  ["{} este o acțiune de elită cu profitabilitate excepțională (Marjă netă {}), randament ridicat pe capital (ROE {}), bilanț fortăreață și generare masivă de Free Cash Flow ({}).", "{} is an elite stock with exceptional profitability (net margin {}), high return on capital (ROE {}), a fortress balance sheet and massive free cash flow ({})."],
+  ["{} îndeplinește toate cele 6 criterii fundamentale de profitabilitate, sănătate a bilanțului, creștere și evaluare echilibrată.", "{} meets all 6 fundamental criteria: profitability, balance-sheet health, growth and balanced valuation."],
+  ["{} se remarcă prin marje nete ({}) și eficiență a capitalului ({} ROE) de top în industrie.", "{} stands out with industry-leading net margins ({}) and capital efficiency ({} ROE)."],
+  ["{} combină creșterea accelerată a veniturilor ({}) cu un flux de numerar liber pozitiv ({}).", "{} combines accelerating revenue growth ({}) with positive free cash flow ({})."],
+  ["{} oferă un profil defensiv cu dividend sustenabil ({}), îndatorare redusă și evaluare conservatoare.", "{} offers a defensive profile with a sustainable dividend ({}), low leverage and a conservative valuation."],
+  ["{} prezintă vulnerabilități fundamentale: marje reduse/negative, grad mare de îndatorare sau evaluare supracumpărată.", "{} shows fundamental weaknesses: thin/negative margins, high leverage or a stretched valuation."],
+  ["{} are un profil fundamental echilibrat cu profitabilitate stabilă și risc moderat.", "{} has a balanced fundamental profile with stable profitability and moderate risk."],
+  ["De Urmărit", "Watch"],
+  ["Rapoarte 10-K/10-Q & date financiare verificate; snapshot 26h cu cache Firestore", "10-K/10-Q reports & verified financial data; 26h snapshot with Firestore cache"],
+  ["Profitabilitate & Marje: Marjă operațională ≥ 15% și marjă netă ≥ 10% dovedesc pricing power și profitabilitate robustă.", "Profitability & Margins: operating margin ≥ 15% and net margin ≥ 10% show pricing power and strong profitability."],
+  ["Eficiența Capitalului: ROE ≥ 15% sau ROA ≥ 8% confirmă generarea superioară de valoare din capitalul acționarilor.", "Capital Efficiency: ROE ≥ 15% or ROA ≥ 8% confirms superior value creation from shareholders' equity."],
+  ["Creștere Sustenabilă: Creștere venituri ≥ +8% YoY combinată cu extinderea profitului per acțiune (EPS).", "Sustainable Growth: revenue growth ≥ +8% YoY combined with expanding earnings per share (EPS)."],
+  ["Sănătate Financiară: Debt/Equity ≤ 1.2 sau Net Cash cu Rata Curentă ≥ 1.1 garantează rezistență în fața dobânzilor mari.", "Financial Health: Debt/Equity ≤ 1.2 or net cash with a Current Ratio ≥ 1.1 ensures resilience to high interest rates."],
+  ["Cash Flow & Valoare: Free Cash Flow masiv pozitiv cu distribuții active prin răscumpărări de acțiuni sau dividende sustenabile.", "Cash Flow & Value: strongly positive free cash flow with active payouts through buybacks or sustainable dividends."],
+  ["Evaluare & Moat: Raport PEG ≤ 2.0 sau Forward P/E rezonabil relativ la profitabilitate și marja de siguranță.", "Valuation & Moat: PEG ratio ≤ 2.0 or a reasonable Forward P/E relative to profitability and margin of safety."],
+  ["Scanner fundamental și model calitativ de cercetare bazat pe date financiare auditate. Nu reprezintă un semnal direct de tranzacționare sau sfat individual de investiții.", "Fundamental scanner and qualitative research model based on audited financial data. Not a direct trading signal or individual investment advice."],
+];
+
+export const ALL_PAIRS: Array<[string, string]> = [...BASE_PAIRS, ...UI_PAIRS, ...UI_PAIRS_2, ...CONTENT_PAIRS, ...STOCK_BQ_PAIRS];
 
 const normalise = (value: string) => value.replace(/[\s\u00a0]+/g, ' ').trim();
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

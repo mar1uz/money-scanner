@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Trophy, RefreshCw, Coins, TrendingUp, Scale } from 'lucide-react';
 import { fetchCryptoFourCriteriaScan, fetchStockBusinessQualityScan } from '../services/api.js';
 import type { CryptoFourCriteriaAsset, CryptoFourCriteriaScan, StockBusinessQualityAsset, StockBusinessQualityScan } from '@money-scanner/shared';
-import { useLanguage } from '../i18n.js';
+import { translateText, useLanguage } from '../i18n.js';
 import { useAssetNavigation } from './AssetNavigation.js';
 import { CryptoBqAssetCard } from './CryptoBqAssetCard.js';
 
@@ -84,7 +84,7 @@ const StockBqCard: React.FC<{
         {STOCK_CRITERIA.map(item => {
           const criterion = asset.criteria[item.key];
           return (
-            <span key={item.key} title={`${isRo ? item.ro : item.en}: ${criterion.status} - ${criterion.explanation}`} className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[8px] font-bold tracking-wide ${stockChipTone(criterion.status)}`}>
+            <span key={item.key} title={`${isRo ? item.ro : item.en}: ${criterion.status} - ${translateText(criterion.explanation, language)}`} className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[8px] font-bold tracking-wide ${stockChipTone(criterion.status)}`}>
               {(isRo ? item.ro : item.en).toUpperCase().slice(0, 8)}
             </span>
           );
