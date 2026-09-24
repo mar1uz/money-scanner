@@ -213,6 +213,7 @@ const TELEGRAM_FLIP_TIMEFRAMES: TelegramFlipTimeframe[] = ['4h', '8h', '1d', '1w
 // Automated (scheduled) flip scans cover Daily and Weekly only. 4H/8H stay
 // available on demand: Alerts manual scans and the Telegram bot commands use
 // the full set. Marius, 2026-09-24: sub-1D scanning runs only when he starts it.
+const CONFIRMED_FLIPS_CAP = 5_000;
 export const AUTOMATED_FLIP_TIMEFRAMES: TelegramFlipTimeframe[] = ['1d', '1w'];
 const FLIP_TIMEFRAME_DURATION_MS: Record<TelegramFlipTimeframe, number> = {
   '4h': 4 * 60 * 60 * 1_000,
@@ -1551,7 +1552,7 @@ export class AppState {
         running: false
       };
       if (Array.isArray(stored?.flipCandidates)) this.flipCandidates = stored.flipCandidates.slice(0, 400);
-      if (Array.isArray(stored?.confirmedFlips)) this.confirmedFlips = stored.confirmedFlips.slice(0, 1_000);
+      if (Array.isArray(stored?.confirmedFlips)) this.confirmedFlips = stored.confirmedFlips.slice(0, CONFIRMED_FLIPS_CAP);
       if (Array.isArray(stored?.scanCoverage)) this.flipScanCoverage = stored.scanCoverage.slice(0, 500);
       if (Array.isArray(stored?.strategySetups)) this.strategySetups = stored.strategySetups.slice(0, 100);
       if (Array.isArray(stored?.alerts)) {
@@ -1918,10 +1919,13 @@ export class AppState {
     }
     // The dashboard represents the current Money Line regime: retain only
     // the most recent confirmed transition for each asset/timeframe.
+    // Cap sits well above the natural maximum (one entry per asset/timeframe,
+    // ~280 assets x 4 timeframes ~ 1,100) so old flips, typically Weekly ones,
+    // are never dropped for age. Was 1,000 until 2026-09-24.
     this.confirmedFlips = Array.from(unique.values())
       .sort((left, right) => freshness(right) - freshness(left)
         || right.priorityScore - left.priorityScore)
-      .slice(0, 1_000);
+      .slice(0, CONFIRMED_FLIPS_CAP);
   }
 
   private async publishConfirmedFlipEvents(
