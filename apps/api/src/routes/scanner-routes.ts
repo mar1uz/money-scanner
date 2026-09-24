@@ -275,9 +275,8 @@ scannerRouter.get('/search', async (req, res) => {
   }
 });
 
-// Cache warmer, driven by Cloud Scheduler (every minute). Keeps the instance's
-// quote/candle caches hot so user-facing requests always compute from warm
-// data - responses elsewhere stay freshly computed on every request.
+// Cloud Scheduler still computes a new scan every minute. Dashboard readers
+// reuse that completed result for up to 60 seconds on the same instance.
 let warmInFlight: Promise<{ rows: number; durationMs: number }> | null = null;
 scannerRouter.get('/scanner/warm', async (req, res) => {
   if (!validateScheduledRequestToken(req.get('x-daily-scan-token'))) {
@@ -316,7 +315,7 @@ scannerRouter.get('/scanner', async (req, res) => {
     const watchlistOnly = req.query.watchlist === 'true';
 
     const appState = AppState.getInstance();
-    let rows = await appState.refreshSignals(
+    let rows = await appState.getScannerRows(
       timeframe,
       marketClass,
       narrative && narrative !== 'ALL' ? narrative as MarketNarrativeId : undefined

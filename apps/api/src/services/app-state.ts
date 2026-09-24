@@ -39,6 +39,7 @@ import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { evaluateDailyStrategyAlerts, StrategyAlertEvaluation } from './strategy-alert-service.js';
 import { PriceAlertService } from './price-alert-service.js';
+import { ScannerSnapshots } from './scanner-snapshots.js';
 import { DailySmaReclaimRunner } from './daily-sma-reclaim-runner.js';
 import { MaCrossAlertRunner } from './ma-cross-alert-runner.js';
 import { StructureScannerRunner, StructureScanTimeframe } from './structure-scanner-runner.js';
@@ -268,6 +269,7 @@ export class AppState {
   public regimeTape = RegimeTapeService.getInstance(this.marketData, this.moneyLine, this.telegramBot);
 
   public cachedSignals: Map<string, MoneyLineSignal> = new Map(); // key: `${symbol}_${timeframe}`
+  private readonly scannerSnapshots = new ScannerSnapshots();
   public alertHistory: DispatchedAlert[] = [];
   private bullishCloudAlerts = new Map<string, BullishCloudAlertRule>();
   private evaluatingAlertIds = new Set<string>();
@@ -2592,6 +2594,28 @@ export class AppState {
     marketClass: ScannerMarketClass = 'ALL',
     narrative?: MarketNarrativeId
   ): Promise<AssetScannerRow[]> {
+    return this.scannerSnapshots.refresh(
+      JSON.stringify([timeframe, marketClass, narrative || null]),
+      () => this.computeScannerRows(timeframe, marketClass, narrative)
+    );
+  }
+
+  public async getScannerRows(
+    timeframe: Timeframe = '1w',
+    marketClass: ScannerMarketClass = 'ALL',
+    narrative?: MarketNarrativeId
+  ): Promise<AssetScannerRow[]> {
+    return this.scannerSnapshots.read(
+      JSON.stringify([timeframe, marketClass, narrative || null]),
+      () => this.computeScannerRows(timeframe, marketClass, narrative)
+    );
+  }
+
+  private async computeScannerRows(
+    timeframe: Timeframe,
+    marketClass: ScannerMarketClass,
+    narrative?: MarketNarrativeId
+  ): Promise<AssetScannerRow[]> {
     const marketAssets = marketClass === 'crypto'
       ? await this.marketData.getNarrativeBalancedCryptoAssets()
       : getScannerAssets(marketClass);
@@ -2754,7 +2778,7 @@ export class AppState {
     timeframe: Timeframe = '1w',
     marketClass: ScannerMarketClass = 'ALL'
   ): Promise<NarrativeSummary[]> {
-    const rows = await this.refreshSignals(timeframe, marketClass);
+    const rows = await this.getScannerRows(timeframe, marketClass);
 
     return NARRATIVE_DEFINITIONS.map(def => {
       const matchingRows = rows.filter(r => r.narratives?.includes(def.id));
@@ -2846,4 +2870,3 @@ export class AppState {
     }).filter(summary => summary.assetCount > 0);
   }
 }
-

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { lazy, useState, useEffect, useRef } from 'react';
 import {
   AppTab,
   Timeframe,
@@ -17,25 +17,27 @@ import { Sidebar } from './components/Sidebar.js';
 import { MarketRegimeGauge } from './components/MarketRegimeGauge.js';
 import { NarrativeBar } from './components/NarrativeBar.js';
 import { NarrativeDetailModal } from './components/NarrativeDetailModal.js';
-import { UniversalSearchModal } from './components/UniversalSearchModal.js';
 import { ScannerTable } from './components/ScannerTable.js';
-import { AssetDeepDiveView } from './components/AssetDeepDiveView.js';
-import { IntelligenceView } from './components/IntelligenceView.js';
-import { AIBriefingView } from './components/AIBriefingView.js';
-import { TopAlphaView } from './components/TopAlphaView.js';
-import { BusinessQualityView } from './components/BusinessQualityView.js';
-import { BacktestView } from './components/BacktestView.js';
-import { SystemStatusView } from './components/SystemStatusView.js';
-import { AlertsCenterView } from './components/AlertsCenterView.js';
-import { USAStatusView } from './components/USAStatusView.js';
-import { CryptoRadarView } from './components/CryptoRadarView.js';
-import { CryptoBubbleView } from './components/CryptoBubbleView.js';
-import { CryptoHeatMapView } from './components/CryptoHeatMapView.js';
+import { DeferredPage } from './components/DeferredPage.js';
 import { useLanguage } from './i18n.js';
 import { AuthGate } from './components/AuthGate.js';
 import { AssetNavigationProvider } from './components/AssetNavigation.js';
 import { IntelligenceSourceFilter, UserProfile } from '@money-scanner/shared';
 import { Zap, CheckCircle2, RefreshCw } from 'lucide-react';
+
+const AssetDeepDiveView = lazy(() => import('./components/AssetDeepDiveView.js').then(m => ({ default: m.AssetDeepDiveView })));
+const IntelligenceView = lazy(() => import('./components/IntelligenceView.js').then(m => ({ default: m.IntelligenceView })));
+const AIBriefingView = lazy(() => import('./components/AIBriefingView.js').then(m => ({ default: m.AIBriefingView })));
+const TopAlphaView = lazy(() => import('./components/TopAlphaView.js').then(m => ({ default: m.TopAlphaView })));
+const BusinessQualityView = lazy(() => import('./components/BusinessQualityView.js').then(m => ({ default: m.BusinessQualityView })));
+const BacktestView = lazy(() => import('./components/BacktestView.js').then(m => ({ default: m.BacktestView })));
+const SystemStatusView = lazy(() => import('./components/SystemStatusView.js').then(m => ({ default: m.SystemStatusView })));
+const AlertsCenterView = lazy(() => import('./components/AlertsCenterView.js').then(m => ({ default: m.AlertsCenterView })));
+const USAStatusView = lazy(() => import('./components/USAStatusView.js').then(m => ({ default: m.USAStatusView })));
+const CryptoRadarView = lazy(() => import('./components/CryptoRadarView.js').then(m => ({ default: m.CryptoRadarView })));
+const CryptoBubbleView = lazy(() => import('./components/CryptoBubbleView.js').then(m => ({ default: m.CryptoBubbleView })));
+const CryptoHeatMapView = lazy(() => import('./components/CryptoHeatMapView.js').then(m => ({ default: m.CryptoHeatMapView })));
+const UniversalSearchModal = lazy(() => import('./components/UniversalSearchModal.js').then(m => ({ default: m.UniversalSearchModal })));
 
 interface AuthenticatedAppProps {
   user: UserProfile;
@@ -123,32 +125,29 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
     const requestId = ++refreshRequestId.current;
     setLoading(true);
     try {
-      const [ovRes, rowsRes] = await Promise.allSettled([
-        fetchMarketOverview(),
-        fetchScanner(timeframe, undefined, undefined, undefined, undefined, selectedMarketCategory)
+      // Each section renders as soon as its data arrives. Scanner and sectors
+      // share one server-side scan (including the minute scheduler's result).
+      const results = await Promise.allSettled([
+        fetchMarketOverview().then(value => {
+          if (requestId === refreshRequestId.current) setOverview(value);
+        }),
+        fetchScanner(timeframe, undefined, undefined, undefined, undefined, selectedMarketCategory).then(rows => {
+          if (requestId !== refreshRequestId.current || !rows.length) return;
+          // Enforce the selected market class even with stale upstream data.
+          setScannerRows(selectedMarketCategory === 'crypto'
+            ? rows.filter(row => row.marketClass === 'crypto')
+            : rows);
+        }),
+        fetchNarratives(timeframe, selectedMarketCategory).then(items => {
+          if (requestId !== refreshRequestId.current || !items.length) return;
+          setNarratives(items);
+          setSelectedNarrative(current =>
+            current === 'ALL' || items.some(narrative => narrative.id === current) ? current : 'ALL'
+          );
+        })
       ]);
-      if (requestId !== refreshRequestId.current) return;
-      if (ovRes.status === 'fulfilled') {
-        setOverview(ovRes.value);
-      }
-      if (rowsRes.status === 'fulfilled' && rowsRes.value && rowsRes.value.length > 0) {
-        // Defense in depth: Crypto view must never render a non-crypto row,
-        // even if an upstream response is stale or incorrectly classified.
-        const verifiedRows = selectedMarketCategory === 'crypto'
-          ? rowsRes.value.filter(row => row.marketClass === 'crypto')
-          : rowsRes.value;
-        setScannerRows(verifiedRows);
-      }
-      // The scanner request warms quote/candle caches; loading narrative rollups
-      // afterwards avoids issuing the same provider requests twice.
-      const narrRes = await fetchNarratives(timeframe, selectedMarketCategory);
-      if (requestId === refreshRequestId.current && narrRes.length > 0) {
-        setNarratives(narrRes);
-        setSelectedNarrative(current =>
-          current === 'ALL' || narrRes.some(narrative => narrative.id === current)
-            ? current
-            : 'ALL'
-        );
+      for (const result of results) {
+        if (result.status === 'rejected') console.error('Data refresh error:', result.reason);
       }
     } catch (err) {
       console.error('Data refresh error:', err);
@@ -366,6 +365,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
         <main className="workspace-main flex-1 px-4 lg:px-10 py-8 space-y-8 max-w-[1600px] w-full mx-auto animate-fade-in">
           {/* Full-Page Asset Deep-Dive View */}
           {selectedAssetSymbol && (
+            <DeferredPage>
             <AssetDeepDiveView
               symbol={selectedAssetSymbol}
               marketClass={selectedAssetMarketClass}
@@ -377,12 +377,14 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
               watchlist={watchlist}
               onToggleWatchlist={toggleWatchlist}
             />
+            </DeferredPage>
           )}
           {/* Tab views stay mounted (hidden) while an asset is open so filter
               selection, scroll and loaded data survive back navigation instead
               of resetting to defaults and refetching. `contents` keeps the
               exact same layout as before when visible. */}
           <div className={selectedAssetSymbol ? 'hidden' : 'contents'}>
+            <DeferredPage>
               {/* Tab 1: Market Intelligence (Gauges + Narrative Bar + Scanner Table) */}
               {activeTab === 'market' && (
                 <div className="market-dashboard space-y-8">
@@ -535,11 +537,13 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
 
               {/* Tab 8: System Status & Telemetry */}
               {activeTab === 'status' && <SystemStatusView />}
+            </DeferredPage>
           </div>
         </main>
       </div>
 
       {/* Universal TradingView-Style Search Spotlight Modal */}
+      {isSearchModalOpen && <DeferredPage>
       <UniversalSearchModal
         isOpen={isSearchModalOpen}
         onClose={() => setIsSearchModalOpen(false)}
@@ -554,6 +558,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
         watchlist={watchlist}
         onToggleWatchlist={toggleWatchlist}
       />
+      </DeferredPage>}
     </div>
     </AssetNavigationProvider>
   );
