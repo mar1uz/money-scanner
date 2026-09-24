@@ -270,7 +270,7 @@ export const REGIME_TAPE_PAGE_HTML = `<!DOCTYPE html>
       <div class="ed-foot" id="edBqDate"></div>
     </div>
     <div class="ed-block" id="edStockBlock" style="display:none"><div class="ed-kicker">Business Quality · stocks</div><h3 class="ed-h3">Top 5 quality stocks</h3><div class="stock-grid" id="edStocks"></div>
-      <p class="bq-note">Reported financials: net margin, return on equity, revenue growth year over year, and P/E. The six checks are profitability, capital efficiency, growth, solvency, free cash flow and valuation. A research screen, not a buy signal.</p>
+      <p class="bq-note">Reported financials: net margin, return on equity, revenue growth year over year, and P/E. The six checks are profitability, capital efficiency, growth, price-to-revenue, free cash flow and valuation. A research screen, not a buy signal.</p>
       <div class="ed-foot" id="edStockDate"></div>
     </div>
   </section>
@@ -354,7 +354,7 @@ function renderEdition(d) {
   if (stocks.length) {
     document.getElementById('edStockBlock').style.display = 'block';
     const pct1 = v => v == null ? '-' : Number(v).toFixed(1) + '%';
-    const sLabels = [['profitability', 'Profitability'], ['capitalEfficiency', 'Capital eff.'], ['growth', 'Growth'], ['solvency', 'Solvency'], ['freeCashFlow', 'FCF'], ['valuation', 'Valuation']];
+    const sLabels = [['profitability', 'Profitability'], ['capitalEfficiency', 'Capital eff.'], ['growth', 'Growth'], ['priceToRevenue', 'P/R'], ['freeCashFlow', 'FCF'], ['valuation', 'Valuation']];
     document.getElementById('edStocks').innerHTML = stocks.map((e, i) => '<article class="bq-row"><div class="bq-row-top"><span class="l"><span class="bq-rank">#' + (i + 1) + '</span><span class="bq-symbol">' + esc(e.symbol) + '</span><span class="n">' + esc(e.name || '') + '</span></span><span class="r">' + (e.marketCap ? fmtUsd(e.marketCap) + ' mcap' : '') + '</span></div>' + '<div class="bq-mini"><div><label>Net margin</label><span>' + pct1(e.netMargin) + '</span></div><div><label>ROE</label><span>' + pct1(e.roe) + '</span></div><div><label>Revenue YoY</label><span class="' + tone(e.revenueGrowthYoY) + '">' + (e.revenueGrowthYoY == null ? '-' : (e.revenueGrowthYoY >= 0 ? '+' : '') + Number(e.revenueGrowthYoY).toFixed(1) + '%') + '</span></div><div><label>P/E</label><span>' + (e.pe == null ? '-' : Number(e.pe).toFixed(1)) + '</span></div></div><div class="crit-row">' + sLabels.map(([k, l]) => '<span class="crit ' + esc(e.criteria && e.criteria[k]) + '">' + (e.criteria && e.criteria[k] === 'pass' ? '✓ ' : '') + l + '</span>').join('') + '</div></article>').join('');
     document.getElementById('edStockDate').textContent = d.stockQuality.generatedAt ? 'Scan generated ' + new Date(d.stockQuality.generatedAt).toISOString().slice(0, 10) + ' UTC' : '';
     jump.push(['edStockBlock', 'Stocks']);

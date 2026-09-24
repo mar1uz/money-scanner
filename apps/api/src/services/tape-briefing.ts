@@ -143,7 +143,7 @@ export interface TapeStockAssetInput {
   price?: number;
   score?: number;
   classification?: string;
-  criteria?: Partial<Record<'profitability' | 'capitalEfficiency' | 'growth' | 'solvency' | 'freeCashFlow' | 'valuation', { status?: string }>>;
+  criteria?: Partial<Record<'profitability' | 'capitalEfficiency' | 'growth' | 'priceToRevenue' | 'freeCashFlow' | 'valuation', { status?: string }>>;
   metrics?: { netMargin?: number; roe?: number; revenueGrowthYoY?: number; fcfMargin?: number; forwardPE?: number; trailingPE?: number };
 }
 
@@ -156,10 +156,10 @@ export interface TapeStockEntry {
   revenueGrowthYoY: number | null;
   fcfMargin: number | null;
   pe: number | null;
-  criteria: Record<'profitability' | 'capitalEfficiency' | 'growth' | 'solvency' | 'freeCashFlow' | 'valuation', TapeCriterionStatus>;
+  criteria: Record<'profitability' | 'capitalEfficiency' | 'growth' | 'priceToRevenue' | 'freeCashFlow' | 'valuation', TapeCriterionStatus>;
 }
 
-const STOCK_CRITERIA = ['profitability', 'capitalEfficiency', 'growth', 'solvency', 'freeCashFlow', 'valuation'] as const;
+const STOCK_CRITERIA = ['profitability', 'capitalEfficiency', 'growth', 'priceToRevenue', 'freeCashFlow', 'valuation'] as const;
 
 /**
  * The AI Briefing stock "Top picks" tab (same filter as the app: top-pick

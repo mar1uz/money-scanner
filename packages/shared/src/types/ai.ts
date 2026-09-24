@@ -334,7 +334,7 @@ export interface StockBusinessQualityAsset {
     profitability: StockCriterionResult;
     capitalEfficiency: StockCriterionResult;
     growth: StockCriterionResult;
-    solvency: StockCriterionResult;
+    priceToRevenue: StockCriterionResult;
     freeCashFlow: StockCriterionResult;
     valuation: StockCriterionResult;
   };

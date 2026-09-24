@@ -25,7 +25,7 @@ const STOCK_CRITERIA: { key: keyof StockBusinessQualityAsset['criteria']; ro: st
   { key: 'profitability', ro: 'Profitabilitate', en: 'Profitability' },
   { key: 'capitalEfficiency', ro: 'Eficien\u021ba capitalului', en: 'Capital efficiency' },
   { key: 'growth', ro: 'Cre\u0219tere', en: 'Growth' },
-  { key: 'solvency', ro: 'Solvabilitate', en: 'Solvency' },
+  { key: 'priceToRevenue', ro: 'Preț/Venituri', en: 'Price/Revenue' },
   { key: 'freeCashFlow', ro: 'Flux de numerar liber', en: 'Free cash flow' },
   { key: 'valuation', ro: 'Evaluare', en: 'Valuation' }
 ];
@@ -320,7 +320,7 @@ export const TopAlphaView: React.FC = () => {
             <div className="space-y-2.5">
               <div>
                 <h3 className="text-[11px] font-bold uppercase tracking-wide text-emerald-300">{isRo ? 'Scor top' : 'Top score'} · {stockAssets.length}</h3>
-                <p className="text-[10px] text-slate-500">{isRo ? 'Sortat dup\u0103 scorul pe 6 criterii: profitabilitate, eficien\u021ba capitalului, cre\u0219tere, solvabilitate, FCF, evaluare.' : 'Sorted by the 6-criteria score: profitability, capital efficiency, growth, solvency, FCF, valuation.'}</p>
+                <p className="text-[10px] text-slate-500">{isRo ? 'Sortat dup\u0103 scorul pe 6 criterii: profitabilitate, eficien\u021ba capitalului, cre\u0219tere, pre\u021b/venituri, FCF, evaluare.' : 'Sorted by the 6-criteria score: profitability, capital efficiency, growth, price/revenue, FCF, valuation.'}</p>
               </div>
               {stockAssets.map((asset, index) => (
                 <StockBqCard

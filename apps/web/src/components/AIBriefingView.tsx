@@ -507,7 +507,7 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
           ? <ShieldAlert className="w-3 h-3 text-rose-400" />
           : <CircleHelp className="w-3 h-3 text-slate-500" />;
 
-    const stockCriterionKeys = ['profitability', 'capitalEfficiency', 'growth', 'solvency', 'freeCashFlow', 'valuation'] as const;
+    const stockCriterionKeys = ['profitability', 'capitalEfficiency', 'growth', 'priceToRevenue', 'freeCashFlow', 'valuation'] as const;
     const stockCriterionLabels = language === 'ro'
       ? ['Profitabilitate', 'Eficiență Capital', 'Creștere', 'Sănătate Financiară', 'Free Cash Flow', 'Evaluare & Moat']
       : ['Profitability', 'Capital Efficiency', 'Growth', 'Financial Health', 'Free Cash Flow', 'Valuation & Moat'];

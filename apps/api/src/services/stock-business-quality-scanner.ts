@@ -809,9 +809,170 @@ const criterion = (
   explanation: string
 ): StockCriterionResult => ({ status, label, value, explanation });
 
+
+/* ── Live fundamentals from Yahoo Finance (cookie + crumb flow) ─────────────
+   Real TTM data per symbol. Falls back per-field to the curated database and
+   only then to the sector proxies below. Results are cached in-process. */
+
+const YAHOO_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+const FUNDAMENTALS_TTL_MS = 12 * 60 * 60 * 1000;
+
+let yahooAuth: { cookie: string; crumb: string; expiresAt: number } | null = null;
+const fundamentalsCache = new Map<string, { data: Partial<RawStockFundamentalData>; fetchedAt: number }>();
+
+const yahooNum = (v: any): number | undefined => {
+  const raw = v && typeof v === 'object' ? v.raw : v;
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : undefined;
+};
+const yahooPct = (v: any): number | undefined => {
+  const n = yahooNum(v);
+  return n === undefined ? undefined : n * 100;
+};
+
+async function ensureYahooAuth(): Promise<{ cookie: string; crumb: string } | null> {
+  if (yahooAuth && Date.now() < yahooAuth.expiresAt) return yahooAuth;
+  try {
+    const cookieRes = await fetch('https://fc.yahoo.com', { headers: { 'User-Agent': YAHOO_UA }, redirect: 'manual' });
+    const setCookies = typeof cookieRes.headers.getSetCookie === 'function' ? cookieRes.headers.getSetCookie() : [];
+    const cookie = setCookies.map(c => c.split(';')[0]).filter(Boolean).join('; ');
+    if (!cookie) return null;
+    const crumbRes = await fetch('https://query1.finance.yahoo.com/v1/test/getcrumb', { headers: { 'User-Agent': YAHOO_UA, Cookie: cookie } });
+    if (!crumbRes.ok) return null;
+    const crumb = (await crumbRes.text()).trim();
+    if (!crumb || crumb.length > 64 || crumb.includes('{')) return null;
+    yahooAuth = { cookie, crumb, expiresAt: Date.now() + 30 * 60 * 1000 };
+    return yahooAuth;
+  } catch {
+    return null;
+  }
+}
+
+
+const fxCache = new Map<string, { rate: number; fetchedAt: number }>();
+
+// FX conversion for ADRs / foreign listings: Yahoo reports financialData in the
+// home currency (e.g. TWD for TSM) while price/marketCap are in the trading
+// currency. Monetary fields must be converted before ratios are computed.
+async function fetchFxRate(from: string, to: string): Promise<number | null> {
+  const key = `${from}${to}`;
+  const cached = fxCache.get(key);
+  if (cached && Date.now() - cached.fetchedAt < FUNDAMENTALS_TTL_MS) return cached.rate;
+  try {
+    const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(`${from}${to}=X`)}?range=5d&interval=1d`, { headers: { 'User-Agent': YAHOO_UA } });
+    if (!res.ok) return null;
+    const data: any = await res.json();
+    const closes = (data?.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? []).filter((c: any) => typeof c === 'number');
+    const rate = closes.length ? closes[closes.length - 1] : null;
+    if (typeof rate === 'number' && Number.isFinite(rate) && rate > 0) {
+      fxCache.set(key, { rate, fetchedAt: Date.now() });
+      return rate;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchYahooFundamentals(symbol: string): Promise<Partial<RawStockFundamentalData> | null> {
+  const auth = await ensureYahooAuth();
+  if (!auth) return null;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=price,summaryDetail,defaultKeyStatistics,financialData&crumb=${encodeURIComponent(auth.crumb)}`;
+    const res = await fetch(url, { signal: controller.signal, headers: { 'User-Agent': YAHOO_UA, Cookie: auth.cookie } });
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) yahooAuth = null;
+      return null;
+    }
+    const data: any = await res.json();
+    const r = data?.quoteSummary?.result?.[0];
+    if (!r) return null;
+    const price = r.price ?? {};
+    const sd = r.summaryDetail ?? {};
+    const ks = r.defaultKeyStatistics ?? {};
+    const fd = r.financialData ?? {};
+    const marketCap = yahooNum(price.marketCap) ?? yahooNum(sd.marketCap);
+    const totalRevenue = yahooNum(fd.totalRevenue);
+    const freeCashFlow = yahooNum(fd.freeCashflow);
+    const totalCash = yahooNum(fd.totalCash);
+    const totalDebt = yahooNum(fd.totalDebt);
+    // Yahoo reports debtToEquity as a PERCENTAGE (16.97 means 0.1697x)
+    const debtToEquityRaw = yahooNum(fd.debtToEquity);
+    // Convert monetary fields from the reporting currency to the trading currency (ADRs)
+    const tradingCurrency = typeof price.currency === 'string' ? price.currency : undefined;
+    const financialCurrency = typeof fd.financialCurrency === 'string' ? fd.financialCurrency : undefined;
+    let fx = 1;
+    if (tradingCurrency && financialCurrency && tradingCurrency !== financialCurrency) {
+      fx = (await fetchFxRate(financialCurrency, tradingCurrency)) ?? 1;
+    }
+    const conv = (v: number | undefined): number | undefined => (v === undefined ? undefined : v * fx);
+    const revenueTrading = conv(totalRevenue);
+    const fcfTrading = conv(freeCashFlow);
+    const priceToSales = marketCap !== undefined && revenueTrading
+      ? marketCap / revenueTrading
+      : yahooNum(sd.priceToSalesTrailing12Months);
+    return {
+      name: typeof price.longName === 'string' ? price.longName : undefined,
+      price: yahooNum(price.regularMarketPrice),
+      marketCap,
+      grossMargin: yahooPct(fd.grossMargins),
+      operatingMargin: yahooPct(fd.operatingMargins),
+      netMargin: yahooPct(fd.profitMargins),
+      fcfMargin: freeCashFlow !== undefined && totalRevenue ? (freeCashFlow / totalRevenue) * 100 : undefined,
+      // (margin ratios are currency-neutral; monetary fields below use converted values)
+      roe: yahooPct(fd.returnOnEquity),
+      roa: yahooPct(fd.returnOnAssets),
+      revenueGrowthYoY: yahooPct(fd.revenueGrowth),
+      epsGrowthYoY: yahooPct(fd.earningsGrowth) ?? yahooPct(ks.earningsQuarterlyGrowth),
+      debtToEquity: debtToEquityRaw === undefined ? undefined : debtToEquityRaw / 100,
+      currentRatio: yahooNum(fd.currentRatio),
+      totalCash: conv(totalCash),
+      totalDebt: conv(totalDebt),
+      netCashPosition: totalCash !== undefined && totalDebt !== undefined ? totalCash > totalDebt : undefined,
+      freeCashFlow: fcfTrading,
+      fcfYield: fcfTrading !== undefined && marketCap ? (fcfTrading / marketCap) * 100 : undefined,
+      dividendYield: yahooPct(sd.dividendYield),
+      trailingPE: yahooNum(sd.trailingPE),
+      forwardPE: yahooNum(ks.forwardPE) ?? yahooNum(sd.forwardPE),
+      pegRatio: yahooNum(ks.pegRatio),
+      priceToSales
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function fetchStockFundamentals(symbols: string[]): Promise<Map<string, Partial<RawStockFundamentalData>>> {
+  const result = new Map<string, Partial<RawStockFundamentalData>>();
+  const pending: string[] = [];
+  for (const symbol of symbols) {
+    const cached = fundamentalsCache.get(symbol);
+    if (cached && Date.now() - cached.fetchedAt < FUNDAMENTALS_TTL_MS) {
+      result.set(symbol, cached.data);
+    } else {
+      pending.push(symbol);
+    }
+  }
+  const CONCURRENCY = 6;
+  for (let i = 0; i < pending.length; i += CONCURRENCY) {
+    const batch = pending.slice(i, i + CONCURRENCY);
+    const fetched = await Promise.all(batch.map(async symbol => [symbol, await fetchYahooFundamentals(symbol)] as const));
+    for (const [symbol, data] of fetched) {
+      if (!data) continue;
+      fundamentalsCache.set(symbol, { data, fetchedAt: Date.now() });
+      result.set(symbol, data);
+    }
+  }
+  return result;
+}
+
 export interface StockScannerOptions {
   generatedAt?: number;
   liveQuotes?: Map<string, { price: number; marketCap?: number }>;
+  fundamentals?: Map<string, Partial<RawStockFundamentalData>>;
 }
 
 /**
@@ -826,36 +987,46 @@ export function buildStockBusinessQualityScan(options?: StockScannerOptions): St
     const curated = STOCK_FUNDAMENTALS_DATABASE[symbol] || {};
     const liveQuote = options?.liveQuotes?.get(symbol);
 
-    const price = liveQuote?.price || curated.price || 100;
-    const marketCap = liveQuote?.marketCap || curated.marketCap || asset.marketCap || 10_000_000_000;
+    // Live fundamentals (Yahoo) override the curated DB field-by-field
+    const live = options?.fundamentals?.get(symbol);
+    const merged: Partial<RawStockFundamentalData> = { ...curated };
+    if (live) {
+      for (const [key, value] of Object.entries(live)) {
+        if (value !== undefined) (merged as Record<string, unknown>)[key] = value;
+      }
+    }
+
+    const price = liveQuote?.price || merged.price || 100;
+    const marketCap = liveQuote?.marketCap || merged.marketCap || asset.marketCap || 10_000_000_000;
     const sector = asset.narratives?.[0] ? definitionById.get(asset.narratives[0])?.shortName : undefined;
 
     // Resolve metrics (curated default or reasonable proxy for catalog equities)
     const metrics: StockFinancialMetrics = {
-      grossMargin: curated.grossMargin ?? (sector?.includes('Tech') || sector?.includes('AI') ? 65 : 40),
-      operatingMargin: curated.operatingMargin ?? (sector?.includes('Tech') ? 25 : 15),
-      netMargin: curated.netMargin ?? (sector?.includes('Tech') ? 20 : 10),
-      fcfMargin: curated.fcfMargin ?? 15,
-      roe: curated.roe ?? (sector?.includes('Tech') ? 22 : 14),
-      roa: curated.roa ?? 8,
-      roic: curated.roic ?? 12,
-      revenueGrowthYoY: curated.revenueGrowthYoY ?? 8,
-      epsGrowthYoY: curated.epsGrowthYoY ?? 12,
-      debtToEquity: curated.debtToEquity ?? 0.6,
-      currentRatio: curated.currentRatio ?? 1.4,
-      totalCash: curated.totalCash,
-      totalDebt: curated.totalDebt,
-      netCashPosition: curated.netCashPosition ?? (curated.debtToEquity !== undefined ? curated.debtToEquity < 0.3 : true),
-      freeCashFlow: curated.freeCashFlow ?? Math.round(marketCap * 0.03),
-      fcfYield: curated.fcfYield ?? 3.0,
-      dividendYield: curated.dividendYield ?? 0.8,
-      buybackYield: curated.buybackYield ?? 1.0,
-      trailingPE: curated.trailingPE ?? 28,
-      forwardPE: curated.forwardPE ?? 22,
-      pegRatio: curated.pegRatio ?? 1.6,
-      priceToSales: curated.priceToSales ?? 6.0,
-      evToEbitda: curated.evToEbitda ?? 16.0,
-      priceToFcf: curated.priceToFcf ?? 30.0
+      grossMargin: merged.grossMargin ?? (sector?.includes('Tech') || sector?.includes('AI') ? 65 : 40),
+      operatingMargin: merged.operatingMargin ?? (sector?.includes('Tech') ? 25 : 15),
+      netMargin: merged.netMargin ?? (sector?.includes('Tech') ? 20 : 10),
+      fcfMargin: merged.fcfMargin ?? 15,
+      roe: merged.roe ?? (sector?.includes('Tech') ? 22 : 14),
+      roa: merged.roa ?? 8,
+      roic: merged.roic ?? 12,
+      revenueGrowthYoY: merged.revenueGrowthYoY ?? 8,
+      epsGrowthYoY: merged.epsGrowthYoY ?? 12,
+      debtToEquity: merged.debtToEquity ?? 0.6,
+      currentRatio: merged.currentRatio ?? 1.4,
+      totalCash: merged.totalCash,
+      totalDebt: merged.totalDebt,
+      netCashPosition: merged.netCashPosition ?? (merged.debtToEquity !== undefined ? merged.debtToEquity < 0.3 : false),
+      freeCashFlow: merged.freeCashFlow ?? Math.round(marketCap * 0.03),
+      fcfYield: merged.fcfYield ?? 3.0,
+      dividendYield: merged.dividendYield ?? 0.8,
+      buybackYield: merged.buybackYield ?? 1.0,
+      trailingPE: merged.trailingPE ?? 28,
+      forwardPE: merged.forwardPE ?? 22,
+      pegRatio: merged.pegRatio ?? 1.6,
+      // No fabricated default: without real data the P/R criterion reports 'unknown'
+      priceToSales: merged.priceToSales,
+      evToEbitda: merged.evToEbitda ?? 16.0,
+      priceToFcf: merged.priceToFcf ?? 30.0
     };
 
     // 1. Profitability & Margins Criterion
@@ -925,26 +1096,32 @@ export function buildStockBusinessQualityScan(options?: StockScannerOptions): St
           : `Contracție a veniturilor (${formatPercent(revGrowth)} YoY) sau scădere a profitabilității.`
     );
 
-    // 4. Financial Health & Solvency Criterion
+    // Balance-sheet figures still feed the score bonus and classification branches
     const deRatio = metrics.debtToEquity ?? 1.0;
-    const currRatio = metrics.currentRatio ?? 1.2;
     const netCash = Boolean(metrics.netCashPosition);
-    const solvencyStatus: StockCriteriaStatus =
-      (deRatio <= 1.2 || netCash) && currRatio >= 1.1
-        ? 'pass'
-        : deRatio <= 2.5 && currRatio >= 0.9
-          ? 'watch'
-          : 'fail';
 
-    const solvency = criterion(
-      solvencyStatus,
-      'Sănătate Financiară',
-      `Debt/Eq: ${formatRatio(deRatio, '')} | CR: ${formatRatio(currRatio, '')}`,
-      solvencyStatus === 'pass'
-        ? `Bilanț solid (Debt/Equity ${formatRatio(deRatio, '')}, Rata Curentă ${formatRatio(currRatio, '')}${netCash ? ', poziție Net Cash' : ''}); risc minim de faliment/diluare.`
-        : solvencyStatus === 'watch'
-          ? `Grad moderat de îndatorare (${formatRatio(deRatio, '')}); necesită monitorizarea ratelor dobânzilor.`
-          : `Grad ridicat de îndatorare sau risc de lichiditate pe termen scurt.`
+    // 4. Price-to-Revenue (P/R) Criterion
+    const priceToRevenueRatio = metrics.priceToSales;
+    const priceToRevenueStatus: StockCriteriaStatus =
+      priceToRevenueRatio === undefined || !Number.isFinite(priceToRevenueRatio) || priceToRevenueRatio <= 0
+        ? 'unknown'
+        : priceToRevenueRatio <= 10
+          ? 'pass'
+          : priceToRevenueRatio <= 20
+            ? 'watch'
+            : 'fail';
+
+    const priceToRevenue = criterion(
+      priceToRevenueStatus,
+      'Preț/Venituri (P/R)',
+      `P/R: ${formatRatio(priceToRevenueRatio)}`,
+      priceToRevenueStatus === 'pass'
+        ? `Evaluare rezonabilă raportată la venituri (P/R ${formatRatio(priceToRevenueRatio)}); piața plătește un multiplu moderat pentru veniturile TTM.`
+        : priceToRevenueStatus === 'watch'
+          ? `Primă moderată pe venituri (P/R ${formatRatio(priceToRevenueRatio)}); creșterea trebuie să susțină multiplul plătit.`
+          : priceToRevenueStatus === 'fail'
+            ? `Evaluare scumpă raportată la venituri (P/R ${formatRatio(priceToRevenueRatio)}); așteptări mari sunt deja incluse în preț.`
+            : `Date insuficiente pentru raportul Preț/Venituri.`
     );
 
     // 5. Free Cash Flow & Shareholder Value Criterion
@@ -1005,8 +1182,8 @@ export function buildStockBusinessQualityScan(options?: StockScannerOptions): St
     if (growthStatus === 'pass') score += 16;
     else if (growthStatus === 'watch') score += 8;
 
-    if (solvencyStatus === 'pass') score += 14;
-    else if (solvencyStatus === 'watch') score += 7;
+    if (priceToRevenueStatus === 'pass') score += 14;
+    else if (priceToRevenueStatus === 'watch') score += 7;
 
     if (valuationStatus === 'pass') score += 12;
     else if (valuationStatus === 'watch') score += 6;
@@ -1023,7 +1200,7 @@ export function buildStockBusinessQualityScan(options?: StockScannerOptions): St
       profitabilityStatus,
       capitalEfficiencyStatus,
       growthStatus,
-      solvencyStatus,
+      priceToRevenueStatus,
       fcfStatus,
       valuationStatus
     ];
@@ -1075,7 +1252,7 @@ export function buildStockBusinessQualityScan(options?: StockScannerOptions): St
     return {
       id: symbol.toLowerCase(),
       symbol,
-      name: curated.name || asset.name,
+      name: merged.name || asset.name,
       sector,
       marketCap,
       marketCapRank: index + 1,
@@ -1090,7 +1267,7 @@ export function buildStockBusinessQualityScan(options?: StockScannerOptions): St
         profitability,
         capitalEfficiency,
         growth,
-        solvency,
+        priceToRevenue,
         freeCashFlow,
         valuation
       },
@@ -1113,25 +1290,30 @@ export function buildStockBusinessQualityScan(options?: StockScannerOptions): St
     dividendValueCount: assets.filter(a => (a.metrics.dividendYield || 0) >= 1.5).length,
     assets,
     generatedAt: options?.generatedAt || Date.now(),
-    dataFreshness: 'Rapoarte 10-K/10-Q & date financiare verificate; snapshot 26h cu cache Firestore',
+    dataFreshness: 'Date financiare live Yahoo Finance (TTM) completate din baza de date curată; snapshot 26h cu cache Firestore',
     methodology: [
       'Profitabilitate & Marje: Marjă operațională ≥ 15% și marjă netă ≥ 10% dovedesc pricing power și profitabilitate robustă.',
       'Eficiența Capitalului: ROE ≥ 15% sau ROA ≥ 8% confirmă generarea superioară de valoare din capitalul acționarilor.',
       'Creștere Sustenabilă: Creștere venituri ≥ +8% YoY combinată cu extinderea profitului per acțiune (EPS).',
-      'Sănătate Financiară: Debt/Equity ≤ 1.2 sau Net Cash cu Rata Curentă ≥ 1.1 garantează rezistență în fața dobânzilor mari.',
+      'Preț/Venituri: P/R ≤ 10x (capitalizare raportată la veniturile TTM) indică o evaluare rezonabilă; peste 20x este scump.',
       'Cash Flow & Valoare: Free Cash Flow masiv pozitiv cu distribuții active prin răscumpărări de acțiuni sau dividende sustenabile.',
       'Evaluare & Moat: Raport PEG ≤ 2.0 sau Forward P/E rezonabil relativ la profitabilitate și marja de siguranță.'
     ],
     sources: [
-      { id: 'sec-edgar', title: 'SEC EDGAR 10-K & 10-Q Filings', url: 'https://www.sec.gov/edgar', domain: 'sec.gov' },
-      { id: 'morningstar', title: 'Morningstar Financials & Valuation', url: 'https://www.morningstar.com', domain: 'morningstar.com' },
-      { id: 'yahoo-finance', title: 'Yahoo Finance Key Statistics', url: 'https://finance.yahoo.com', domain: 'finance.yahoo.com' },
-      { id: 'spglobal', title: 'S&P Global Market Intelligence', url: 'https://www.spglobal.com', domain: 'spglobal.com' }
+      { id: 'yahoo-finance', title: 'Yahoo Finance Key Statistics (live)', url: 'https://finance.yahoo.com', domain: 'finance.yahoo.com' },
+      { id: 'sec-edgar', title: 'SEC EDGAR 10-K & 10-Q Filings', url: 'https://www.sec.gov/edgar', domain: 'sec.gov' }
     ],
     disclaimer: 'Scanner fundamental și model calitativ de cercetare bazat pe date financiare auditate. Nu reprezintă un semnal direct de tranzacționare sau sfat individual de investiții.'
   };
 }
 
 export async function scanStockBusinessQuality(): Promise<StockBusinessQualityScan> {
-  return buildStockBusinessQualityScan();
+  const symbols = SCANNER_ASSETS.filter(a => a.marketClass === 'stocks').map(a => a.symbol.toUpperCase());
+  let fundamentals: Map<string, Partial<RawStockFundamentalData>> | undefined;
+  try {
+    fundamentals = await fetchStockFundamentals(symbols);
+  } catch {
+    fundamentals = undefined; // curated DB + proxies still produce a scan
+  }
+  return buildStockBusinessQualityScan({ fundamentals });
 }

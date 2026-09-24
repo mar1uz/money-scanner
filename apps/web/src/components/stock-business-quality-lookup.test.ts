@@ -35,7 +35,7 @@ const mockScan: StockBusinessQualityScan = {
         profitability: { status: 'pass', label: 'Profitabilitate & Marje', value: '55.6% net', explanation: 'Pass' },
         capitalEfficiency: { status: 'pass', label: 'Eficiența Capitalului', value: '115.4% ROE', explanation: 'Pass' },
         growth: { status: 'pass', label: 'Creștere Venituri & EPS', value: '+122.4%', explanation: 'Pass' },
-        solvency: { status: 'pass', label: 'Sănătate Financiară', value: '0.15 D/E', explanation: 'Pass' },
+        priceToRevenue: { status: 'watch', label: 'Preț/Venituri (P/R)', value: 'P/R: 18.0x', explanation: 'Watch' },
         freeCashFlow: { status: 'pass', label: 'Cash Flow & Retur Acționari', value: '$60.8B', explanation: 'Pass' },
         valuation: { status: 'pass', label: 'Evaluare & Moat (PEG)', value: '1.25 PEG', explanation: 'Pass' }
       },
@@ -67,7 +67,7 @@ const mockScan: StockBusinessQualityScan = {
         profitability: { status: 'pass', label: 'Profitabilitate & Marje', value: '24.8% net', explanation: 'Pass' },
         capitalEfficiency: { status: 'pass', label: 'Eficiența Capitalului', value: '147.2% ROE', explanation: 'Pass' },
         growth: { status: 'watch', label: 'Creștere Venituri & EPS', value: '+6.1%', explanation: 'Watch' },
-        solvency: { status: 'watch', label: 'Sănătate Financiară', value: '1.45 D/E', explanation: 'Watch' },
+        priceToRevenue: { status: 'pass', label: 'Preț/Venituri (P/R)', value: 'P/R: 7.4x', explanation: 'Pass' },
         freeCashFlow: { status: 'pass', label: 'Cash Flow & Retur Acționari', value: '$108B', explanation: 'Pass' },
         valuation: { status: 'watch', label: 'Evaluare & Moat (PEG)', value: '2.4 PEG', explanation: 'Watch' }
       },
@@ -94,7 +94,7 @@ const mockScan: StockBusinessQualityScan = {
         profitability: { status: 'fail', label: 'Profitabilitate & Marje', value: '-12% net', explanation: 'Fail' },
         capitalEfficiency: { status: 'fail', label: 'Eficiența Capitalului', value: '-15% ROE', explanation: 'Fail' },
         growth: { status: 'fail', label: 'Creștere Venituri & EPS', value: '-4.5%', explanation: 'Fail' },
-        solvency: { status: 'watch', label: 'Sănătate Financiară', value: '0.95 D/E', explanation: 'Watch' },
+        priceToRevenue: { status: 'pass', label: 'Preț/Venituri (P/R)', value: 'P/R: 3.2x', explanation: 'Pass' },
         freeCashFlow: { status: 'watch', label: 'Cash Flow & Retur Acționari', value: '$15M', explanation: 'Watch' },
         valuation: { status: 'fail', label: 'Evaluare & Moat (PEG)', value: '8.5 PEG', explanation: 'Fail' }
       },
@@ -130,7 +130,7 @@ describe('findStockInScan — Stock Business Quality lookup', () => {
     assert.equal(nvda.criteria.profitability.status, 'pass');
     assert.equal(nvda.criteria.capitalEfficiency.status, 'pass');
     assert.equal(nvda.criteria.growth.status, 'pass');
-    assert.equal(nvda.criteria.solvency.status, 'pass');
+    assert.equal(nvda.criteria.priceToRevenue.status, 'watch');
     assert.equal(nvda.criteria.freeCashFlow.status, 'pass');
     assert.equal(nvda.criteria.valuation.status, 'pass');
   });

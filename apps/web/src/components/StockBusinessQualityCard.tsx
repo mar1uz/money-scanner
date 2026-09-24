@@ -12,7 +12,8 @@ import {
   Award,
   AlertCircle,
   Loader2,
-  PieChart
+  PieChart,
+  Percent
 } from 'lucide-react';
 import type {
   StockBusinessQualityScan,
@@ -77,7 +78,7 @@ const CRITERIA_ICONS: Record<string, React.ReactNode> = {
   profitability: <DollarSign className="w-3.5 h-3.5" />,
   capitalEfficiency: <TrendingUp className="w-3.5 h-3.5" />,
   growth: <Sparkles className="w-3.5 h-3.5" />,
-  solvency: <ShieldCheck className="w-3.5 h-3.5" />,
+  priceToRevenue: <Percent className="w-3.5 h-3.5" />,
   freeCashFlow: <Banknote className="w-3.5 h-3.5" />,
   valuation: <Scale className="w-3.5 h-3.5" />
 };
@@ -86,7 +87,7 @@ const CRITERIA_ORDER = [
   'profitability',
   'capitalEfficiency',
   'growth',
-  'solvency',
+  'priceToRevenue',
   'freeCashFlow',
   'valuation'
 ] as const;
@@ -304,7 +305,8 @@ export const StockBusinessQualityCard: React.FC<StockBusinessQualityCardProps> =
                 { label: 'Free Cash Flow (FCF)', val: asset.metrics.freeCashFlow ? `$${(asset.metrics.freeCashFlow / 1e9).toFixed(1)}B` : 'N/A', tone: (asset.metrics.freeCashFlow || 0) > 0 ? 'text-emerald-300' : 'text-rose-300' },
                 { label: 'Debt / Equity', val: asset.metrics.debtToEquity !== undefined ? asset.metrics.debtToEquity.toFixed(2) : 'N/A', tone: (asset.metrics.debtToEquity || 0) <= 1.0 ? 'text-emerald-300' : 'text-amber-300' },
                 { label: 'Forward P/E', val: asset.metrics.forwardPE !== undefined ? `${asset.metrics.forwardPE.toFixed(1)}x` : 'N/A', tone: 'text-slate-200' },
-                { label: 'PEG Ratio', val: asset.metrics.pegRatio !== undefined ? asset.metrics.pegRatio.toFixed(2) : 'N/A', tone: (asset.metrics.pegRatio || 0) <= 2.0 ? 'text-emerald-300' : 'text-amber-300' }
+                { label: 'PEG Ratio', val: asset.metrics.pegRatio !== undefined ? asset.metrics.pegRatio.toFixed(2) : 'N/A', tone: (asset.metrics.pegRatio || 0) <= 2.0 ? 'text-emerald-300' : 'text-amber-300' },
+                { label: isRo ? 'Preț / Venituri (P/R)' : 'Price / Revenue (P/R)', val: asset.metrics.priceToSales !== undefined ? `${asset.metrics.priceToSales.toFixed(1)}x` : 'N/A', tone: asset.metrics.priceToSales === undefined ? 'text-slate-200' : asset.metrics.priceToSales <= 10 ? 'text-emerald-300' : asset.metrics.priceToSales <= 20 ? 'text-amber-300' : 'text-rose-300' }
               ].map((item, idx) => (
                 <div key={idx} className="p-2 rounded-lg bg-[var(--t-surface-raised)] border border-white/[0.06]">
                   <span className="block text-[9px] font-mono text-slate-500 uppercase">{item.label}</span>
