@@ -6,7 +6,7 @@ import type { CryptoFourCriteriaAsset, CryptoFourCriteriaScan, StockBusinessQual
 import { translateText, useLanguage } from '../i18n.js';
 import { useAssetNavigation } from './AssetNavigation.js';
 import { CryptoBqAssetCard } from './CryptoBqAssetCard.js';
-import { STOCK_CRITERIA, STOCK_CHIP_SHORT, STOCK_EXTRA_TILES, stockChipTone, indexTone, fmtUsd } from './StockBqBlocks.js';
+import { STOCK_CRITERIA, STOCK_CHIP_SHORT, STOCK_EXTRA_TILES, stockChipTone, indexTone, MarketCapTile } from './StockBqBlocks.js';
 
 type StockUndervaluedRow = { asset: StockBusinessQualityAsset; ratio: number; basis: string; index: number };
 
@@ -36,7 +36,7 @@ const StockBqCard: React.FC<{
                 <span className={`text-[10px] font-mono ${asset.criteria.growth.status === 'pass' ? 'text-emerald-300' : asset.criteria.growth.status === 'watch' ? 'text-amber-300' : 'text-rose-300'}`}>{asset.criteria.growth.value}</span>
               )}
             </div>
-            <span className="block text-[10px] text-slate-500 truncate"><bdi translate="no">{asset.name}</bdi> · MC {fmtUsd(asset.marketCap)}{asset.sector ? ` · ${translateText(asset.sector, language)}` : ''}</span>
+            <span className="block text-[10px] text-slate-500 truncate"><bdi translate="no">{asset.name}</bdi>{asset.sector ? ` · ${translateText(asset.sector, language)}` : ''}</span>
           </div>
         </div>
         <div className="text-right">
@@ -63,6 +63,8 @@ const StockBqCard: React.FC<{
         })}
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+        {/* Market cap up top as a full-width tile, same style as the crypto card (Marius, 2026-09-24). */}
+        <MarketCapTile value={asset.marketCap} className="col-span-2 sm:col-span-4" />
         {[...STOCK_CRITERIA, ...STOCK_EXTRA_TILES].map(item => {
           const criterion = asset.criteria[item.key];
           if (!criterion) return null;

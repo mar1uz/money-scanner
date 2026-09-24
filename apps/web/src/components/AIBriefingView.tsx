@@ -19,6 +19,7 @@ import {
 } from '../services/api.js';
 import { translateText, useLanguage } from '../i18n.js';
 import { AssetLink, useAssetNavigation } from './AssetNavigation.js';
+import { MarketCapTile, fmtUsd } from './StockBqBlocks.js';
 import {
   Sparkles,
   ExternalLink,
@@ -400,6 +401,8 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2 mt-3">
+                      {/* Market cap on every card (Marius, 2026-09-24) */}
+                      <MarketCapTile value={asset.marketCap} className="sm:col-span-2 xl:col-span-4" />
                       {(() => {
                         const multiple = valuationMultiple(asset);
                         return (
@@ -670,7 +673,12 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
                     )}
 
                     {/* Financial Indicators Row */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-1.5 mt-2.5 pt-2.5 border-t border-white/[0.05]">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-1.5 mt-2.5 pt-2.5 border-t border-white/[0.05]">
+                      {/* Market cap on every card (Marius, 2026-09-24); full row on mobile/tablet */}
+                      <div className="col-span-2 sm:col-span-4 lg:col-span-1 p-1.5 rounded-md bg-[var(--t-surface-raised)] border border-white/[0.04]" title={fmtUsd(asset.marketCap) ? undefined : 'No verified market cap for this instrument'}>
+                        <span className="block text-[8px] font-mono text-slate-500 uppercase truncate">Market cap</span>
+                        <span className="block text-[10px] font-mono font-bold text-slate-200">{fmtUsd(asset.marketCap) || '\u2014'}</span>
+                      </div>
                       {[
                         { label: language === 'ro' ? 'Marjă Netă' : 'Net Margin', val: asset.metrics.netMargin !== undefined ? `${asset.metrics.netMargin.toFixed(1)}%` : 'N/A' },
                         { label: language === 'ro' ? 'Marjă Op' : 'Op Margin', val: asset.metrics.operatingMargin !== undefined ? `${asset.metrics.operatingMargin.toFixed(1)}%` : 'N/A' },

@@ -38,7 +38,7 @@ import {
   setBullishAlert
 } from '../services/api.js';
 import { translateText, useLanguage } from '../i18n.js';
-import { StockBqChips, StockBqTiles, fmtUsd } from './StockBqBlocks.js';
+import { StockBqChips, StockBqTiles, MarketCapTile } from './StockBqBlocks.js';
 
 interface AlertsCenterViewProps {
   knownAssets: AssetScannerRow[];
@@ -117,6 +117,31 @@ const useStockScanAssets = (): Map<string, StockBusinessQualityAsset> => {
   return map;
 };
 
+// Market cap on every Alerts card (Marius, 2026-09-24). Real sources only:
+// crypto = CoinGecko market cap from the four-criteria scan (fallback: the
+// live scanner row), stocks = Yahoo market cap from the stock BQ scan,
+// metals = no verified source, so the card shows the em dash.
+const resolveCardMarketCap = (
+  marketClass: string | undefined,
+  symbol: string,
+  cryptoFundamentals: Map<string, CryptoFundamentals>,
+  stockAssets: Map<string, StockBusinessQualityAsset>,
+  knownAssets?: AssetScannerRow[]
+): number | undefined => {
+  const key = symbol.toUpperCase();
+  if (marketClass === 'crypto') {
+    return cryptoFundamentals.get(key)?.marketCap
+      ?? knownAssets?.find(row => row.marketClass === 'crypto' && row.symbol.toUpperCase() === key)?.marketCap;
+  }
+  if (marketClass === 'stocks') return stockAssets.get(key)?.marketCap;
+  return undefined;
+};
+
+// Full-width on mobile so the rest of the 2-column tile grid stays even.
+const CardMarketCap: React.FC<{ value?: number }> = ({ value }) => (
+  <MarketCapTile value={value} compact className="col-span-2 sm:col-span-1" />
+);
+
 // Full Top Alpha stock-card info set on Alerts stock cards (Marius, 2026-09-24):
 // MC + sector subtitle, the 6 criteria chips, and the metric tiles with P/R and
 // P/E combined in one highlighted tile. Alert-specific data stays first.
@@ -124,10 +149,7 @@ const StockFundamentalsSection: React.FC<{ asset: StockBusinessQualityAsset }> =
   const { language } = useLanguage();
   return (
     <div className="mt-3 rounded-xl border border-white/[0.06] bg-white/[0.015] p-2.5">
-      <div className="text-[10px] text-slate-500">
-        MC <span className="font-mono font-bold text-slate-300">{fmtUsd(asset.marketCap) || 'N/A'}</span>
-        {asset.sector ? <> · {translateText(asset.sector, language)}</> : null}
-      </div>
+      {asset.sector ? <div className="text-[10px] text-slate-500">{translateText(asset.sector, language)}</div> : null}
       <StockBqChips asset={asset} language={language} />
       <StockBqTiles asset={asset} language={language} combinedPePr />
     </div>
@@ -710,6 +732,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
           knownAssets={knownAssets}
           fundamentals={candidate.marketClass === 'crypto' ? cryptoFundamentals.get(candidate.symbol.toUpperCase()) : undefined}
           stockAsset={candidate.marketClass === 'stocks' ? stockScanAssets.get(candidate.symbol.toUpperCase()) : undefined}
+          marketCap={resolveCardMarketCap(candidate.marketClass, candidate.symbol, cryptoFundamentals, stockScanAssets, knownAssets)}
           onPrepare={() => void prepareCandidateAlert(candidate)}
           onOpen={() => onOpenAsset(candidate.symbol, candidate.marketClass, candidate.timeframe)}
         />
@@ -928,6 +951,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
       <DailySmaReclaimSection
         report={data?.dailySmaReclaim}
         onOpenAsset={onOpenAsset}
+        cryptoFundamentals={cryptoFundamentals}
       />
 
       {/* Filter Tabs */}
@@ -1030,6 +1054,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                     knownAssets={knownAssets}
                     fundamentals={candidate.marketClass === 'crypto' ? cryptoFundamentals.get(candidate.symbol.toUpperCase()) : undefined}
                     stockAsset={candidate.marketClass === 'stocks' ? stockScanAssets.get(candidate.symbol.toUpperCase()) : undefined}
+                    marketCap={resolveCardMarketCap(candidate.marketClass, candidate.symbol, cryptoFundamentals, stockScanAssets, knownAssets)}
                     onOpen={() => onOpenAsset(candidate.symbol, candidate.marketClass, candidate.timeframe)}
                   />
                 ))}
@@ -1139,6 +1164,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                       removing={removingId === alert.id}
                       knownAssets={knownAssets}
                       stockAsset={alert.marketClass === 'stocks' ? stockScanAssets.get(alert.symbol.toUpperCase()) : undefined}
+                      marketCap={resolveCardMarketCap(alert.marketClass, alert.symbol, cryptoFundamentals, stockScanAssets, knownAssets)}
                       onRemove={() => void removeAlert(alert)}
                       onOpen={() => onOpenAsset(alert.symbol, alert.marketClass, alert.timeframe)}
                     />
@@ -1173,7 +1199,8 @@ const formatSmaDistance = (value?: number) => value === undefined || !Number.isF
 const DailySmaReclaimSection: React.FC<{
   report: import('@money-scanner/shared').DailySmaReclaimReport | null | undefined;
   onOpenAsset: AlertsCenterViewProps['onOpenAsset'];
-}> = ({ report, onOpenAsset }) => {
+  cryptoFundamentals?: Map<string, CryptoFundamentals>;
+}> = ({ report, onOpenAsset, cryptoFundamentals }) => {
   const [open, setOpen] = useState(() => readPersistedOpen(ALERTS_SMA_OPEN_KEY, true));
   const toggleOpen = () => {
     setOpen(prev => {
@@ -1243,7 +1270,7 @@ const DailySmaReclaimSection: React.FC<{
         <SummaryCard icon={CheckCircle2} label="Acoperire" value={`${report.totals.scanned}/${report.totals.total}`} tone="slate" />
       </div>
       <div className="rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] px-3 py-2 text-[10px] text-slate-500">Sursă: {report.source} · execuție {report.durationMs}ms · {report.telegram ? `Telegram ${report.telegram.deliveredParts}/${report.telegram.parts} părți livrate` : 'Telegram neprocesat'}</div>
-      {signals.length ? <div className="grid gap-3 lg:grid-cols-2">{signals.map(result => <DailySmaSignalCard key={result.symbol} result={result} onOpen={() => onOpenAsset(result.symbol, 'crypto', '1d')} />)}</div> : <div className="rounded-xl border border-dashed border-white/[0.08] px-4 py-5 text-center text-xs text-slate-500">Nu există traversări noi în ziua analizată. Monedele deja peste medii rămân vizibile în acoperirea de mai jos.</div>}
+      {signals.length ? <div className="grid gap-3 lg:grid-cols-2">{signals.map(result => <DailySmaSignalCard key={result.symbol} result={result} marketCap={cryptoFundamentals?.get(result.symbol.toUpperCase())?.marketCap} onOpen={() => onOpenAsset(result.symbol, 'crypto', '1d')} />)}</div> : <div className="rounded-xl border border-dashed border-white/[0.08] px-4 py-5 text-center text-xs text-slate-500">Nu există traversări noi în ziua analizată. Monedele deja peste medii rămân vizibile în acoperirea de mai jos.</div>}
       <details className="rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)]" open>
         <summary className="cursor-pointer list-none px-3 py-2 text-xs font-bold text-slate-300">Acoperire completă ({ordered.length})</summary>
         <div className="grid max-h-80 gap-1.5 overflow-y-auto border-t border-white/[0.06] p-3 sm:grid-cols-2 lg:grid-cols-3">{ordered.map(result => <button key={result.symbol} type="button" onClick={() => onOpenAsset(result.symbol, 'crypto', '1d')} className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-2.5 py-2 text-left transition hover:border-cyan-500/30"><div className="flex items-center justify-between gap-2"><span className="font-mono text-[11px] font-bold text-slate-200">{result.symbol}</span><span className="font-mono text-[9px] text-slate-500">{result.rank ? `#${result.rank}` : '—'}</span></div><div className="mt-1 flex items-center justify-between gap-2"><span className={`rounded border px-1.5 py-0.5 text-[9px] font-bold ${smaReclaimStatusMeta[result.status].tone}`}>{smaReclaimStatusMeta[result.status].label}</span><span className="truncate text-[9px] text-slate-600" title={result.reason}>{result.source}</span></div></button>)}</div>
@@ -1254,11 +1281,11 @@ const DailySmaReclaimSection: React.FC<{
   );
 };
 
-const DailySmaSignalCard: React.FC<{ result: DailySmaReclaimResult; onOpen: () => void }> = ({ result, onOpen }) => {
+const DailySmaSignalCard: React.FC<{ result: DailySmaReclaimResult; marketCap?: number; onOpen: () => void }> = ({ result, marketCap, onOpen }) => {
   const signal = result.signal!;
   const dailyMl = signal.dailyMoneyLine;
   const weeklyMl = signal.weeklyMoneyLine;
-  return <article className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.05] p-4"><div className="flex items-start justify-between gap-3"><button type="button" onClick={onOpen} className="min-w-0 text-left"><div className="flex flex-wrap items-center gap-2"><strong className="font-mono text-lg text-white">${result.symbol}</strong><span className="truncate text-xs font-semibold text-slate-300">{result.name}</span><span className="rounded border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-200">{result.rank ? `CoinGecko #${result.rank}` : 'CoinGecko —'}</span></div><div className="mt-1 text-[10px] text-slate-500">Confirmare: {reportDate(result.analyzedDay)}</div></button><span className="rounded border border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-300">▲ SEMNAL NOU</span></div><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4"><LevelBox label="Închidere confirmare" value={formatPrice(signal.confirmationPrice)} tone="emerald" /><LevelBox label="Preț curent" value={formatPrice(result.currentPrice)} tone="cyan" /><LevelBox label="SMA 50 / 200" value={`${formatPrice(signal.sma50)} / ${formatPrice(signal.sma200)}`} tone="slate" /><LevelBox label="Distanță media superioară" value={formatSmaDistance(signal.distanceToUpperSmaAtr)} tone={signal.distanceLabel === 'EXTENDED' ? 'amber' : 'cyan'} /></div><div className="mt-3 flex flex-wrap gap-1.5 text-[9px] font-bold uppercase tracking-wide"><span className={`rounded border px-2 py-1 ${signal.rvolHighlighted ? 'border-amber-500/30 bg-amber-500/10 text-amber-200' : 'border-white/[0.07] text-slate-500'}`}>RVOL {signal.rvol?.toFixed(2) ?? 'indisponibil'}x</span><span className="rounded border border-white/[0.07] px-2 py-1 text-slate-500">SMA50 {signal.sma50Direction.toLowerCase()}</span><span className="rounded border border-white/[0.07] px-2 py-1 text-slate-500">SMA200 {signal.sma200Direction.toLowerCase()}</span><span className={`rounded border px-2 py-1 ${dailyMl.bullish ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300' : 'border-white/[0.07] text-slate-500'}`}>ML 1D {dailyMl.bullish ? 'bullish' : 'indisponibil/nebullish'}</span><span className={`rounded border px-2 py-1 ${weeklyMl?.bullish ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300' : 'border-white/[0.07] text-slate-500'}`}>ML 1W {weeklyMl?.bullish ? 'bullish' : 'indisponibil/nebullish'}</span></div><button type="button" onClick={onOpen} className="mt-3 flex w-full items-center justify-between border-t border-white/[0.06] pt-3 text-[11px] font-semibold text-cyan-300">Deschide graficul <ChevronRight className="h-3.5 w-3.5" /></button></article>;
+  return <article className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.05] p-4"><div className="flex items-start justify-between gap-3"><button type="button" onClick={onOpen} className="min-w-0 text-left"><div className="flex flex-wrap items-center gap-2"><strong className="font-mono text-lg text-white">${result.symbol}</strong><span className="truncate text-xs font-semibold text-slate-300">{result.name}</span><span className="rounded border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-200">{result.rank ? `CoinGecko #${result.rank}` : 'CoinGecko —'}</span></div><div className="mt-1 text-[10px] text-slate-500">Confirmare: {reportDate(result.analyzedDay)}</div></button><span className="rounded border border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-300">▲ SEMNAL NOU</span></div><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4"><CardMarketCap value={marketCap} /><LevelBox label="Închidere confirmare" value={formatPrice(signal.confirmationPrice)} tone="emerald" /><LevelBox label="Preț curent" value={formatPrice(result.currentPrice)} tone="cyan" /><LevelBox label="SMA 50 / 200" value={`${formatPrice(signal.sma50)} / ${formatPrice(signal.sma200)}`} tone="slate" /><LevelBox label="Distanță media superioară" value={formatSmaDistance(signal.distanceToUpperSmaAtr)} tone={signal.distanceLabel === 'EXTENDED' ? 'amber' : 'cyan'} /></div><div className="mt-3 flex flex-wrap gap-1.5 text-[9px] font-bold uppercase tracking-wide"><span className={`rounded border px-2 py-1 ${signal.rvolHighlighted ? 'border-amber-500/30 bg-amber-500/10 text-amber-200' : 'border-white/[0.07] text-slate-500'}`}>RVOL {signal.rvol?.toFixed(2) ?? 'indisponibil'}x</span><span className="rounded border border-white/[0.07] px-2 py-1 text-slate-500">SMA50 {signal.sma50Direction.toLowerCase()}</span><span className="rounded border border-white/[0.07] px-2 py-1 text-slate-500">SMA200 {signal.sma200Direction.toLowerCase()}</span><span className={`rounded border px-2 py-1 ${dailyMl.bullish ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300' : 'border-white/[0.07] text-slate-500'}`}>ML 1D {dailyMl.bullish ? 'bullish' : 'indisponibil/nebullish'}</span><span className={`rounded border px-2 py-1 ${weeklyMl?.bullish ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300' : 'border-white/[0.07] text-slate-500'}`}>ML 1W {weeklyMl?.bullish ? 'bullish' : 'indisponibil/nebullish'}</span></div><button type="button" onClick={onOpen} className="mt-3 flex w-full items-center justify-between border-t border-white/[0.06] pt-3 text-[11px] font-semibold text-cyan-300">Deschide graficul <ChevronRight className="h-3.5 w-3.5" /></button></article>;
 };
 
 const reportDate = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString(dateLocale(), { dateStyle: 'medium' });
@@ -1288,9 +1315,10 @@ const FlipCandidateCard: React.FC<{
   knownAssets?: AssetScannerRow[];
   fundamentals?: CryptoFundamentals;
   stockAsset?: StockBusinessQualityAsset;
+  marketCap?: number;
   onPrepare: () => void;
   onOpen: () => void;
-}> = ({ candidate, rank, coinGeckoRank, preparing, alertActive, knownAssets, fundamentals, stockAsset, onPrepare, onOpen }) => {
+}> = ({ candidate, rank, coinGeckoRank, preparing, alertActive, knownAssets, fundamentals, stockAsset, marketCap, onPrepare, onOpen }) => {
   const bullish = candidate.direction === 'BULLISH';
   const directionTone = bullish
     ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
@@ -1368,6 +1396,7 @@ const FlipCandidateCard: React.FC<{
 
         {candidate.status === 'CONFIRMED' ? (
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <CardMarketCap value={marketCap} />
             <LevelBox label="Închidere flip" value={formatPrice(confirmationPrice)} tone={bullish ? 'emerald' : 'rose'} />
             <LevelBox label="Preț acum" value={formatPrice(candidate.currentPrice)} tone="cyan" />
             <LevelBox label="Față de flip" value={moveFromFlipLabel} tone={moveFromFlip >= 0 ? 'emerald' : 'rose'} />
@@ -1378,6 +1407,7 @@ const FlipCandidateCard: React.FC<{
           </div>
         ) : (
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <CardMarketCap value={marketCap} />
             <LevelBox label="Preț acum" value={formatPrice(candidate.currentPrice)} tone="slate" />
             <LevelBox label={`${bullish ? 'Peste' : 'Sub'} Slow`} value={formatPrice(candidate.triggerPrice)} tone={bullish ? 'emerald' : 'rose'} />
             <LevelBox label="ML 1W" value={`${candidate.weeklyTier} · ${candidate.weeklyScore > 0 ? '+' : ''}${candidate.weeklyScore}`} tone={candidate.weeklyAligned ? (bullish ? 'emerald' : 'rose') : 'slate'} />
@@ -1424,8 +1454,9 @@ const ConfirmedFlipCard: React.FC<{
   knownAssets?: AssetScannerRow[];
   fundamentals?: CryptoFundamentals;
   stockAsset?: StockBusinessQualityAsset;
+  marketCap?: number;
   onOpen: () => void;
-}> = ({ candidate, rank, coinGeckoRank, knownAssets, fundamentals, stockAsset, onOpen }) => {
+}> = ({ candidate, rank, coinGeckoRank, knownAssets, fundamentals, stockAsset, marketCap, onOpen }) => {
   const bullish = candidate.direction === 'BULLISH';
   const tone = bullish
     ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
@@ -1474,6 +1505,7 @@ const ConfirmedFlipCard: React.FC<{
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <CardMarketCap value={marketCap} />
         <LevelBox label="Închidere flip" value={formatPrice(confirmationPrice)} tone={bullish ? 'emerald' : 'rose'} />
         <LevelBox label="Preț actual" value={formatPrice(candidate.currentPrice)} tone="cyan" />
         <LevelBox label="Față de flip" value={moveFromFlipLabel} tone={moveFromFlip >= 0 ? 'emerald' : 'rose'} />
@@ -1493,7 +1525,7 @@ const ConfirmedFlipCard: React.FC<{
   );
 };
 
-const ActiveAlertCard: React.FC<{ alert: ActiveAlertDashboardItem; removing: boolean; knownAssets?: AssetScannerRow[]; stockAsset?: StockBusinessQualityAsset; onRemove: () => void; onOpen: () => void }> = ({ alert, removing, knownAssets, stockAsset, onRemove, onOpen }) => {
+const ActiveAlertCard: React.FC<{ alert: ActiveAlertDashboardItem; removing: boolean; knownAssets?: AssetScannerRow[]; stockAsset?: StockBusinessQualityAsset; marketCap?: number; onRemove: () => void; onOpen: () => void }> = ({ alert, removing, knownAssets, stockAsset, marketCap, onRemove, onOpen }) => {
   const meta = statusMeta[alert.status];
   const assetName = getAssetName(alert.symbol, undefined, knownAssets);
   const showName = assetName && assetName.toUpperCase() !== alert.symbol.toUpperCase();
@@ -1546,6 +1578,7 @@ const ActiveAlertCard: React.FC<{ alert: ActiveAlertDashboardItem; removing: boo
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <CardMarketCap value={marketCap} />
         <LevelBox label="Preț acum" value={formatPrice(alert.currentPrice)} tone="slate" />
         <LevelBox label="Trigger Slow" value={formatPrice(alert.triggerPrice)} tone="cyan" />
         <LevelBox label="Fast" value={alert.fastBullish ? 'Bullish' : 'Bearish'} tone={alert.fastBullish ? 'emerald' : 'rose'} />

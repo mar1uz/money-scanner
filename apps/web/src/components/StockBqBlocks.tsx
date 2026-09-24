@@ -51,6 +51,21 @@ export const fmtUsd = (value?: number): string => {
   return `$${value.toFixed(0)}`;
 };
 
+// Market cap on every card (Marius, 2026-09-24: "Vreau toate cardurile din
+// aplicație fie ele crypto sau stocks sau metale să aibă și market cap").
+// Same tile as the crypto Top Alpha MARKET CAP tile. Real data only: when no
+// verified market cap exists (metals/commodities, ETFs without one) it shows
+// the em dash, never a static estimate.
+export const MarketCapTile: React.FC<{ value?: number; className?: string; compact?: boolean }> = ({ value, className = '', compact = false }) => {
+  const formatted = fmtUsd(value);
+  return (
+    <div className={`rounded-lg border border-white/[0.07] bg-white/[0.02] ${compact ? 'px-2.5 py-2' : 'p-2.5'} ${className}`} title={formatted ? undefined : 'No verified market cap for this instrument'}>
+      <span className="block text-[9px] font-mono uppercase text-slate-600">Market cap</span>
+      <span className="block mt-1 text-sm font-mono font-bold text-slate-100">{formatted || '\u2014'}</span>
+    </div>
+  );
+};
+
 export const StockBqChips: React.FC<{ asset: StockBusinessQualityAsset; language: 'ro' | 'en' }> = ({ asset, language }) => {
   const isRo = language === 'ro';
   return (
