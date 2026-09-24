@@ -90,13 +90,19 @@ export const BusinessQualityView: React.FC = () => {
   };
 
   const methodology = isRo ? (scan?.methodology || []) : [
-    'Growth: 7-day TVL change or fee acceleration (7d run-rate versus 30d).',
-    'Network effect: conservative proxy based on fees, TVL and multi-chain reach; it does not claim exact active users.',
-    'Sustainable revenue: material revenue observed concurrently across 24h, 7d and 30d windows.',
-    'Holder value: holder revenue reported as buyback/burn, direct distribution or revenue-funded staking.',
-    'Undervaluation model: quality score 0-75 = Network Effect + Sustainable Revenue + Holder Value (same thresholds).',
-    'Valuation: P/R = market cap / (30d revenue x 365/30); fallback P/H from annualized buyback/burn when that is the only data. Fees-only assets (no revenue/holder data) are excluded from Undervalued.',
-    'Undervaluation index = quality percentile minus expensiveness percentile (log P/R) within the same valuation basis, with midranks for ties. Assets without revenue/holder data are not ranked.'
+    '4x200 score: each rubric with complete data is worth 25 points; missing or incomplete data scores 0. No minimum performance thresholds apply.',
+    'Growth: requires a 7-day TVL change or a computable fee acceleration (7d run-rate versus 30d).',
+    'Network effect: pass only with 30d fees ≥ $100K AND TVL ≥ $10M; watch when below-threshold usage exists. A proxy, not exact active users.',
+    'Sustainable revenue: requires a complete 30d revenue observation; for L1 networks (BTC, ETH, SOL) network fees are used.',
+    'Holder value: requires complete reporting of buyback/burn, distributions or revenue-funded staking AND value > $0 over 30d; reported zero does not pass the criterion.',
+    'Undervaluation model (Business Quality tab): quality score 0-75 = data completeness for Network Effect + Sustainable Revenue + Holder Value.',
+    'Undervalued order (v9): purely by P/R, cheapest first; 3/4 and 4/4 criteria are treated the same (criteria stay displayed, they no longer sort). Index and quality decide only ties.',
+    'Top Score (v9): fundamental score = 10 x log10(30d revenue) - 10 x log10(P/R); one decade more revenue is worth as much as a 10x lower P/R. Eligible only with 30d revenue ≥ $100K, market cap ≥ $10M and at least 3/4 criteria (3/4 and 4/4 treated the same, with or without TVL). Criteria do not sort (ties only).',
+    'Valuation: P/R = market cap / (30d revenue x 365/30); fallback P/H from annualized buyback/burn when revenue is missing. Fees-only assets (no revenue/holder data) are excluded from the Undervalued ranking - P/F does not measure value capture.',
+    'Undervalued eligibility (hard filter, v10): complete 30d fees ≥ $100K AND market cap ≥ $10M AND TVL ≥ $10M. Absent TVL is not the same as small TVL: when DefiLlama has no TVL at all for the asset (launchpads, apps, chains where TVL does not apply), the filter passes on fees alone; when TVL exists but is below $10M, the asset is not ranked. v11: at least 3/4 criteria (3/4 and 4/4 treated the same) and no stablecoins (USDT, USDC, RLUSD, DAI etc. - P/R is meaningless for a $1-pegged token).',
+    'Undervaluation index = quality percentile - expensiveness percentile (log P/R) among assets on the same basis (revenue/holders), with midranks for ties; shown as information and used only on P/R ties.',
+    'Holder yield: (30d holders revenue x 365/30) / MC x 100; the /FDV variant includes dilution. Extrapolated rate, not a guaranteed APY.',
+    'Section selection (the 4-criteria view in AI Briefing): only coins with observable fees/revenue or reported buyback/burn are listed; sorted by criteria passed, then the size factor (log10 of 30d revenue; holder distributions count as revenue and fees are a fallback only when revenue data is completely missing), then revenue pace (7d vs 30d) and rank.'
   ];
 
   return (
@@ -113,8 +119,8 @@ export const BusinessQualityView: React.FC = () => {
               </h2>
               <p className="text-[11px] text-slate-400 font-sans">
                 {isRo
-                  ? 'Sortare de la cea mai subevaluată la cea mai supraevaluată, după Efect de rețea, Venit sustenabil și Valoare către holderi. Eligibile doar cu fees 30z ≥ $100K, TVL ≥ $10M și market cap ≥ $10M.'
-                  : 'Sorted from most undervalued to most overvalued, by Network Effect, Sustainable Revenue and Holder Value. Eligible only with 30d fees ≥ $100K, TVL ≥ $10M and market cap ≥ $10M.'}
+                  ? 'Sortare de la cea mai subevaluată la cea mai supraevaluată, după Efect de rețea, Venit sustenabil și Valoare către holderi. Eligibile cu fees 30z complete ≥ $100K, market cap ≥ $10M și minim 3/4 criterii; fără stablecoins; pragul TVL ≥ $10M se aplică doar când DefiLlama raportează TVL.'
+                  : 'Sorted from most undervalued to most overvalued, by Network Effect, Sustainable Revenue and Holder Value. Eligible with complete 30d fees ≥ $100K, market cap ≥ $10M and at least 3/4 criteria; stablecoins excluded; the TVL ≥ $10M check applies only when DefiLlama reports TVL.'}
               </p>
             </div>
           </div>
