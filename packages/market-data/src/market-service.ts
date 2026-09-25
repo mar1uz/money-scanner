@@ -123,11 +123,8 @@ export class MarketDataService {
 
   /** Full multi-exchange chart market (TradingView symbol + candle source) for a crypto symbol. */
   public async resolveChartMarket(symbol: string, coinGeckoId?: string) {
-    // Existing perp-backed catalog assets retain their signal methodology.
-    // A CoinGecko spot ticker cannot authenticate the perp candle feed, and
-    // switching HYPE to MEXC spot needs a separate methodology decision.
+    // Resolve the exact spot identity even for assets formerly routed to perps.
     const catalog = this.getAssetDefinition(symbol);
-    if (catalog?.marketDataSource === 'hyperliquid' || catalog?.marketDataSource === 'binance_futures') return null;
     const id = coinGeckoId || catalog?.coinGeckoId;
     return this.chartResolver.resolve(symbol, id);
   }
@@ -162,7 +159,7 @@ export class MarketDataService {
 
     try {
       const chartMarket = isExplicitCryptoSpot ? await this.resolveCryptoChartMarket(symbol, coinGeckoId) : null;
-      if (coinGeckoId && isExplicitCryptoSpot && !chartMarket && !isHyperliquid && !isBinanceFutures) {
+      if ((coinGeckoId || asset?.coinGeckoId) && isExplicitCryptoSpot && !chartMarket) {
         throw new Error('No identity-verified candle market for requested coin');
       }
       const legacyCandles = async () => isHyperliquid
@@ -220,7 +217,7 @@ export class MarketDataService {
         : this.stockAdapter.isStockOrMetal(symbol);
 
     const chartMarket = isExplicitCryptoSpot ? await this.resolveCryptoChartMarket(symbol, coinGeckoId) : null;
-    if (coinGeckoId && isExplicitCryptoSpot && !chartMarket && !isHyperliquid && !isBinanceFutures) {
+    if ((coinGeckoId || asset?.coinGeckoId) && isExplicitCryptoSpot && !chartMarket) {
       throw new Error('No identity-verified candle market for requested coin');
     }
     const legacyBefore = async () => {
@@ -278,7 +275,7 @@ export class MarketDataService {
 
     try {
       const chartMarket = isExplicitCryptoSpot ? await this.resolveCryptoChartMarket(symbol, coinGeckoId) : null;
-      if (coinGeckoId && isExplicitCryptoSpot && !chartMarket && !isHyperliquid && !isBinanceFutures) {
+      if ((coinGeckoId || asset?.coinGeckoId) && isExplicitCryptoSpot && !chartMarket) {
         throw new Error('No identity-verified candle market for requested coin');
       }
       const legacyQuote = async () => isHyperliquid
@@ -319,7 +316,7 @@ export class MarketDataService {
     const concurrency = 6;
     for (let index = 0; index < assets.length; index += concurrency) {
       const settled = await Promise.allSettled(
-        assets.slice(index, index + concurrency).map(asset => this.getPriceQuote(asset.symbol, asset.marketClass))
+        assets.slice(index, index + concurrency).map(asset => this.getPriceQuote(asset.symbol, asset.marketClass, asset.coinGeckoId))
       );
       quotes.push(...settled.flatMap(result => result.status === 'fulfilled' ? [result.value] : []));
     }

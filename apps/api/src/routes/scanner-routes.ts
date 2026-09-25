@@ -551,6 +551,7 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
         ? await appState.marketData.resolveChartMarket(symbol, cryptoReference.coinGeckoId).catch(() => null)
         : null;
       if (!matchesLive && !verifiedMarket?.candle) {
+        if (cryptoReference.coinGeckoId) return res.status(503).json({ error: 'Verified exchange candles unavailable for the selected coin.' });
         return res.json({ ...(await loadAggregated()), businessQuality: await computeBusinessQuality() });
       }
     }
@@ -678,7 +679,7 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
     try {
       quote = await appState.marketData.getPriceQuote(symbol, resolvedMarketClass, assetInfo.coinGeckoId);
     } catch (error) {
-      if (resolvedMarketClass !== 'crypto' || symbol.includes('.') || symbol.startsWith('TOTAL')) throw error;
+      if (assetInfo.coinGeckoId || resolvedMarketClass !== 'crypto' || symbol.includes('.') || symbol.startsWith('TOTAL')) throw error;
       return res.json(await loadAggregated({
         ...cryptoReference, coinGeckoId: cryptoReference.coinGeckoId || assetInfo.coinGeckoId
       }));
@@ -804,6 +805,9 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       lastUpdated: Date.now()
     });
   } catch (err: any) {
+    if (String(err?.message || '').includes('No identity-verified candle market') || String(err?.message || '').includes('Chart market pin')) {
+      return res.status(503).json({ error: 'Verified exchange candles unavailable for the selected coin.' });
+    }
     res.status(500).json({ error: 'Failed to fetch asset detail', details: err.message });
   }
 });

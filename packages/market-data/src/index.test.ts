@@ -181,33 +181,6 @@ describe('Market Data Service & Normalization', () => {
     }
   });
 
-  it('routes HYPE to the official Hyperliquid candle API instead of Binance', async () => {
-    const originalFetch = globalThis.fetch;
-    let requestedUrl = '';
-    let requestedBody: any;
-    globalThis.fetch = (async (input, init) => {
-      requestedUrl = String(input);
-      requestedBody = JSON.parse(String(init?.body || '{}'));
-      return Response.json([
-        { t: Date.now() - 7_200_000, T: Date.now() - 3_600_001, o: '82.1', h: '83.2', l: '81.9', c: '82.8', v: '12500' },
-        { t: Date.now() - 3_600_000, T: Date.now() + 1_000, o: '82.8', h: '84.0', l: '82.5', c: '83.7', v: '15300' }
-      ]);
-    }) as typeof fetch;
-
-    try {
-      const service = new MarketDataService();
-      const candles = await service.getCandles('HYPE', '1h', 1500, 'crypto');
-      assert.equal(candles.length, 2);
-      assert.equal(candles.at(-1)?.close, 83.7);
-      assert.equal(requestedUrl, 'https://api.hyperliquid.xyz/info');
-      assert.equal(requestedBody.type, 'candleSnapshot');
-      assert.equal(requestedBody.req.coin, 'HYPE');
-      assert.equal(requestedBody.req.interval, '1h');
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
-  });
-
   it('uses the same resolved exchange for candles, older candles and quote; never falls through on provider failure', async () => {
     const service = new MarketDataService();
     const calls: string[] = [];
@@ -245,10 +218,13 @@ describe('Market Data Service & Normalization', () => {
     assert.equal(legacyCalls, 0);
   });
 
-  it('retains cataloged HYPE perp methodology while its spot source is undecided', async () => {
+  it('requires a verified HYPE spot resolution instead of silently using its legacy perp', async () => {
     const service = new MarketDataService();
-    (service as any).chartResolver.resolve = async () => { throw new Error('spot resolver must not be called'); };
-    assert.equal(await service.resolveChartMarket('HYPE', 'hyperliquid'), null);
+    (service as any).chartResolver.resolve = async () => null;
+    (service as any).hyperliquidAdapter.fetchCandles = async () => { throw new Error('perp must not be used'); };
+    await assert.rejects(service.getCandles('HYPE', '1d', 100, 'crypto'), /No identity-verified/);
+    await assert.rejects(service.getCandlesBefore('HYPE', '1d', Date.now(), 100, 'crypto'), /No identity-verified/);
+    await assert.rejects(service.getPriceQuote('HYPE', 'crypto'), /No identity-verified/);
   });
 
   it('does not probe exchange identity with a missing coin ID', async () => {
