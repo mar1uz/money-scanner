@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { fetchChartMarket } from '../services/api.js';
 import type { Timeframe } from '../types.js';
 
-export type CoinChartMarketResolver = (symbol: string, marketClass?: string) => Promise<{ tvSymbol: string | null }>;
+export type CoinChartMarketResolver = (symbol: string, marketClass?: string, coinGeckoId?: string) => Promise<{ tvSymbol: string | null }>;
 
 export type CoinChartMode = 'loading' | 'tv' | 'geckoterminal' | 'fallback';
 
@@ -32,6 +32,7 @@ export interface CoinChartDexInfo {
 export const CoinPageChart: React.FC<{
   symbol: string;
   marketClass: string;
+  coinGeckoId?: string;
   timeframe: Timeframe;
   language: string;
   dex?: CoinChartDexInfo | null;
@@ -39,7 +40,7 @@ export const CoinPageChart: React.FC<{
   fallbackSubtitle: string;
   fallback: React.ReactNode;
   resolver?: CoinChartMarketResolver;
-}> = ({ symbol, marketClass, timeframe, language, dex, fallbackTitle, fallbackSubtitle, fallback, resolver }) => {
+}> = ({ symbol, marketClass, coinGeckoId, timeframe, language, dex, fallbackTitle, fallbackSubtitle, fallback, resolver }) => {
   const gtNetwork = dex && !dex.pairIsDust && dex.pairAddress && dex.chainId
     ? (GECKO_NETWORK_ALIAS[dex.chainId] || dex.chainId)
     : null;
@@ -54,7 +55,7 @@ export const CoinPageChart: React.FC<{
     }
     let cancelled = false;
     setResolution({ mode: 'loading', tvSymbol: null });
-    (resolver || fetchChartMarket)(symbol, marketClass)
+    (resolver || fetchChartMarket)(symbol, marketClass, coinGeckoId)
       .then(result => {
         if (cancelled) return;
         if (result.tvSymbol) setResolution({ mode: 'tv', tvSymbol: result.tvSymbol });
@@ -62,7 +63,7 @@ export const CoinPageChart: React.FC<{
       })
       .catch(() => { if (!cancelled) setResolution({ mode: gtPool ? 'geckoterminal' : 'fallback', tvSymbol: null }); });
     return () => { cancelled = true; };
-  }, [symbol, marketClass, gtNetwork, gtPool, resolver]);
+  }, [symbol, marketClass, coinGeckoId, gtNetwork, gtPool, resolver]);
 
   // Official TradingView widget embed.
   useEffect(() => {

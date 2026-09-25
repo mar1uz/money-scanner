@@ -49,6 +49,7 @@ interface InteractiveChartProps {
   marketClass?: string;
   /** Exact provider quote currency (for example HYPE is sourced in USDC). */
   assetQuoteCurrency?: string;
+  coinGeckoId?: string;
   timeframe: string;
   onTimeframeChange?: (tf: Timeframe) => void;
   onLoadMoreHistory?: () => void | Promise<void>;
@@ -101,6 +102,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
   symbol,
   marketClass,
   assetQuoteCurrency,
+  coinGeckoId,
   timeframe,
   onTimeframeChange,
   onLoadMoreHistory,
@@ -308,7 +310,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     const isCryptoSpot = marketClass === 'crypto' && !symbol.includes(':') && !symbol.includes('.') && !symbol.startsWith('TOTAL') && !isDominanceOrRatio;
     setTvResolution({ status: 'local', tvSymbol: null });
     if (!isCryptoSpot) return;
-    fetchChartMarket(symbol, marketClass)
+    fetchChartMarket(symbol, marketClass, coinGeckoId)
       .then(result => {
         if (cancelled) return;
         if (result.tvSymbol) setTvResolution({ status: 'resolved', tvSymbol: result.tvSymbol, exchange: result.exchange });
@@ -316,7 +318,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       })
       .catch(() => { if (!cancelled) setTvResolution({ status: 'local', tvSymbol: null }); });
     return () => { cancelled = true; };
-  }, [symbol, marketClass]);
+  }, [symbol, marketClass, coinGeckoId]);
   const effectiveTvSymbol = tvResolution.status === 'resolved' ? tvResolution.tvSymbol : tvResolution.status === 'unavailable' ? null : tvSymbol;
   const normalizedAlertMarketClass: 'crypto' | 'stocks' | 'metals' =
     marketClass === 'stocks' || marketClass === 'metals' || marketClass === 'crypto'

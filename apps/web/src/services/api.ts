@@ -121,7 +121,8 @@ export async function fetchHistoricalCandles(
   timeframe: Timeframe,
   before: number,
   marketClass?: string,
-  limit = 1000
+  limit = 1000,
+  coinGeckoId?: string
 ): Promise<HistoricalCandlesResponse> {
   const params = new URLSearchParams({
     timeframe,
@@ -129,6 +130,7 @@ export async function fetchHistoricalCandles(
     limit: String(limit)
   });
   if (marketClass) params.set('marketClass', marketClass);
+  if (coinGeckoId) params.set('coinGeckoId', coinGeckoId);
   const response = await fetchWithDeadline(`${API_BASE}/assets/${encodeURIComponent(symbol)}/candles?${params.toString()}`);
   if (!response.ok) throw new Error(`HTTP ${response.status}: Failed to fetch historical candles for ${symbol}`);
   return response.json();
@@ -620,9 +622,10 @@ export interface ChartMarketResponse {
 }
 
 /** Server-resolved best exchange pair / TradingView symbol for a crypto asset. */
-export async function fetchChartMarket(symbol: string, marketClass?: string): Promise<ChartMarketResponse> {
+export async function fetchChartMarket(symbol: string, marketClass?: string, coinGeckoId?: string): Promise<ChartMarketResponse> {
   const params = new URLSearchParams();
   if (marketClass) params.set('marketClass', marketClass);
+  if (coinGeckoId) params.set('coinGeckoId', coinGeckoId);
   const res = await fetch(`${API_BASE}/assets/${encodeURIComponent(symbol)}/chart-market?${params.toString()}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to resolve chart market for ${symbol}`);
   return res.json();

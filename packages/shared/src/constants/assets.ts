@@ -1934,6 +1934,7 @@ export const TRADING_360_ASSETS: AssetInfo[] = [
   {
     symbol: 'HYPE',
     name: 'Hyperliquid',
+    coinGeckoId: 'hyperliquid',
     category: 'Layer 1',
     marketClass: 'crypto',
     narratives: ['crypto_l1', 'crypto_defi'],

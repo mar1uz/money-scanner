@@ -195,7 +195,8 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
         timeframe,
         oldestTimestamp,
         marketClass || data?.info?.marketClass,
-        1000
+        1000,
+        coinGeckoId || data?.info?.coinGeckoId
       );
       if (historyContextRef.current !== requestContext) return;
 
@@ -558,6 +559,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
           onLoadMoreHistory={loadOlderHistory}
           isLoadingHistory={loadingOlderHistory}
           hasMoreHistory={hasMoreHistory}
+          coinGeckoId={resolvedCoinGeckoId}
           coinGeckoUrl={resolvedMarketClass === 'crypto' ? coinGeckoUrl : undefined}
           activeTab={chartTab}
           onActiveTabChange={setChartTab}

@@ -21,6 +21,7 @@ import { ChartMarketResolver, ChartMarketCandidate } from './chart-market-resolv
 import { buildChartMarketResolverDeps } from './chart-market-probes.js';
 import { PublicStockMarketAdapter } from './adapters/public-stock.js';
 import { HyperliquidMarketAdapter } from './adapters/hyperliquid.js';
+import { MexcMarketAdapter } from './adapters/mexc.js';
 
 interface CoinGeckoMarketRow {
   id?: string;
@@ -40,8 +41,9 @@ export class MarketDataService {
   private okxAdapter = new OkxMarketAdapter(this.healthMonitor);
   private stockAdapter = new PublicStockMarketAdapter(this.healthMonitor);
   private hyperliquidAdapter = new HyperliquidMarketAdapter(this.healthMonitor);
+  private mexcAdapter = new MexcMarketAdapter(this.healthMonitor);
   private chartResolver = new ChartMarketResolver(
-    buildChartMarketResolverDeps(this.binanceAdapter, this.bybitAdapter, this.okxAdapter, this.hyperliquidAdapter)
+    buildChartMarketResolverDeps(this.binanceAdapter, this.bybitAdapter, this.okxAdapter, this.hyperliquidAdapter, this.mexcAdapter)
   );
   private candleCache = new Map<string, Candle[]>();
   private quoteCache = new Map<string, AssetPriceQuote>();
@@ -110,30 +112,40 @@ export class MarketDataService {
    * Returns the resolver's candle-capable choice, or null to keep the
    * legacy Binance/Hyperliquid routing unchanged.
    */
-  private async resolveCryptoChartMarket(symbol: string): Promise<ChartMarketCandidate | null> {
+  private async resolveCryptoChartMarket(symbol: string, coinGeckoId?: string): Promise<ChartMarketCandidate | null> {
     try {
-      const resolution = await this.chartResolver.resolve(symbol);
+      const resolution = await this.resolveChartMarket(symbol, coinGeckoId);
       return resolution?.candle || null;
-    } catch {
-      return null;
+    } catch (error) {
+      throw error; // A pin-store failure cannot silently choose legacy candles.
     }
   }
 
   /** Full multi-exchange chart market (TradingView symbol + candle source) for a crypto symbol. */
-  public async resolveChartMarket(symbol: string) {
-    return this.chartResolver.resolve(symbol);
+  public async resolveChartMarket(symbol: string, coinGeckoId?: string) {
+    // Existing perp-backed catalog assets retain their signal methodology.
+    // A CoinGecko spot ticker cannot authenticate the perp candle feed, and
+    // switching HYPE to MEXC spot needs a separate methodology decision.
+    const catalog = this.getAssetDefinition(symbol);
+    if (catalog?.marketDataSource === 'hyperliquid' || catalog?.marketDataSource === 'binance_futures') return null;
+    const id = coinGeckoId || catalog?.coinGeckoId;
+    return this.chartResolver.resolve(symbol, id);
   }
+
+  /** Supplied by the API application so the market-data package has no Firestore dependency. */
+  public setChartMarketStore(store: Parameters<ChartMarketResolver['setStore']>[0]) { this.chartResolver.setStore(store); }
 
   public async getCandles(
     symbol: string,
     timeframe: Timeframe = '1h',
     limit = 1000,
-    requestedMarketClass?: AssetMarketClass
+    requestedMarketClass?: AssetMarketClass,
+    coinGeckoId?: string
   ): Promise<Candle[]> {
     const asset = this.getAssetDefinition(symbol);
     const resolvedMarketClass = requestedMarketClass || asset?.marketClass;
     const cacheScope = resolvedMarketClass || 'auto';
-    const cacheKey = `${cacheScope}_${symbol}_${timeframe}_${limit}`;
+    const cacheKey = `${cacheScope}_${symbol}_${coinGeckoId || ''}_${timeframe}_${limit}`;
     const source = this.resolveCryptoSource(symbol, asset);
     const isBinanceFutures = source === 'binance_futures';
     const providerSymbol = this.providerSymbolFor(symbol, asset, source);
@@ -149,7 +161,10 @@ export class MarketDataService {
     if (cached?.length && Date.now() - fetchedAt < this.candleCacheMs[timeframe]) return cached;
 
     try {
-      const chartMarket = isExplicitCryptoSpot ? await this.resolveCryptoChartMarket(symbol) : null;
+      const chartMarket = isExplicitCryptoSpot ? await this.resolveCryptoChartMarket(symbol, coinGeckoId) : null;
+      if (coinGeckoId && isExplicitCryptoSpot && !chartMarket && !isHyperliquid && !isBinanceFutures) {
+        throw new Error('No identity-verified candle market for requested coin');
+      }
       const legacyCandles = async () => isHyperliquid
         ? await this.hyperliquidAdapter.fetchCandles(providerSymbol, timeframe, limit)
         : isBinanceFutures
@@ -160,19 +175,19 @@ export class MarketDataService {
         ? await this.stockAdapter.fetchCandles(symbol, timeframe, limit)
         : await this.binanceAdapter.fetchCandles(symbol, timeframe, limit);
       let candles: Candle[];
-      try {
-        candles = chartMarket?.source === 'bybit_spot'
+      candles = chartMarket?.source === 'mexc_spot'
+          ? await this.mexcAdapter.fetchCandles(chartMarket.providerSymbol, timeframe, limit)
+          : chartMarket?.source === 'bybit_spot'
           ? await this.bybitAdapter.fetchCandles(chartMarket.providerSymbol, timeframe, limit)
           : chartMarket?.source === 'okx_spot'
           ? await this.okxAdapter.fetchCandles(chartMarket.providerSymbol, timeframe, limit)
-          : chartMarket?.source === 'binance_futures' && !isBinanceFutures
+          : chartMarket?.source === 'binance_futures'
           ? await this.binanceAdapter.fetchFuturesCandles(chartMarket.providerSymbol, timeframe, limit)
+          : chartMarket?.source === 'hyperliquid'
+          ? await this.hyperliquidAdapter.fetchCandles(chartMarket.providerSymbol, timeframe, limit)
+          : chartMarket?.source === 'binance_spot'
+          ? await this.binanceAdapter.fetchCandles(chartMarket.providerSymbol, timeframe, limit)
           : await legacyCandles();
-      } catch (resolverError) {
-        if (!chartMarket || chartMarket.source === 'binance_spot' || chartMarket.source === 'hyperliquid') throw resolverError;
-        // Resolved exchange failed: keep the asset on its previous provider.
-        candles = await legacyCandles();
-      }
       this.candleCache.set(cacheKey, candles);
       this.candleFetchedAt.set(cacheKey, Date.now());
       return candles;
@@ -188,7 +203,8 @@ export class MarketDataService {
     timeframe: Timeframe,
     beforeTimestamp: number,
     limit = 1000,
-    requestedMarketClass?: AssetMarketClass
+    requestedMarketClass?: AssetMarketClass,
+    coinGeckoId?: string
   ): Promise<Candle[]> {
     const asset = this.getAssetDefinition(symbol);
     const resolvedMarketClass = requestedMarketClass || asset?.marketClass;
@@ -203,7 +219,10 @@ export class MarketDataService {
         ? false
         : this.stockAdapter.isStockOrMetal(symbol);
 
-    const chartMarket = isExplicitCryptoSpot ? await this.resolveCryptoChartMarket(symbol) : null;
+    const chartMarket = isExplicitCryptoSpot ? await this.resolveCryptoChartMarket(symbol, coinGeckoId) : null;
+    if (coinGeckoId && isExplicitCryptoSpot && !chartMarket && !isHyperliquid && !isBinanceFutures) {
+      throw new Error('No identity-verified candle market for requested coin');
+    }
     const legacyBefore = async () => {
       if (isHyperliquid) {
         return this.hyperliquidAdapter.fetchCandlesBefore(providerSymbol, timeframe, beforeTimestamp, limit);
@@ -220,25 +239,30 @@ export class MarketDataService {
       return this.binanceAdapter.fetchCandlesBefore(symbol, timeframe, beforeTimestamp, limit);
     };
     try {
+      if (chartMarket?.source === 'mexc_spot') {
+        return await this.mexcAdapter.fetchCandlesBefore(chartMarket.providerSymbol, timeframe, beforeTimestamp, limit);
+      }
       if (chartMarket?.source === 'bybit_spot') {
         return await this.bybitAdapter.fetchCandlesBefore(chartMarket.providerSymbol, timeframe, beforeTimestamp, limit);
       }
       if (chartMarket?.source === 'okx_spot') {
         return await this.okxAdapter.fetchCandlesBefore(chartMarket.providerSymbol, timeframe, beforeTimestamp, limit);
       }
-      if (chartMarket?.source === 'binance_futures' && !isBinanceFutures) {
+      if (chartMarket?.source === 'binance_futures') {
         return await this.binanceAdapter.fetchFuturesCandlesBefore(chartMarket.providerSymbol, timeframe, beforeTimestamp, limit);
       }
-    } catch {
-      // Resolved exchange failed: fall through to the legacy provider.
+      if (chartMarket?.source === 'hyperliquid') return await this.hyperliquidAdapter.fetchCandlesBefore(chartMarket.providerSymbol, timeframe, beforeTimestamp, limit);
+      if (chartMarket?.source === 'binance_spot') return await this.binanceAdapter.fetchCandlesBefore(chartMarket.providerSymbol, timeframe, beforeTimestamp, limit);
+    } catch (error) {
+      if (chartMarket) throw error; // Older pages must use the pinned source.
     }
     return legacyBefore();
   }
 
-  public async getPriceQuote(symbol: string, requestedMarketClass?: AssetMarketClass): Promise<AssetPriceQuote> {
+  public async getPriceQuote(symbol: string, requestedMarketClass?: AssetMarketClass, coinGeckoId?: string): Promise<AssetPriceQuote> {
     const asset = this.getAssetDefinition(symbol);
     const resolvedMarketClass = requestedMarketClass || asset?.marketClass;
-    const cacheKey = `${resolvedMarketClass || 'auto'}_${symbol}`;
+    const cacheKey = `${resolvedMarketClass || 'auto'}_${symbol}_${coinGeckoId || ''}`;
     const source = this.resolveCryptoSource(symbol, asset);
     const isBinanceFutures = source === 'binance_futures';
     const providerSymbol = this.providerSymbolFor(symbol, asset, source);
@@ -253,7 +277,10 @@ export class MarketDataService {
     if (cached && Date.now() - (this.quoteFetchedAt.get(cacheKey) || 0) < this.quoteCacheMs) return cached;
 
     try {
-      const chartMarket = isExplicitCryptoSpot ? await this.resolveCryptoChartMarket(symbol) : null;
+      const chartMarket = isExplicitCryptoSpot ? await this.resolveCryptoChartMarket(symbol, coinGeckoId) : null;
+      if (coinGeckoId && isExplicitCryptoSpot && !chartMarket && !isHyperliquid && !isBinanceFutures) {
+        throw new Error('No identity-verified candle market for requested coin');
+      }
       const legacyQuote = async () => isHyperliquid
         ? await this.hyperliquidAdapter.fetchQuote(providerSymbol)
         : isBinanceFutures
@@ -264,18 +291,19 @@ export class MarketDataService {
         ? await this.stockAdapter.fetchQuote(symbol)
         : await this.binanceAdapter.fetch24hTicker(symbol);
       let quote;
-      try {
-        quote = chartMarket?.source === 'bybit_spot'
+      quote = chartMarket?.source === 'mexc_spot'
+          ? await this.mexcAdapter.fetchQuote(chartMarket.providerSymbol, symbol)
+          : chartMarket?.source === 'bybit_spot'
           ? await this.bybitAdapter.fetch24hTicker(chartMarket.providerSymbol, symbol)
           : chartMarket?.source === 'okx_spot'
           ? await this.okxAdapter.fetch24hTicker(chartMarket.providerSymbol, symbol)
-          : chartMarket?.source === 'binance_futures' && !isBinanceFutures
+          : chartMarket?.source === 'binance_futures'
           ? await this.binanceAdapter.fetchFutures24hTicker(chartMarket.providerSymbol, symbol)
+          : chartMarket?.source === 'hyperliquid'
+          ? await this.hyperliquidAdapter.fetchQuote(chartMarket.providerSymbol)
+          : chartMarket?.source === 'binance_spot'
+          ? await this.binanceAdapter.fetch24hTicker(symbol)
           : await legacyQuote();
-      } catch (resolverError) {
-        if (!chartMarket || chartMarket.source === 'binance_spot' || chartMarket.source === 'hyperliquid') throw resolverError;
-        quote = await legacyQuote();
-      }
       this.quoteCache.set(cacheKey, quote);
       this.quoteFetchedAt.set(cacheKey, Date.now());
       return quote;

@@ -3,14 +3,16 @@ import { BybitMarketAdapter } from './adapters/bybit.js';
 import { OkxMarketAdapter } from './adapters/okx.js';
 import { HyperliquidMarketAdapter } from './adapters/hyperliquid.js';
 import { ChartMarketResolverDeps } from './chart-market-resolver.js';
+import { MexcMarketAdapter } from './adapters/mexc.js';
+import { MarketHealthMonitor } from './health-monitor.js';
 
 const BINANCE_SPOT_URL = process.env.BINANCE_API_URL || 'https://data-api.binance.vision/api/v3';
 const BINANCE_FUTURES_URL = process.env.BINANCE_FUTURES_API_URL || 'https://fapi.binance.com/fapi/v1';
 const COINBASE_URL = process.env.COINBASE_API_URL || 'https://api.exchange.coinbase.com';
 const KRAKEN_URL = process.env.KRAKEN_API_URL || 'https://api.kraken.com';
 
-const fetchJson = async <T>(url: string, timeoutMs = 8_000): Promise<T> => {
-  const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+const fetchJson = async <T>(url: string, timeoutMs = 8_000, headers?: Record<string, string>): Promise<T> => {
+  const response = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json() as Promise<T>;
 };
@@ -148,12 +150,16 @@ const kucoinUsdtBases = () => smallVenueUsdtBases('kucoin', async () => {
   return values;
 });
 
+const baseSymbol = (pair: string) => pair.replace(/[-_]?(USDT|USDC|USD)$/i, '');
+const identityCache = new Map<string, { value: { markets: Set<string>; referencePrice: number | null; knownStart: number | null }; updatedAt: number }>();
+
 /** Builds the resolver dependency probes from the live adapters and public exchange APIs. */
 export function buildChartMarketResolverDeps(
   binance: BinanceMarketAdapter,
   bybit: BybitMarketAdapter,
   okx: OkxMarketAdapter,
-  hyperliquid: HyperliquidMarketAdapter
+  hyperliquid: HyperliquidMarketAdapter,
+  mexc = new MexcMarketAdapter(new MarketHealthMonitor())
 ): ChartMarketResolverDeps {
   return {
     isOnBinanceSpot: async base => (await binance.getSupportedUsdtBaseAssets()).has(base),
@@ -196,6 +202,51 @@ export function buildChartMarketResolverDeps(
       return Number.isFinite(volume) ? volume : null;
     },
     isOnMexcSpot: async base => (await mexcUsdtBases()).has(base),
+    mexcFirstDailyTs: base => mexc.firstDailyCandleTs(`${base}USDT`),
+    mexcQuoteVolume24h: async base => {
+      const row = await fetchJson<{ quoteVolume?: string }>(`${MEXC_URL}/ticker/24hr?symbol=${base}USDT`);
+      const volume = Number(row.quoteVolume);
+      return Number.isFinite(volume) ? volume : null;
+    },
+    verifiedIdentity: async (base, coinId) => {
+      if (!/^[a-z0-9-]{2,100}$/.test(coinId)) return null;
+      const key = `${coinId}:${base}`;
+      const cached = identityCache.get(key);
+      if (cached && Date.now() - cached.updatedAt < 6 * 3_600_000) return cached.value;
+      const headers = process.env.COINGECKO_API_KEY ? { 'x-cg-demo-api-key': process.env.COINGECKO_API_KEY } : undefined;
+      const [coin, tickers] = await Promise.all([
+        fetchJson<{ id?: string; symbol?: string; genesis_date?: string; market_data?: { current_price?: { usd?: number } } }>(
+          `https://api.coingecko.com/api/v3/coins/${coinId}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false`, 8_000, headers),
+        fetchJson<{ tickers?: Array<{ base?: string; target?: string; market?: { identifier?: string }; is_anomaly?: boolean; is_stale?: boolean }> }>(
+          `https://api.coingecko.com/api/v3/coins/${coinId}/tickers?order=volume_desc&depth=false&page=1`, 8_000, headers)
+      ]);
+      if (coin.id !== coinId || String(coin.symbol || '').toUpperCase() !== base || !tickers.tickers) return null;
+      const names: Record<string, string> = { binance: 'binance_spot', bybit_spot: 'bybit_spot', okex: 'okx_spot',
+        mxc: 'mexc_spot', gate: 'gate_spot', bitget: 'bitget_spot', kucoin: 'kucoin_spot',
+        gdax: 'coinbase', kraken: 'kraken' };
+      const markets = new Set<string>();
+      for (const row of tickers.tickers) {
+        if (row.is_anomaly || row.is_stale || String(row.base || '').toUpperCase() !== base) continue;
+        if (!['USD', 'USDT', 'USDC'].includes(String(row.target || '').toUpperCase())) continue;
+        const provider = names[String(row.market?.identifier || '').toLowerCase()];
+        if (provider) markets.add(provider);
+      }
+      const referencePrice = Number(coin.market_data?.current_price?.usd);
+      const genesis = coin.genesis_date ? Date.parse(coin.genesis_date) : NaN;
+      const value = { markets, referencePrice: Number.isFinite(referencePrice) && referencePrice > 0 ? referencePrice : null,
+        knownStart: Number.isFinite(genesis) ? genesis : null };
+      if (markets.size) identityCache.set(key, { value, updatedAt: Date.now() });
+      return value;
+    },
+    candidateLastPrice: async candidate => {
+      if (candidate.source === 'mexc_spot') return (await mexc.fetchQuote(candidate.providerSymbol, baseSymbol(candidate.providerSymbol))).price;
+      if (candidate.source === 'binance_spot') return (await binance.fetch24hTicker(baseSymbol(candidate.providerSymbol))).price;
+      if (candidate.source === 'binance_futures') return (await binance.fetchFutures24hTicker(candidate.providerSymbol, baseSymbol(candidate.providerSymbol))).price;
+      if (candidate.source === 'bybit_spot') return (await bybit.fetch24hTicker(candidate.providerSymbol, baseSymbol(candidate.providerSymbol))).price;
+      if (candidate.source === 'okx_spot') return (await okx.fetch24hTicker(candidate.providerSymbol, baseSymbol(candidate.providerSymbol))).price;
+      if (candidate.source === 'hyperliquid') return (await hyperliquid.fetchQuote(candidate.providerSymbol)).price;
+      return null;
+    },
     isOnGateSpot: async base => (await gateUsdtBases()).has(base),
     isOnBitgetSpot: async base => (await bitgetUsdtBases()).has(base),
     isOnKucoinSpot: async base => (await kucoinUsdtBases()).has(base)

@@ -150,6 +150,7 @@ export const CryptoMarketOnlyView: React.FC<{
     <CoinPageChart
       symbol={info.symbol}
       marketClass="crypto"
+      coinGeckoId={info.coinGeckoId}
       timeframe={timeframe}
       language={language}
       resolver={chartResolver}

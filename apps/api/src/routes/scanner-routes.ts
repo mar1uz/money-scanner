@@ -441,7 +441,8 @@ scannerRouter.get('/assets/:symbol/candles', async (req, res) => {
       requestedTimeframe as Timeframe,
       before,
       limit,
-      requestedMarketClass
+      requestedMarketClass,
+      typeof req.query.coinGeckoId === 'string' ? req.query.coinGeckoId : undefined
     );
 
     res.json({
@@ -464,7 +465,7 @@ scannerRouter.get('/assets/:symbol/chart-market', async (req, res) => {
     if (symbol.includes('.') || symbol.includes(':') || symbol.startsWith('TOTAL')) {
       return res.json({ symbol, tvSymbol: null, reason: 'non-spot-symbol' });
     }
-    const resolution = await AppState.getInstance().marketData.resolveChartMarket(symbol);
+    const resolution = await AppState.getInstance().marketData.resolveChartMarket(symbol, typeof req.query.coinGeckoId === 'string' ? req.query.coinGeckoId : undefined);
     if (!resolution || !resolution.tv?.tvSymbol) {
       return res.json({ symbol, tvSymbol: null, reason: 'no-market' });
     }
@@ -532,13 +533,24 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
     // Verify the provider's name as well as its ticker before selecting an
     // exchange route. Most catalog entries predate exact CoinGecko IDs.
     if (isCryptoSpot && (cryptoReference.coinPaprikaId || cryptoReference.coinGeckoId)) {
-      const profile = await cryptoMarketProfiles.resolve(symbol, cryptoReference);
+      let profile: Awaited<ReturnType<typeof cryptoMarketProfiles.resolve>> | null = null;
+      try { profile = await cryptoMarketProfiles.resolve(symbol, cryptoReference); }
+      catch (error) { if (!cryptoReference.coinGeckoId) throw error; }
       const catalog = TRADING_360_ASSETS.find(asset => asset.marketClass === 'crypto' && asset.symbol === symbol);
       const names = catalog ? [catalog.name, ...(catalog.aliases || []).filter(alias => alias.toUpperCase() !== symbol)] : [];
-      const matchesCatalog = catalog?.coinGeckoId && cryptoReference.coinGeckoId
-        ? catalog.coinGeckoId === cryptoReference.coinGeckoId
-        : names.some(name => name.trim().toLowerCase() === profile.name.trim().toLowerCase());
-      if (!matchesCatalog && !(await matchesLiveExchangeAsset(symbol, profile.name))) {
+      const matchesCatalog = cryptoReference.coinGeckoId
+        ? catalog?.coinGeckoId === cryptoReference.coinGeckoId
+        : profile && names.some(name => name.trim().toLowerCase() === profile.name.trim().toLowerCase());
+      const liveMatch = profile ? await matchesLiveExchangeAsset(symbol, profile.name) : false;
+      const liveIdentityMatches = !cryptoReference.coinGeckoId || (await appState.marketData.getTopCryptoAssets(150)
+        .catch(() => [])).some(asset => asset.symbol === symbol && asset.coinGeckoId === cryptoReference.coinGeckoId);
+      const matchesLive = Boolean(matchesCatalog || (liveMatch && liveIdentityMatches));
+      // A CoinGecko profile rate limit cannot authenticate identity. The
+      // independent exact-ID ticker check in the chart resolver may still pass.
+      const verifiedMarket = !matchesLive && cryptoReference.coinGeckoId
+        ? await appState.marketData.resolveChartMarket(symbol, cryptoReference.coinGeckoId).catch(() => null)
+        : null;
+      if (!matchesLive && !verifiedMarket?.candle) {
         return res.json({ ...(await loadAggregated()), businessQuality: await computeBusinessQuality() });
       }
     }
@@ -611,6 +623,9 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       };
     }
 
+    if (requestedMarketClass === 'crypto' && cryptoReference.coinGeckoId) {
+      assetInfo = { ...assetInfo, coinGeckoId: cryptoReference.coinGeckoId };
+    }
     const resolvedMarketClass = requestedMarketClass || assetInfo.marketClass;
     // Live CoinGecko global rank overrides stale hardcoded catalog ranks
     // (catalog UNI said #145 while live rank is #28). Cached 5 min upstream.
@@ -661,7 +676,7 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
     }
     let quote;
     try {
-      quote = await appState.marketData.getPriceQuote(symbol, resolvedMarketClass);
+      quote = await appState.marketData.getPriceQuote(symbol, resolvedMarketClass, assetInfo.coinGeckoId);
     } catch (error) {
       if (resolvedMarketClass !== 'crypto' || symbol.includes('.') || symbol.startsWith('TOTAL')) throw error;
       return res.json(await loadAggregated({
@@ -674,7 +689,8 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
           symbol,
           requestedTimeframe,
           requestedTimeframe === timeframe ? 1500 : limit,
-          resolvedMarketClass
+          resolvedMarketClass,
+          assetInfo.coinGeckoId
         );
       } catch (error: any) {
         // One unavailable interval (common for recent IPOs on 1M) must not

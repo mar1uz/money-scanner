@@ -297,6 +297,24 @@ export class AppState {
     running: false
   };
 
+  constructor() {
+    // Resolution is pinned by exact CoinGecko coin ID in the existing Firestore database.
+    this.marketData.setChartMarketStore({
+      get: async key => {
+        const snapshot = await this.chartMarketDocument(key).get();
+        return snapshot.exists ? snapshot.data() as import('@money-scanner/market-data').ChartMarketResolution : null;
+      },
+      set: async (key, value) => { await this.chartMarketDocument(key).create(value); }
+    });
+  }
+
+  private chartMarketDocument(key: string) {
+    const app = getApps()[0] || initializeApp({
+      projectId: process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || 'gen-lang-client-0610749770'
+    });
+    return getFirestore(app, 'money-scanner-360').collection('chart-market-resolutions').doc(key);
+  }
+
   private static instance: AppState;
 
   public static getInstance(): AppState {

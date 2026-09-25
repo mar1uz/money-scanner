@@ -208,6 +208,54 @@ describe('Market Data Service & Normalization', () => {
     }
   });
 
+  it('uses the same resolved exchange for candles, older candles and quote; never falls through on provider failure', async () => {
+    const service = new MarketDataService();
+    const calls: string[] = [];
+    const market = { source: 'mexc_spot' as const, providerSymbol: 'PONSUSDT' };
+    (service as any).resolveCryptoChartMarket = async () => market;
+    (service as any).mexcAdapter.fetchCandles = async () => { calls.push('mexc-candles'); throw new Error('MEXC candles down'); };
+    (service as any).mexcAdapter.fetchCandlesBefore = async () => { calls.push('mexc-before'); throw new Error('MEXC history down'); };
+    (service as any).mexcAdapter.fetchQuote = async () => { calls.push('mexc-quote'); throw new Error('MEXC quote down'); };
+    (service as any).binanceAdapter.fetchCandles = async () => { calls.push('binance-candles'); return []; };
+    (service as any).binanceAdapter.fetchCandlesBefore = async () => { calls.push('binance-before'); return []; };
+    (service as any).binanceAdapter.fetch24hTicker = async () => { calls.push('binance-quote'); return {}; };
+    await assert.rejects(service.getCandles('PONS', '1d', 100, 'crypto', 'pons'), /MEXC candles down/);
+    await assert.rejects(service.getCandlesBefore('PONS', '1d', Date.now(), 100, 'crypto', 'pons'), /MEXC history down/);
+    await assert.rejects(service.getPriceQuote('PONS', 'crypto', 'pons'), /MEXC quote down/);
+    assert.deepEqual(calls, ['mexc-candles', 'mexc-before', 'mexc-quote']);
+  });
+
+  it('does not fall back to a ticker-only source when the pin store is unavailable', async () => {
+    const service = new MarketDataService();
+    let legacyCalls = 0;
+    (service as any).chartResolver.setStore({ get: async () => { throw new Error('pin read down'); }, set: async () => {} });
+    (service as any).binanceAdapter.fetchCandles = async () => { legacyCalls++; return []; };
+    await assert.rejects(service.getCandles('PONS', '1d', 100, 'crypto', 'pons'), /pin read down/);
+    assert.equal(legacyCalls, 0);
+  });
+
+  it('refuses a requested coin ID without a verified candle market, rather than showing a same-ticker legacy series', async () => {
+    const service = new MarketDataService();
+    (service as any).resolveCryptoChartMarket = async () => null;
+    let legacyCalls = 0;
+    (service as any).binanceAdapter.fetchCandles = async () => { legacyCalls++; return []; };
+    (service as any).binanceAdapter.fetch24hTicker = async () => { legacyCalls++; return {}; };
+    await assert.rejects(service.getCandles('PONS', '1d', 100, 'crypto', 'wrong-pons'), /No identity-verified/);
+    await assert.rejects(service.getPriceQuote('PONS', 'crypto', 'wrong-pons'), /No identity-verified/);
+    assert.equal(legacyCalls, 0);
+  });
+
+  it('retains cataloged HYPE perp methodology while its spot source is undecided', async () => {
+    const service = new MarketDataService();
+    (service as any).chartResolver.resolve = async () => { throw new Error('spot resolver must not be called'); };
+    assert.equal(await service.resolveChartMarket('HYPE', 'hyperliquid'), null);
+  });
+
+  it('does not probe exchange identity with a missing coin ID', async () => {
+    const service = new MarketDataService();
+    assert.equal(await service.resolveChartMarket('PONS'), null);
+  });
+
   it('keeps a newly listed verified stock usable with short monthly history', async () => {
     const originalFetch = globalThis.fetch;
     const now = Math.floor(Date.now() / 1000);

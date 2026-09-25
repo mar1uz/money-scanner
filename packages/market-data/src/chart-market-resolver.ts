@@ -1,20 +1,6 @@
 import { AssetMarketDataSource } from '@money-scanner/shared';
 
-/**
- * Deterministic chart-market resolver.
- *
- * For a crypto base symbol (GRASS, not GRASSUSDT.P) it checks which major
- * exchanges list the asset (Binance spot/futures, Bybit, OKX, Coinbase,
- * Kraken, Hyperliquid, plus the TradingView-carried smaller venues MEXC,
- * Gate, Bitget and KuCoin), probes listing start and 24h quote volume, and picks:
- *  - the candle source (only exchanges with a local candle adapter), and
- *  - the TradingView symbol for the external chart tab and deep link.
- *
- * Binance spot short-circuits (user preference: Binance first, and it almost
- * always has the longest history). No candidate -> null, so callers degrade
- * gracefully instead of showing TradingView's "symbol doesn't exist".
- */
-
+/** Resolves a verified crypto identity to a stable market for candles and chart links. */
 export interface ChartMarketCandidate {
   source: AssetMarketDataSource;
   exchange: string;
@@ -25,10 +11,14 @@ export interface ChartMarketCandidate {
   listingStart: number | null;
   volume24hQuote: number | null;
   candleCapable: boolean;
+  /** CoinGecko verified this exchange/spot pair belongs to the requested coin ID. */
+  identityVerified?: boolean;
+  lastPrice?: number | null;
 }
 
 export interface ChartMarketResolution {
   symbol: string;
+  coinGeckoId: string;
   /** Best candle-capable market, when one exists. */
   candle: ChartMarketCandidate | null;
   /** Best TradingView market, when one exists. */
@@ -57,8 +47,14 @@ export interface ChartMarketResolverDeps {
   isOnKraken(base: string): Promise<boolean>;
   krakenFirstDailyTs(base: string): Promise<number | null>;
   krakenQuoteVolume24h(base: string): Promise<number | null>;
-  /** TradingView-carried smaller venues: TV-symbol candidates only, no candle adapter. */
+  /** MEXC spot has a candle adapter; other smaller venues are chart-only. */
   isOnMexcSpot?(base: string): Promise<boolean>;
+  mexcFirstDailyTs?(base: string): Promise<number | null>;
+  mexcQuoteVolume24h?(base: string): Promise<number | null>;
+  /** Exact CoinGecko market + base + target pairs, including known asset genesis and reference price. */
+  verifiedIdentity?(base: string, coinId: string): Promise<{ markets: Set<string>; referencePrice: number | null; knownStart: number | null } | null>;
+  /** Provider quote for sanity-checking the selected candle market. */
+  candidateLastPrice?(candidate: ChartMarketCandidate): Promise<number | null>;
   isOnGateSpot?(base: string): Promise<boolean>;
   isOnBitgetSpot?(base: string): Promise<boolean>;
   isOnKucoinSpot?(base: string): Promise<boolean>;
@@ -86,6 +82,11 @@ const NEGATIVE_TTL_MS = 3_600_000;
 export class ChartMarketResolver {
   private deps: ChartMarketResolverDeps;
   private cache = new Map<string, { resolution: ChartMarketResolution | null; expiresAt: number }>();
+  private pinned = new Map<string, ChartMarketResolution>();
+  private inFlight = new Map<string, Promise<ChartMarketResolution | null>>();
+  /** A store survives Cloud Run instances; a failed store read never permits an unverified switch. */
+  private store?: { get(key: string): Promise<ChartMarketResolution | null>; set(key: string, value: ChartMarketResolution): Promise<void> };
+  public setStore(store: { get(key: string): Promise<ChartMarketResolution | null>; set(key: string, value: ChartMarketResolution): Promise<void> }) { this.store = store; }
 
   constructor(deps: ChartMarketResolverDeps) {
     this.deps = deps;
@@ -96,18 +97,29 @@ export class ChartMarketResolver {
     return index === -1 ? PREFERENCE.length : index;
   }
 
-  private rank(candidates: ChartMarketCandidate[]): ChartMarketCandidate[] {
-    return [...candidates].sort((a, b) => {
+  private rank(candidates: ChartMarketCandidate[], knownStart: number | null): ChartMarketCandidate[] {
+    const verified = candidates.filter(candidate => candidate.identityVerified);
+    if (!verified.length) return [];
+    const oldest = Math.min(...verified.map(candidate => candidate.listingStart ?? Number.POSITIVE_INFINITY));
+    const startLimit = knownStart ?? (Number.isFinite(oldest) ? oldest : null);
+    const withCoverage = verified.filter(candidate => {
+      if (!startLimit || !candidate.listingStart) return true;
+      const total = Date.now() - startLimit;
+      if (total <= 0) return true;
+      const coverage = Math.max(0, (Date.now() - candidate.listingStart) / total);
+      const bestCoverage = Math.max(...verified.map(other => other.listingStart ? Math.max(0, (Date.now() - other.listingStart) / total) : 0));
+      return coverage >= .5 || bestCoverage <= .5;
+    });
+    const eligible = withCoverage.length ? withCoverage : verified;
+    return [...eligible].sort((a, b) => {
       const aStart = a.listingStart ?? Number.POSITIVE_INFINITY;
       const bStart = b.listingStart ?? Number.POSITIVE_INFINITY;
-      if (aStart !== bStart) {
-        if (aStart === Number.POSITIVE_INFINITY) return 1;
-        if (bStart === Number.POSITIVE_INFINITY) return -1;
-        if (Math.abs(aStart - bStart) > TIE_WINDOW_MS) return aStart - bStart;
-      }
-      const aVol = a.volume24hQuote ?? -1;
-      const bVol = b.volume24hQuote ?? -1;
-      if (aVol !== bVol) return bVol - aVol;
+      if (Number.isFinite(aStart) !== Number.isFinite(bStart)) return Number.isFinite(aStart) ? -1 : 1;
+      if (Number.isFinite(aStart) && Number.isFinite(bStart) && Math.abs(aStart - bStart) > TIE_WINDOW_MS) return aStart - bStart;
+      const aSpot = a.source === 'binance_futures' || a.source === 'hyperliquid' ? 0 : 1;
+      const bSpot = b.source === 'binance_futures' || b.source === 'hyperliquid' ? 0 : 1;
+      if (aSpot !== bSpot) return bSpot - aSpot;
+      if ((a.volume24hQuote ?? -1) !== (b.volume24hQuote ?? -1)) return (b.volume24hQuote ?? -1) - (a.volume24hQuote ?? -1);
       return this.preferenceIndex(a.source) - this.preferenceIndex(b.source);
     });
   }
@@ -121,23 +133,56 @@ export class ChartMarketResolver {
   }
 
   /** Full multi-exchange resolution for a crypto base symbol. Null when nothing lists it. */
-  public async resolve(rawSymbol: string): Promise<ChartMarketResolution | null> {
+  public async resolve(rawSymbol: string, coinId?: string): Promise<ChartMarketResolution | null> {
     const symbol = rawSymbol.toUpperCase().trim();
     if (!symbol || symbol.includes(':') || symbol.includes('.') || !/^[A-Z0-9]+$/.test(symbol)) return null;
+    const key = `${symbol}:${coinId || ''}`;
+    const existing = this.inFlight.get(key);
+    if (existing) return existing;
+    const pending = this.resolveOne(key, symbol, coinId);
+    this.inFlight.set(key, pending);
+    try { return await pending; } finally { this.inFlight.delete(key); }
+  }
 
-    const cached = this.cache.get(symbol);
+  private async resolveOne(key: string, symbol: string, coinId?: string): Promise<ChartMarketResolution | null> {
+    // Never resolve a ticker without an independently supplied exact identity.
+    if (!coinId || !/^[a-z0-9-]{2,100}$/.test(coinId) || !this.deps.verifiedIdentity) return null;
+    // A store outage must not let another instance silently choose a new source.
+    const pin = this.pinned.get(key) || (this.store ? await this.store.get(key) : null);
+    if (pin) {
+      if (pin.symbol !== symbol || pin.coinGeckoId !== coinId || ![pin.candle, pin.tv].filter(Boolean).every(candidate => candidate!.identityVerified)) {
+        throw new Error('Chart market pin identity mismatch');
+      }
+      this.pinned.set(key, pin);
+      return pin;
+    }
+    const cached = this.cache.get(key);
     if (cached && cached.expiresAt > Date.now()) return cached.resolution;
-
-    const resolution = await this.computeResolution(symbol);
-    this.cache.set(symbol, {
-      resolution,
-      expiresAt: Date.now() + (resolution ? RESOLUTION_TTL_MS : NEGATIVE_TTL_MS)
-    });
+    const resolution = await this.computeResolution(symbol, coinId);
+    if (resolution && this.store) {
+      try { await this.store.set(key, resolution); }
+      catch {
+        // Firestore create is atomic: another instance may have won this race.
+        const winner = await this.store.get(key);
+        if (winner) {
+          if (winner.symbol !== symbol || winner.coinGeckoId !== coinId || ![winner.candle, winner.tv].filter(Boolean).every(candidate => candidate!.identityVerified)) {
+            throw new Error('Chart market pin identity mismatch');
+          }
+          this.pinned.set(key, winner);
+          return winner;
+        }
+        throw new Error('Chart market pin write failed');
+      }
+      this.pinned.set(key, resolution);
+    } else if (resolution) this.pinned.set(key, resolution);
+    this.cache.set(key, { resolution, expiresAt: Date.now() + (resolution ? RESOLUTION_TTL_MS : NEGATIVE_TTL_MS) });
     return resolution;
   }
 
-  private async computeResolution(symbol: string): Promise<ChartMarketResolution | null> {
-    // Binance spot short-circuit: user preference and almost always the longest book.
+  private async computeResolution(symbol: string, coinId: string): Promise<ChartMarketResolution | null> {
+    const identity = await this.safe(this.deps.verifiedIdentity!(symbol, coinId));
+    if (!identity?.markets.size) return null;
+    const candidates: ChartMarketCandidate[] = [];
     if (await this.safe(this.deps.isOnBinanceSpot(symbol))) {
       const candidate: ChartMarketCandidate = {
         source: 'binance_spot',
@@ -149,7 +194,7 @@ export class ChartMarketResolver {
         volume24hQuote: null,
         candleCapable: true
       };
-      return { symbol, candle: candidate, tv: candidate, candidates: [candidate], resolvedAt: Date.now() };
+      candidates.push(candidate);
     }
 
     const [onFutures, onBybit, okxInstrument, onHyperliquid, onCoinbase, onKraken, onMexc, onGate, onBitget, onKucoin] = await Promise.all([
@@ -165,7 +210,6 @@ export class ChartMarketResolver {
       this.deps.isOnKucoinSpot ? this.safe(this.deps.isOnKucoinSpot(symbol)) : Promise.resolve(null)
     ]);
 
-    const candidates: ChartMarketCandidate[] = [];
     if (onFutures) {
       candidates.push({
         source: 'binance_futures',
@@ -235,7 +279,7 @@ export class ChartMarketResolver {
         quoteCurrency: 'USDT',
         listingStart: null,
         volume24hQuote: null,
-        candleCapable: false
+        candleCapable: true
       });
     }
     if (onGate) {
@@ -305,6 +349,9 @@ export class ChartMarketResolver {
         case 'kraken':
           candidate.listingStart = await this.safe(this.deps.krakenFirstDailyTs(symbol));
           break;
+        case 'mexc_spot':
+          candidate.listingStart = this.deps.mexcFirstDailyTs ? await this.safe(this.deps.mexcFirstDailyTs(symbol)) : null;
+          break;
         case 'hyperliquid':
           candidate.listingStart = await this.safe(this.deps.hyperliquidFirstDailyTs(symbol));
           break;
@@ -338,6 +385,9 @@ export class ChartMarketResolver {
         case 'kraken':
           candidate.volume24hQuote = await this.safe(this.deps.krakenQuoteVolume24h(symbol));
           break;
+        case 'mexc_spot':
+          candidate.volume24hQuote = this.deps.mexcQuoteVolume24h ? await this.safe(this.deps.mexcQuoteVolume24h(symbol)) : null;
+          break;
         case 'hyperliquid':
           candidate.volume24hQuote = await this.safe(this.deps.hyperliquidQuoteVolume24h(symbol));
           break;
@@ -346,9 +396,20 @@ export class ChartMarketResolver {
       }
     }));
 
-    const ranked = this.rank(candidates);
+    const verified = candidates.filter(candidate => {
+      const market = candidate.source === 'binance_futures' ? 'binance_futures' : candidate.source;
+      candidate.identityVerified = identity.markets.has(market);
+      return candidate.identityVerified;
+    });
+    await Promise.all(verified.map(async candidate => {
+      candidate.lastPrice = this.deps.candidateLastPrice ? await this.safe(this.deps.candidateLastPrice(candidate)) : null;
+    }));
+    const priceSafe = verified.filter(candidate => identity.referencePrice && candidate.lastPrice
+      ? Math.abs(candidate.lastPrice / identity.referencePrice - 1) <= .05 : true);
+    const ranked = this.rank(priceSafe, identity.knownStart);
     const candle = ranked.find(c => c.candleCapable) || null;
     const tv = ranked.find(c => c.tvSymbol) || null;
-    return { symbol, candle, tv, candidates: ranked, resolvedAt: Date.now() };
+    if (!candle && !tv) return null;
+    return { symbol, coinGeckoId: coinId, candle, tv, candidates: ranked, resolvedAt: Date.now() };
   }
 }
