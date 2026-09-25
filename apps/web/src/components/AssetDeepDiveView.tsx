@@ -375,6 +375,9 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
               <span className="text-sm text-slate-400 font-sans truncate hidden sm:inline">
                 {data?.info?.name || symbol}
               </span>
+              {data?.info?.marketDataSource === 'xt_spot' && data.info.exchange === 'XT.COM' && (
+                <span className="shrink-0 rounded-md border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-300">XT.COM Spot</span>
+              )}
               <span className="text-sm font-bold text-slate-100 font-mono shrink-0">
                 ${formatPrice(quote?.price)}
               </span>
