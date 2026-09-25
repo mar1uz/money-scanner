@@ -669,8 +669,9 @@ export class AppState {
     // The restored snapshot is useful but a slow Firestore call must not
     // hold the whole alerts page past the browser timeout.
     let restoreTimer: NodeJS.Timeout | undefined;
+    let restoreCompleted = false;
     try {
-      await Promise.race([this.restoreDailyRegimeState(), new Promise<void>(resolve => {
+      await Promise.race([this.restoreDailyRegimeState().then(() => { restoreCompleted = true; }), new Promise<void>(resolve => {
         restoreTimer = setTimeout(resolve, 8_000);
       })]);
     } finally { if (restoreTimer) clearTimeout(restoreTimer); }
@@ -682,11 +683,24 @@ export class AppState {
       try { return await Promise.race([promise, new Promise<T>(resolve => { timer = setTimeout(() => resolve(fallback), ms); })]); }
       finally { if (timer) clearTimeout(timer); }
     };
-    const dailySmaReclaim = await bounded(this.getDailySmaReclaimReport(), 4_000, null);
+    let dailyReportCompleted = false;
+    const dailySmaReclaim = await bounded(this.getDailySmaReclaimReport().then(value => {
+      dailyReportCompleted = true;
+      return value;
+    }), 4_000, null);
     const rules = this.listBullishCloudAlerts(userId);
-    const activeAlerts = (await Promise.all(rules.slice(0, 100).map(rule =>
+    const evaluatedRules = rules.slice(0, 100);
+    const progressResults = await Promise.all(evaluatedRules.map(rule =>
       bounded(this.getBullishAlertProgress(rule), 12_000, null)
-    ))).filter((progress): progress is NonNullable<typeof progress> => progress !== null);
+    ));
+    const activeAlerts = progressResults.filter((progress): progress is NonNullable<typeof progress> => progress !== null);
+    const readStatus = {
+      restoreTimedOut: !restoreCompleted,
+      dailyReportTimedOut: !dailyReportCompleted,
+      activeRulesTotal: rules.length,
+      activeRulesEvaluated: evaluatedRules.length,
+      activeRulesTimedOut: progressResults.length - activeAlerts.length
+    };
 
     const history = this.alertHistory.filter(alert =>
       alert.ruleId?.startsWith(`${userId}:`)
@@ -703,6 +717,7 @@ export class AppState {
 
     return {
       activeAlerts,
+      readStatus,
       history,
       dailyRegimeScan: { ...this.dailyRegimeScanStatus },
       dailySmaReclaim,

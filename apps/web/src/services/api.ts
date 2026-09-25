@@ -516,6 +516,13 @@ export interface FlipScanCoverageItem {
 }
 
 export interface AlertsDashboardResponse {
+  readStatus?: {
+    restoreTimedOut: boolean;
+    dailyReportTimedOut: boolean;
+    activeRulesTotal: number;
+    activeRulesEvaluated: number;
+    activeRulesTimedOut: number;
+  };
   activeAlerts: ActiveAlertDashboardItem[];
   history: AlertHistoryDashboardItem[];
   telegramConfigured: boolean;

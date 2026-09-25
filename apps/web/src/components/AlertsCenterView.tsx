@@ -1151,6 +1151,14 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
             </div>
           </div>
 
+          {data?.readStatus && (data.readStatus.restoreTimedOut || data.readStatus.dailyReportTimedOut || data.readStatus.activeRulesTotal > data.readStatus.activeRulesEvaluated || data.readStatus.activeRulesTimedOut > 0) && (
+            <p role="status" className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+              Citire parțială. {data.readStatus.restoreTimedOut && 'Datele salvate nu au putut fi încărcate la timp. '}
+              {data.readStatus.dailyReportTimedOut && 'Raportul SMA nu a răspuns la timp. '}
+              {(data.readStatus.activeRulesTotal > data.readStatus.activeRulesEvaluated || data.readStatus.activeRulesTimedOut > 0) && `${data.activeAlerts.length} din ${data.readStatus.activeRulesTotal} alerte urmărite sunt afișate; celelalte nu au fost șterse. `}
+              Reîncearcă actualizarea mai târziu.
+            </p>
+          )}
           {activeAlertsOpen && (
             loading && !data ? (
               <div className="grid gap-3 lg:grid-cols-2">

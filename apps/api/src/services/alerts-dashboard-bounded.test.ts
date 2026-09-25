@@ -12,6 +12,8 @@ describe('Alerts dashboard bounded reads', () => {
     state.telegramBot.getDeliveryConfiguration = () => ({});
     const result = await state.getAlertsDashboard('test-user');
     assert.equal(result.confirmedFlips.length, 2);
+    assert.equal(result.readStatus.activeRulesTotal, 0);
+    assert.equal(result.readStatus.restoreTimedOut, false);
     assert.equal(result.confirmedFlips[0].priceIsStale, true);
     assert.equal(result.confirmedFlips[1].priceIsStale, false);
     assert.equal(result.confirmedFlips[0].currentPrice, .45);
@@ -27,6 +29,20 @@ describe('Alerts dashboard bounded reads', () => {
     assert.equal(result.dailySmaReclaim, null);
     assert.ok(Date.now() - started < 6_000);
   });
+  it('reports capped rules instead of silently treating them as cleared', async () => {
+    const state = new AppState() as any;
+    state.restoreDailyRegimeState = async () => {};
+    state.getDailySmaReclaimReport = async () => null;
+    state.telegramBot.getDeliveryConfiguration = () => ({});
+    state.listBullishCloudAlerts = () => Array.from({ length: 101 }, (_, i) => ({ id: `rule-${i}` }));
+    state.getBullishAlertProgress = async (rule: { id: string }) => ({ id: rule.id });
+    const result = await state.getAlertsDashboard('test-user');
+    assert.equal(result.activeAlerts.length, 100);
+    assert.deepEqual(result.readStatus, {
+      restoreTimedOut: false, dailyReportTimedOut: false,
+      activeRulesTotal: 101, activeRulesEvaluated: 100, activeRulesTimedOut: 0
+    });
+  });
   it('bounds a stuck Firestore restore before reading stored state', async () => {
     const state = new AppState() as any;
     state.restoreDailyRegimeState = () => new Promise(() => {});
@@ -36,5 +52,6 @@ describe('Alerts dashboard bounded reads', () => {
     const result = await state.getAlertsDashboard('test-user');
     assert.ok(Date.now() - started < 10_000);
     assert.deepEqual(result.confirmedFlips, []);
+    assert.equal(result.readStatus.restoreTimedOut, true);
   });
 });
