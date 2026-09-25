@@ -236,17 +236,6 @@ export const TopAlphaView: React.FC = () => {
           </div>
         )}
 
-        {(assetClass === 'crypto' ? cryptoScan : stockScan) && (
-          <div className="rounded-xl border border-white/[0.08] p-3 text-[11px] text-slate-400 space-y-2">
-            <p>{isRo ? 'Scanare' : 'Snapshot'}: {new Date((assetClass === 'crypto' ? cryptoScan! : stockScan!).generatedAt).toLocaleString(isRo ? 'ro-RO' : 'en-GB')} · {isRo ? 'Date păstrate până la 26h; Rescanează cere o actualizare (minimum 2 minute între cereri).' : 'Cached up to 26h; Rescan requests an update (minimum 2 minutes between requests).'}</p>
-            {assetClass === 'crypto' && <>
-              <p>{isRo ? 'Fees = comisioane totale; revenue = partea reținută de protocol; holderi = partea destinată deținătorilor. FEES/REV % compară media zilnică 7z cu media 30z, nu prețul.' : 'Fees = total user fees; revenue = protocol share; holders = tokenholder share. FEES/REV % compares 7d and 30d daily averages, not price.'}</p>
-              <p>{isRo ? 'Scor intern: 25 puncte/pass, 12/watch, 0/fail sau necunoscut. Indicele compară doar aceeași bază P/R sau P/H; +80 nu înseamnă 80% subevaluare. Activele doar pe fees (fără revenue/holderi) nu sunt clasate la Subevaluate. Filtru hard la Subevaluate: fees 30z complete ≥ $100K, market cap ≥ $10M, minim 3/4 criterii trecute și fără stablecoins; pragul TVL ≥ $10M se aplică doar când DefiLlama raportează TVL pentru activ (lipsa datelor TVL trece). Holderi trece doar cu valoare > $0.' : 'Internal score: 25 points/pass, 12/watch, 0/fail or unknown. The index compares the same basis P/R or P/H only; +80 does not mean 80% undervalued. Fees-only assets (no revenue/holder data) are not ranked in Undervalued. Hard filter for Undervalued: complete 30d fees ≥ $100K, market cap ≥ $10M, at least 3/4 criteria passed and no stablecoins; the TVL ≥ $10M check applies only when DefiLlama reports TVL for the asset (no TVL data passes). Holders passes only with value > $0.'}</p>
-              <a className="inline-block underline" href="https://defillama.com/data-definitions" target="_blank" rel="noreferrer">{isRo ? 'Definiții și metodologie DefiLlama' : 'DefiLlama definitions and methodology'}</a>
-            </>}
-          </div>
-        )}
-
         {assetClass === 'crypto' && cryptoScan && (
           <>
             {ranking === 'score' && (
