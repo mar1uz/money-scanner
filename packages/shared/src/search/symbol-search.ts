@@ -1,7 +1,7 @@
 import { AssetInfo, AssetInstrumentType } from '../types/market.js';
 
 export type SearchMarketClass = 'stocks' | 'crypto' | 'metals' | 'forex' | 'macro' | 'unknown';
-export type SearchMatchType = 'catalog' | 'binance' | 'coingecko' | 'yahoo' | 'direct';
+export type SearchMatchType = 'catalog' | 'universe' | 'binance' | 'coingecko' | 'yahoo' | 'direct';
 
 export interface SymbolSearchCandidate {
   symbol: string;
@@ -19,6 +19,8 @@ export interface SymbolSearchCandidate {
   marketCap?: number;
   verified?: boolean;
   matchType: SearchMatchType;
+  /** Last-good provider snapshot, not a fresh quote or verification. */
+  staleAsOf?: number;
   price?: number;
   change24h?: number;
   changeYtd?: number;
@@ -130,14 +132,15 @@ const mergeCandidate = (current: SymbolSearchCandidate, incoming: SymbolSearchCa
   return {
     ...current,
     ...incoming,
-    name: current.matchType === 'catalog' ? current.name : incoming.name,
-    category: current.matchType === 'catalog' ? current.category : incoming.category,
+    staleAsOf: current.staleAsOf && incoming.staleAsOf ? Math.min(current.staleAsOf, incoming.staleAsOf) : undefined,
+    name: current.matchType === 'catalog' || current.matchType === 'universe' ? current.name : incoming.name,
+    category: current.matchType === 'catalog' || current.matchType === 'universe' ? current.category : incoming.category,
     aliases: Array.from(new Set([...(current.aliases || []), ...(incoming.aliases || [])])),
     coinGeckoId: current.coinGeckoId || incoming.coinGeckoId,
     rank: availableRanks.length ? Math.min(...availableRanks) : undefined,
     marketCap: Math.max(current.marketCap || 0, incoming.marketCap || 0) || undefined,
     verified: current.verified !== false || incoming.verified !== false,
-    matchType: current.matchType === 'catalog' ? current.matchType : incoming.matchType
+    matchType: current.matchType === 'catalog' || current.matchType === 'universe' ? current.matchType : incoming.matchType
   };
 };
 
@@ -149,10 +152,13 @@ export const rankSymbolSearchCandidates = (
   const query = parseSymbolSearchQuery(input);
   if (!query.compact && !normalizeSearchText(query.text)) return [];
   const textQuery = normalizeSearchText(query.text);
+  const words = textQuery.split(' ').filter(Boolean);
   const unique = new Map<string, SymbolSearchCandidate>();
   for (const candidate of candidates) {
     if (!candidate.symbol || !candidate.name) continue;
-    const identity = identityFor(candidate);
+    const identity = candidate.marketClass === 'crypto' && candidate.instrumentType !== 'perpetual' && candidate.coinGeckoId
+      ? `crypto:coin:${candidate.coinGeckoId.toLowerCase()}`
+      : identityFor(candidate);
     unique.set(identity, unique.has(identity) ? mergeCandidate(unique.get(identity)!, candidate) : candidate);
   }
 
@@ -167,7 +173,7 @@ export const rankSymbolSearchCandidates = (
     const marketSymbolExact = [display, provider].filter(Boolean).includes(query.compact);
     const pairExact = Boolean(
       query.base && query.quote && candidate.marketClass === 'crypto' &&
-      symbol === query.base && compactSymbol(candidate.quoteCurrency || '') === query.quote
+      symbol === query.base && (compactSymbol(candidate.quoteCurrency || '') === query.quote || candidate.coinGeckoId)
     );
     const symbolExact = [symbol, display, provider].filter(Boolean).includes(query.compact);
     const nameExact = Boolean(textQuery && name === textQuery);
@@ -209,6 +215,9 @@ export const rankSymbolSearchCandidates = (
     } else if (textQuery.length >= 3 && (name.includes(textQuery) || aliases.some(alias => alias.includes(textQuery)))) {
       matchScore = 600;
       matchReason = 'contains';
+    } else if (words.length >= 2 && words.every(word => [name, ...aliases, symbol.toLowerCase(), display.toLowerCase()].some(value => value.split(' ').some(token => token.startsWith(word))))) {
+      matchScore = 560;
+      matchReason = 'contains';
     } else if (
       query.compact.length >= 4 &&
       [symbol, display, provider].filter(Boolean).some(value => levenshteinDistance(query.compact, value) === 1)
@@ -223,14 +232,23 @@ export const rankSymbolSearchCandidates = (
     if (query.perpetual) matchScore += candidate.instrumentType === 'perpetual' ? 120 : -220;
     else if (query.base && query.quote && candidate.instrumentType === 'perpetual') matchScore -= 100;
     if (query.quote && candidate.marketClass === 'crypto') {
-      matchScore += compactSymbol(candidate.quoteCurrency || '') === query.quote ? 80 : -80;
+      matchScore += compactSymbol(candidate.quoteCurrency || '') === query.quote ? 80 : candidate.coinGeckoId && symbol === query.base ? 0 : -80;
     }
     if (candidate.verified !== false) matchScore += 20;
+    if (candidate.instrumentType === 'perpetual' && !query.perpetual) matchScore -= 150;
+    if (query.exchange && query.base && query.quote && candidate.instrumentType !== 'spot' && candidate.instrumentType !== 'perpetual') matchScore -= 130;
+    if (candidate.marketClass === 'crypto' && candidate.instrumentType !== 'perpetual' && query.base && symbol === query.base) matchScore += 100;
+    if (!query.exchange && (candidate.matchType === 'catalog' || candidate.matchType === 'universe')) matchScore += 90;
+    if (candidate.staleAsOf) matchScore -= 15;
+    // A full-name query for a canonical coin must not be stolen by a meme token's ticker.
+    if (nameExact && candidate.marketClass === 'crypto') matchScore += 180;
+    if (symbolExact && query.compact.length > 6 && candidate.rank && candidate.rank > 1000) matchScore -= 200;
     if (candidate.rank && candidate.rank > 0) matchScore += Math.max(0, 50 - Math.min(candidate.rank, 50));
 
     results.push({
       ...candidate,
-      resultId: identityFor(candidate),
+      resultId: candidate.marketClass === 'crypto' && candidate.instrumentType !== 'perpetual' && candidate.coinGeckoId
+        ? `crypto:coin:${candidate.coinGeckoId.toLowerCase()}` : identityFor(candidate),
       matchScore,
       matchReason,
       isExact

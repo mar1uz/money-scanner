@@ -84,4 +84,39 @@ describe('TradingView-style symbol search ranking', () => {
     assert.equal(results[0]?.matchReason, 'typo');
     assert.equal(rankSymbolSearchCandidates('NV', catalog).some(result => result.matchReason === 'typo'), false);
   });
+
+  it('finds a spot asset from multi-word name or a USDT pair without a Binance spot listing', () => {
+    const candidate: SymbolSearchCandidate = { symbol: 'PONS', name: 'Pons Robinhood', category: 'Crypto Asset',
+      marketClass: 'crypto', exchange: 'COINGECKO', instrumentType: 'spot', quoteCurrency: 'USD',
+      coinGeckoId: 'pons-robinhood', verified: true, matchType: 'universe' };
+    const perp: SymbolSearchCandidate = { symbol: 'PONSUSDT.P', displaySymbol: 'PONSUSDT.P',
+      name: 'PONS / USDT Perpetual', category: 'Crypto Perpetual', marketClass: 'crypto',
+      exchange: 'BINANCE Futures', instrumentType: 'perpetual', quoteCurrency: 'USDT',
+      verified: true, matchType: 'binance' };
+    assert.equal(rankSymbolSearchCandidates('Pons Robinhood', [candidate, perp])[0]?.coinGeckoId, 'pons-robinhood');
+    assert.equal(rankSymbolSearchCandidates('PONSUSDT', [candidate, perp])[0]?.instrumentType, 'spot');
+  });
+
+  it('puts the canonical Bitcoin identity ahead of an exact ticker lookalike', () => {
+    const canonical: SymbolSearchCandidate = { symbol: 'BTC', name: 'Bitcoin', category: 'Layer 1',
+      marketClass: 'crypto', exchange: 'COINGECKO', instrumentType: 'spot', coinGeckoId: 'bitcoin',
+      rank: 1, verified: true, matchType: 'universe' };
+    const lookalike: SymbolSearchCandidate = { symbol: 'BITCOIN', name: 'HarryPotterObamaSonic10Inu',
+      category: 'Meme', marketClass: 'crypto', exchange: 'COINGECKO', instrumentType: 'spot',
+      coinGeckoId: 'harrypotterobamasonic10inu', rank: 2000, verified: true, matchType: 'coingecko' };
+    assert.equal(rankSymbolSearchCandidates('bitcoin', [lookalike, canonical])[0]?.coinGeckoId, 'bitcoin');
+  });
+
+
+  it('merges the same exact CoinGecko asset across the live universe and search provider but keeps a perp distinct', () => {
+    const base: SymbolSearchCandidate = { symbol: 'PONS', name: 'Pons', category: 'Crypto Asset',
+      marketClass: 'crypto', exchange: 'COINGECKO', instrumentType: 'spot', quoteCurrency: 'USD',
+      coinGeckoId: 'pons', verified: true, matchType: 'universe' };
+    const duplicates = [base, { ...base, exchange: 'COINGECKO', matchType: 'coingecko' as const },
+      { ...base, symbol: 'PONSUSDT.P', instrumentType: 'perpetual' as const, exchange: 'BINANCE Futures' }];
+    const results = rankSymbolSearchCandidates('PONS', duplicates);
+    assert.equal(results.filter(result => result.coinGeckoId === 'pons' && result.instrumentType === 'spot').length, 1);
+    assert.equal(results.filter(result => result.instrumentType === 'perpetual').length, 1);
+  });
+
 });

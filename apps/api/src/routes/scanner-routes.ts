@@ -34,8 +34,17 @@ interface BinanceMarketRow {
 let binanceSpotCache: { rows: BinanceMarketRow[]; expiresAt: number } | undefined;
 let binanceFuturesCache: { rows: BinanceMarketRow[]; expiresAt: number } | undefined;
 const searchResponseCache = new Map<string, { payload: ReturnType<typeof rankSymbolSearchCandidates>; expiresAt: number }>();
+const coinGeckoLastGood = new Map<string, { rows: SymbolSearchCandidate[]; updatedAt: number }>();
+let universeLastGood: { rows: SymbolSearchCandidate[]; updatedAt: number } | null = null;
+let universeInFlight: Promise<SymbolSearchCandidate[]> | null = null;
 
 const normalizeProviderName = (value: string) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+// Grounded platform/chain alias, keyed by exact CoinGecko identity rather than ticker.
+// CoinGecko's Pons listing identifies Robinhood-chain markets (see coin page).
+const searchIdentityAliases: Record<string, string[]> = { pons: ['Robinhood', 'Robinhood Chain', 'Pons Robinhood'] };
+const withIdentityAliases = (row: SymbolSearchCandidate): SymbolSearchCandidate => ({
+  ...row, aliases: [...new Set([...(row.aliases || []), ...(searchIdentityAliases[row.coinGeckoId || ''] || [])])]
+});
 
 // Bubble and Heat Map deep links pass exact provider IDs, bypassing the
 // symbol-only scanner route. When such a coin is missing from the static
@@ -189,31 +198,59 @@ const yahooSearchCandidates = async (query: string): Promise<SymbolSearchCandida
 };
 
 const coinGeckoSearchCandidates = async (query: string): Promise<SymbolSearchCandidate[]> => {
+  const key = query.toLowerCase();
   const payload = await fetchJson<{ coins?: Array<{
-    id?: string;
-    name?: string;
-    symbol?: string;
-    market_cap_rank?: number | null;
+    id?: string; name?: string; symbol?: string; market_cap_rank?: number | null;
   }> }>(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(query)}`, 3_500);
-  return (payload?.coins || []).slice(0, 25).flatMap<SymbolSearchCandidate>(coin => {
+  if (!payload?.coins) {
+    const old = coinGeckoLastGood.get(key);
+    return (old?.rows || []).map(row => ({ ...row, staleAsOf: old?.updatedAt }));
+  }
+  const rows = payload.coins.slice(0, 50).flatMap<SymbolSearchCandidate>(coin => {
     const symbol = String(coin.symbol || '').toUpperCase();
     if (!symbol || !coin.name || !coin.id) return [];
     return [{
-      symbol,
-      displaySymbol: symbol,
-      name: coin.name,
-      category: 'Crypto Asset',
-      marketClass: 'crypto',
-      exchange: 'COINGECKO',
-      instrumentType: 'spot',
-      quoteCurrency: 'USD',
-      aliases: [coin.id, coin.name, symbol],
-      coinGeckoId: coin.id,
-      rank: coin.market_cap_rank || undefined,
-      verified: true,
-      matchType: 'coingecko'
+      symbol, displaySymbol: symbol, name: coin.name, category: 'Crypto Asset',
+      marketClass: 'crypto', exchange: 'COINGECKO', instrumentType: 'spot',
+      quoteCurrency: 'USD', aliases: [coin.id, coin.name, symbol], coinGeckoId: coin.id,
+      rank: coin.market_cap_rank || undefined, verified: true, matchType: 'coingecko'
     }];
   });
+  coinGeckoLastGood.set(key, { rows, updatedAt: Date.now() });
+  if (coinGeckoLastGood.size > 200) coinGeckoLastGood.delete(coinGeckoLastGood.keys().next().value!);
+  return rows;
+};
+
+/** Existing cached scan includes DefiLlama-discovered protocols; never start a heavy scan in search. */
+const dynamicSearchCandidates = async (): Promise<SymbolSearchCandidate[]> => {
+  if (universeLastGood && Date.now() - universeLastGood.updatedAt < 5 * 60_000) return universeLastGood.rows;
+  if (universeInFlight) return universeInFlight;
+  universeInFlight = (async () => { try {
+    const [topResult, criteriaResult] = await Promise.allSettled([
+      AppState.getInstance().marketData.getTopCryptoAssets(150),
+      getCryptoCriteriaReport(false, false)
+    ]);
+    const top = topResult.status === 'fulfilled' ? topResult.value : [];
+    const criteria = criteriaResult.status === 'fulfilled' ? criteriaResult.value : null;
+    const rows: SymbolSearchCandidate[] = [
+      ...catalogToSearchCandidates(top).map(row => ({ ...row, matchType: 'universe' as const })),
+      ...(criteria?.assets || []).filter(asset => asset.coinGeckoId).map(asset => ({
+        symbol: asset.symbol.toUpperCase(), displaySymbol: asset.symbol.toUpperCase(),
+        name: asset.name, category: 'Crypto Asset', marketClass: 'crypto' as const,
+        exchange: 'COINGECKO', instrumentType: 'spot' as const, quoteCurrency: 'USD',
+        aliases: [asset.coinGeckoId!, asset.name], coinGeckoId: asset.coinGeckoId,
+        rank: asset.marketCapRank || undefined, marketCap: asset.marketCap || undefined,
+        verified: true, matchType: 'universe' as const
+      }))
+    ];
+    if (rows.length) {
+      universeLastGood = { rows, updatedAt: Date.now() };
+      return rows;
+    }
+  } catch { /* Preserve the last verified index during provider outages. */ }
+  return (universeLastGood?.rows || []).map(row => ({ ...row, staleAsOf: universeLastGood?.updatedAt }));
+  })().finally(() => { universeInFlight = null; });
+  return universeInFlight;
 };
 
 scannerRouter.get('/search', async (req, res) => {
@@ -225,12 +262,13 @@ scannerRouter.get('/search', async (req, res) => {
     if (cached && cached.expiresAt > Date.now()) return res.json(cached.payload);
 
     const localCandidates = catalogToSearchCandidates(TRADING_360_ASSETS);
-    const [binance, yahoo, coinGecko] = await Promise.all([
+    const [binance, yahoo, coinGecko, universe] = await Promise.all([
       binanceSearchCandidates(),
       yahooSearchCandidates(rawQuery),
-      coinGeckoSearchCandidates(rawQuery)
+      coinGeckoSearchCandidates(rawQuery),
+      dynamicSearchCandidates()
     ]);
-    const candidates = [...localCandidates, ...binance, ...yahoo, ...coinGecko];
+    const candidates = [...localCandidates, ...universe, ...binance, ...yahoo, ...coinGecko].map(withIdentityAliases);
     let results = rankSymbolSearchCandidates(rawQuery, candidates, 60);
 
     // A direct result is a last-resort attempt, never an invented stock. It is
@@ -268,6 +306,7 @@ scannerRouter.get('/search', async (req, res) => {
       };
     });
     searchResponseCache.set(cacheKey, { payload: enriched, expiresAt: Date.now() + 30_000 });
+    if (searchResponseCache.size > 200) searchResponseCache.delete(searchResponseCache.keys().next().value!);
     res.set('Cache-Control', 'private, max-age=15');
     res.json(enriched);
   } catch (err: any) {
