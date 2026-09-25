@@ -47,6 +47,10 @@ export interface ChartMarketResolverDeps {
   isOnKraken(base: string): Promise<boolean>;
   krakenFirstDailyTs(base: string): Promise<number | null>;
   krakenQuoteVolume24h(base: string): Promise<number | null>;
+  /** XT spot is admitted only after exact CoinGecko ID and exchange mint verification. */
+  isOnXtSpot?(base: string, coinId: string): Promise<boolean>;
+  xtFirstDailyTs?(base: string): Promise<number | null>;
+  xtQuoteVolume24h?(base: string): Promise<number | null>;
   /** MEXC spot has a candle adapter; other smaller venues are chart-only. */
   isOnMexcSpot?(base: string): Promise<boolean>;
   mexcFirstDailyTs?(base: string): Promise<number | null>;
@@ -69,6 +73,7 @@ const PREFERENCE: AssetMarketDataSource[] = [
   'kraken',
   'hyperliquid',
   'mexc_spot',
+  'xt_spot',
   'gate_spot',
   'bitget_spot',
   'kucoin_spot'
@@ -197,7 +202,7 @@ export class ChartMarketResolver {
       candidates.push(candidate);
     }
 
-    const [onFutures, onBybit, okxInstrument, onHyperliquid, onCoinbase, onKraken, onMexc, onGate, onBitget, onKucoin] = await Promise.all([
+    const [onFutures, onBybit, okxInstrument, onHyperliquid, onCoinbase, onKraken, onMexc, onXt, onGate, onBitget, onKucoin] = await Promise.all([
       this.safe(this.deps.isOnBinanceFutures(symbol)),
       this.safe(this.deps.isOnBybitSpot(symbol)),
       this.safe(this.deps.okxSpotInstrument(symbol)),
@@ -205,6 +210,7 @@ export class ChartMarketResolver {
       this.safe(this.deps.isOnCoinbase(symbol)),
       this.safe(this.deps.isOnKraken(symbol)),
       this.deps.isOnMexcSpot ? this.safe(this.deps.isOnMexcSpot(symbol)) : Promise.resolve(null),
+      this.deps.isOnXtSpot ? this.safe(this.deps.isOnXtSpot(symbol, coinId)) : Promise.resolve(null),
       this.deps.isOnGateSpot ? this.safe(this.deps.isOnGateSpot(symbol)) : Promise.resolve(null),
       this.deps.isOnBitgetSpot ? this.safe(this.deps.isOnBitgetSpot(symbol)) : Promise.resolve(null),
       this.deps.isOnKucoinSpot ? this.safe(this.deps.isOnKucoinSpot(symbol)) : Promise.resolve(null)
@@ -282,6 +288,7 @@ export class ChartMarketResolver {
         candleCapable: true
       });
     }
+    if (onXt) candidates.push({ source: 'xt_spot', exchange: 'XT.COM', providerSymbol: `${symbol.toLowerCase()}_usdt`, tvSymbol: `XTCOM:${symbol}USDT`, quoteCurrency: 'USDT', listingStart: null, volume24hQuote: null, candleCapable: true });
     if (onGate) {
       candidates.push({
         source: 'gate_spot',
@@ -349,6 +356,9 @@ export class ChartMarketResolver {
         case 'kraken':
           candidate.listingStart = await this.safe(this.deps.krakenFirstDailyTs(symbol));
           break;
+        case 'xt_spot':
+          candidate.listingStart = this.deps.xtFirstDailyTs ? await this.safe(this.deps.xtFirstDailyTs(symbol)) : null;
+          break;
         case 'mexc_spot':
           candidate.listingStart = this.deps.mexcFirstDailyTs ? await this.safe(this.deps.mexcFirstDailyTs(symbol)) : null;
           break;
@@ -384,6 +394,9 @@ export class ChartMarketResolver {
           break;
         case 'kraken':
           candidate.volume24hQuote = await this.safe(this.deps.krakenQuoteVolume24h(symbol));
+          break;
+        case 'xt_spot':
+          candidate.volume24hQuote = this.deps.xtQuoteVolume24h ? await this.safe(this.deps.xtQuoteVolume24h(symbol)) : null;
           break;
         case 'mexc_spot':
           candidate.volume24hQuote = this.deps.mexcQuoteVolume24h ? await this.safe(this.deps.mexcQuoteVolume24h(symbol)) : null;

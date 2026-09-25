@@ -18,7 +18,7 @@ export type AssetMarketClass = 'crypto' | 'stocks' | 'metals';
  * distinct throughout search, charts and market-data routing.
  */
 export type AssetInstrumentType = 'spot' | 'perpetual' | 'equity' | 'etf' | 'metal' | 'index' | 'forex';
-export type AssetMarketDataSource = 'binance_spot' | 'binance_futures' | 'bybit_spot' | 'okx_spot' | 'coinbase' | 'kraken' | 'hyperliquid' | 'mexc_spot' | 'gate_spot' | 'bitget_spot' | 'kucoin_spot' | 'public_stock';
+export type AssetMarketDataSource = 'binance_spot' | 'binance_futures' | 'bybit_spot' | 'okx_spot' | 'coinbase' | 'kraken' | 'hyperliquid' | 'mexc_spot' | 'xt_spot' | 'gate_spot' | 'bitget_spot' | 'kucoin_spot' | 'public_stock';
 
 export type AssetCategory = 
   | 'Layer 1' 

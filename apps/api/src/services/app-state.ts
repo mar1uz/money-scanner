@@ -172,6 +172,9 @@ export interface FlipCandidate {
   confirmationPrice?: number;
   confirmedAt?: number;
   scannedAt: number;
+  /** Last successful price observation. Restored scan prices are not live quotes. */
+  priceObservedAt?: number;
+  priceIsStale?: boolean;
 }
 
 interface PreliminaryFlipAsset {
@@ -664,16 +667,17 @@ export class AppState {
 
   public async getAlertsDashboard(userId: string) {
     await this.restoreDailyRegimeState();
-    const dailySmaReclaim = await this.getDailySmaReclaimReport();
+    // A dashboard read must never wait on a slow report restore or hundreds of
+    // exchange quotes. Scan-time prices are persisted with the flip; this read
+    // only labels their age and never mutates the stored scan state.
+    const bounded = async <T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> => {
+      let timer: NodeJS.Timeout | undefined;
+      try { return await Promise.race([promise, new Promise<T>(resolve => { timer = setTimeout(() => resolve(fallback), ms); })]); }
+      finally { if (timer) clearTimeout(timer); }
+    };
+    const dailySmaReclaim = await bounded(this.getDailySmaReclaimReport(), 4_000, null);
     const rules = this.listBullishCloudAlerts(userId);
-    const activeAlerts = [];
-    const concurrency = 4;
-    for (let index = 0; index < rules.length; index += concurrency) {
-      const settled = await Promise.allSettled(
-        rules.slice(index, index + concurrency).map(rule => this.getBullishAlertProgress(rule))
-      );
-      activeAlerts.push(...settled.flatMap(result => result.status === 'fulfilled' ? [result.value] : []));
-    }
+    const activeAlerts = await bounded(Promise.all(rules.map(rule => this.getBullishAlertProgress(rule))), 12_000, [] as Awaited<ReturnType<typeof this.getBullishAlertProgress>>[]);
 
     const history = this.alertHistory.filter(alert =>
       alert.ruleId?.startsWith(`${userId}:`)
@@ -681,27 +685,11 @@ export class AppState {
       || alert.type === 'StrategySetup'
     );
 
-    const confirmedAssets = Array.from(new Map(
-      this.confirmedFlips.map(candidate => [
-        `${candidate.marketClass}:${candidate.symbol}`,
-        { symbol: candidate.symbol, marketClass: candidate.marketClass }
-      ])
-    ).values());
-    const currentPriceByAsset = new Map<string, number>();
-    for (let index = 0; index < confirmedAssets.length; index += concurrency) {
-      const batch = confirmedAssets.slice(index, index + concurrency);
-      const settled = await Promise.allSettled(
-        batch.map(asset => this.marketData.getPriceQuote(asset.symbol, asset.marketClass))
-      );
-      settled.forEach((result, batchIndex) => {
-        if (result.status !== 'fulfilled' || !Number.isFinite(result.value.price) || result.value.price <= 0) return;
-        const asset = batch[batchIndex];
-        currentPriceByAsset.set(`${asset.marketClass}:${asset.symbol}`, result.value.price);
-      });
-    }
-    this.confirmedFlips.forEach(candidate => {
-      const price = currentPriceByAsset.get(`${candidate.marketClass}:${candidate.symbol}`);
-      if (price) candidate.currentPrice = price;
+    const now = Date.now();
+    const confirmedFlips = this.confirmedFlips.map(candidate => {
+      const observedAt = candidate.priceObservedAt || candidate.scannedAt || 0;
+      return { ...candidate, priceObservedAt: observedAt,
+        priceIsStale: !observedAt || now - observedAt > 5 * 60_000 };
     });
 
     return {
@@ -711,7 +699,7 @@ export class AppState {
       dailySmaReclaim,
       manualScan: this.getManualAlertScanStatus(userId),
       flipCandidates: this.flipCandidates.map(candidate => ({ ...candidate })),
-      confirmedFlips: this.confirmedFlips.map(candidate => ({ ...candidate })),
+      confirmedFlips,
       scanCoverage: this.flipScanCoverage.map(item => ({ ...item })),
       strategySetups: this.strategySetups.map(setup => ({ ...setup })),
       updatedAt: Date.now(),
@@ -1783,7 +1771,9 @@ export class AppState {
       candleTimestamp: closedCandles[lastIndex].timestamp,
       confirmationPrice: confirmed ? Number(closedCandles[lastIndex].close.toFixed(8)) : undefined,
       confirmedAt,
-      scannedAt: Date.now()
+      scannedAt: Date.now(),
+      priceObservedAt: Date.now(),
+      priceIsStale: false
     };
   }
 

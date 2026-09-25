@@ -496,6 +496,8 @@ export interface FlipCandidateDashboardItem {
   confirmationPrice?: number;
   confirmedAt?: number;
   scannedAt: number;
+  priceObservedAt?: number;
+  priceIsStale?: boolean;
 }
 
 export type FlipScanCoverageStatus = 'CONFIRMED' | 'CANDIDATE' | 'NO_SETUP' | 'INSUFFICIENT_DATA' | 'ERROR';

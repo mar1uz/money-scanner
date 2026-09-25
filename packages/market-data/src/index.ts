@@ -10,3 +10,5 @@ export * from './chart-market-resolver.js';
 export * from './chart-market-probes.js';
 
 export * from './adapters/mexc.js';
+
+export * from './adapters/xt.js';

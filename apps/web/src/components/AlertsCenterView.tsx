@@ -1465,6 +1465,8 @@ const ConfirmedFlipCard: React.FC<{
     ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
     : 'border-rose-500/25 bg-rose-500/10 text-rose-300';
   const alignmentCount = [candidate.weeklyAligned, candidate.sma50Aligned, candidate.sma200Aligned].filter(Boolean).length;
+  const priceAge = candidate.priceObservedAt ? formatRelativeAge(candidate.priceObservedAt) : 'necunoscută';
+  const priceLabel = candidate.priceIsStale ? 'Ultimul preț la scanare' : 'Preț la scanare';
   const confirmationPrice = candidate.confirmationPrice || candidate.currentPrice;
   const moveFromFlip = confirmationPrice > 0
     ? ((candidate.currentPrice - confirmationPrice) / confirmationPrice) * 100
@@ -1510,7 +1512,7 @@ const ConfirmedFlipCard: React.FC<{
 
       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <LevelBox label="Închidere flip" value={formatPrice(confirmationPrice)} tone={bullish ? 'emerald' : 'rose'} />
-        <LevelBox label="Preț actual" value={formatPrice(candidate.currentPrice)} tone="cyan" />
+        <LevelBox label={priceLabel} value={formatPrice(candidate.currentPrice)} tone="cyan" />
         <LevelBox label="Față de flip" value={moveFromFlipLabel} tone={moveFromFlip >= 0 ? 'emerald' : 'rose'} />
         <LevelBox label="Scor setup" value={`${candidate.priorityScore.toFixed(0)}/100`} tone={candidate.priorityScore >= 80 ? 'amber' : 'cyan'} />
         <LevelBox label="ML 1W" value={`${candidate.weeklyTier} · ${candidate.weeklyScore > 0 ? '+' : ''}${candidate.weeklyScore}`} tone={candidate.weeklyAligned ? (bullish ? 'emerald' : 'rose') : 'slate'} />
@@ -1518,6 +1520,7 @@ const ConfirmedFlipCard: React.FC<{
         {candidate.marketClass === 'crypto' && <FundamentalBoxes fundamentals={fundamentals} />}
       </div>
 
+      <p className="mt-2 text-[10px] text-amber-200/80">{candidate.priceIsStale ? 'Preț învechit' : 'Preț observat'} · acum {priceAge}; nu este o cotație live.</p>
       {candidate.marketClass === 'stocks' && stockAsset && <StockFundamentalsSection asset={stockAsset} />}
 
       <button type="button" onClick={onOpen} className="mt-3 flex w-full items-center justify-between border-t border-white/[0.05] pt-3 text-[11px] text-slate-500 transition hover:text-cyan-300">

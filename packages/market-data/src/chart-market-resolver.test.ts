@@ -17,6 +17,7 @@ interface StubSpec {
   hyperliquid?: { listing: number | null; volume: number | null };
   binanceListing?: number | null;
   mexc?: { listing: number | null; volume: number | null };
+  xt?: { listing: number | null; volume: number | null };
   verifiedMarkets?: string[];
   referencePrice?: number;
   candidatePrice?: number | null;
@@ -44,6 +45,9 @@ function makeDeps(spec: StubSpec, calls: string[] = []): ChartMarketResolverDeps
     isOnKraken: async () => !!spec.kraken,
     krakenFirstDailyTs: async () => spec.kraken?.listing ?? null,
     krakenQuoteVolume24h: async () => spec.kraken?.volume ?? null,
+    isOnXtSpot: async (_, coinId) => !!spec.xt && coinId === 'graphite-protocol',
+    xtFirstDailyTs: async () => spec.xt?.listing ?? null,
+    xtQuoteVolume24h: async () => spec.xt?.volume ?? null,
     isOnMexcSpot: async () => !!spec.mexc,
     mexcFirstDailyTs: async () => spec.mexc?.listing ?? null,
     mexcQuoteVolume24h: async () => spec.mexc?.volume ?? null,
@@ -189,6 +193,15 @@ describe('ChartMarketResolver', () => {
     const b = await resolver.resolve('PONS', 'another-pons');
     assert.ok(a && b);
     assert.notEqual(a, b);
+  });
+
+  it('binds Graphite GP to verified XT spot, never the MEXC same-ticker market', async () => {
+    const resolver = new ChartMarketResolver(makeDeps({ mexc: { listing: T('2020-01-01'), volume: 1_000_000 }, xt: { listing: T('2025-07-13'), volume: 100_000 }, verifiedMarkets: ['xt_spot'], referencePrice: 1, candidatePrice: 1 }));
+    const resolved = await resolver.resolve('GP', 'graphite-protocol');
+    assert.equal(resolved?.candle?.source, 'xt_spot');
+    assert.equal(resolved?.candle?.providerSymbol, 'gp_usdt');
+    assert.equal(resolved?.candidates.some(c => c.source === 'mexc_spot'), false);
+    assert.equal(await resolver.resolve('GP', 'other-gp'), null);
   });
 
   it('rejects a mismatched provider price, rather than ranking a ticker collision', async () => {

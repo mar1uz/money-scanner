@@ -22,6 +22,7 @@ import { buildChartMarketResolverDeps } from './chart-market-probes.js';
 import { PublicStockMarketAdapter } from './adapters/public-stock.js';
 import { HyperliquidMarketAdapter } from './adapters/hyperliquid.js';
 import { MexcMarketAdapter } from './adapters/mexc.js';
+import { XtMarketAdapter } from './adapters/xt.js';
 
 interface CoinGeckoMarketRow {
   id?: string;
@@ -42,8 +43,9 @@ export class MarketDataService {
   private stockAdapter = new PublicStockMarketAdapter(this.healthMonitor);
   private hyperliquidAdapter = new HyperliquidMarketAdapter(this.healthMonitor);
   private mexcAdapter = new MexcMarketAdapter(this.healthMonitor);
+  private xtAdapter = new XtMarketAdapter(this.healthMonitor);
   private chartResolver = new ChartMarketResolver(
-    buildChartMarketResolverDeps(this.binanceAdapter, this.bybitAdapter, this.okxAdapter, this.hyperliquidAdapter, this.mexcAdapter)
+    buildChartMarketResolverDeps(this.binanceAdapter, this.bybitAdapter, this.okxAdapter, this.hyperliquidAdapter, this.mexcAdapter, this.xtAdapter)
   );
   private candleCache = new Map<string, Candle[]>();
   private quoteCache = new Map<string, AssetPriceQuote>();
@@ -172,7 +174,9 @@ export class MarketDataService {
         ? await this.stockAdapter.fetchCandles(symbol, timeframe, limit)
         : await this.binanceAdapter.fetchCandles(symbol, timeframe, limit);
       let candles: Candle[];
-      candles = chartMarket?.source === 'mexc_spot'
+      candles = chartMarket?.source === 'xt_spot'
+          ? await this.xtAdapter.fetchCandles(chartMarket.providerSymbol, timeframe, limit)
+          : chartMarket?.source === 'mexc_spot'
           ? await this.mexcAdapter.fetchCandles(chartMarket.providerSymbol, timeframe, limit)
           : chartMarket?.source === 'bybit_spot'
           ? await this.bybitAdapter.fetchCandles(chartMarket.providerSymbol, timeframe, limit)
@@ -236,6 +240,7 @@ export class MarketDataService {
       return this.binanceAdapter.fetchCandlesBefore(symbol, timeframe, beforeTimestamp, limit);
     };
     try {
+      if (chartMarket?.source === 'xt_spot') return await this.xtAdapter.fetchCandlesBefore(chartMarket.providerSymbol, timeframe, beforeTimestamp, limit);
       if (chartMarket?.source === 'mexc_spot') {
         return await this.mexcAdapter.fetchCandlesBefore(chartMarket.providerSymbol, timeframe, beforeTimestamp, limit);
       }
@@ -288,7 +293,9 @@ export class MarketDataService {
         ? await this.stockAdapter.fetchQuote(symbol)
         : await this.binanceAdapter.fetch24hTicker(symbol);
       let quote;
-      quote = chartMarket?.source === 'mexc_spot'
+      quote = chartMarket?.source === 'xt_spot'
+          ? await this.xtAdapter.fetchQuote(chartMarket.providerSymbol, symbol)
+          : chartMarket?.source === 'mexc_spot'
           ? await this.mexcAdapter.fetchQuote(chartMarket.providerSymbol, symbol)
           : chartMarket?.source === 'bybit_spot'
           ? await this.bybitAdapter.fetch24hTicker(chartMarket.providerSymbol, symbol)

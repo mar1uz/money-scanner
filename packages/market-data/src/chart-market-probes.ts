@@ -4,6 +4,7 @@ import { OkxMarketAdapter } from './adapters/okx.js';
 import { HyperliquidMarketAdapter } from './adapters/hyperliquid.js';
 import { ChartMarketResolverDeps } from './chart-market-resolver.js';
 import { MexcMarketAdapter } from './adapters/mexc.js';
+import { XtMarketAdapter } from './adapters/xt.js';
 import { MarketHealthMonitor } from './health-monitor.js';
 
 const BINANCE_SPOT_URL = process.env.BINANCE_API_URL || 'https://data-api.binance.vision/api/v3';
@@ -95,6 +96,8 @@ const krakenFirstDailyTs = async (pairName: string): Promise<number | null> => {
   return Number.isFinite(ts) && ts > 0 ? ts * 1000 : null;
 };
 
+const XT_URL = process.env.XT_API_URL || 'https://sapi.xt.com/v4/public';
+const GRAPHITE_MINT = '31k88G5Mq7ptbRDf3AM13HAq6wRQHXHikR8hik7wPygk';
 const MEXC_URL = process.env.MEXC_API_URL || 'https://api.mexc.com/api/v3';
 const GATE_URL = process.env.GATE_API_URL || 'https://api.gateio.ws/api/v4';
 const BITGET_URL = process.env.BITGET_API_URL || 'https://api.bitget.com/api/v2';
@@ -159,7 +162,8 @@ export function buildChartMarketResolverDeps(
   bybit: BybitMarketAdapter,
   okx: OkxMarketAdapter,
   hyperliquid: HyperliquidMarketAdapter,
-  mexc = new MexcMarketAdapter(new MarketHealthMonitor())
+  mexc = new MexcMarketAdapter(new MarketHealthMonitor()),
+  xt = new XtMarketAdapter(new MarketHealthMonitor())
 ): ChartMarketResolverDeps {
   return {
     isOnBinanceSpot: async base => (await binance.getSupportedUsdtBaseAssets()).has(base),
@@ -201,6 +205,21 @@ export function buildChartMarketResolverDeps(
       const volume = Number(row?.v?.[1]) * Number(row?.c?.[0]);
       return Number.isFinite(volume) ? volume : null;
     },
+    isOnXtSpot: async (base, coinId) => {
+      // The pair GP/USDT alone can mean another coin. Bind the XT spot market
+      // by its Solana contract, independently of the CoinGecko ticker row.
+      if (base !== 'GP' || coinId !== 'graphite-protocol') return false;
+      const body = await fetchJson<{ rc?: number; result?: { symbols?: Array<{ symbol?: string; state?: string; type?: string; chainRelation?: Array<{ contract?: string }> }> } }>(`${XT_URL}/symbol?symbol=gp_usdt`);
+      const market = body.result?.symbols?.find(row => row.symbol?.toLowerCase() === 'gp_usdt');
+      return body.rc === 0 && market?.state === 'ONLINE' && market.type === 'normal'
+        && !!market.chainRelation?.some(chain => chain.contract === GRAPHITE_MINT);
+    },
+    xtFirstDailyTs: base => xt.firstDailyCandleTs(`${base.toLowerCase()}_usdt`),
+    xtQuoteVolume24h: async base => {
+      const body = await fetchJson<{ rc?: number; result?: Array<{ v?: string }> }>(`${XT_URL}/ticker/24h?symbol=${base.toLowerCase()}_usdt`);
+      const volume = Number(body.result?.[0]?.v);
+      return body.rc === 0 && Number.isFinite(volume) ? volume : null;
+    },
     isOnMexcSpot: async base => (await mexcUsdtBases()).has(base),
     mexcFirstDailyTs: base => mexc.firstDailyCandleTs(`${base}USDT`),
     mexcQuoteVolume24h: async base => {
@@ -222,7 +241,7 @@ export function buildChartMarketResolverDeps(
       ]);
       if (coin.id !== coinId || String(coin.symbol || '').toUpperCase() !== base || !tickers.tickers) return null;
       const names: Record<string, string> = { binance: 'binance_spot', bybit_spot: 'bybit_spot', okex: 'okx_spot',
-        mxc: 'mexc_spot', gate: 'gate_spot', bitget: 'bitget_spot', kucoin: 'kucoin_spot',
+        mxc: 'mexc_spot', xt: 'xt_spot', gate: 'gate_spot', bitget: 'bitget_spot', kucoin: 'kucoin_spot',
         gdax: 'coinbase', kraken: 'kraken' };
       const markets = new Set<string>();
       for (const row of tickers.tickers) {
@@ -239,6 +258,7 @@ export function buildChartMarketResolverDeps(
       return value;
     },
     candidateLastPrice: async candidate => {
+      if (candidate.source === 'xt_spot') return (await xt.fetchQuote(candidate.providerSymbol, baseSymbol(candidate.providerSymbol))).price;
       if (candidate.source === 'mexc_spot') return (await mexc.fetchQuote(candidate.providerSymbol, baseSymbol(candidate.providerSymbol))).price;
       if (candidate.source === 'binance_spot') return (await binance.fetch24hTicker(baseSymbol(candidate.providerSymbol))).price;
       if (candidate.source === 'binance_futures') return (await binance.fetchFutures24hTicker(candidate.providerSymbol, baseSymbol(candidate.providerSymbol))).price;
