@@ -1520,7 +1520,7 @@ const ConfirmedFlipCard: React.FC<{
         {candidate.marketClass === 'crypto' && <FundamentalBoxes fundamentals={fundamentals} />}
       </div>
 
-      <p className="mt-2 text-[10px] text-amber-200/80">{candidate.priceIsStale ? 'Preț învechit' : 'Preț observat'} · acum {priceAge}; nu este o cotație live.</p>
+      <p className="mt-2 text-[10px] text-amber-200/80">{candidate.priceIsStale ? 'Preț învechit' : 'Preț observat'} · {priceAge}; nu este o cotație live.</p>
       {candidate.marketClass === 'stocks' && stockAsset && <StockFundamentalsSection asset={stockAsset} />}
 
       <button type="button" onClick={onOpen} className="mt-3 flex w-full items-center justify-between border-t border-white/[0.05] pt-3 text-[11px] text-slate-500 transition hover:text-cyan-300">
