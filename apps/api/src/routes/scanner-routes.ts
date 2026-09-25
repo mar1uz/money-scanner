@@ -628,6 +628,16 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       assetInfo = { ...assetInfo, coinGeckoId: cryptoReference.coinGeckoId };
     }
     const resolvedMarketClass = requestedMarketClass || assetInfo.marketClass;
+    // A verified exchange pair must also correct the visible instrument label.
+    // A generic ticker-only stub saying BINANCE for GP would contradict its
+    // identity-checked XT candles. Do not apply this without the exact ID.
+    if (symbol === 'GP' && cryptoReference.coinGeckoId === 'graphite-protocol' && resolvedMarketClass === 'crypto') {
+      const verifiedGp = await appState.marketData.resolveChartMarket(symbol, cryptoReference.coinGeckoId);
+      if (verifiedGp?.candle?.source === 'xt_spot') assetInfo = {
+        ...assetInfo, name: 'Graphite Protocol', exchange: 'XT.COM',
+        marketDataSource: 'xt_spot', providerSymbol: 'gp_usdt', quoteCurrency: 'USDT'
+      };
+    }
     // Live CoinGecko global rank overrides stale hardcoded catalog ranks
     // (catalog UNI said #145 while live rank is #28). Cached 5 min upstream.
     // Unknown stays 999 so the frontend hides the badge instead of guessing.
