@@ -463,9 +463,9 @@ const ComparisonTable: React.FC<{ comparison: BacktestComparisonResult }> = ({ c
       <MiniStat label="Expectancy medie" value={`${comparison.aggregate.averageExpectancyR >= 0 ? '+' : ''}${comparison.aggregate.averageExpectancyR.toFixed(2)}R`} />
       <MiniStat label="DD mediu" value={`-${comparison.aggregate.averageMaxDrawdownPercent.toFixed(2)}%`} />
     </div>
-    <div className="overflow-x-auto rounded-xl border border-white/[0.06]">
+    <div className="overflow-x-auto table-sticky-scroll rounded-xl border border-white/[0.06]">
       <table className="w-full min-w-[760px] text-left font-mono text-[10px]">
-        <thead className="bg-white/[0.035] uppercase text-slate-500"><tr><th className="px-3 py-2">Asset</th><th>Trades</th><th>Win rate</th><th>Profit factor</th><th>Expectancy</th><th>Return</th><th>Buy & Hold</th><th>Max DD</th><th>Perioadă</th></tr></thead>
+        <thead className="app-sticky-thead bg-white/[0.035] uppercase text-slate-500"><tr><th className="px-3 py-2">Asset</th><th>Trades</th><th>Win rate</th><th>Profit factor</th><th>Expectancy</th><th>Return</th><th>Buy & Hold</th><th>Max DD</th><th>Perioadă</th></tr></thead>
         <tbody className="divide-y divide-white/[0.05]">
           {comparison.rows.map(row => (
             <tr key={`${row.marketClass}:${row.symbol}`} className="text-slate-300">
@@ -486,9 +486,9 @@ const MiniStat: React.FC<{ label: string; value: string }> = ({ label, value }) 
 const TradeLog: React.FC<{ result: BacktestResult }> = ({ result }) => (
   <section className="rounded-[30px] border border-white/[0.07] bg-background-card p-4 sm:p-5">
     <h2 className="text-sm font-bold text-slate-100">Execuții ({result.trades.length})</h2>
-    <div className="mt-3 overflow-x-auto">
+    <div className="mt-3 overflow-x-auto table-sticky-scroll">
       <table className="w-full min-w-[900px] text-left font-mono text-[10px]">
-        <thead className="border-b border-white/[0.06] uppercase text-slate-500"><tr><th className="px-2 py-2">Trade</th><th>Side</th><th>Entry</th><th>Stop inițial</th><th>Țintă</th><th>Exit</th><th>Net</th><th>R</th><th>Durată</th><th>Motiv exit</th></tr></thead>
+        <thead className="app-sticky-thead border-b border-white/[0.06] uppercase text-slate-500"><tr><th className="px-2 py-2">Trade</th><th>Side</th><th>Entry</th><th>Stop inițial</th><th>Țintă</th><th>Exit</th><th>Net</th><th>R</th><th>Durată</th><th>Motiv exit</th></tr></thead>
         <tbody className="divide-y divide-white/[0.05]">
           {result.trades.map(trade => (
             <tr key={trade.id} className="text-slate-300"><td className="px-2 py-2.5">{trade.id}</td><td className={trade.side === 'LONG' ? 'text-emerald-300' : 'text-rose-300'}>{trade.side}</td><td>{formatPrice(trade.entryPrice)}</td><td className="text-rose-300">{formatPrice(trade.initialStop)}</td><td className="text-emerald-300">{formatPrice(trade.targetPrice)}</td><td>{formatPrice(trade.exitPrice)}</td><td className={trade.pnlPercent >= 0 ? 'text-emerald-300' : 'text-rose-300'}>{formatPercent(trade.pnlPercent)}</td><td className={(trade.rMultiple || 0) >= 0 ? 'text-emerald-300' : 'text-rose-300'}>{(trade.rMultiple || 0).toFixed(2)}R</td><td>{Math.round(trade.holdingHours / 24)}z</td><td className="max-w-[220px] truncate text-slate-500" title={trade.exitReasonDetail}>{trade.exitReason}</td></tr>

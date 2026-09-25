@@ -170,6 +170,7 @@ export const BusinessQualityView: React.FC = () => {
 
         {scan && (
           <div className="space-y-2">
+            <div className="bq-card-grid">
             {(scan.undervalued || []).slice(0, 100).map((entry, position) => {
               const asset = (scan.assets || []).find(a => a.id === entry.assetId || a.coinGeckoId === entry.assetId);
               if (!asset) return null;
@@ -184,6 +185,7 @@ export const BusinessQualityView: React.FC = () => {
                 />
               );
             })}
+            </div>
             {(scan.undervalued || []).length > 100 && (
               <p className="py-1 text-center text-[10px] text-slate-600">
                 {isRo ? `Afișate 100 din ${(scan.undervalued || []).length} clasate` : `Showing 100 of ${(scan.undervalued || []).length} ranked`}

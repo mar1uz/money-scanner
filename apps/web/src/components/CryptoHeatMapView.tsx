@@ -519,9 +519,9 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
         </div>
 
         {/* Desktop Table (Visible on md+) */}
-        <div className="hidden md:block overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto table-sticky-scroll">
           <table className="w-full text-left border-collapse">
-            <thead>
+            <thead className="app-sticky-thead">
               <tr className="border-b border-white/[0.06] bg-white/[0.02] text-[11px] font-mono uppercase text-slate-400">
                 <th
                   onClick={() => handleSort('rank')}

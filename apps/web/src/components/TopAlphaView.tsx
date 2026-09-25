@@ -24,7 +24,7 @@ const StockBqCard: React.FC<{
       tabIndex={0}
       onClick={onNavigate}
       onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onNavigate(); } }}
-      className="cursor-pointer rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] p-3 sm:p-4 transition-colors hover:border-cyan-500/30"
+      className="bq-asset-card cursor-pointer rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] p-3 sm:p-4 transition-colors hover:border-cyan-500/30"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
@@ -255,6 +255,7 @@ export const TopAlphaView: React.FC = () => {
                 <h3 className="text-[11px] font-bold uppercase tracking-wide text-emerald-300">{isRo ? 'Scor top' : 'Top score'} · {topScoreAssets.length}</h3>
                 <p className="text-[10px] text-slate-500">{isRo ? 'Business-uri mari la preț corect: sortat după mărime (revenue 30z, log) combinată cu P/R (mai mic = mai bine). Doar cu revenue ≥ $100K/30z, market cap ≥ $10M și minim 3/4 criterii; 3/4 și 4/4 sunt tratate la fel. Subevaluate spune ce este ieftin; Scor top spune ce este bun.' : 'Big businesses at a fair price: sorted by size (30d revenue, log) blended with P/R (lower is better). Revenue ≥ $100K/30d, market cap ≥ $10M and at least 3/4 criteria; 3/4 and 4/4 rank the same. Undervalued tells you what is cheap; Top Score tells you what is good.'}</p>
               </div>
+              <div className="bq-card-grid">
               {topScoreAssets.map((asset, index) => (
                 <CryptoBqAssetCard
                   key={asset.id}
@@ -264,6 +265,7 @@ export const TopAlphaView: React.FC = () => {
                   onNavigate={target => navigateAsset({ symbol: target.symbol, marketClass: 'crypto', coinGeckoId: target.coinGeckoId })}
                 />
               ))}
+              </div>
             </div>
             )}
 
@@ -273,6 +275,7 @@ export const TopAlphaView: React.FC = () => {
                 <h3 className="text-[11px] font-bold uppercase tracking-wide text-amber-300">{isRo ? 'Subevaluate' : 'Undervalued'} · {undervaluedRows.length}</h3>
                 <p className="text-[10px] text-slate-500">{isRo ? 'Cel mai ieftin raportat la revenue, indiferent de mărime: sortat pur după P/R. Cere fees 30z complete ≥ $100K, market cap ≥ $10M, minim 3/4 criterii și fără stablecoins; pragul TVL ≥ $10M se aplică doar când există date TVL. 3/4 și 4/4 criterii sunt tratate la fel. Activele pe bază de fees sunt excluse. Clasament relativ, nu preț țintă.' : 'Cheapest against revenue, regardless of size: sorted purely by P/R. Requires complete 30d fees ≥ $100K, market cap ≥ $10M, at least 3/4 criteria and no stablecoins; the TVL ≥ $10M check applies only when TVL data exists. 3/4 and 4/4 criteria are treated the same. Fees-basis assets are excluded. Relative ranking, not a price target.'}</p>
               </div>
+              <div className="bq-card-grid">
               {undervaluedRows.map(({ entry, asset }, index) => (
                 <CryptoBqAssetCard
                   key={entry.assetId}
@@ -283,6 +286,7 @@ export const TopAlphaView: React.FC = () => {
                   onNavigate={target => navigateAsset({ symbol: target.symbol, marketClass: 'crypto', coinGeckoId: target.coinGeckoId })}
                 />
               ))}
+              </div>
             </div>
             )}
           </>
@@ -296,6 +300,7 @@ export const TopAlphaView: React.FC = () => {
                 <h3 className="text-[11px] font-bold uppercase tracking-wide text-emerald-300">{isRo ? 'Scor top' : 'Top score'} · {stockAssets.length}</h3>
                 <p className="text-[10px] text-slate-500">{isRo ? 'Sortat dup\u0103 scorul pe 6 criterii: profitabilitate, eficien\u021ba capitalului, cre\u0219tere, pre\u021b/venituri, FCF, evaluare.' : 'Sorted by the 6-criteria score: profitability, capital efficiency, growth, price/revenue, FCF, valuation.'}</p>
               </div>
+              <div className="bq-card-grid">
               {stockAssets.map((asset, index) => (
                 <StockBqCard
                   key={asset.id}
@@ -305,6 +310,7 @@ export const TopAlphaView: React.FC = () => {
                   onNavigate={() => navigateAsset({ symbol: asset.symbol, marketClass: 'stocks' })}
                 />
               ))}
+              </div>
             </div>
             )}
 
@@ -317,6 +323,7 @@ export const TopAlphaView: React.FC = () => {
               {stockUndervalued.length === 0 && (
                 <p className="py-3 text-center text-[10px] text-slate-600">{isRo ? 'Prea pu\u021bine ac\u021biuni cu multiplu utilizabil \u00een scanul curent.' : 'Too few stocks with a usable multiple in the current scan.'}</p>
               )}
+              <div className="bq-card-grid">
               {stockUndervalued.map((row, index) => (
                 <StockBqCard
                   key={row.asset.id}
@@ -327,6 +334,7 @@ export const TopAlphaView: React.FC = () => {
                   onNavigate={() => navigateAsset({ symbol: row.asset.symbol, marketClass: 'stocks' })}
                 />
               ))}
+              </div>
             </div>
             )}
           </>

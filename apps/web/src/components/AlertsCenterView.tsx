@@ -141,7 +141,7 @@ const resolveCardMarketCap = (
 const CardMarketCapLine: React.FC<{ value?: number; sector?: string }> = ({ value, sector }) => {
   const { language } = useLanguage();
   return (
-    <div className="mt-0.5 text-[10px] text-slate-500 truncate">
+    <div className="alert-card-type mt-0.5 text-[10px] text-slate-500 truncate">
       {mcInline(value)}{sector ? ` · ${translateText(sector, language)}` : ''}
     </div>
   );
@@ -153,7 +153,7 @@ const CardMarketCapLine: React.FC<{ value?: number; sector?: string }> = ({ valu
 const StockFundamentalsSection: React.FC<{ asset: StockBusinessQualityAsset }> = ({ asset }) => {
   const { language } = useLanguage();
   return (
-    <div className="mt-3 rounded-xl border border-white/[0.06] bg-white/[0.015] p-2.5">
+    <div className="alert-card-type mt-3 rounded-xl border border-white/[0.06] bg-white/[0.015] p-2.5">
       <StockBqChips asset={asset} language={language} />
       <StockBqTiles asset={asset} language={language} combinedPePr />
     </div>

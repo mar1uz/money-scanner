@@ -315,13 +315,12 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
         onOpenSearchModal={() => setIsSearchModalOpen(true)}
         onOpenWatchlist={openWatchlist}
         onOpenAlerts={() => handleTabChange('alerts')}
-        hideDesktopSidebar={Boolean(selectedAssetSymbol)}
         collapsed={sidebarCollapsed}
         onCollapsedChange={setSidebarCollapsed}
       />
 
       {/* Main Wrapper with responsive margin for desktop sidebar and top padding for fixed header */}
-      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${!selectedAssetSymbol && !sidebarCollapsed ? 'md:pl-[260px]' : ''} pb-20 md:pb-0 pt-[56px]`}>
+      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${!sidebarCollapsed ? 'md:pl-[260px]' : ''} pb-20 md:pb-0 pt-[56px]`}>
         {/* Minimal Search & Control Header (Fixed at top of viewport) */}
         <Header
           timeframe={timeframe}
@@ -339,7 +338,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
           onRefreshMarket={refreshData}
           isRefreshing={loading}
           onOpenSearchModal={() => setIsSearchModalOpen(true)}
-          hasSidebar={!selectedAssetSymbol && !sidebarCollapsed}
+          hasSidebar={!sidebarCollapsed}
           hideTimeframe={Boolean(selectedAssetSymbol)}
           currentUser={user}
           onLogout={onLogout}

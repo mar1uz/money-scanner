@@ -168,10 +168,10 @@ export const CryptoBubbleView: React.FC<CryptoBubbleViewProps> = ({ onSelectAsse
           </p>
         </div>
         {rankedCoins.length > 0 ? (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto table-sticky-scroll">
             <table className="w-full text-left text-sm">
               <caption className="sr-only">Top 100 monede ordonate descrescător după variația procentuală din ultimele 24 de ore</caption>
-              <thead className="bg-white/[0.03] text-[11px] uppercase tracking-wider text-slate-400">
+              <thead className="app-sticky-thead bg-white/[0.03] text-[11px] uppercase tracking-wider text-slate-400">
                 <tr>
                   <th scope="col" className="px-3 py-3 sm:px-5">#</th>
                   <th scope="col" className="px-3 py-3">Monedă</th>
