@@ -30,6 +30,8 @@ export interface ChartMarketResolution {
 export interface ChartMarketResolverDeps {
   isOnBinanceSpot(base: string): Promise<boolean>;
   binanceSpotFirstDailyTs(base: string): Promise<number | null>;
+  /** Spot quote volume, probed only for candidates inside the listing tie window. */
+  binanceSpotQuoteVolume24h?(base: string): Promise<number | null>;
   isOnBinanceFutures(base: string): Promise<boolean>;
   binanceFuturesFirstDailyTs(base: string): Promise<number | null>;
   binanceFuturesQuoteVolume24h(base: string): Promise<number | null>;
@@ -370,6 +372,9 @@ export class ChartMarketResolver {
         || Math.abs(candidate.listingStart - earliest) <= TIE_WINDOW_MS;
       if (!needsVolume) return;
       switch (candidate.source) {
+        case 'binance_spot':
+          candidate.volume24hQuote = this.deps.binanceSpotQuoteVolume24h ? await this.safe(this.deps.binanceSpotQuoteVolume24h(symbol)) : null;
+          break;
         case 'binance_futures':
           candidate.volume24hQuote = await this.safe(this.deps.binanceFuturesQuoteVolume24h(symbol));
           break;

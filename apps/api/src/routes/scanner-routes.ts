@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type Response as ExpressResponse } from 'express';
 import { AppState } from '../services/app-state.js';
 import { validateScheduledRequestToken } from '../services/scheduler-auth.js';
 import {
@@ -33,7 +33,21 @@ interface BinanceMarketRow {
 
 let binanceSpotCache: { rows: BinanceMarketRow[]; expiresAt: number } | undefined;
 let binanceFuturesCache: { rows: BinanceMarketRow[]; expiresAt: number } | undefined;
+// A transient provider failure must not be retried on every keystroke, and it
+// must never overwrite the last verified market list with an empty one.
+let binanceSpotFailedAt = 0;
+let binanceFuturesFailedAt = 0;
+const BINANCE_MARKETS_TTL_MS = 15 * 60_000;
+const BINANCE_RETRY_BACKOFF_MS = 30_000;
+// A single typed character answers from catalog/cache alone and the first two
+// characters never reach the identity providers: see resolveSearchCandidates.
+const MIN_SEARCH_QUERY_LENGTH = 2;
+const PROVIDER_SEARCH_MIN_LENGTH = 3;
+const MAX_SEARCH_QUERY_LENGTH = 120;
 const searchResponseCache = new Map<string, { payload: ReturnType<typeof rankSymbolSearchCandidates>; expiresAt: number }>();
+// Concurrent identical queries share one upstream execution (same pattern as
+// universeInFlight below): typing must not multiply provider cost per user.
+const searchInFlight = new Map<string, Promise<ReturnType<typeof rankSymbolSearchCandidates>>>();
 const coinGeckoLastGood = new Map<string, { rows: SymbolSearchCandidate[]; updatedAt: number }>();
 let universeLastGood: { rows: SymbolSearchCandidate[]; updatedAt: number } | null = null;
 let universeInFlight: Promise<SymbolSearchCandidate[]> | null = null;
@@ -68,6 +82,17 @@ const matchesLiveExchangeAsset = async (symbol: string, providerName: string): P
   }
 };
 
+// Same credential convention as every other CoinGecko call site
+// (packages/market-data/src/market-service.ts): a configured demo key rides in
+// x-cg-demo-api-key. The anonymous quota is ~5 requests/minute/IP, which one
+// typed word exhausts - and that silently removes the coinGeckoId identity.
+const coinGeckoHeaders = (): Record<string, string> => {
+  const key = process.env.COINGECKO_API_KEY;
+  return key
+    ? { accept: 'application/json', 'x-cg-demo-api-key': key }
+    : { accept: 'application/json' };
+};
+
 const fetchJson = async <T>(url: string, timeoutMs = 3_500, headers?: Record<string, string>): Promise<T | undefined> => {
   try {
     const response = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
@@ -81,22 +106,37 @@ const fetchJson = async <T>(url: string, timeoutMs = 3_500, headers?: Record<str
 const loadBinanceMarkets = async (kind: 'spot' | 'futures'): Promise<BinanceMarketRow[]> => {
   const current = kind === 'spot' ? binanceSpotCache : binanceFuturesCache;
   if (current && current.expiresAt > Date.now()) return current.rows;
+  // Simple backoff: a provider outage costs one attempt per window instead of
+  // one attempt per request, and stale rows keep serving in the meantime.
+  const failedAt = kind === 'spot' ? binanceSpotFailedAt : binanceFuturesFailedAt;
+  if (failedAt && Date.now() - failedAt < BINANCE_RETRY_BACKOFF_MS) return current?.rows || [];
   const url = kind === 'spot'
     ? 'https://api.binance.com/api/v3/exchangeInfo'
     : 'https://fapi.binance.com/fapi/v1/exchangeInfo';
   const payload = await fetchJson<{ symbols?: BinanceMarketRow[] }>(url);
-  const rows = payload?.symbols || current?.rows || [];
-  const cache = { rows, expiresAt: Date.now() + 15 * 60_000 };
-  if (kind === 'spot') binanceSpotCache = cache;
-  else binanceFuturesCache = cache;
+  const rows = payload?.symbols;
+  // Cache verified successes only: a timeout/429/DNS failure keeps the previous
+  // rows (if any) and leaves the TTL untouched, so the next window retries.
+  if (!rows?.length) {
+    if (kind === 'spot') binanceSpotFailedAt = Date.now();
+    else binanceFuturesFailedAt = Date.now();
+    return current?.rows || [];
+  }
+  const next = { rows, expiresAt: Date.now() + BINANCE_MARKETS_TTL_MS };
+  if (kind === 'spot') {
+    binanceSpotCache = next;
+    binanceSpotFailedAt = 0;
+  } else {
+    binanceFuturesCache = next;
+    binanceFuturesFailedAt = 0;
+  }
   return rows;
 };
 
-const binanceSearchCandidates = async (): Promise<SymbolSearchCandidate[]> => {
-  const [spotRows, futuresRows] = await Promise.all([
-    loadBinanceMarkets('spot'),
-    loadBinanceMarkets('futures')
-  ]);
+const binanceRowsToCandidates = (
+  spotRows: BinanceMarketRow[],
+  futuresRows: BinanceMarketRow[]
+): SymbolSearchCandidate[] => {
   const spotQuotes = new Set(['USDT', 'USDC', 'FDUSD', 'BTC', 'ETH', 'EUR']);
   const spot = spotRows.flatMap<SymbolSearchCandidate>(market => {
     const pair = String(market.symbol || '').toUpperCase();
@@ -140,6 +180,20 @@ const binanceSearchCandidates = async (): Promise<SymbolSearchCandidate[]> => {
   });
   return [...spot, ...futures];
 };
+
+const binanceSearchCandidates = async (): Promise<SymbolSearchCandidate[]> => {
+  const [spotRows, futuresRows] = await Promise.all([
+    loadBinanceMarkets('spot'),
+    loadBinanceMarkets('futures')
+  ]);
+  return binanceRowsToCandidates(spotRows, futuresRows);
+};
+
+/** Already-cached Binance rows only: never triggers a provider request. */
+const cachedBinanceCandidates = (): SymbolSearchCandidate[] => binanceRowsToCandidates(
+  binanceSpotCache?.rows || [],
+  binanceFuturesCache?.rows || []
+);
 
 const yahooSearchCandidates = async (query: string): Promise<SymbolSearchCandidate[]> => {
   const payload = await fetchJson<{ quotes?: any[] }>(
@@ -201,7 +255,7 @@ const coinGeckoSearchCandidates = async (query: string): Promise<SymbolSearchCan
   const key = query.toLowerCase();
   const payload = await fetchJson<{ coins?: Array<{
     id?: string; name?: string; symbol?: string; market_cap_rank?: number | null;
-  }> }>(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(query)}`, 3_500);
+  }> }>(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(query)}`, 3_500, coinGeckoHeaders());
   if (!payload?.coins) {
     const old = coinGeckoLastGood.get(key);
     return (old?.rows || []).map(row => ({ ...row, staleAsOf: old?.updatedAt }));
@@ -253,64 +307,126 @@ const dynamicSearchCandidates = async (): Promise<SymbolSearchCandidate[]> => {
   return universeInFlight;
 };
 
+/** Already-cached live universe (refreshed at most every 5 min): no scan. */
+const cachedUniverseCandidates = (): SymbolSearchCandidate[] => {
+  const universe = universeLastGood;
+  if (!universe) return [];
+  return Date.now() - universe.updatedAt < 5 * 60_000
+    ? universe.rows
+    : universe.rows.map(row => ({ ...row, staleAsOf: universe.updatedAt }));
+};
+
+/**
+ * Candidate sources per query length. A provider round trip is only bought for
+ * a query specific enough to justify it: a single keystroke answers from the
+ * catalog plus whatever the instance has cached, and the first two characters
+ * never reach the identity providers (Yahoo/CoinGecko).
+ */
+const resolveSearchCandidates = async (query: string): Promise<SymbolSearchCandidate[]> => {
+  const localCandidates = catalogToSearchCandidates(TRADING_360_ASSETS);
+  if (query.length < MIN_SEARCH_QUERY_LENGTH) {
+    return [...localCandidates, ...cachedBinanceCandidates(), ...cachedUniverseCandidates()].map(withIdentityAliases);
+  }
+  if (query.length < PROVIDER_SEARCH_MIN_LENGTH) {
+    const [spotRows, futuresRows] = await Promise.all([
+      loadBinanceMarkets('spot'),
+      loadBinanceMarkets('futures')
+    ]);
+    return [...localCandidates, ...binanceRowsToCandidates(spotRows, futuresRows), ...cachedUniverseCandidates()]
+      .map(withIdentityAliases);
+  }
+  const [binance, yahoo, coinGecko, universe] = await Promise.all([
+    binanceSearchCandidates(),
+    yahooSearchCandidates(query),
+    coinGeckoSearchCandidates(query),
+    dynamicSearchCandidates()
+  ]);
+  return [...localCandidates, ...universe, ...binance, ...yahoo, ...coinGecko].map(withIdentityAliases);
+};
+
+const buildSearchPayload = async (
+  query: string,
+  cacheKey: string
+): Promise<ReturnType<typeof rankSymbolSearchCandidates>> => {
+  const candidates = await resolveSearchCandidates(query);
+  let results = rankSymbolSearchCandidates(query, candidates, 60);
+
+  // A direct result is a last-resort attempt, never an invented stock. It is
+  // only shown when no verified provider/catalog candidate matched, and never
+  // for a single keystroke.
+  if (!results.length && query.length >= MIN_SEARCH_QUERY_LENGTH) {
+    const parsed = parseSymbolSearchQuery(query);
+    if (/^[A-Z0-9.^=-]{1,24}$/.test(parsed.text.toUpperCase())) {
+      const directSymbol = parsed.perpetual ? `${parsed.compact}.P` : parsed.compact;
+      results = rankSymbolSearchCandidates(query, [{
+        symbol: directSymbol,
+        displaySymbol: parsed.text.toUpperCase(),
+        providerSymbol: parsed.compact,
+        name: `${parsed.text.toUpperCase()} · instrument direct neverificat`,
+        category: 'Direct symbol',
+        marketClass: parsed.quote || parsed.perpetual ? 'crypto' : 'unknown',
+        exchange: parsed.exchange || 'TRADINGVIEW',
+        instrumentType: parsed.perpetual ? 'perpetual' : undefined,
+        quoteCurrency: parsed.quote,
+        verified: false,
+        matchType: 'direct'
+      }], 1).map(result => ({ ...result, matchReason: 'direct' as const }));
+    }
+  }
+
+  const appState = AppState.getInstance();
+  const enriched = results.map(result => {
+    const signal = appState.cachedSignals.get(`${result.symbol}_1w`);
+    return {
+      ...result,
+      price: result.price || 0,
+      change24h: result.change24h || 0,
+      changeYtd: result.changeYtd || 0,
+      moneyLineScore: signal?.score || result.moneyLineScore || 0,
+      tier: signal?.tier || result.tier || 'Neutral'
+    };
+  });
+  searchResponseCache.set(cacheKey, { payload: enriched, expiresAt: Date.now() + 30_000 });
+  if (searchResponseCache.size > 200) searchResponseCache.delete(searchResponseCache.keys().next().value!);
+  return enriched;
+};
+
+/** The response is cacheable on both branches, hit and miss. */
+const respondWithSearchResults = (
+  res: ExpressResponse,
+  payload: ReturnType<typeof rankSymbolSearchCandidates>
+) => {
+  res.set('Cache-Control', 'private, max-age=15');
+  return res.json(payload);
+};
+
 scannerRouter.get('/search', async (req, res) => {
   try {
-    const rawQuery = (req.query.q as string || '').trim();
-    if (!rawQuery) return res.json([]);
+    const queryParam = req.query.q;
+    // Express maps a repeated parameter (`?q=a&q=b`, `?q[]=a`) to an array.
+    // The route used to crash on those and return the internal error message.
+    if (queryParam !== undefined && typeof queryParam !== 'string') {
+      return res.status(400).json({ error: 'Invalid search query.' });
+    }
+    const rawQuery = (queryParam || '').trim();
+    if (!rawQuery) return respondWithSearchResults(res, []);
+    if (rawQuery.length > MAX_SEARCH_QUERY_LENGTH) {
+      return res.status(400).json({ error: 'Invalid search query.' });
+    }
     const cacheKey = rawQuery.toLowerCase();
     const cached = searchResponseCache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) return res.json(cached.payload);
+    if (cached && cached.expiresAt > Date.now()) return respondWithSearchResults(res, cached.payload);
 
-    const localCandidates = catalogToSearchCandidates(TRADING_360_ASSETS);
-    const [binance, yahoo, coinGecko, universe] = await Promise.all([
-      binanceSearchCandidates(),
-      yahooSearchCandidates(rawQuery),
-      coinGeckoSearchCandidates(rawQuery),
-      dynamicSearchCandidates()
-    ]);
-    const candidates = [...localCandidates, ...universe, ...binance, ...yahoo, ...coinGecko].map(withIdentityAliases);
-    let results = rankSymbolSearchCandidates(rawQuery, candidates, 60);
-
-    // A direct result is a last-resort attempt, never an invented stock. It is
-    // only shown when no verified provider/catalog candidate matched.
-    if (!results.length) {
-      const parsed = parseSymbolSearchQuery(rawQuery);
-      if (/^[A-Z0-9.^=-]{1,24}$/.test(parsed.text.toUpperCase())) {
-        const directSymbol = parsed.perpetual ? `${parsed.compact}.P` : parsed.compact;
-        results = rankSymbolSearchCandidates(rawQuery, [{
-          symbol: directSymbol,
-          displaySymbol: parsed.text.toUpperCase(),
-          providerSymbol: parsed.compact,
-          name: `${parsed.text.toUpperCase()} · instrument direct neverificat`,
-          category: 'Direct symbol',
-          marketClass: parsed.quote || parsed.perpetual ? 'crypto' : 'unknown',
-          exchange: parsed.exchange || 'TRADINGVIEW',
-          instrumentType: parsed.perpetual ? 'perpetual' : undefined,
-          quoteCurrency: parsed.quote,
-          verified: false,
-          matchType: 'direct'
-        }], 1).map(result => ({ ...result, matchReason: 'direct' as const }));
-      }
+    // Identical concurrent queries execute the pipeline once, not once each.
+    let pending = searchInFlight.get(cacheKey);
+    if (!pending) {
+      pending = buildSearchPayload(rawQuery, cacheKey).finally(() => searchInFlight.delete(cacheKey));
+      searchInFlight.set(cacheKey, pending);
     }
-
-    const appState = AppState.getInstance();
-    const enriched = results.map(result => {
-      const signal = appState.cachedSignals.get(`${result.symbol}_1w`);
-      return {
-        ...result,
-        price: result.price || 0,
-        change24h: result.change24h || 0,
-        changeYtd: result.changeYtd || 0,
-        moneyLineScore: signal?.score || result.moneyLineScore || 0,
-        tier: signal?.tier || result.tier || 'Neutral'
-      };
-    });
-    searchResponseCache.set(cacheKey, { payload: enriched, expiresAt: Date.now() + 30_000 });
-    if (searchResponseCache.size > 200) searchResponseCache.delete(searchResponseCache.keys().next().value!);
-    res.set('Cache-Control', 'private, max-age=15');
-    res.json(enriched);
+    return respondWithSearchResults(res, await pending);
   } catch (err: any) {
-    res.status(500).json({ error: 'Search failed', details: err.message });
+    console.error(`Search failed: ${err?.message || err}`);
+    res.status(500).json({ error: 'Search failed' });
   }
 });
 
@@ -484,6 +600,95 @@ scannerRouter.get('/assets/:symbol/chart-market', async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Exact venue-pair identity of the clicked search row (F6/B3/B4).
+//
+// The universal search modal already knows the row's own venue identity
+// (`providerSymbol`/`exchange`/`instrumentType`/`quoteCurrency`); App carries
+// it into the deep-link URL and this route accepts it as optional query
+// parameters. The contract is additive: requests without them behave exactly
+// as before. A supplied pair is only acted on for the venues the server can
+// verify from its own live market lists, and it is checked BEFORE any
+// ticker-based resolution: a confirmed pair establishes the identity without a
+// CoinGecko ID, and a pair that cannot be confirmed is refused explicitly
+// instead of quietly answering with whichever asset shares the ticker.
+// ---------------------------------------------------------------------------
+
+interface SuppliedVenuePair {
+  providerSymbol: string;
+  exchange: string;
+  instrumentType?: string;
+  quoteCurrency?: string;
+}
+
+type VenuePairVerdict =
+  | { status: 'not-applicable' }
+  | { status: 'unconfirmed' }
+  | { status: 'confirmed'; baseSymbol: string; quoteCurrency: string };
+
+const MAX_PAIR_IDENTITY_FIELD_LENGTH = 32;
+// Mirrors the accepted spot quotes of the search pipeline (binanceRowsToCandidates):
+// a pair outside the set is not an identity the search rows could have carried.
+const VERIFIABLE_SPOT_QUOTES = new Set(['USDT', 'USDC', 'FDUSD', 'BTC', 'ETH', 'EUR']);
+
+const readQueryString = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.trim() ? value.trim() : undefined;
+
+/** Parses the optional venue-pair parameters; malformed input is ignored (legacy behaviour). */
+const readSuppliedVenuePair = (query: Record<string, unknown>): SuppliedVenuePair | undefined => {
+  const providerSymbol = readQueryString(query.providerSymbol)?.toUpperCase();
+  const exchange = readQueryString(query.exchange)?.toUpperCase();
+  if (!providerSymbol || !exchange) return undefined;
+  if (providerSymbol.length > MAX_PAIR_IDENTITY_FIELD_LENGTH || exchange.length > MAX_PAIR_IDENTITY_FIELD_LENGTH) return undefined;
+  if (!/^[A-Z0-9._-]+$/.test(providerSymbol) || !/^[A-Z0-9 &._-]+$/.test(exchange)) return undefined;
+  const instrumentType = readQueryString(query.instrumentType)?.toLowerCase();
+  const quoteCurrency = readQueryString(query.quoteCurrency)?.toUpperCase();
+  if (quoteCurrency && !/^[A-Z0-9]{2,10}$/.test(quoteCurrency)) return undefined;
+  return { providerSymbol, exchange, instrumentType, quoteCurrency };
+};
+
+const venueKindForExchange = (exchange: string): 'spot' | 'futures' | undefined => {
+  const compact = exchange.replace(/[^A-Z0-9]/g, '');
+  if (compact === 'BINANCE') return 'spot';
+  if (compact === 'BINANCEFUTURES' || compact === 'BINANCEUSDM') return 'futures';
+  return undefined;
+};
+
+/**
+ * Confirms the supplied pair against the venue's own live market list (the same
+ * cache the search route serves rows from). `unconfirmed` covers both "the pair
+ * is not there / no longer trading" and "the list could not be fetched":
+ * fail-closed means an identity that cannot be verified is never assumed from
+ * the ticker.
+ */
+const confirmSuppliedVenuePair = async (pair: SuppliedVenuePair, symbol: string): Promise<VenuePairVerdict> => {
+  const kind = venueKindForExchange(pair.exchange);
+  if (!kind) return { status: 'not-applicable' };
+  // A venue pair symbol has no separators on Binance; anything else is not a
+  // claim this server can verify (e.g. a Yahoo `BTC-USD` row that happens to
+  // name an exchange it does not trade on).
+  if (!/^[A-Z0-9]{3,24}$/.test(pair.providerSymbol)) return { status: 'not-applicable' };
+  const expectedInstrumentType = kind === 'spot' ? 'spot' : 'perpetual';
+  if (pair.instrumentType && pair.instrumentType !== expectedInstrumentType) return { status: 'not-applicable' };
+  const rows = await loadBinanceMarkets(kind);
+  const row = rows.find(candidate => String(candidate.symbol || '').toUpperCase() === pair.providerSymbol);
+  if (!row || String(row.status || '').toUpperCase() !== 'TRADING') return { status: 'unconfirmed' };
+  const base = String(row.baseAsset || '').toUpperCase();
+  const quote = String(row.quoteAsset || '').toUpperCase();
+  if (!base || !quote) return { status: 'unconfirmed' };
+  if (kind === 'spot' && !VERIFIABLE_SPOT_QUOTES.has(quote)) return { status: 'unconfirmed' };
+  if (kind === 'futures' && (quote !== 'USDT' || String(row.contractType || '').toUpperCase() !== 'PERPETUAL')) {
+    return { status: 'unconfirmed' };
+  }
+  if (pair.quoteCurrency && quote !== pair.quoteCurrency) return { status: 'unconfirmed' };
+  // The venue pair must be this ticker's own pair: the URL symbol is the base
+  // asset for spot rows and the pair itself for `.P` perpetual rows.
+  const symbolWithoutPerp = symbol.replace(/\.P$/i, '');
+  const isSameTicker = symbolWithoutPerp === base || (kind === 'futures' && symbolWithoutPerp === pair.providerSymbol);
+  if (!isSameTicker) return { status: 'unconfirmed' };
+  return { status: 'confirmed', baseSymbol: base, quoteCurrency: quote };
+};
+
 scannerRouter.get('/assets/:symbol', async (req, res) => {
   try {
     const symbol = req.params.symbol.toUpperCase();
@@ -500,6 +705,9 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       coinGeckoId: typeof req.query.coinGeckoId === 'string' ? req.query.coinGeckoId : undefined,
       coinPaprikaId: typeof req.query.coinPaprikaId === 'string' ? req.query.coinPaprikaId : undefined
     };
+    // Optional exact venue identity of the clicked search row (additive, see
+    // readSuppliedVenuePair). Undefined for every legacy deep link.
+    const suppliedVenuePair = readSuppliedVenuePair(req.query as Record<string, unknown>);
     const isCryptoSpot = requestedMarketClass === 'crypto' && !symbol.includes('.') && !symbol.startsWith('TOTAL');
     const loadAggregated = (reference = cryptoReference) => aggregatedCryptoDetail(
       symbol, timeframe, reference, undefined, undefined,
@@ -532,6 +740,7 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
     };
     // Verify the provider's name as well as its ticker before selecting an
     // exchange route. Most catalog entries predate exact CoinGecko IDs.
+    let identityEstablished = false;
     if (isCryptoSpot && (cryptoReference.coinPaprikaId || cryptoReference.coinGeckoId)) {
       let profile: Awaited<ReturnType<typeof cryptoMarketProfiles.resolve>> | null = null;
       try { profile = await cryptoMarketProfiles.resolve(symbol, cryptoReference); }
@@ -553,6 +762,23 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       if (!matchesLive && !verifiedMarket?.candle) {
         if (cryptoReference.coinGeckoId) return res.status(503).json({ error: 'Verified exchange candles unavailable for the selected coin.' });
         return res.json({ ...(await loadAggregated()), businessQuality: await computeBusinessQuality() });
+      }
+      identityEstablished = true;
+    }
+
+    // The exact pair the search row carried is verified against the venue's own
+    // live market list BEFORE any ticker-based resolution (F6/B4). A pair the
+    // venue does not confirm (missing, delisted, quote/exchange mismatch, or a
+    // list that could not be fetched at all) refuses the request explicitly -
+    // the base ticker is never resolved silently on its behalf. A secondary
+    // claim never vetoes an identity the provider ID already established, and
+    // venues this server cannot verify (Yahoo/CoinGecko rows) plus requests
+    // without these parameters keep the previous behaviour untouched.
+    if (suppliedVenuePair) {
+      const verdict = await confirmSuppliedVenuePair(suppliedVenuePair, symbol);
+      if (verdict.status === 'unconfirmed' && !identityEstablished) {
+        console.warn(`Unconfirmed venue pair identity for ${symbol}: ${suppliedVenuePair.exchange} ${suppliedVenuePair.providerSymbol}`);
+        return res.status(503).json({ error: 'Verified exchange candles unavailable for the selected coin.' });
       }
     }
 

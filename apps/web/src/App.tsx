@@ -10,7 +10,9 @@ import {
 import {
   fetchMarketOverview,
   fetchScanner,
-  fetchNarratives
+  fetchNarratives,
+  parseAssetPairIdentityFromSearch,
+  type AssetPairIdentity
 } from './services/api.js';
 import { Header } from './components/Header.js';
 import { Sidebar } from './components/Sidebar.js';
@@ -74,8 +76,26 @@ const readMoneyLineDeepLink = () => {
     intelligenceSource,
     watchlistOnly: params.get('watchlist') === '1',
     coinGeckoId: params.get('coinGeckoId') || undefined,
-    coinPaprikaId: params.get('coinPaprikaId') || undefined
+    coinPaprikaId: params.get('coinPaprikaId') || undefined,
+    // Exact venue pair of the search row the deep link was opened from
+    // (providerSymbol/exchange/instrumentType/quoteCurrency). Absent for every
+    // previous link shape: those keep the legacy fetch untouched.
+    pairIdentity: parseAssetPairIdentityFromSearch(window.location.search)
   };
+};
+
+/** Sets or removes the exact-pair deep-link parameters as one unit (F6/B3). */
+const writeAssetPairIdentityParams = (url: URL, identity?: AssetPairIdentity) => {
+  const fields: Array<[string, string | undefined]> = [
+    ['providerSymbol', identity?.providerSymbol],
+    ['exchange', identity?.exchange],
+    ['instrumentType', identity?.instrumentType],
+    ['quoteCurrency', identity?.quoteCurrency]
+  ];
+  for (const [key, value] of fields) {
+    if (value) url.searchParams.set(key, value);
+    else url.searchParams.delete(key);
+  }
 };
 
 const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) => {
@@ -113,6 +133,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
   const [selectedAssetMarketClass, setSelectedAssetMarketClass] = useState<AssetScannerRow['marketClass']>(initialDeepLink.marketClass);
   const [selectedAssetCoinGeckoId, setSelectedAssetCoinGeckoId] = useState<string | undefined>(initialDeepLink.coinGeckoId);
   const [selectedAssetCoinPaprikaId, setSelectedAssetCoinPaprikaId] = useState<string | undefined>(initialDeepLink.coinPaprikaId);
+  const [selectedAssetPairIdentity, setSelectedAssetPairIdentity] = useState<AssetPairIdentity | undefined>(initialDeepLink.pairIdentity);
   const [selectedMarketCategory, setSelectedMarketCategory] = useState<'ALL' | 'crypto' | 'stocks' | 'metals'>('ALL');
   const [overview, setOverview] = useState<MarketOverviewSummary | null>(null);
   const [narratives, setNarratives] = useState<NarrativeSummary[]>([]);
@@ -185,15 +206,17 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
       else url.searchParams.delete('coinGeckoId');
       if (selectedAssetCoinPaprikaId) url.searchParams.set('coinPaprikaId', selectedAssetCoinPaprikaId);
       else url.searchParams.delete('coinPaprikaId');
+      writeAssetPairIdentityParams(url, selectedAssetPairIdentity);
     } else {
       url.searchParams.delete('asset');
       url.searchParams.delete('timeframe');
       url.searchParams.delete('marketClass');
       url.searchParams.delete('coinGeckoId');
       url.searchParams.delete('coinPaprikaId');
+      writeAssetPairIdentityParams(url);
     }
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-  }, [selectedAssetSymbol, selectedAssetMarketClass, selectedAssetCoinGeckoId, selectedAssetCoinPaprikaId, timeframe]);
+  }, [selectedAssetSymbol, selectedAssetMarketClass, selectedAssetCoinGeckoId, selectedAssetCoinPaprikaId, selectedAssetPairIdentity, timeframe]);
 
   useEffect(() => {
     const restoreFromLocation = () => {
@@ -202,6 +225,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
       setSelectedAssetMarketClass(deepLink.marketClass);
       setSelectedAssetCoinGeckoId(deepLink.coinGeckoId);
       setSelectedAssetCoinPaprikaId(deepLink.coinPaprikaId);
+      setSelectedAssetPairIdentity(deepLink.pairIdentity);
       setActiveTab(deepLink.tab || 'market');
       setWatchlistOnly(deepLink.watchlistOnly);
       if (deepLink.timeframe) setTimeframe(deepLink.timeframe);
@@ -240,7 +264,8 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
     marketClass?: AssetScannerRow['marketClass'],
     selectedTimeframe?: Timeframe,
     coinGeckoId?: string,
-    coinPaprikaId?: string
+    coinPaprikaId?: string,
+    pairIdentity?: AssetPairIdentity
   ) => {
     const normalizedSymbol = symbol.replace(/^[$#]/, '').trim().toUpperCase();
     const verifiedClass = marketClass || scannerRows.find(row => row.symbol.toUpperCase() === normalizedSymbol)?.marketClass;
@@ -248,6 +273,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
     setSelectedAssetMarketClass(verifiedClass);
     setSelectedAssetCoinGeckoId(coinGeckoId);
     setSelectedAssetCoinPaprikaId(coinPaprikaId);
+    setSelectedAssetPairIdentity(pairIdentity);
     setSelectedAssetSymbol(normalizedSymbol);
     const url = new URL(window.location.href);
     url.searchParams.set('asset', normalizedSymbol);
@@ -255,6 +281,9 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
     if (verifiedClass) url.searchParams.set('marketClass', verifiedClass);
     if (coinGeckoId) url.searchParams.set('coinGeckoId', coinGeckoId);
     if (coinPaprikaId) url.searchParams.set('coinPaprikaId', coinPaprikaId);
+    // Always rewritten: a row without an exact pair must clear the previous
+    // one, otherwise the next deep-dive would open with a foreign identity.
+    writeAssetPairIdentityParams(url, pairIdentity);
     window.history.pushState({}, '', `${url.pathname}${url.search}${url.hash}`);
   };
 
@@ -264,6 +293,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
     setSelectedAssetMarketClass(undefined);
     setSelectedAssetCoinGeckoId(undefined);
     setSelectedAssetCoinPaprikaId(undefined);
+    setSelectedAssetPairIdentity(undefined);
     setActiveTab(tab);
     const url = new URL(window.location.href);
     url.searchParams.set('tab', tab);
@@ -272,6 +302,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
     url.searchParams.delete('coinGeckoId');
     url.searchParams.delete('coinPaprikaId');
     url.searchParams.delete('watchlist');
+    writeAssetPairIdentityParams(url);
     if (tab !== 'intelligence') {
       url.searchParams.delete('sector');
       url.searchParams.delete('period');
@@ -285,12 +316,14 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
     setSelectedAssetMarketClass(undefined);
     setSelectedAssetCoinGeckoId(undefined);
     setSelectedAssetCoinPaprikaId(undefined);
+    setSelectedAssetPairIdentity(undefined);
     setWatchlistOnly(true);
     setActiveTab('market');
     const url = new URL(window.location.href);
     url.searchParams.set('tab', 'market');
     url.searchParams.set('watchlist', '1');
     url.searchParams.delete('asset');
+    writeAssetPairIdentityParams(url);
     window.history.pushState({}, '', `${url.pathname}${url.search}${url.hash}`);
   };
 
@@ -550,7 +583,18 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
           const marketClass = asset.marketClass === 'crypto' || asset.marketClass === 'stocks' || asset.marketClass === 'metals'
             ? asset.marketClass
             : undefined;
-          openAsset(asset.symbol, marketClass, undefined, asset.coinGeckoId);
+          // The clicked row's own venue identity travels with the deep-dive
+          // (F6/B3): without it every row sharing a ticker (BTCEUR, BTCUSDT,
+          // CAKEBTC) would open the same anonymous asset.
+          const pairIdentity: AssetPairIdentity | undefined = asset.providerSymbol && asset.exchange
+            ? {
+                providerSymbol: asset.providerSymbol,
+                exchange: asset.exchange,
+                ...(asset.instrumentType ? { instrumentType: asset.instrumentType } : {}),
+                ...(asset.quoteCurrency ? { quoteCurrency: asset.quoteCurrency } : {})
+              }
+            : undefined;
+          openAsset(asset.symbol, marketClass, undefined, asset.coinGeckoId, undefined, pairIdentity);
           setIsSearchModalOpen(false);
         }}
         allAssets={scannerRows}

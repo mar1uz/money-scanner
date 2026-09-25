@@ -29,6 +29,9 @@ export const UI_PAIRS: Array<[string, string]> = [
   ['Lider mondial litografie cipuri', 'Global leader in chip lithography'],
   ['★ ${} a fost adăugat în Watchlist!', '★ ${} was added to the Watchlist!'],
   ['Active Watchlist: ${} a fost eliminat.', 'Active Watchlist: ${} was removed.'],
+  // Universal search — last-good (stale) rows
+  ['Date vechi • {}', 'Stale data • {}'],
+  ['Ultimul snapshot valid: {} — nu este o cotație proaspătă.', 'Last good snapshot: {} — not a fresh quote.'],
 
   // Asset page
   ['Înapoi', 'Back'],

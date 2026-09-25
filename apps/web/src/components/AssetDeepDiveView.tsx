@@ -11,6 +11,8 @@ import { CryptoBusinessQualityCard } from './CryptoBusinessQualityCard.js';
 import { StockBusinessQualityCard } from './StockBusinessQualityCard.js';
 import { AssetProfileOverviewCard } from './AssetProfileOverviewCard.js';
 import { CryptoMarketOnlyView } from './CryptoMarketOnlyView.js';
+import { UnverifiedCandlesBadge } from './UnverifiedCandlesBadge.js';
+import { AssetLoadFailureNotice, classifyAssetLoadFailure, type AssetLoadFailure } from './AssetLoadFailureNotice.js';
 import { AssetExternalLinks } from './AssetExternalLinks.js';
 import { useCryptoFundamentals } from '../services/crypto-fundamentals.js';
 import {
@@ -28,7 +30,6 @@ import {
   BadgeCheck,
   TrendingUp,
   Target,
-  ShieldAlert,
   FileText,
   Lightbulb,
   Calendar,
@@ -136,7 +137,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
 }) => {
   const [data, setData] = useState<AssetDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<AssetLoadFailure | null>(null);
   const [alertSent, setAlertSent] = useState(false);
   const [activeInfoTab, setActiveInfoTab] = useState<InfoTab>('ai');
   const [chartTab, setChartTab] = useState<'chart' | 'tv_embed' | 'pinescript'>('chart');
@@ -160,7 +161,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
         if (requestId !== detailRequestRef.current) return;
         console.error(error);
         setData(null);
-        setLoadError('Instrumentul a fost găsit, dar datele de piață nu au putut fi încărcate momentan.');
+        setLoadError(classifyAssetLoadFailure(error));
       })
       .finally(() => { if (requestId === detailRequestRef.current) setLoading(false); });
   };
@@ -290,27 +291,31 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
 
   if (!loading && !data) {
     return (
-      <div className="p-6 sm:p-12 text-center font-mono space-y-4">
-        <AlertTriangle className="w-9 h-9 mx-auto text-amber-300" />
-        <div>
-          <h2 className="text-base font-bold text-slate-100">${symbol} · date indisponibile temporar</h2>
-          <p className="mt-2 text-sm text-slate-400">{loadError}</p>
-        </div>
-        <AssetExternalLinks className="justify-center" symbol={symbol} marketClass={marketClass} coinGeckoId={coinGeckoId} language={language} />
-        <div className="flex items-center justify-center gap-3">
-          <button onClick={onBack} className="px-4 py-2 rounded-xl border border-white/[0.08] text-slate-300 hover:bg-white/[0.04]">
-            Înapoi
-          </button>
-          <button onClick={loadData} className="px-4 py-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20">
-            Reîncearcă
-          </button>
-        </div>
-      </div>
+      <AssetLoadFailureNotice
+        failure={loadError}
+        symbol={symbol}
+        marketClass={marketClass}
+        coinGeckoId={coinGeckoId}
+        coinPaprikaId={coinPaprikaId}
+        language={language}
+        onBack={onBack}
+        onRetry={loadData}
+      />
     );
   }
 
   if (data?.dataAvailability === 'aggregated-price-only' || data?.dataAvailability === 'dex-fallback') {
-    return <CryptoMarketOnlyView data={data} timeframe={timeframe} onBack={onBack} onRefresh={loadData} loading={loading} onTimeframeChange={onTimeframeChange} />;
+    return (
+      <div className="space-y-4 animate-fade-in">
+        {/* 'aggregated-price-only' = price from an aggregator, no exchange
+            route, so no verified candles and no Money Line. The page must say
+            why the Money Line is missing instead of leaving the user guessing.
+            ('dex-fallback' keeps its own DEX candle labelling inside
+            CryptoMarketOnlyView, so it gets no such marker.) */}
+        {data.dataAvailability === 'aggregated-price-only' && <UnverifiedCandlesBadge language={language} />}
+        <CryptoMarketOnlyView data={data} timeframe={timeframe} onBack={onBack} onRefresh={loadData} loading={loading} onTimeframeChange={onTimeframeChange} />
+      </div>
+    );
   }
 
   // Only provider-verified posts explicitly tagged with this asset are shown.

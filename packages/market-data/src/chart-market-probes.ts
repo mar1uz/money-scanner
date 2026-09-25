@@ -55,13 +55,25 @@ const coinbaseUsdProducts = async (): Promise<Set<string>> => {
   return values;
 };
 
+/**
+ * Coinbase caps one candles response (documented: 300 data points per request;
+ * measured 2026-09-25: 350 daily buckets). Without an explicit `end` the
+ * endpoint ignores `start` and answers with its most recent window, so a
+ * response at or above the cap starts at a *moving* boundary (measured:
+ * BTC-USD and SUI-USD both start at 2025-10-11 for any `start`), never at the
+ * listing. Only a response below the cap covers the pair's whole history, and
+ * in that case the first bucket is the real listing day.
+ */
+const COINBASE_TRUNCATED_CANDLE_COUNT = 300;
+
 const coinbaseFirstDailyTs = async (base: string): Promise<number | null> => {
-  // Coinbase returns at most 300 buckets per request starting at `start`:
-  // an early start therefore surfaces the listing-era candles first.
   const rows = await fetchJson<any[]>(
     `${COINBASE_URL}/products/${base}-USD/candles?granularity=86400&start=${encodeURIComponent('2015-01-01T00:00:00Z')}`
   );
   if (!Array.isArray(rows) || rows.length === 0) return null;
+  // A full window is a truncated window: the listing date is unknown, and
+  // reporting its first bucket would fabricate one (2026-09-25 evidence).
+  if (rows.length >= COINBASE_TRUNCATED_CANDLE_COUNT) return null;
   const times = rows.map(row => Number(row[0])).filter(Number.isFinite);
   return times.length ? Math.min(...times) * 1000 : null;
 };
@@ -84,6 +96,9 @@ const krakenUsdPairs = async (): Promise<Map<string, string>> => {
   return byBase;
 };
 
+/** Kraken serves at most its latest 720 daily OHLC entries per pair. */
+const KRAKEN_OHLC_WINDOW = 720;
+
 const krakenFirstDailyTs = async (pairName: string): Promise<number | null> => {
   const body = await fetchJson<{ result?: Record<string, any> }>(
     `${KRAKEN_URL}/0/public/OHLC?pair=${encodeURIComponent(pairName)}&interval=1440&since=0`
@@ -91,6 +106,14 @@ const krakenFirstDailyTs = async (pairName: string): Promise<number | null> => {
   const result = body.result || {};
   const key = Object.keys(result).find(name => name !== 'last');
   const rows = key ? result[key] : [];
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  // Kraken ignores `since=0` and answers with its latest window: measured
+  // 2026-09-25, XBTUSD/ETHUSD/SUIUSD/SOLUSD all report the same first bucket
+  // (2024-10-05 = today-720d) although their real listings differ by years.
+  // A response that fills the window says nothing about the listing, so report
+  // "unknown" rather than a fabricated date; younger pairs, whose whole history
+  // fits inside the window, still surface their real first day.
+  if (rows.length >= KRAKEN_OHLC_WINDOW) return null;
   const ts = Number(rows?.[0]?.[0]);
   return Number.isFinite(ts) && ts > 0 ? ts * 1000 : null;
 };
@@ -168,6 +191,15 @@ export function buildChartMarketResolverDeps(
     binanceFuturesFirstDailyTs: base => firstBinanceDailyTs('futures', `${base}USDT`),
     binanceFuturesQuoteVolume24h: async base => {
       const row = await fetchJson<{ quoteVolume?: string }>(`${BINANCE_FUTURES_URL}/ticker/24hr?symbol=${base}USDT`);
+      const volume = Number(row?.quoteVolume);
+      return Number.isFinite(volume) ? volume : null;
+    },
+    // Same endpoint shape as the futures probe. The spot ticker exposes
+    // `quoteVolume` alongside `volume`; `volume` is the base-asset amount, so
+    // it is not comparable with the other venues' quote volumes, and reusing
+    // binance.fetch24hTicker() would also fire an extra start-of-year kline.
+    binanceSpotQuoteVolume24h: async base => {
+      const row = await fetchJson<{ quoteVolume?: string }>(`${BINANCE_SPOT_URL}/ticker/24hr?symbol=${base}USDT`);
       const volume = Number(row?.quoteVolume);
       return Number.isFinite(volume) ? volume : null;
     },

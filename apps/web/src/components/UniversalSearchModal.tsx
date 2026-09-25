@@ -40,6 +40,26 @@ type MarketCategoryTab = 'ALL' | 'stocks' | 'crypto' | 'metals' | 'forex';
 const RECENT_SEARCHES_KEY = 'money_scanner_recent_searches_v2';
 const LOCAL_SEARCH_CANDIDATES = catalogToSearchCandidates(TRADING_360_ASSETS);
 
+// Last-good snapshots: any row the API serves from its cached provider data
+// carries `staleAsOf` (ms). Those rows are visibly flagged and lose the green
+// "verificat" badge — old data must never be dressed up as a fresh quote
+// (golden rule #1). Past this age the badge escalates to the alert colour.
+const STALE_ALERT_MS = 15 * 60_000;
+
+const pad2 = (value: number) => String(value).padStart(2, '0');
+
+/** HH:MM of the last-good snapshot, rendered inside the stale badge. */
+const formatStaleClock = (staleAsOf: number) => {
+  const date = new Date(staleAsOf);
+  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+};
+
+/** Full local timestamp of the last-good snapshot, used by the tooltip. */
+const formatStaleStamp = (staleAsOf: number) => {
+  const date = new Date(staleAsOf);
+  return `${pad2(date.getDate())}.${pad2(date.getMonth() + 1)}.${date.getFullYear()} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+};
+
 export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
   isOpen,
   onClose,
@@ -344,6 +364,8 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
                   const isPos = item.change24h >= 0;
                   const isBull = item.tier?.includes('Bullish');
                   const isBear = item.tier?.includes('Bearish');
+                  const staleAsOf = typeof item.staleAsOf === 'number' && item.staleAsOf > 0 ? item.staleAsOf : null;
+                  const isSeverelyStale = staleAsOf !== null && Date.now() - staleAsOf > STALE_ALERT_MS;
 
                   return (
                     <div
@@ -391,7 +413,20 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
                                 {item.instrumentType}
                               </span>
                             )}
-                            {item.verified !== false ? (
+                            {staleAsOf !== null ? (
+                              // Last-good snapshot from the API: old data is
+                              // stigmatised and never wears the green badge.
+                              <span
+                                className={`inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                                  isSeverelyStale
+                                    ? 'bg-rose-500/10 text-rose-300 border-rose-500/20'
+                                    : 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                                }`}
+                                title={`Ultimul snapshot valid: ${formatStaleStamp(staleAsOf)} — nu este o cotație proaspătă.`}
+                              >
+                                <Clock className="w-3 h-3" /> {`Date vechi • ${formatStaleClock(staleAsOf)}`}
+                              </span>
+                            ) : item.verified !== false ? (
                               <span className="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
                                 <BadgeCheck className="w-3 h-3" /> verificat
                               </span>

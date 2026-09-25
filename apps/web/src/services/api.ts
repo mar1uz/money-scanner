@@ -94,17 +94,77 @@ export async function fetchNarratives(
   return res.json();
 }
 
+/**
+ * Exact venue identity of the search result row the user picked (F6/B3): the
+ * pair the row actually stands for (`BTCEUR`, `CAKEBTC`, `KASUSDT`...). It
+ * travels as optional deep-link URL parameters and optional request parameters.
+ * Nothing is sent for an absent field, and callers without an identity keep the
+ * previous request shape byte for byte.
+ */
+export interface AssetPairIdentity {
+  providerSymbol?: string;
+  exchange?: string;
+  instrumentType?: string;
+  quoteCurrency?: string;
+}
+
+const compactUpper = (value: string) => value.replace(/^[$#]/, '').trim().toUpperCase();
+
+/**
+ * Pair identity carried by a deep-link search string (the parameters openAsset
+ * writes). Both `providerSymbol` and `exchange` are required, exactly like the
+ * API: without them the server has nothing it can verify, so they are never
+ * half-sent. When `assetSymbol` is given the identity is only returned for that
+ * very asset, so a request for another symbol can never inherit a stale one.
+ */
+export const parseAssetPairIdentityFromSearch = (
+  search: string,
+  assetSymbol?: string
+): AssetPairIdentity | undefined => {
+  const params = new URLSearchParams(search);
+  if (assetSymbol) {
+    const urlAsset = compactUpper(params.get('asset') || '');
+    if (!urlAsset || urlAsset !== compactUpper(assetSymbol)) return undefined;
+  }
+  const providerSymbol = compactUpper(params.get('providerSymbol') || '');
+  const exchange = (params.get('exchange') || '').trim();
+  if (!providerSymbol || !exchange) return undefined;
+  if (!/^[A-Z0-9._-]{1,32}$/.test(providerSymbol) || !/^[A-Za-z0-9 .&_-]{1,32}$/.test(exchange)) return undefined;
+  const identity: AssetPairIdentity = { providerSymbol, exchange };
+  const instrumentType = (params.get('instrumentType') || '').trim().toLowerCase();
+  if (/^[a-z0-9_-]{1,24}$/.test(instrumentType)) identity.instrumentType = instrumentType;
+  const quoteCurrency = compactUpper(params.get('quoteCurrency') || '');
+  if (/^[A-Z0-9]{2,10}$/.test(quoteCurrency)) identity.quoteCurrency = quoteCurrency;
+  return identity;
+};
+
+/** Pair identity of the currently open deep link, read from the browser URL. */
+export const readAssetPairIdentityFromLocation = (assetSymbol: string): AssetPairIdentity | undefined =>
+  typeof window === 'undefined'
+    ? undefined
+    : parseAssetPairIdentityFromSearch(window.location.search, assetSymbol);
+
 export async function fetchAssetDetail(
   symbol: string,
   timeframe: Timeframe = '1w',
   marketClass?: string,
   coinGeckoId?: string,
-  coinPaprikaId?: string
+  coinPaprikaId?: string,
+  pairIdentity?: AssetPairIdentity
 ): Promise<AssetDetailResponse> {
   const params = new URLSearchParams({ timeframe });
   if (marketClass) params.set('marketClass', marketClass);
   if (coinGeckoId) params.set('coinGeckoId', coinGeckoId);
   if (coinPaprikaId) params.set('coinPaprikaId', coinPaprikaId);
+  // The deep-dive view renders from the deep link it was opened with, so the
+  // URL is the transport for the exact pair the user clicked in search.
+  const identity = pairIdentity ?? readAssetPairIdentityFromLocation(symbol);
+  if (identity) {
+    if (identity.providerSymbol) params.set('providerSymbol', identity.providerSymbol);
+    if (identity.exchange) params.set('exchange', identity.exchange);
+    if (identity.instrumentType) params.set('instrumentType', identity.instrumentType);
+    if (identity.quoteCurrency) params.set('quoteCurrency', identity.quoteCurrency);
+  }
   const res = await fetch(`${API_BASE}/assets/${symbol}?${params.toString()}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch asset detail for ${symbol}`);
   return res.json();

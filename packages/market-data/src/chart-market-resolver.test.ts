@@ -16,6 +16,7 @@ interface StubSpec {
   kraken?: { listing: number | null; volume: number | null };
   hyperliquid?: { listing: number | null; volume: number | null };
   binanceListing?: number | null;
+  binanceSpotVolume?: number | null;
   mexc?: { listing: number | null; volume: number | null };
   verifiedMarkets?: string[];
   referencePrice?: number;
@@ -23,10 +24,11 @@ interface StubSpec {
   knownStart?: number | null;
 }
 
-function makeDeps(spec: StubSpec, calls: string[] = []): ChartMarketResolverDeps {
+function makeDeps(spec: StubSpec, calls: string[] = [], volumeCalls: string[] = []): ChartMarketResolverDeps {
   return {
     isOnBinanceSpot: async () => { calls.push('binanceSpot'); return !!spec.binanceSpot; },
     binanceSpotFirstDailyTs: async () => spec.binanceListing ?? null,
+    binanceSpotQuoteVolume24h: async () => { volumeCalls.push('binanceSpot'); return spec.binanceSpotVolume ?? null; },
     isOnBinanceFutures: async () => !!spec.binanceFutures,
     binanceFuturesFirstDailyTs: async () => null,
     binanceFuturesQuoteVolume24h: async () => null,
@@ -202,6 +204,70 @@ describe('ChartMarketResolver', () => {
     assert.equal(await resolver.resolve('BTCUSDT.P'), null);
     assert.equal(await resolver.resolve('BINANCE:BTCUSDT'), null);
     assert.equal(await resolver.resolve(''), null);
+  });
+
+  it('gives binance_spot a 24h quote volume so PREFERENCE[0] can win an equivalent tie (SUI case)', async () => {
+    const listing = T('2023-05-03');
+    const volumeCalls: string[] = [];
+    const resolution = await new ChartMarketResolver(makeDeps({
+      binanceSpot: true, binanceListing: listing, binanceSpotVolume: 79_468_218.5,
+      okx: { listing, volume: 79_468_218.5 },
+      verifiedMarkets: ['binance_spot', 'okx_spot']
+    }, [], volumeCalls)).resolve('SUI', 'sui');
+    assert.deepEqual(volumeCalls, ['binanceSpot']);
+    assert.equal(resolution?.candidates.find(c => c.source === 'binance_spot')?.volume24hQuote, 79_468_218.5);
+    // Equal volume on an equal listing date falls through to PREFERENCE, where
+    // binance_spot is first — the audited failure had OKX win that tie.
+    assert.equal(resolution?.candle?.source, 'binance_spot');
+    assert.equal(resolution?.tv?.tvSymbol, 'BINANCE:SUIUSDT');
+  });
+
+  it('still ranks a volume-less binance_spot below a louder tie when the volume probe is absent', async () => {
+    const listing = T('2023-05-03');
+    const deps = makeDeps({
+      binanceSpot: true, binanceListing: listing,
+      okx: { listing, volume: 79_468_218.5 },
+      verifiedMarkets: ['binance_spot', 'okx_spot']
+    });
+    delete deps.binanceSpotQuoteVolume24h;
+    const resolution = await new ChartMarketResolver(deps).resolve('SUI', 'sui');
+    assert.equal(resolution?.candidates.find(c => c.source === 'binance_spot')?.volume24hQuote, null);
+    assert.equal(resolution?.candle?.source, 'okx_spot');
+  });
+
+  it('probes the binance_spot volume only inside the listing tie window', async () => {
+    const volumeCalls: string[] = [];
+    const resolution = await new ChartMarketResolver(makeDeps({
+      binanceSpot: true, binanceListing: T('2026-09-24'), binanceSpotVolume: 1_000_000_000,
+      okx: { listing: T('2023-05-03'), volume: 79_468_218.5 },
+      verifiedMarkets: ['binance_spot', 'okx_spot']
+    }, [], volumeCalls)).resolve('SUI', 'sui');
+    assert.deepEqual(volumeCalls, []); // 3+ years apart is not a tie
+    assert.equal(resolution?.candle?.source, 'okx_spot');
+  });
+
+  it('keeps an unknown-listing venue in the pool but ranks it behind a dated market (Kraken/Coinbase post-fix)', async () => {
+    // The Kraken and Coinbase probes now return null whenever their response is
+    // a truncated moving window, so these candidates must survive the coverage
+    // filter, report listingStart null, and never outrank a dated venue even
+    // with the loudest volume.
+    const resolver = new ChartMarketResolver(makeDeps({
+      kraken: { listing: null, volume: 500_000_000 },
+      coinbase: { listing: null, volume: 400_000_000 },
+      bybit: { listing: T('2024-10-28'), volume: 1_500_000 },
+      verifiedMarkets: ['kraken', 'coinbase', 'bybit_spot']
+    }));
+    const resolution = await resolver.resolve('GRASS', 'grass');
+    assert.equal(resolution?.candle?.source, 'bybit_spot');
+    assert.equal(resolution?.tv?.tvSymbol, 'BYBIT:GRASSUSDT');
+    const kraken = resolution?.candidates.find(candidate => candidate.source === 'kraken');
+    const coinbase = resolution?.candidates.find(candidate => candidate.source === 'coinbase');
+    assert.ok(kraken && coinbase);
+    assert.equal(kraken.listingStart, null);
+    assert.equal(coinbase.listingStart, null);
+    assert.equal(kraken.volume24hQuote, 500_000_000);
+    // The public payload field stays null — apps/web already types it `number | null`.
+    assert.equal(resolution?.tv?.listingStart, T('2024-10-28'));
   });
 });
 

@@ -140,7 +140,11 @@ export class OkxMarketAdapter {
       change24h: open24h > 0 ? ((price - open24h) / open24h) * 100 : 0,
       high24h: Number(row.high24h),
       low24h: Number(row.low24h),
-      volume24h: Number(row.volCcy24h || 0) * price,
+      // On OKX spot `volCcy24h` is already the 24h volume in the quote currency
+      // (`vol24h` is the base-currency amount). Measured 2026-09-25, BTC-USDT:
+      // volCcy24h = 454,012,851.8 USDT, matching Bybit turnover24h ≈ 438M;
+      // multiplying it by `last` reported 38,134,173,868,677 USDT (~84,000x).
+      volume24h: Number(row.volCcy24h || 0),
       timestamp: Date.now(),
       source: 'OKX',
       isStale: false
