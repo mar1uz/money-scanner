@@ -27,4 +27,14 @@ describe('Alerts dashboard bounded reads', () => {
     assert.equal(result.dailySmaReclaim, null);
     assert.ok(Date.now() - started < 6_000);
   });
+  it('bounds a stuck Firestore restore before reading stored state', async () => {
+    const state = new AppState() as any;
+    state.restoreDailyRegimeState = () => new Promise(() => {});
+    state.getDailySmaReclaimReport = async () => null;
+    state.telegramBot.getDeliveryConfiguration = () => ({});
+    const started = Date.now();
+    const result = await state.getAlertsDashboard('test-user');
+    assert.ok(Date.now() - started < 10_000);
+    assert.deepEqual(result.confirmedFlips, []);
+  });
 });

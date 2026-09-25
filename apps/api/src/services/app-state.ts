@@ -666,7 +666,14 @@ export class AppState {
   }
 
   public async getAlertsDashboard(userId: string) {
-    await this.restoreDailyRegimeState();
+    // The restored snapshot is useful but a slow Firestore call must not
+    // hold the whole alerts page past the browser timeout.
+    let restoreTimer: NodeJS.Timeout | undefined;
+    try {
+      await Promise.race([this.restoreDailyRegimeState(), new Promise<void>(resolve => {
+        restoreTimer = setTimeout(resolve, 8_000);
+      })]);
+    } finally { if (restoreTimer) clearTimeout(restoreTimer); }
     // A dashboard read must never wait on a slow report restore or hundreds of
     // exchange quotes. Scan-time prices are persisted with the flip; this read
     // only labels their age and never mutates the stored scan state.
@@ -677,7 +684,9 @@ export class AppState {
     };
     const dailySmaReclaim = await bounded(this.getDailySmaReclaimReport(), 4_000, null);
     const rules = this.listBullishCloudAlerts(userId);
-    const activeAlerts = await bounded(Promise.all(rules.map(rule => this.getBullishAlertProgress(rule))), 12_000, [] as Awaited<ReturnType<typeof this.getBullishAlertProgress>>[]);
+    const activeAlerts = (await Promise.all(rules.slice(0, 100).map(rule =>
+      bounded(this.getBullishAlertProgress(rule), 12_000, null)
+    ))).filter((progress): progress is NonNullable<typeof progress> => progress !== null);
 
     const history = this.alertHistory.filter(alert =>
       alert.ruleId?.startsWith(`${userId}:`)
@@ -1846,7 +1855,11 @@ export class AppState {
     const dailyClosed = daily.filter(candle => candle.isClosed !== false).sort((left, right) => left.timestamp - right.timestamp);
     const weeklyClosed = weekly.filter(candle => candle.isClosed !== false).sort((left, right) => left.timestamp - right.timestamp);
     const weeklySignal = this.moneyLine.calculateLatest(symbol, '1w', weeklyClosed);
-    const price = quote?.price || dailyClosed[dailyClosed.length - 1]?.close || 0;
+    const fallbackCandle = dailyClosed[dailyClosed.length - 1];
+    const price = quote?.price || fallbackCandle?.close || 0;
+    const priceObservedAt = quote?.price && !quote.isStale
+      ? (Number.isFinite(quote.timestamp) ? quote.timestamp : Date.now())
+      : fallbackCandle?.timestamp || 0;
     if (!weeklySignal || !price) return {
       upcoming: [], confirmedHistory: [], newlyConfirmed: [],
       coverage: { status: 'INSUFFICIENT_DATA', weeklyCandidate: false, weeklyConfirmed: false, candidateCount: 0, confirmedCount: 0 }
@@ -1865,6 +1878,10 @@ export class AppState {
       this.findMostRecentConfirmedFlip(symbol, marketClass, timeframe, timeframeSeries, price, weeklySignal.tier, weeklySignal.score)
     ).filter((candidate): candidate is FlipCandidate => Boolean(candidate));
 
+    [...latestCandidates, ...confirmedHistory].forEach(candidate => {
+      candidate.priceObservedAt = priceObservedAt;
+      candidate.priceIsStale = !priceObservedAt || Date.now() - priceObservedAt > 5 * 60_000;
+    });
     const weeklyCandidate = latestCandidates.some(candidate => candidate.timeframe === '1w' && candidate.status !== 'CONFIRMED');
     const weeklyConfirmed = confirmedHistory.some(candidate => candidate.timeframe === '1w' && candidate.status === 'CONFIRMED');
     return {
