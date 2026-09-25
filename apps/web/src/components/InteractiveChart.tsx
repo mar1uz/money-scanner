@@ -47,7 +47,7 @@ interface InteractiveChartProps {
   symbol: string;
   /** Provider-verified class prevents TradingView ticker collisions (e.g. CAKE). */
   marketClass?: string;
-  /** Exact provider quote currency (for example HYPE is sourced in USDC). */
+  /** Catalog quote currency, overridden by an identity-verified exchange quote when available. */
   assetQuoteCurrency?: string;
   coinGeckoId?: string;
   timeframe: string;
@@ -297,7 +297,6 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
 
   const isDominanceOrRatio = ['BTC.D', 'ETH.D', 'USDT.D', 'US10Y', 'US02Y', 'US30Y', 'US05Y'].includes(symbol.toUpperCase());
   const isStockOrMetal = marketClass === 'stocks' || marketClass === 'metals' || ['SPACEX', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'PLTR', 'AMD', 'MSTR', 'COIN', 'SPY', 'QQQ', 'XAU', 'XAG', 'OIL', 'COPPER', 'DXY', 'DYXY', 'VIX', 'EURUSD', 'GBPUSD', 'USDJPY', 'BRENT', 'NATGAS', 'SILVER', 'GOLD', 'PLATINUM', 'PALLADIUM', 'JPM', 'V', 'MA', 'LLY', 'XOM', 'BA'].includes(symbol.toUpperCase());
-  const quoteCurrency = assetQuoteCurrency || (isDominanceOrRatio ? '%' : (isStockOrMetal ? 'USD' : 'USDT'));
   const tvSymbol = getTradingViewSymbol(symbol);
 
   // Server-resolved chart market for crypto spot symbols: the resolver checks
@@ -320,6 +319,9 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
     return () => { cancelled = true; };
   }, [symbol, marketClass, coinGeckoId]);
   const effectiveTvSymbol = tvResolution.status === 'resolved' ? tvResolution.tvSymbol : tvResolution.status === 'unavailable' ? null : tvSymbol;
+  const quoteCurrency = tvResolution.status === 'resolved' && effectiveTvSymbol?.includes(':')
+    ? (effectiveTvSymbol.match(/(?:USDT|USDC|USD)$/)?.[0] || assetQuoteCurrency || 'USDT')
+    : assetQuoteCurrency || (isDominanceOrRatio ? '%' : (isStockOrMetal ? 'USD' : 'USDT'));
   const normalizedAlertMarketClass: 'crypto' | 'stocks' | 'metals' =
     marketClass === 'stocks' || marketClass === 'metals' || marketClass === 'crypto'
       ? marketClass
