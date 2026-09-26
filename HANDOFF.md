@@ -4637,3 +4637,12 @@ Marius: bara pe toate paginile care scanează, ca să vadă progresul; pe cardur
 - High-ul salvat la scanare: `lastClosedHigh` + `lastClosedHighTime`, din ultima lumânare cu `isClosed !== false`. High invalid sau <= 0: câmpurile lipsesc, niciodată 0. La flipul confirmat, high-ul e al seriei complete, nu al lumânării de flip. Procentul se calculează la afișare: `(prețul de pe card − high) / high`. Lipsește high-ul (snapshot vechi) → „—”. Apare după următoarea scanare de flips, nu retroactiv.
 - Bara: procent real doar când există `scanate / total` (scanarea manuală de alarme). În rest, bară nedeterminată + secunde scurse, fără procent inventat. Pagini: alarme, scanner, heat map, bubbles, radar, Top Alpha, calitate, briefing AI, backtest cât rulează. Fără gradient.
 - Teste rerulate: `daily-regime-scan.test.ts` + `flip-distance-from-high.test.ts` + `scan-loading-bar.test.ts` — 35/35. Commit `7ad28b8`. Deploy: Cloud Build `4cba6c46` din `06f7db9`, SUCCESS. Revision `market-scanner-360-00283-fjc` la 100%. `/api/health` 200 pe ambele URL-uri.
+
+## Step 158 - 2026-09-26 - Bara se umple cu scanate/total; timeout-ul de la alarme nu mai blochează pagina
+
+Marius: bara trebuie să se umple pe măsură ce se scanează asseturi și să arate numărul. În plus, la încărcarea alarmelor apare uneori „signal timed out”, cu acoperire 0/0.
+
+- Cauza timeout-ului: `GET /api/alerts/dashboard` cerea un preț live pentru fiecare flip confirmat, câte 4 odată. Sute de cereri treceau de limita de 45s a browserului (`AbortSignal.timeout` → „signal timed out”). Pagina rămânea fără date, deci 0/0. Prețul de pe card rămâne cel salvat la ultima scanare. Nu se inventează un preț.
+- Bara de scanare: lățimea e `scanate / total`, eticheta e `42/150`, fără animație care umple din nimic. Numărul include și asseturile eșuate, ca să ajungă la total. Progresul se scrie pe documentul de scanare, ca un poll pe altă instanță să vadă același număr.
+- Dacă încărcarea eșuează, acoperirea arată „—”, nu 0/0. Mesajul de timeout e în română, tradus în engleză.
+- Teste: `scan-loading-bar.test.ts` + `daily-regime-scan.test.ts` 29/29; `i18n-coverage.test.ts` 3/3.

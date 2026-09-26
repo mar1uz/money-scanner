@@ -96,6 +96,7 @@ export const UI_PAIRS: Array<[string, string]> = [
   ['Se încarcă', 'Loading'],
   ['Se încarcă…', 'Loading…'],
   ['Se încarcă… · {}s', 'Loading… · {}s'],
+  ['Încărcarea a durat prea mult. Încearcă din nou.', 'The load took too long. Try again.'],
 
   // Market overview
   ['Regim de piață', 'Market Regime'],

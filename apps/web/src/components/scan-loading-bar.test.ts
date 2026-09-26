@@ -18,18 +18,18 @@ test('a preparing scan with total 0 shows elapsed seconds only', () => {
   assert.equal(formatScanBarLabel(state, 7).includes('%'), false);
 });
 
-test('0 scanned of a known total is 0%, not a fake minimum', () => {
+test('0 scanned of a known total is 0/total, not a fake minimum', () => {
   const state = scanBarState(0, 150);
   assert.equal(state.mode, 'determinate');
   assert.equal(state.percent, 0);
   assert.equal(scanBarWidthPercent(state.percent), 0);
-  assert.equal(formatScanBarLabel(state, 2), '0% · 2s');
+  assert.equal(formatScanBarLabel(state, 2), '0/150');
 });
 
-test('the determinate label and width use the real scanned/total ratio', () => {
+test('the label and width use the real scanned/total count', () => {
   const state = scanBarState(42, 150);
   assert.equal(state.mode, 'determinate');
   assert.equal(state.percent, (42 / 150) * 100);
   assert.equal(scanBarWidthPercent(state.percent), (42 / 150) * 100);
-  assert.match(formatScanBarLabel(state, 9), /^28% · 9s$/);
+  assert.equal(formatScanBarLabel(state, 9), '42/150');
 });

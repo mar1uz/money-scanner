@@ -743,35 +743,18 @@ export class AppState {
       || alert.type === 'StrategySetup'
     );
 
-    const confirmedAssets = Array.from(new Map(
-      this.confirmedFlips.map(candidate => [
-        `${candidate.marketClass}:${candidate.symbol}`,
-        { symbol: candidate.symbol, marketClass: candidate.marketClass }
-      ])
-    ).values());
-    const currentPriceByAsset = new Map<string, number>();
-    for (let index = 0; index < confirmedAssets.length; index += concurrency) {
-      const batch = confirmedAssets.slice(index, index + concurrency);
-      const settled = await Promise.allSettled(
-        batch.map(asset => this.marketData.getPriceQuote(asset.symbol, asset.marketClass))
-      );
-      settled.forEach((result, batchIndex) => {
-        if (result.status !== 'fulfilled' || !Number.isFinite(result.value.price) || result.value.price <= 0) return;
-        const asset = batch[batchIndex];
-        currentPriceByAsset.set(`${asset.marketClass}:${asset.symbol}`, result.value.price);
-      });
-    }
-    this.confirmedFlips.forEach(candidate => {
-      const price = currentPriceByAsset.get(`${candidate.marketClass}:${candidate.symbol}`);
-      if (price) candidate.currentPrice = price;
-    });
+    // Do not quote every confirmed flip on this read. Hundreds of live quotes,
+    // four at a time, blew the 45s browser deadline ("signal timed out") and
+    // left the page at 0/0. Cards keep the price saved by the last scan.
+
+    const manualScan = await this.manualScanForDashboard(userId);
 
     return {
       activeAlerts,
       history,
       dailyRegimeScan: { ...this.dailyRegimeScanStatus },
       dailySmaReclaim,
-      manualScan: this.getManualAlertScanStatus(userId),
+      manualScan,
       flipCandidates: this.flipCandidates.map(candidate => ({ ...candidate })),
       confirmedFlips: this.confirmedFlips.map(candidate => ({ ...candidate })),
       scanCoverage: this.flipScanCoverage.map(item => ({ ...item })),
@@ -843,6 +826,35 @@ export class AppState {
       matches: 0,
       errors: 0
     }) };
+  }
+
+  private async manualScanForDashboard(userId: string): Promise<ManualAlertScanStatus> {
+    const local = this.getManualAlertScanStatus(userId);
+    if (local.running && (local.totalAssets || 0) > 0) return local;
+    try {
+      const snapshot = await this.dailyRegimeDocument().get();
+      const live = snapshot.data()?.liveProgress as {
+        running?: boolean;
+        scannedAssets?: number;
+        totalAssets?: number;
+        errors?: number;
+        updatedAt?: number;
+      } | undefined;
+      const fresh = typeof live?.updatedAt === 'number' && Date.now() - live.updatedAt < 120_000;
+      if (live?.running && fresh && (live.totalAssets || 0) > 0) {
+        return {
+          ...local,
+          scope: 'flips',
+          running: true,
+          scannedAssets: live.scannedAssets || 0,
+          totalAssets: live.totalAssets || 0,
+          errors: live.errors || 0
+        };
+      }
+    } catch (error) {
+      console.warn('Scan progress read failed:', error instanceof Error ? error.message : error);
+    }
+    return local;
   }
 
   public getManualAlertScanCooldown(userId: string, scope: ManualAlertScanScope) {
@@ -1253,7 +1265,11 @@ export class AppState {
             coverage.push({ symbol: asset.symbol, name: asset.name, marketClass: asset.marketClass as AssetMarketClass, rank: asset.rank, status: 'ERROR', weeklyCandidate: false, weeklyConfirmed: false, candidateCount: 0, confirmedCount: 0, scannedAt: Date.now(), error: result.reason instanceof Error ? result.reason.message : String(result.reason) });
           }
         });
-        this.dailyRegimeScanStatus.scannedAssets += settled.filter(result => result.status === 'fulfilled').length;
+        const failed = settled.filter(result => result.status === 'rejected').length;
+        this.dailyRegimeScanStatus.scannedAssets += settled.length - failed;
+        this.dailyRegimeScanStatus.errors += failed;
+        this.dailyRegimeScanStatus.running = true;
+        void this.publishScanProgress();
       }
 
       this.flipCandidates = this.rankUpcomingCandidates(candidates);
@@ -1277,6 +1293,7 @@ export class AppState {
       const activeKeys = new Set(universe.map(asset => `${asset.marketClass}:${asset.symbol}`));
       this.confirmedFlips = this.confirmedFlips.filter(candidate => activeKeys.has(`${candidate.marketClass}:${candidate.symbol}`));
       await this.persistDailyRegimeState();
+      await this.publishScanProgress();
     } catch (error) {
       this.dailyRegimeScanStatus = {
         ...this.dailyRegimeScanStatus,
@@ -1286,6 +1303,7 @@ export class AppState {
       };
       console.error('Daily MoneyLine regime scan failed:', this.dailyRegimeScanStatus.lastError);
       await this.persistDailyRegimeState();
+      await this.publishScanProgress();
     }
 
     return { ...this.dailyRegimeScanStatus };
@@ -1561,6 +1579,23 @@ export class AppState {
     });
     if (this.alertHistory.length > 250) this.alertHistory.splice(250);
     return freshMatches.length;
+  }
+
+  private async publishScanProgress() {
+    const status = this.dailyRegimeScanStatus;
+    try {
+      await this.dailyRegimeDocument().set({
+        liveProgress: {
+          running: status.running,
+          scannedAssets: status.scannedAssets,
+          totalAssets: status.totalAssets,
+          errors: status.errors,
+          updatedAt: Date.now()
+        }
+      }, { merge: true });
+    } catch (error) {
+      console.warn('Scan progress publish failed:', error instanceof Error ? error.message : error);
+    }
   }
 
   private dailyRegimeDocument() {

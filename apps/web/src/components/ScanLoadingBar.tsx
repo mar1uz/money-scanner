@@ -38,10 +38,8 @@ export const ScanLoadingBar: React.FC<{
     >
       <div className="h-1.5 overflow-hidden rounded-full bg-[var(--t-surface-raised)]">
         {state.mode === 'determinate' ? (
-          <div className="h-full rounded-full bg-cyan-400" style={{ width: `${width}%` }} />
-        ) : (
-          <div className="scan-loading-slide h-full rounded-full bg-cyan-400" />
-        )}
+          <div className="h-full rounded-full bg-cyan-400 transition-[width] duration-300" style={{ width: `${width}%` }} />
+        ) : null}
       </div>
       <p className="mt-1 font-mono text-[10px] tabular-nums text-slate-400">{label}</p>
     </div>

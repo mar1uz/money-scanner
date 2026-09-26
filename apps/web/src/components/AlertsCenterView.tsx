@@ -383,7 +383,9 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
       applyDashboard(await fetchAlertsDashboard());
     } catch (loadError) {
       if (mode !== 'poll') {
-        setError(loadError instanceof Error ? loadError.message : 'Nu am putut încărca alertele.');
+        setError(loadError instanceof Error && /signal timed out|timed out|TimeoutError/i.test(loadError.message)
+          ? 'Încărcarea a durat prea mult. Încearcă din nou.'
+          : loadError instanceof Error ? loadError.message : 'Nu am putut încărca alertele.');
       }
     } finally {
       setLoading(false);
@@ -756,9 +758,13 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
   return (
     <div className="space-y-6">
       <ScanLoadingBar
-        active={loading || Boolean(activeScanScope)}
-        scanned={activeScanScope ? (activeManualScanStatus?.scannedAssets ?? 0) : undefined}
-        total={activeScanScope ? (activeManualScanStatus?.totalAssets ?? 0) : undefined}
+        active={Boolean(activeScanScope) || Boolean(data?.manualScan.running)}
+        scanned={(() => {
+          const status = activeManualScanStatus ?? data?.manualScan;
+          if (!status) return 0;
+          return (status.scannedAssets || 0) + (status.errors || 0);
+        })()}
+        total={activeManualScanStatus?.totalAssets ?? data?.manualScan.totalAssets ?? 0}
       />
       <section className="overflow-hidden rounded-[30px] border border-cyan-500/20 bg-[var(--t-surface)] p-4 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -861,8 +867,9 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
               <span className="truncate">Acoperirea ultimei scanări</span>
             </span>
             <span className="shrink-0 font-mono text-[10px] text-cyan-300">
-              {data?.dailyRegimeScan.coverage?.scannedAssets ?? data?.scanCoverage?.length ?? 0}/
-              {data?.dailyRegimeScan.coverage?.totalAssets ?? 0} active
+              {data
+                ? `${data.dailyRegimeScan.coverage?.scannedAssets ?? data.scanCoverage?.length ?? 0}/${data.dailyRegimeScan.coverage?.totalAssets ?? 0} active`
+                : '—'}
             </span>
           </button>
           {coverageOpen && (
@@ -888,7 +895,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                     <span className="truncate">{coverageStatusMeta[status].label}</span>
                     <Filter className={`h-2.5 w-2.5 shrink-0 ${isActive ? '' : 'opacity-45'}`} />
                   </div>
-                  <div className={`mt-0.5 font-mono text-sm font-bold ${isActive ? '' : 'text-slate-200'}`}>{data?.dailyRegimeScan.coverage?.outcomes?.[status] ?? 0}</div>
+                  <div className={`mt-0.5 font-mono text-sm font-bold ${isActive ? '' : 'text-slate-200'}`}>{data ? (data.dailyRegimeScan.coverage?.outcomes?.[status] ?? 0) : '—'}</div>
                 </button>
               );
             })}
