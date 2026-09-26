@@ -14,7 +14,7 @@ import { scanAll, rankSetups, DAY_MS } from './trend-ranking-core.mjs';
 import { parseLog as parsePaperLog } from './paper-trade-logger.mjs';
 import {
   parseLog, serializeRecords, deriveState, freezeSelection, recordEntries,
-  computeOutcome, btcBenchmark, aggregate, dedupeKey
+  computeOutcome, btcBenchmark, aggregate, dedupeKey, eligibleEntry
 } from './forward-test-top5-core.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -25,10 +25,11 @@ const PAPER_LOG_PATH = path.join(LOG_DIR, 'rvol2-flips.jsonl');
 
 const REPORT_MODE = process.argv.includes('--report');
 
-// 7 calendar days of scans, keyed to the last closed candle: 2026-09-18
-// (first manual snapshot) through 2026-09-24. After the window, daily runs
-// only record entries - no new selections are frozen.
-const TEST_WINDOW_LAST_SCAN_DATE = '2026-09-24';
+// Original frozen Sep 18-24 sample remains append-only and unevaluable.
+// Corrected prospective seven-day window: scans Sep 26 through Oct 2 (UTC).
+// Never backfill missed days or select beyond the new window.
+const TEST_WINDOW_LAST_SCAN_DATE = '2026-10-02';
+const RESTART_FIRST_SCAN_DATE = '2026-09-26'; // first run Sep 26 UTC
 
 async function run() {
   await mkdir(LOG_DIR, { recursive: true });
@@ -46,7 +47,7 @@ async function run() {
 
   const newRecords = [];
   if (!REPORT_MODE) {
-    if (scanDate <= TEST_WINDOW_LAST_SCAN_DATE) {
+    if (now.slice(0,10) >= '2026-09-26' && scanDate >= RESTART_FIRST_SCAN_DATE && scanDate <= TEST_WINDOW_LAST_SCAN_DATE) {
       const ranked = rankSetups(maturedEvents, currentSetups).slice(0, 5);
       newRecords.push(...freezeSelection({
         records, scanDate, rankedTop5: ranked, now, lastClosedCandleUtc: lastClosedUtc
@@ -86,10 +87,23 @@ async function run() {
 
   // ---- final report ----
   const { selectionsByDate, entries } = deriveState(records);
-  const outcomes = [], pending = [];
+  const outcomes = [], pending = [], legacyUnevaluable = [], repeatedSnapshots = [];
+  const seenSetups = new Set();
   for (const [scanDate, sels] of [...selectionsByDate.entries()].sort()) {
     for (const sel of sels) {
+      const old = scanDate < RESTART_FIRST_SCAN_DATE;
+      const setupKey = `${old ? 'legacy' : 'prospective'}:${sel.symbol}:${sel.flipTime}`;
+      if (seenSetups.has(setupKey)) { repeatedSnapshots.push(`${sel.symbol} (${scanDate})`); continue; }
+      seenSetups.add(setupKey);
       const entryRec = entries.get(`${scanDate}:${sel.symbol}`);
+      if (old) {
+        legacyUnevaluable.push(`${sel.symbol} (${scanDate}): original pre-freeze entry protocol`);
+        continue;
+      }
+      if (entryRec && !eligibleEntry(sel, entryRec)) {
+        legacyUnevaluable.push(`${sel.symbol} (${scanDate}): pre-freeze or unconfirmed entry`);
+        continue;
+      }
       const asset = perAsset.get(sel.symbol);
       if (!entryRec || !asset) { pending.push(`${sel.symbol} (${scanDate})`); continue; }
       const outcome = computeOutcome(sel, entryRec, asset.candles, asset.signals);
@@ -104,12 +118,11 @@ async function run() {
     o.excessVsBtcPct = o.btcReturnPct !== null ? Number((o.totalReturnPct - o.btcReturnPct).toFixed(2)) : null;
   }
 
-  // validated RVOL>=2 paper cohort overlapping the test window
+  // RVOL>=2 paper cohort for the corrected prospective test window
   let rvol2Cohort = [];
   try {
     const paperRecords = parsePaperLog(await readFile(PAPER_LOG_PATH, 'utf8'));
-    const scanDates = [...selectionsByDate.keys()].sort();
-    const windowStart = scanDates[0], windowEnd = scanDates.at(-1);
+    const windowStart = RESTART_FIRST_SCAN_DATE, windowEnd = TEST_WINDOW_LAST_SCAN_DATE;
     rvol2Cohort = paperRecords
       .filter(r => r.type === 'resolved' && r.flipDate >= windowStart && r.flipDate <= windowEnd)
       .map(r => ({ symbol: r.symbol, flipDate: r.flipDate, r: r.r, reason: r.reason }));
@@ -119,14 +132,22 @@ async function run() {
   const report = {
     generatedAt: now,
     testWindow: [...selectionsByDate.keys()].sort(),
-    evidenceStatus: 'UNVALIDATED forward test of the SMA top-5 research ranking. Small sample: at most 35 selections over 7 days - results cannot confirm or refute an edge; they only describe this week.',
+    evidenceStatus: 'UNVALIDATED. Original seven-day sample has no causally eligible entries. Corrected prospective window is separate; no edge claim from this small sample.',
+    protocol: 'First post-freeze UTC daily open; record after its candle closes. 0.125% per side. First-wins unique symbol:flipTime.',
+    oldWindow: { scanDates: ['2026-09-18', '2026-09-24'], status: 'unevaluable', reason: 'all existing entries predate their frozen selection time' },
+    newWindow: { scanDates: [RESTART_FIRST_SCAN_DATE, TEST_WINDOW_LAST_SCAN_DATE], firstFreezeDateUtc: '2026-09-27' },
+    rawSnapshotCount: [...selectionsByDate.values()].reduce((n, arr) => n + arr.length, 0),
+    uniqueSetupCount: seenSetups.size,
+    eligibleCompletedCount: complete.length,
+    legacyUnevaluable, repeatedSnapshots,
     selections: outcomes,
     pendingEntries: pending,
-    aggregateAll: aggregate(outcomes),
+    aggregateAll: aggregate(complete),
+    openMarks: outcomes.filter(o => !o.complete),
     aggregateCompleteOnly: aggregate(complete),
     benchmark: {
-      btcMeanReturnPct: outcomes.length ? Number((outcomes.filter(o => o.btcReturnPct !== null).reduce((a, o) => a + o.btcReturnPct, 0) / Math.max(1, outcomes.filter(o => o.btcReturnPct !== null).length)).toFixed(2)) : null,
-      meanExcessVsBtcPct: outcomes.length ? Number((outcomes.filter(o => o.excessVsBtcPct !== null).reduce((a, o) => a + o.excessVsBtcPct, 0) / Math.max(1, outcomes.filter(o => o.excessVsBtcPct !== null).length)).toFixed(2)) : null
+      btcMeanReturnPct: complete.length ? Number((complete.filter(o => o.btcReturnPct !== null).reduce((a, o) => a + o.btcReturnPct, 0) / Math.max(1, complete.filter(o => o.btcReturnPct !== null).length)).toFixed(2)) : null,
+      meanExcessVsBtcPct: complete.length ? Number((complete.filter(o => o.excessVsBtcPct !== null).reduce((a, o) => a + o.excessVsBtcPct, 0) / Math.max(1, complete.filter(o => o.excessVsBtcPct !== null).length)).toFixed(2)) : null
     },
     rvol2ValidatedCohort: rvol2Cohort,
     dataErrors: errors
@@ -134,7 +155,7 @@ async function run() {
   await writeFile(REPORT_PATH, JSON.stringify(report, null, 2) + '\n');
 
   console.log(`Forward test report (${report.testWindow[0]} .. ${report.testWindow.at(-1)}):`);
-  console.log(`  selections resolved: ${outcomes.length}, pending entry: ${pending.length}`);
+  console.log(`  unique setups: ${seenSetups.size}, eligible completed: ${complete.length}, open: ${outcomes.length - complete.length}, legacy unevaluable: ${legacyUnevaluable.length}, repeated snapshots: ${repeatedSnapshots.length}, pending entry: ${pending.length}`);
   const agg = report.aggregateAll;
   console.log(`  win rate ${agg.winRatePct ?? '-'}% | mean return ${agg.meanReturnPct ?? '-'}% | drawdown ${agg.drawdownPct ?? '-'}% | exits ${JSON.stringify(agg.byExit || {})}`);
   console.log(`  BTC mean (matched windows) ${report.benchmark.btcMeanReturnPct ?? '-'}% | mean excess ${report.benchmark.meanExcessVsBtcPct ?? '-'}%`);

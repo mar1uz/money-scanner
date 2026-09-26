@@ -7,6 +7,16 @@ import { COST_PER_SIDE, round } from './paper-trade-logger.mjs';
 
 export const LOG_VERSION = 1;
 export const SELECTION_HORIZON_DAYS = 7;
+// Original frozen snapshots remain unchanged but their pre-freeze entries are invalid.
+export const FORWARD_FIX_AT = '2026-09-26T06:00:00.000Z';
+export function firstFutureOpen(selection) {
+  const t = Date.parse(selection.recordedAt);
+  return Number.isFinite(t) ? (Math.floor(t / 86_400_000) + 1) * 86_400_000 : NaN;
+}
+export function eligibleEntry(selection, entry) {
+  return !!entry && entry.entryTime === firstFutureOpen(selection) &&
+    Date.parse(entry.recordedAt) >= entry.entryTime + 86_400_000;
+}
 
 export function parseLog(text) {
   return text.split('\n').filter(l => l.trim()).map(l => JSON.parse(l));
@@ -82,19 +92,22 @@ export function recordEntries({ records, getAssetCandles, now }) {
   const out = [];
   for (const [scanDate, sels] of selectionsByDate) {
     for (const sel of sels) {
+      // Never backfill the original seven-day sample with entries it could not take.
+      if (Date.parse(sel.recordedAt) < Date.parse(FORWARD_FIX_AT)) continue;
       const key = `${scanDate}:${sel.symbol}`;
       if (entries.has(key)) continue;
       const candles = getAssetCandles(sel.symbol);
-      if (!candles) continue;
-      const flipIdx = candles.findIndex(c => c.timestamp === sel.flipTime);
-      if (flipIdx < 0 || flipIdx + 1 >= candles.length) continue;
-      const entryCandle = candles[flipIdx + 1];
+      const entryTime = firstFutureOpen(sel);
+      if (!candles || !Number.isFinite(entryTime)) continue;
+      const entryIdx = candles.findIndex(c => c.timestamp === entryTime);
+      if (entryIdx < 0 || candles[entryIdx].isClosed === false) continue;
+      const entryCandle = candles[entryIdx];
       const entry = round(entryCandle.open * (1 + COST_PER_SIDE), 8);
       const stop = round(entry - 1.25 * sel.atr14, 8);
       out.push({
         v: LOG_VERSION, type: 'entry', recordedAt: now, scanDate,
         symbol: sel.symbol, flipTime: sel.flipTime,
-        entryTime: entryCandle.timestamp, entryDate: new Date(entryCandle.timestamp).toISOString().slice(0, 10),
+        entryTime, entryDate: new Date(entryTime).toISOString().slice(0, 10),
         entry, stop, risk: round(entry - stop, 8)
       });
     }
@@ -110,19 +123,20 @@ const BEARISH = new Set(['Bearish', 'Strong Bearish']);
  * Returns null when the entry candle has not closed yet.
  */
 export function computeOutcome(sel, entryRec, candles, signals) {
-  const flipIdx = candles.findIndex(c => c.timestamp === sel.flipTime);
-  if (flipIdx < 0 || flipIdx + 1 >= candles.length) return null;
-  const entryIdx = flipIdx + 1;
+  if (!eligibleEntry(sel, entryRec)) return null;
+  const entryIdx = candles.findIndex(c => c.timestamp === entryRec.entryTime);
+  if (entryIdx < 0 || candles[entryIdx].isClosed === false) return null;
+  const lastClosedIdx = candles.findLastIndex(c => c.isClosed !== false);
+  if (lastClosedIdx < entryIdx) return null;
+  const lastIdx = Math.min(entryIdx + SELECTION_HORIZON_DAYS - 1, lastClosedIdx);
   const entry = entryRec.entry, stop = entryRec.stop;
-  const lastIdx = Math.min(entryIdx + SELECTION_HORIZON_DAYS - 1, candles.length - 1);
-
-  let mfe = 0, mae = 0, exitReason = 'horizon', exitIdx = lastIdx;
+  let mfe = 0, mae = 0, exitReason = 'open-mark', exitIdx = lastIdx;
   const dailyReturns = [];
   let prevClose = candles[entryIdx].open;
   for (let j = entryIdx; j <= lastIdx; j++) {
     const c = candles[j];
-    mfe = Math.max(mfe, (c.high - entry) / entry);
-    mae = Math.min(mae, (c.low - entry) / entry);
+    mfe = Math.max(mfe, (c.high * (1 - COST_PER_SIDE) - entry) / entry);
+    mae = Math.min(mae, (c.low * (1 - COST_PER_SIDE) - entry) / entry);
     dailyReturns.push(round((c.close - prevClose) / prevClose * 100, 2));
     prevClose = c.close;
     if (c.low <= stop) { exitReason = 'stop'; exitIdx = j; break; }
@@ -130,18 +144,20 @@ export function computeOutcome(sel, entryRec, candles, signals) {
     const sig = signals[j];
     if (sig && BEARISH.has(sig.tier)) { exitReason = 'invalidation-bear-flip'; exitIdx = j; break; }
   }
-  const exitPrice = exitReason === 'stop' ? stop : candles[exitIdx].close;
+  const complete = exitReason !== 'open-mark' || lastIdx >= entryIdx + SELECTION_HORIZON_DAYS - 1;
+  if (exitReason === 'open-mark' && complete) exitReason = 'horizon';
+  const grossExit = exitReason === 'stop' ? stop : candles[exitIdx].close;
+  const netExit = round(grossExit * (1 - COST_PER_SIDE), 8);
   return {
     symbol: sel.symbol, scanDate: sel.scanDate, rank: sel.rank,
     probability: sel.probability, rvol: sel.rvol,
     entryDate: entryRec.entryDate, entry,
     exitDate: new Date(candles[exitIdx].timestamp).toISOString().slice(0, 10),
-    exitPrice: round(exitPrice, 8), exitReason,
+    exitPrice: netExit, grossExitPrice: round(grossExit, 8), exitReason,
     daysHeld: exitIdx - entryIdx + 1,
-    totalReturnPct: round((exitPrice - entry) / entry * 100, 2),
+    totalReturnPct: round((netExit - entry) / entry * 100, 2),
     mfePct: round(mfe * 100, 2), maePct: round(mae * 100, 2),
-    dailyReturnsPct: dailyReturns,
-    complete: entryIdx + SELECTION_HORIZON_DAYS - 1 <= candles.length - 1 || exitReason !== 'horizon'
+    dailyReturnsPct: dailyReturns, complete
   };
 }
 
@@ -151,7 +167,7 @@ export function btcBenchmark(btcCandles, entryDate, exitDate) {
   const endIdx = btcCandles.findIndex(c => new Date(c.timestamp).toISOString().slice(0, 10) === exitDate);
   if (startIdx < 0 || endIdx < 0) return null;
   const entry = btcCandles[startIdx].open * (1 + COST_PER_SIDE);
-  return round((btcCandles[endIdx].close - entry) / entry * 100, 2);
+  return round((btcCandles[endIdx].close * (1 - COST_PER_SIDE) - entry) / entry * 100, 2);
 }
 
 /** Aggregate report stats over completed outcomes. */

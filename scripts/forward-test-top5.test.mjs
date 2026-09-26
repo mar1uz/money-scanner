@@ -3,7 +3,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   freezeSelection, recordEntries, computeOutcome, btcBenchmark,
-  aggregate, deriveState, parseLog, serializeRecords, dedupeFirstWins
+  aggregate, deriveState, parseLog, serializeRecords, dedupeFirstWins,
+  firstFutureOpen, eligibleEntry, FORWARD_FIX_AT
 } from './forward-test-top5-core.mjs';
 
 const DAY = 86_400_000;
@@ -49,72 +50,39 @@ test('freezeSelection is idempotent per scanDate (no reselection, no duplicates)
   assert.equal(third.length, 5);
 });
 
-test('recordEntries waits for the entry candle, then records costed entry once', () => {
-  const selections = frozenSet();
-  // entry candle not closed yet (only flip candle exists)
-  let recs = recordEntries({
-    records: selections,
-    getAssetCandles: () => [candle(0, 100, 104, 99, 103)],
-    now: NOW
-  });
-  assert.equal(recs.length, 0);
-  // entry candle closed
+test('legacy frozen entries are not backfilled', () => {
+  const sel = frozenSet()[0];
   const candles = [candle(0, 100, 104, 99, 103), candle(1, 103, 105, 102, 104)];
-  recs = recordEntries({ records: selections, getAssetCandles: () => candles, now: NOW });
-  assert.equal(recs.length, 5);
-  assert.ok(recs[0].entry > 103, 'entry includes costs');
-  assert.ok(recs[0].stop < recs[0].entry);
-  // second run: no duplicates
-  const again = recordEntries({ records: selections.concat(recs), getAssetCandles: () => candles, now: NOW });
-  assert.equal(again.length, 0);
+  assert.equal(recordEntries({ records: [sel], getAssetCandles: () => candles, now: NOW }).length, 0);
+  assert.equal(computeOutcome(sel, {entryTime: T0 + DAY, recordedAt: NOW}, candles, []), null);
 });
 
-test('computeOutcome: stop triggers before invalidation, returns stop price', () => {
-  const sel = frozenSet()[0];
-  const entryRec = {
-    type: 'entry', scanDate: sel.scanDate, symbol: sel.symbol, flipTime: sel.flipTime,
-    entryTime: T0 + DAY, entryDate: '2026-09-19', entry: 103.13, stop: 96.88, risk: 6.25
-  };
-  const candles = [
-    candle(0, 100, 104, 99, 103),
-    candle(1, 103, 104, 96, 97),     // low breaches stop 96.88
-    candle(2, 97, 98, 90, 91)        // would be below sma50 - stop came first
-  ];
-  const signals = [{ tier: 'Bullish' }, { tier: 'Bullish' }, { tier: 'Bullish' }];
-  const o = computeOutcome(sel, entryRec, candles, signals);
-  assert.equal(o.exitReason, 'stop');
-  assert.equal(o.exitPrice, 96.88);
-  assert.ok(o.totalReturnPct < 0);
-  assert.equal(o.complete, true);
+test('next UTC open strictly follows selection freeze and only closed candles enter', () => {
+  const sel = { ...frozenSet()[0], recordedAt: FORWARD_FIX_AT, scanDate: '2026-09-25' };
+  assert.equal(firstFutureOpen(sel), Date.UTC(2026, 8, 27));
+  const candles = Array.from({ length: 11 }, (_, i) => candle(i, 100, 105, 96, 103));
+  let entries = recordEntries({ records: [sel], getAssetCandles: () => candles.slice(0, 9), now: '2026-09-27T05:00:00Z' });
+  assert.equal(entries.length, 0);
+  entries = recordEntries({ records: [sel], getAssetCandles: () => candles.slice(0, 10), now: '2026-09-28T05:00:00Z' });
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].entryDate, '2026-09-27');
+  assert.ok(eligibleEntry(sel, entries[0]));
+  assert.equal(recordEntries({ records: [sel, ...entries], getAssetCandles: () => candles, now: '2026-09-29T05:00:00Z' }).length, 0);
 });
 
-test('computeOutcome: horizon exit at last close with MFE/MAE/daily returns', () => {
-  const sel = frozenSet()[0];
-  const entryRec = {
-    type: 'entry', scanDate: sel.scanDate, symbol: sel.symbol, flipTime: sel.flipTime,
-    entryTime: T0 + DAY, entryDate: '2026-09-19', entry: 103.13, stop: 90, risk: 13.13
-  };
-  const candles = [candle(0, 100, 104, 99, 103)];
-  const signals = [{ tier: 'Bullish' }];
-  for (let i = 1; i <= 8; i++) {
-    candles.push(candle(i, 103 + i, 103 + i + 4, 102 + i, 103 + i + 2)); // rising, close > sma50=95
-    signals.push({ tier: 'Bullish' });
-  }
-  const o = computeOutcome(sel, entryRec, candles, signals);
-  assert.equal(o.exitReason, 'horizon');
-  assert.equal(o.daysHeld, 7); // 7-day window
-  assert.ok(o.mfePct > 0 && o.maePct <= 0);
-  assert.equal(o.dailyReturnsPct.length, 7);
-  assert.equal(o.complete, true);
-});
-
-test('btcBenchmark aligns matching calendar window', () => {
-  const btc = [
-    { timestamp: T0 + DAY, open: 100, high: 101, low: 99, close: 100 },
-    { timestamp: T0 + 3 * DAY, open: 100, high: 112, low: 99, close: 110 }
-  ];
-  const r = btcBenchmark(btc, '2026-09-19', '2026-09-21');
-  assert.ok(Math.abs(r - 9.89) < 0.05); // 110 / 100.125 - 1
+test('legacy pre-freeze entry is unevaluable; future exit uses both-side costs', () => {
+  const sel = { ...frozenSet()[0], recordedAt: FORWARD_FIX_AT };
+  const entryTime = firstFutureOpen(sel);
+  const candles = Array.from({ length: 17 }, (_, i) => candle(i, 100, 105, 96, 100));
+  const signals = candles.map(() => ({ tier: 'Bullish' }));
+  const entry = { type: 'entry', entryTime, entryDate: '2026-09-27', entry: 100.125, stop: 80, recordedAt: '2026-09-28T01:00:00Z' };
+  assert.equal(computeOutcome(sel, { ...entry, entryTime: T0 + DAY }, candles, signals), null);
+  const mark = computeOutcome(sel, entry, candles.slice(0, 11), signals);
+  assert.equal(mark.exitReason, 'open-mark'); assert.equal(mark.complete, false);
+  const out = computeOutcome(sel, entry, candles, signals);
+  assert.equal(out.exitReason, 'horizon'); assert.equal(out.complete, true);
+  assert.equal(out.daysHeld, 7); assert.equal(out.totalReturnPct, -0.25);
+  assert.equal(btcBenchmark(candles, out.entryDate, out.exitDate), -0.25);
 });
 
 test('aggregate computes win rate, mean return, drawdown, exits', () => {
@@ -143,7 +111,7 @@ test('dedupe: a double-appended batch (Sep 21 incident) reads first-wins', () =>
   // entries over doubled selections still record once per scanDate:symbol
   const candles = [candle(0, 100, 104, 99, 103), candle(1, 103, 105, 102, 104)];
   const entries = recordEntries({ records: doubled, getAssetCandles: () => candles, now: NOW });
-  assert.equal(entries.length, 5);
+  assert.equal(entries.length, 0); // legacy frozen rows are not backfilled
 });
 
 test('dedupe: marker lines pass through and never dedupe', () => {
