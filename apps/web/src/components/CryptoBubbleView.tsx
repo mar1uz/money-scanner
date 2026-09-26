@@ -6,6 +6,7 @@ import {
   CryptoBubbleAsset,
   fetchCryptoBubbles
 } from '../services/api.js';
+import { ScanLoadingBar } from './ScanLoadingBar.js';
 
 interface CryptoBubbleViewProps {
   onSelectAsset: (symbol: string, coinGeckoId?: string, coinPaprikaId?: string) => void;
@@ -74,6 +75,7 @@ export const CryptoBubbleView: React.FC<CryptoBubbleViewProps> = ({ onSelectAsse
 
   return (
     <section className="space-y-5 tab-content-enter">
+      <ScanLoadingBar active={loading} />
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <div className="flex items-center gap-2 text-fuchsia-300">

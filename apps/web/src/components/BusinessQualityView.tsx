@@ -5,6 +5,7 @@ import type { CryptoCriteriaStatus, CryptoFourCriteriaScan, CryptoUndervaluedEnt
 import { useLanguage } from '../i18n.js';
 import { useAssetNavigation } from './AssetNavigation.js';
 import { CryptoBqAssetCard } from './CryptoBqAssetCard.js';
+import { ScanLoadingBar } from './ScanLoadingBar.js';
 
 const statusTone = (status: CryptoCriteriaStatus): string =>
   status === 'pass'
@@ -107,6 +108,7 @@ export const BusinessQualityView: React.FC = () => {
 
   return (
     <div className="space-y-4">
+      <ScanLoadingBar active={loading} />
       <div className="rounded-[30px] border border-amber-500/20 bg-[var(--t-surface)] p-4 sm:p-5 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-start gap-2.5">

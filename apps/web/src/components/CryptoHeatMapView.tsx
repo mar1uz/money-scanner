@@ -17,6 +17,7 @@ import {
   fetchScanner
 } from '../services/api.js';
 import { useLanguage } from '../i18n.js';
+import { ScanLoadingBar } from './ScanLoadingBar.js';
 
 type HeatMapScope = 'crypto' | 'stocks' | 'metals';
 type SortField = 'rank' | 'price' | 'change' | 'changeYtd' | 'marketCap';
@@ -319,6 +320,7 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
 
   return (
     <section className="space-y-6 tab-content-enter pb-12">
+      <ScanLoadingBar active={loading} />
       {/* ── Header ── */}
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>

@@ -21,6 +21,7 @@ import {
   TrendingUp
 } from 'lucide-react';
 import { AssetLink } from './AssetNavigation.js';
+import { ScanLoadingBar } from './ScanLoadingBar.js';
 
 interface BacktestAssetOption {
   symbol: string;
@@ -138,6 +139,7 @@ export const BacktestView: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-8">
+      <ScanLoadingBar active={loading || comparisonLoading} />
       <section className="rounded-[30px] border border-cyan-500/25 bg-[var(--t-surface)] p-4 sm:p-6">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div className="max-w-3xl">

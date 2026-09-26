@@ -137,6 +137,63 @@ describe('Daily MoneyLine regime scan', () => {
     assert.equal(result.status, 'APPROACHING');
   });
 
+  it('records the last closed candle high and ignores a later open candle', () => {
+    const state = new AppState();
+    const series = candles(100);
+    const lastClosed = series[series.length - 1];
+    lastClosed.high = 101.123456789;
+    const open = {
+      ...lastClosed,
+      timestamp: lastClosed.timestamp + 86_400_000,
+      high: 999.5,
+      isClosed: false
+    };
+    state.moneyLine.calculateLatest = (() => ({
+      tier: 'Bearish',
+      score: -35,
+      rawIndicators: { atr14: 2, rvol: 1.4 }
+    })) as any;
+
+    const result = (state as any).calculateFlipCandidate(
+      'TEST',
+      'stocks',
+      '1d',
+      [...series, open],
+      100,
+      'Bearish',
+      -42
+    );
+
+    assert.equal(result.lastClosedHigh, Number(101.123456789.toFixed(8)));
+    assert.equal(result.lastClosedHighTime, lastClosed.timestamp);
+    assert.notEqual(result.lastClosedHigh, open.high);
+  });
+
+  it('omits lastClosedHigh when the last closed candle high is not positive', () => {
+    const state = new AppState();
+    const series = candles(100);
+    series[series.length - 1].high = 0;
+    state.moneyLine.calculateLatest = (() => ({
+      tier: 'Bearish',
+      score: -35,
+      rawIndicators: { atr14: 2, rvol: 1.4 }
+    })) as any;
+
+    const result = (state as any).calculateFlipCandidate(
+      'TEST',
+      'stocks',
+      '1d',
+      series,
+      100,
+      'Bearish',
+      -42
+    );
+
+    assert.ok(result);
+    assert.equal(Object.hasOwn(result, 'lastClosedHigh'), false);
+    assert.equal(Object.hasOwn(result, 'lastClosedHighTime'), false);
+  });
+
   it('keeps confirmed flips out while retaining searchable candidates per timeframe', () => {
     const state = new AppState();
     const base = {
@@ -468,6 +525,75 @@ describe('Daily MoneyLine regime scan', () => {
     assert.equal(result.confirmationPrice, series[84].close);
     assert.equal(result.candleTimestamp, series[84].timestamp);
     assert.equal(result.confirmedAt, series[84].timestamp + 86_400_000);
+  });
+
+  it('overwrites the flip-candle high with the latest closed high of the full series', () => {
+    const state = new AppState();
+    const now = Date.now();
+    const series = Array.from({ length: 120 }, (_, index) => {
+      const close = index < 80 ? 100 - index * 0.2 : 84 + (index - 80) * 2;
+      return {
+        symbol: 'TEST',
+        timeframe: '1d' as const,
+        timestamp: now - (119 - index) * 86_400_000,
+        open: close,
+        high: close + 1,
+        low: close - 1,
+        close,
+        volume: 1_000,
+        isClosed: true,
+        source: 'fixture' as const
+      };
+    });
+    const lastClosed = series[series.length - 1];
+    const open = {
+      ...lastClosed,
+      timestamp: lastClosed.timestamp + 86_400_000,
+      high: 9_000,
+      isClosed: false
+    };
+
+    const result = (state as any).findMostRecentConfirmedFlip(
+      'TEST', 'crypto', '1d', [...series, open], 200, 'Bullish', 40
+    );
+
+    assert.equal(result.status, 'CONFIRMED');
+    assert.equal(result.candleTimestamp, series[84].timestamp);
+    assert.equal(result.lastClosedHigh, Number(lastClosed.high.toFixed(8)));
+    assert.equal(result.lastClosedHighTime, lastClosed.timestamp);
+    assert.notEqual(result.lastClosedHigh, Number(series[84].high.toFixed(8)));
+    assert.notEqual(result.lastClosedHigh, open.high);
+  });
+
+  it('drops a flip-candle high when the latest closed candle high is invalid', () => {
+    const state = new AppState();
+    const now = Date.now();
+    const series = Array.from({ length: 120 }, (_, index) => {
+      const close = index < 80 ? 100 - index * 0.2 : 84 + (index - 80) * 2;
+      return {
+        symbol: 'TEST',
+        timeframe: '1d' as const,
+        timestamp: now - (119 - index) * 86_400_000,
+        open: close,
+        high: close + 1,
+        low: close - 1,
+        close,
+        volume: 1_000,
+        isClosed: true,
+        source: 'fixture' as const
+      };
+    });
+    series[series.length - 1].high = 0;
+
+    const result = (state as any).findMostRecentConfirmedFlip(
+      'TEST', 'crypto', '1d', series, 200, 'Bullish', 40
+    );
+
+    assert.equal(result?.status, 'CONFIRMED');
+    assert.equal(result.candleTimestamp, series[84].timestamp);
+    assert.equal(Object.hasOwn(result, 'lastClosedHigh'), false);
+    assert.equal(Object.hasOwn(result, 'lastClosedHighTime'), false);
+    assert.notEqual(result.lastClosedHigh, series[84].high);
   });
 
   it('triggers an initial Bullish Flip alert and a subsequent Retest alert on support touch', async () => {

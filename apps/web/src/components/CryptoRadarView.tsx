@@ -9,6 +9,7 @@ import {
   RADAR_MICRO_HEADERS,
   getRadarTableMinWidth
 } from './crypto-radar-headers.js';
+import { ScanLoadingBar } from './ScanLoadingBar.js';
 
 interface Payload {
   latest: RadarSnapshot | null;
@@ -343,6 +344,7 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
 
   return (
     <section className="space-y-2.5 sm:space-y-4 pb-16">
+      <ScanLoadingBar active={loading || scanning} />
       <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
         <div>
           <div className="flex items-center gap-2">

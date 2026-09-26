@@ -21,6 +21,7 @@ import { NarrativeBar } from './components/NarrativeBar.js';
 import { NarrativeDetailModal } from './components/NarrativeDetailModal.js';
 import { ScannerTable } from './components/ScannerTable.js';
 import { DeferredPage } from './components/DeferredPage.js';
+import { ScanLoadingBar } from './components/ScanLoadingBar.js';
 import { useLanguage } from './i18n.js';
 import { AuthGate } from './components/AuthGate.js';
 import { AssetNavigationProvider } from './components/AssetNavigation.js';
@@ -420,6 +421,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
               {/* Tab 1: Market Intelligence (Gauges + Narrative Bar + Scanner Table) */}
               {activeTab === 'market' && (
                 <div className="market-dashboard space-y-8">
+                  <ScanLoadingBar active={loading} />
                   {loading && scannerRows.length === 0 && (
                     <div role="status" aria-live="polite" className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-cyan-500/25 bg-cyan-500/[0.07] px-6 py-12 text-center">
                       <RefreshCw className="w-9 h-9 animate-spin text-cyan-400" />

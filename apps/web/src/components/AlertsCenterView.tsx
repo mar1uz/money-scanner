@@ -38,6 +38,8 @@ import {
   setBullishAlert
 } from '../services/api.js';
 import { translateText, useLanguage } from '../i18n.js';
+import { ScanLoadingBar } from './ScanLoadingBar.js';
+import { distanceFromLastClosedHigh } from './flip-distance-from-high.js';
 import { StockBqChips, StockBqTiles, mcInline } from './StockBqBlocks.js';
 
 interface AlertsCenterViewProps {
@@ -564,9 +566,6 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
   const activeManualScanStatus = activeScanScope && data?.manualScan.running && data.manualScan.scope === activeScanScope
     ? data.manualScan
     : null;
-  const scanProgress = activeManualScanStatus?.totalAssets
-    ? Math.min(100, Math.round((activeManualScanStatus.scannedAssets / activeManualScanStatus.totalAssets) * 100))
-    : 0;
   const candidateOptions = useMemo(() => ({
     candidateFilter,
     candidateTimeframe,
@@ -756,6 +755,11 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
 
   return (
     <div className="space-y-6">
+      <ScanLoadingBar
+        active={loading || Boolean(activeScanScope)}
+        scanned={activeScanScope ? (activeManualScanStatus?.scannedAssets ?? 0) : undefined}
+        total={activeScanScope ? (activeManualScanStatus?.totalAssets ?? 0) : undefined}
+      />
       <section className="overflow-hidden rounded-[30px] border border-cyan-500/20 bg-[var(--t-surface)] p-4 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -837,15 +841,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
           </div>
 
           {activeScanScope && (
-            <div className="mt-3">
-              <div className="h-2.5 overflow-hidden rounded-full bg-white/[0.06]">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-amber-400 via-cyan-400 to-violet-400 transition-all duration-500"
-                  style={{ width: `${Math.max(3, scanProgress)}%` }}
-                />
-              </div>
-              <p className="mt-2 text-[10px] text-slate-400">Scanarea rulează în fundal pe toate activele; semnalele eligibile vor trimite automat alertă pe Telegram.</p>
-            </div>
+            <p className="mt-3 text-[10px] text-slate-400">Scanarea rulează în fundal pe toate activele; semnalele eligibile vor trimite automat alertă pe Telegram.</p>
           )}
         </div>
 
@@ -1350,6 +1346,7 @@ const FlipCandidateCard: React.FC<{
     ? ((candidate.currentPrice - confirmationPrice) / confirmationPrice) * 100
     : 0;
   const moveFromFlipLabel = `${moveFromFlip >= 0 ? '+' : ''}${moveFromFlip.toFixed(2)}%`;
+  const highDistance = distanceFromLastClosedHigh(candidate.currentPrice, candidate.lastClosedHigh);
   const assetName = getAssetName(candidate.symbol, candidate.name, knownAssets);
   const showName = assetName && assetName.toUpperCase() !== candidate.symbol.toUpperCase();
 
@@ -1403,6 +1400,7 @@ const FlipCandidateCard: React.FC<{
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <LevelBox label="Închidere flip" value={formatPrice(confirmationPrice)} tone={bullish ? 'emerald' : 'rose'} />
             <LevelBox label="Preț acum" value={formatPrice(candidate.currentPrice)} tone="cyan" />
+            <LevelBox label="Față de high" value={highDistance?.label ?? '—'} tone={highDistance?.tone ?? 'slate'} />
             <LevelBox label="Față de flip" value={moveFromFlipLabel} tone={moveFromFlip >= 0 ? 'emerald' : 'rose'} />
             <LevelBox label="Confirmat" value={formatRelativeAge(getFlipConfirmedAt(candidate))} tone="slate" />
             <LevelBox label="ML 1W" value={`${candidate.weeklyTier} · ${candidate.weeklyScore > 0 ? '+' : ''}${candidate.weeklyScore}`} tone={candidate.weeklyAligned ? (bullish ? 'emerald' : 'rose') : 'slate'} />
@@ -1412,6 +1410,7 @@ const FlipCandidateCard: React.FC<{
         ) : (
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <LevelBox label="Preț acum" value={formatPrice(candidate.currentPrice)} tone="slate" />
+            <LevelBox label="Față de high" value={highDistance?.label ?? '—'} tone={highDistance?.tone ?? 'slate'} />
             <LevelBox label={`${bullish ? 'Peste' : 'Sub'} Slow`} value={formatPrice(candidate.triggerPrice)} tone={bullish ? 'emerald' : 'rose'} />
             <LevelBox label="ML 1W" value={`${candidate.weeklyTier} · ${candidate.weeklyScore > 0 ? '+' : ''}${candidate.weeklyScore}`} tone={candidate.weeklyAligned ? (bullish ? 'emerald' : 'rose') : 'slate'} />
             <LevelBox label="Prioritate" value={`${candidate.priorityScore.toFixed(0)}/100`} tone={candidate.priorityScore >= 80 ? 'amber' : 'slate'} />
@@ -1470,6 +1469,7 @@ const ConfirmedFlipCard: React.FC<{
     ? ((candidate.currentPrice - confirmationPrice) / confirmationPrice) * 100
     : 0;
   const moveFromFlipLabel = `${moveFromFlip >= 0 ? '+' : ''}${moveFromFlip.toFixed(2)}%`;
+  const highDistance = distanceFromLastClosedHigh(candidate.currentPrice, candidate.lastClosedHigh);
   const confirmedAtTimestamp = getFlipConfirmedAt(candidate);
   const assetName = getAssetName(candidate.symbol, candidate.name, knownAssets);
   const showName = assetName && assetName.toUpperCase() !== candidate.symbol.toUpperCase();
@@ -1511,6 +1511,7 @@ const ConfirmedFlipCard: React.FC<{
       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <LevelBox label="Închidere flip" value={formatPrice(confirmationPrice)} tone={bullish ? 'emerald' : 'rose'} />
         <LevelBox label="Preț actual" value={formatPrice(candidate.currentPrice)} tone="cyan" />
+        <LevelBox label="Față de high" value={highDistance?.label ?? '—'} tone={highDistance?.tone ?? 'slate'} />
         <LevelBox label="Față de flip" value={moveFromFlipLabel} tone={moveFromFlip >= 0 ? 'emerald' : 'rose'} />
         <LevelBox label="Scor setup" value={`${candidate.priorityScore.toFixed(0)}/100`} tone={candidate.priorityScore >= 80 ? 'amber' : 'cyan'} />
         <LevelBox label="ML 1W" value={`${candidate.weeklyTier} · ${candidate.weeklyScore > 0 ? '+' : ''}${candidate.weeklyScore}`} tone={candidate.weeklyAligned ? (bullish ? 'emerald' : 'rose') : 'slate'} />

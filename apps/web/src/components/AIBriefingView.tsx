@@ -20,6 +20,7 @@ import {
 import { translateText, useLanguage } from '../i18n.js';
 import { AssetLink, useAssetNavigation } from './AssetNavigation.js';
 import { mcInline } from './StockBqBlocks.js';
+import { ScanLoadingBar } from './ScanLoadingBar.js';
 import {
   Sparkles,
   ExternalLink,
@@ -1022,6 +1023,10 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
     <div className="flex h-[calc(100vh-var(--header-height)-2rem)] rounded-[30px] overflow-hidden border border-white/[0.06] bg-[var(--t-surface-raised)]">
       {/* ═══ Main Area ═══ */}
       <div className="flex-1 flex flex-col min-w-0">
+        <ScanLoadingBar
+          active={loadingIntelligence || loadingCriteriaScan || loadingStockCriteriaScan}
+          className="px-3 pt-3 sm:px-6"
+        />
         <div className="shrink-0 border-b border-white/[0.06] bg-[rgb(var(--t-surface-raised-rgb)/0.95)] px-3 sm:px-6 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <button

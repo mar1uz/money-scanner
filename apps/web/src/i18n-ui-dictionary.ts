@@ -94,6 +94,8 @@ export const UI_PAIRS: Array<[string, string]> = [
   ['NEW FLIP ACUM', 'NEW FLIP NOW'],
   ['Chiar acum', 'Just now'],
   ['Se încarcă', 'Loading'],
+  ['Se încarcă…', 'Loading…'],
+  ['Se încarcă… · {}s', 'Loading… · {}s'],
 
   // Market overview
   ['Regim de piață', 'Market Regime'],
@@ -248,6 +250,7 @@ export const UI_PAIRS: Array<[string, string]> = [
   ['Distanță până la confirmare', 'Distance to confirmation'],
   ['Închidere flip', 'Flip close'],
   ['Față de flip', 'Since flip'],
+  ['Față de high', 'Vs high'],
   ['Confluență', 'Confluence'],
   ['Alertă activă', 'Alert active'],
   ['Pregătește alerta', 'Prepare alert'],

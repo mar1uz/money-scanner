@@ -140,6 +140,24 @@
   animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+/* Indeterminate scan bar: a solid block, not a gradient shimmer. */
+@keyframes scan-loading-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+.scan-loading-slide {
+  width: 28%;
+  animation: scan-loading-slide 1.1s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-loading-slide {
+    animation: none;
+    transform: none;
+  }
+}
+
 @keyframes fade-slide-up {
   0% { opacity: 0; transform: translateY(8px); }
   100% { opacity: 1; transform: translateY(0); }

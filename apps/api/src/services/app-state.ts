@@ -173,6 +173,10 @@ export interface FlipCandidate {
   candleTimestamp: number;
   confirmationPrice?: number;
   confirmedAt?: number;
+  /** High of the last closed candle on this card's timeframe. Omitted when that high is not finite and > 0. */
+  lastClosedHigh?: number;
+  /** Timestamp of the candle that supplied lastClosedHigh. */
+  lastClosedHighTime?: number;
   scannedAt: number;
 }
 
@@ -205,6 +209,20 @@ interface DailyRegimeMatch {
   price: number;
   sma50: number;
   distanceToSma50Percent: number;
+}
+
+/** Last closed candle is the reference. Invalid highs are omitted — never stored as 0. */
+function lastClosedCandleHigh(
+  candles: Array<Pick<Candle, 'timestamp' | 'high' | 'isClosed'>>
+): Pick<FlipCandidate, 'lastClosedHigh' | 'lastClosedHighTime'> | undefined {
+  const closed = candles
+    .filter(candle => candle.isClosed !== false)
+    .sort((left, right) => left.timestamp - right.timestamp);
+  const reference = closed[closed.length - 1];
+  if (!reference || !Number.isFinite(reference.high) || reference.high <= 0) return undefined;
+  const lastClosedHigh = Number(reference.high.toFixed(8));
+  if (!Number.isFinite(lastClosedHigh) || lastClosedHigh <= 0) return undefined;
+  return { lastClosedHigh, lastClosedHighTime: reference.timestamp };
 }
 
 const formatAlertPrice = (value: number) => `$${value.toLocaleString('en-US', {
@@ -1827,6 +1845,7 @@ export class AppState {
       candleTimestamp: closedCandles[lastIndex].timestamp,
       confirmationPrice: confirmed ? Number(closedCandles[lastIndex].close.toFixed(8)) : undefined,
       confirmedAt,
+      ...lastClosedCandleHigh([closedCandles[lastIndex]]),
       scannedAt: Date.now()
     };
   }
@@ -1869,12 +1888,23 @@ export class AppState {
     if (!candidate || candidate.status !== 'CONFIRMED') return undefined;
 
     const confirmedAt = Math.min(Date.now(), confirmationCandle.timestamp + FLIP_TIMEFRAME_DURATION_MS[timeframe]);
-    return {
+    // calculateFlipCandidate saw only the slice ending on the flip candle. Replace that
+    // high with the last closed candle of the full series, or drop it if that high is invalid.
+    const latestClosedHigh = lastClosedCandleHigh(candles);
+    const withLatestClosedHigh: FlipCandidate = {
       ...candidate,
       currentPrice: Number(currentPrice.toFixed(8)),
       confirmationPrice: Number(confirmationCandle.close.toFixed(8)),
       confirmedAt
     };
+    if (latestClosedHigh) {
+      withLatestClosedHigh.lastClosedHigh = latestClosedHigh.lastClosedHigh;
+      withLatestClosedHigh.lastClosedHighTime = latestClosedHigh.lastClosedHighTime;
+    } else {
+      delete withLatestClosedHigh.lastClosedHigh;
+      delete withLatestClosedHigh.lastClosedHighTime;
+    }
+    return withLatestClosedHigh;
   }
 
   private async scanFlipAsset(

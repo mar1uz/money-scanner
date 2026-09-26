@@ -556,6 +556,9 @@ export interface FlipCandidateDashboardItem {
   confirmationPrice?: number;
   confirmedAt?: number;
   scannedAt: number;
+  /** Last closed candle high for this timeframe. Absent on old snapshots — never invent 0. */
+  lastClosedHigh?: number;
+  lastClosedHighTime?: number;
 }
 
 export type FlipScanCoverageStatus = 'CONFIRMED' | 'CANDIDATE' | 'NO_SETUP' | 'INSUFFICIENT_DATA' | 'ERROR';
