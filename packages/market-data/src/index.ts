@@ -8,5 +8,6 @@ export * from './adapters/okx.js';
 export * from './adapters/klines.js';
 export * from './chart-market-resolver.js';
 export * from './chart-market-probes.js';
+export * from './chart-market-diagnostics.js';
 
 export * from './adapters/mexc.js';

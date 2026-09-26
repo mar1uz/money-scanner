@@ -124,7 +124,9 @@ describe('ChartMarketResolver', () => {
 
   it('coalesces a same-instance resolution and keeps an atomic write-race winner', async () => {
     const calls: string[] = [];
-    const deps = makeDeps({ mexc: { listing: T('2026-07-15'), volume: 100 }, verifiedMarkets: ['mexc_spot'] }, calls);
+    // binance_spot is part of the verified identity here so the probe count
+    // below stays a coalescing signal under identity-pruned probing.
+    const deps = makeDeps({ binanceSpot: true, mexc: { listing: T('2026-07-15'), volume: 100 }, verifiedMarkets: ['binance_spot', 'mexc_spot'] }, calls);
     let reads = 0, writes = 0;
     const resolver = new ChartMarketResolver(deps);
     resolver.setStore({

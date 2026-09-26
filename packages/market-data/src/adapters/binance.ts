@@ -53,12 +53,28 @@ export class BinanceMarketAdapter {
     }
   }
 
+  /**
+   * Candles for a base ticker on the default USDT market (`BTC` -> `BTCUSDT`).
+   * Use fetchPairCandles when the exact pair is already known (`BTCEUR`).
+   */
   public async fetchCandles(
     symbol: string,
     timeframe: Timeframe = '1h',
     limit = 1000
   ): Promise<Candle[]> {
-    const pair = `${symbol}USDT`;
+    return this.fetchPairCandles(`${symbol}USDT`, timeframe, limit);
+  }
+
+  /**
+   * Candles for an already-qualified Binance spot pair (`BTCUSDT`, `BTCEUR`,
+   * `CAKEBTC`). The pair is used verbatim: a caller that verified the exact
+   * market on the venue's own list must never get `XUSDTUSDT` back.
+   */
+  public async fetchPairCandles(
+    pair: string,
+    timeframe: Timeframe = '1h',
+    limit = 1000
+  ): Promise<Candle[]> {
     const interval = this.mapTimeframeToInterval(timeframe);
     const startTime = Date.now();
 
@@ -131,7 +147,16 @@ export class BinanceMarketAdapter {
     beforeTimestamp: number,
     limit = 1000
   ): Promise<Candle[]> {
-    const pair = `${symbol}USDT`;
+    return this.fetchPairCandlesBefore(`${symbol}USDT`, timeframe, beforeTimestamp, limit);
+  }
+
+  /** Historical page for an already-qualified spot pair (see fetchPairCandles). */
+  public async fetchPairCandlesBefore(
+    pair: string,
+    timeframe: Timeframe,
+    beforeTimestamp: number,
+    limit = 1000
+  ): Promise<Candle[]> {
     const interval = this.mapTimeframeToInterval(timeframe);
     const safeLimit = Math.max(1, Math.min(1000, Math.floor(limit)));
     const endTime = Math.max(1, Math.floor(beforeTimestamp) - 1);

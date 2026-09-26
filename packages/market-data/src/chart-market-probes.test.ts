@@ -7,6 +7,7 @@ import { OkxMarketAdapter } from './adapters/okx.js';
 import { HyperliquidMarketAdapter } from './adapters/hyperliquid.js';
 import { MexcMarketAdapter } from './adapters/mexc.js';
 import { MarketHealthMonitor } from './health-monitor.js';
+import { beginResolutionScope, resetChartMarketDiagnostics, runInResolutionScope } from './chart-market-diagnostics.js';
 
 const DAY = 86_400_000;
 const build = () => {
@@ -127,6 +128,64 @@ describe('chart-market-probes listing windows', () => {
     await withFetch(() => Response.json({ symbol: 'SUIUSDT', volume: '22654321' }), async () => {
       const deps = build();
       assert.equal(await deps.binanceSpotQuoteVolume24h!('SUI'), null);
+    });
+  });
+
+  it('shares one Binance spot ticker between the volume tie-break and the price check', async () => {
+    resetChartMarketDiagnostics();
+    let tickerRequests = 0;
+    await withFetch(url => {
+      if (url.pathname.endsWith('/ticker/24hr')) {
+        tickerRequests += 1;
+        return Response.json({ symbol: 'SUIUSDT', volume: '22654321', quoteVolume: '79468218.50', lastPrice: '3.5' });
+      }
+      return Response.json({});
+    }, async () => {
+      const deps = build();
+      const candidate = {
+        source: 'binance_spot' as const, exchange: 'BINANCE', providerSymbol: 'SUIUSDT', tvSymbol: 'BINANCE:SUIUSDT',
+        quoteCurrency: 'USDT', listingStart: 1, volume24hQuote: null, candleCapable: true
+      };
+      const scope = beginResolutionScope({ key: 'SUI:sui', symbol: 'SUI', coinGeckoId: 'sui', pinState: 'miss' });
+      await runInResolutionScope(scope, async () => {
+        assert.equal(await deps.binanceSpotQuoteVolume24h!('SUI'), 79_468_218.5);
+        assert.equal(await deps.candidateLastPrice!(candidate), 3.5);
+      });
+      assert.equal(tickerRequests, 1); // inside a resolution the payload is shared
+      // Outside a resolution the probes stay independent (no scope to share in).
+      await deps.binanceSpotQuoteVolume24h!('SUI');
+      await deps.candidateLastPrice!(candidate);
+      assert.equal(tickerRequests, 3);
+    });
+  });
+
+  it('reports the live listing state of a pinned candidate from the venue list', async () => {
+    resetChartMarketDiagnostics();
+    await withFetch(url => {
+      if (url.pathname.endsWith('/instruments-info')) {
+        // Live shape of GET /v5/market/instruments-info?category=spot.
+        return Response.json({ retCode: 0, result: { list: [{ status: 'Trading', quoteCoin: 'USDT', baseCoin: 'GRASS' }], nextPageCursor: '' } });
+      }
+      if (url.pathname.endsWith('/products')) {
+        return Response.json([{ id: 'HYPE-USD', status: 'online', trading_disabled: false }]);
+      }
+      if (url.pathname.endsWith('/AssetPairs')) return Response.json(krakenPairs);
+      if (url.pathname.endsWith('/exchangeInfo')) {
+        return Response.json({ symbols: [{ symbol: 'GRASSUSDT', status: 'TRADING', baseAsset: 'GRASS', quoteAsset: 'USDT' }] });
+      }
+      return Response.json({});
+    }, async () => {
+      const deps = build();
+      const candidate = (source: any, providerSymbol: string) => ({
+        source, exchange: 'X', providerSymbol, tvSymbol: null, quoteCurrency: 'USDT',
+        listingStart: null, volume24hQuote: null, candleCapable: true
+      });
+      assert.equal(await deps.isCandidateStillListed!(candidate('bybit_spot', 'GRASSUSDT')), true);
+      assert.equal(await deps.isCandidateStillListed!(candidate('bybit_spot', 'GONEUSDT')), false);
+      assert.equal(await deps.isCandidateStillListed!(candidate('coinbase', 'HYPE-USD')), true);
+      assert.equal(await deps.isCandidateStillListed!(candidate('kraken', 'GRASSUSD')), true);
+      assert.equal(await deps.isCandidateStillListed!(candidate('kraken', 'NOSUCHUSD')), false);
+      assert.equal(await deps.isCandidateStillListed!(candidate('public_stock', 'AAPL')), null);
     });
   });
 });

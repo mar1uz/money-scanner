@@ -14,6 +14,7 @@ import {
   rankSymbolSearchCandidates
 } from '@money-scanner/shared';
 import { calculateMTFConfluence } from '@money-scanner/money-line';
+import type { ChartMarketResolution, VenuePairRouting } from '@money-scanner/market-data';
 import { aggregatedCryptoDetail, cryptoMarketProfiles } from '../services/crypto-market-profile.js';
 import { readPersistentAICache } from '../services/ai-cache-store.js';
 import { getCryptoCriteriaReport } from './ai-routes.js';
@@ -66,19 +67,48 @@ const withIdentityAliases = (row: SymbolSearchCandidate): SymbolSearchCandidate 
 // match in the live exchange-backed top list continues on the standard
 // exchange route (candles + Money Line) instead of degrading to the
 // price-only aggregator page.
-const matchesLiveExchangeAsset = async (symbol: string, providerName: string): Promise<boolean> => {
+//
+// Provider-name agreement: the venue row is the same asset when its display
+// name and the provider's name are equal (or one is a suffix/prefix of the
+// other, tolerating legal-form suffixes like "Popcat" vs "Popcat Labs").
+const liveNameMatches = (providerName: string, venueName: string): boolean => {
   const profileName = normalizeProviderName(providerName);
-  if (!profileName) return false;
+  const normalizedVenueName = normalizeProviderName(venueName);
+  if (!profileName || !normalizedVenueName) return false;
+  return normalizedVenueName === profileName
+    || (profileName.length >= 4 && normalizedVenueName.includes(profileName))
+    || (normalizedVenueName.length >= 4 && profileName.includes(normalizedVenueName));
+};
+
+// The live exchange-backed top list (CoinGecko market-cap ranked AND listed on
+// a candle venue). Undefined when the list cannot be read at all - a slim or
+// degraded AppState must degrade the identity verdict, never fail the page.
+const readLiveExchangeAsset = async (symbol: string): Promise<AssetInfo | undefined> => {
   try {
-    const liveAsset = (await AppState.getInstance().marketData.getTopCryptoAssets(150))
-      .find(asset => asset.symbol.toUpperCase() === symbol);
-    const liveName = normalizeProviderName(liveAsset?.name || '');
-    if (!liveName) return false;
-    return liveName === profileName
-      || (profileName.length >= 4 && liveName.includes(profileName))
-      || (liveName.length >= 4 && profileName.includes(liveName));
+    const marketData = AppState.getInstance().marketData;
+    if (typeof marketData?.getTopCryptoAssets !== 'function') return undefined;
+    return (await marketData.getTopCryptoAssets(150))
+      .find(asset => String(asset?.symbol || '').toUpperCase() === symbol);
   } catch {
-    return false;
+    return undefined;
+  }
+};
+
+const matchesLiveExchangeAsset = async (symbol: string, providerName: string): Promise<boolean> =>
+  liveNameMatches(providerName, (await readLiveExchangeAsset(symbol))?.name || '');
+
+// The independent exact-ID chart-market resolution (CoinGecko markets bound to
+// the supplied coin ID). Unavailable resolution support degrades to "no
+// candidate venue"; a durable pin mismatch keeps failing closed (outer catch).
+const resolveExactChartMarket = async (symbol: string, coinGeckoId: string): Promise<ChartMarketResolution | null> => {
+  try {
+    const marketData = AppState.getInstance().marketData;
+    if (typeof marketData?.resolveChartMarket !== 'function') return null;
+    return (await marketData.resolveChartMarket(symbol, coinGeckoId)) || null;
+  } catch (error: any) {
+    const message = String(error?.message || '');
+    if (message.includes('Chart market pin') || message.includes('No identity-verified candle market')) throw error;
+    return null;
   }
 };
 
@@ -552,19 +582,44 @@ scannerRouter.get('/assets/:symbol/candles', async (req, res) => {
       ? requestedClassRaw
       : undefined;
 
+    // Same optional venue-pair identity as the asset route (F6/B4): the older
+    // pages of a chart must keep reading the exact pair the first page came
+    // from, and a pair this server cannot confirm is refused exactly like the
+    // first page instead of resolving the bare ticker behind it.
+    const suppliedVenuePair = readSuppliedVenuePair(req.query as Record<string, unknown>);
+    let venuePair: VenuePairRouting | undefined;
+    if (suppliedVenuePair) {
+      const verdict = await confirmSuppliedVenuePair(suppliedVenuePair, symbol);
+      if (verdict.status === 'unconfirmed') {
+        return res.status(503).json({ error: 'Verified exchange candles unavailable for the selected coin.' });
+      }
+      if (verdict.status === 'confirmed') {
+        venuePair = {
+          providerSymbol: suppliedVenuePair.providerSymbol,
+          exchange: suppliedVenuePair.exchange,
+          instrumentType: 'spot',
+          quoteCurrency: verdict.quoteCurrency
+        };
+      }
+    }
+
     const candles = await AppState.getInstance().marketData.getCandlesBefore(
       symbol,
       requestedTimeframe as Timeframe,
       before,
       limit,
       requestedMarketClass,
-      typeof req.query.coinGeckoId === 'string' ? req.query.coinGeckoId : undefined
+      typeof req.query.coinGeckoId === 'string' ? req.query.coinGeckoId : undefined,
+      venuePair
     );
 
     res.json({
       candles,
       hasMore: candles.length > 0,
-      oldestTimestamp: candles[0]?.timestamp || null
+      oldestTimestamp: candles[0]?.timestamp || null,
+      // Only a series quoted in something other than the canonical USDT market
+      // needs the marker; a plain USDT pair keeps the legacy payload byte for byte.
+      ...(venuePair && venuePair.quoteCurrency !== 'USDT' ? { candlePair: venuePair } : {})
     });
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to fetch historical candles', details: err.message });
@@ -740,27 +795,58 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
     };
     // Verify the provider's name as well as its ticker before selecting an
     // exchange route. Most catalog entries predate exact CoinGecko IDs.
+    // Three verdicts, all of them explicit (F6/B4 philosophy: the ticker is
+    // never resolved silently on behalf of an unverified exact identity):
+    //   - identity bound    -> exchange route (candles + Money Line);
+    //   - venue exists, not bound -> 503 fail-closed;
+    //   - no verifiable venue at all -> honest aggregated (price-only) page.
     let identityEstablished = false;
     if (isCryptoSpot && (cryptoReference.coinPaprikaId || cryptoReference.coinGeckoId)) {
+      // Provider record for the supplied exact ID. A CoinGecko rate limit
+      // cannot authenticate identity, so a failed lookup is not a refusal by
+      // itself: it only removes the provider-name evidence.
       let profile: Awaited<ReturnType<typeof cryptoMarketProfiles.resolve>> | null = null;
       try { profile = await cryptoMarketProfiles.resolve(symbol, cryptoReference); }
       catch (error) { if (!cryptoReference.coinGeckoId) throw error; }
       const catalog = TRADING_360_ASSETS.find(asset => asset.marketClass === 'crypto' && asset.symbol === symbol);
       const names = catalog ? [catalog.name, ...(catalog.aliases || []).filter(alias => alias.toUpperCase() !== symbol)] : [];
+      const catalogNameMatches = Boolean(profile && names.some(name => name.trim().toLowerCase() === profile!.name.trim().toLowerCase()));
+      // A catalog entry that carries its own exact ID must agree with the
+      // supplied one (HYPE). An entry without an ID (the common case) is bound
+      // by the provider name it has always been displayed under (BTC).
       const matchesCatalog = cryptoReference.coinGeckoId
-        ? catalog?.coinGeckoId === cryptoReference.coinGeckoId
-        : profile && names.some(name => name.trim().toLowerCase() === profile.name.trim().toLowerCase());
-      const liveMatch = profile ? await matchesLiveExchangeAsset(symbol, profile.name) : false;
-      const liveIdentityMatches = !cryptoReference.coinGeckoId || (await appState.marketData.getTopCryptoAssets(150)
-        .catch(() => [])).some(asset => asset.symbol === symbol && asset.coinGeckoId === cryptoReference.coinGeckoId);
-      const matchesLive = Boolean(matchesCatalog || (liveMatch && liveIdentityMatches));
-      // A CoinGecko profile rate limit cannot authenticate identity. The
-      // independent exact-ID ticker check in the chart resolver may still pass.
-      const verifiedMarket = !matchesLive && cryptoReference.coinGeckoId
-        ? await appState.marketData.resolveChartMarket(symbol, cryptoReference.coinGeckoId).catch(() => null)
-        : null;
-      if (!matchesLive && !verifiedMarket?.candle) {
-        if (cryptoReference.coinGeckoId) return res.status(503).json({ error: 'Verified exchange candles unavailable for the selected coin.' });
+        ? Boolean(catalog && (catalog.coinGeckoId ? catalog.coinGeckoId === cryptoReference.coinGeckoId : catalogNameMatches))
+        : catalogNameMatches;
+      // Live exchange-backed top list, read only when the catalog did not
+      // already bind the identity. Its rows carry their own CoinGecko ID, which
+      // is the strongest evidence available here: an equal ID settles the
+      // identity even when the provider lookup was rate limited, a different ID
+      // refuses it, and a row without an ID falls back to the name binding.
+      const liveAsset = matchesCatalog ? undefined : await readLiveExchangeAsset(symbol);
+      const liveIdentityMatches = Boolean(liveAsset) && (cryptoReference.coinGeckoId
+        ? (liveAsset!.coinGeckoId
+          ? liveAsset!.coinGeckoId === cryptoReference.coinGeckoId
+          : liveNameMatches(profile?.name || '', liveAsset!.name || ''))
+        : liveNameMatches(profile?.name || '', liveAsset!.name || ''));
+      const matchesLive = Boolean(matchesCatalog || liveIdentityMatches);
+      if (!matchesLive && cryptoReference.coinGeckoId) {
+        // The independent exact-ID check in the chart resolver may still pin the
+        // identity even when the provider lookup is rate limited.
+        const verifiedMarket = await resolveExactChartMarket(symbol, cryptoReference.coinGeckoId);
+        if (verifiedMarket?.candle) {
+          identityEstablished = true;
+        } else if (verifiedMarket || liveAsset) {
+          // A candle venue for this ticker exists (a verified chart market
+          // without a usable candle feed, or a live exchange-backed listing)
+          // but the exact identity cannot be bound to it: refuse explicitly
+          // instead of serving another coin's market or a silently degraded
+          // page. Same 503 as the market-data fail-closed.
+          return res.status(503).json({ error: 'Verified exchange candles unavailable for the selected coin.' });
+        }
+      }
+      if (!matchesLive && !identityEstablished) {
+        // No verifiable venue at all (a DEX-only coin like PONS): the honest
+        // aggregated page, labelled 'aggregated-price-only' by the payload.
         return res.json({ ...(await loadAggregated()), businessQuality: await computeBusinessQuality() });
       }
       identityEstablished = true;
@@ -774,11 +860,25 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
     // claim never vetoes an identity the provider ID already established, and
     // venues this server cannot verify (Yahoo/CoinGecko rows) plus requests
     // without these parameters keep the previous behaviour untouched.
+    // A confirmed pair is forwarded to the market-data layer so the candles
+    // come from that exact market (BTCEUR / CAKEBTC) instead of ${symbol}USDT.
+    // The quote stays on the canonical USDT market: a EUR- or BTC-quoted series
+    // is never rendered as a USDT price (the response marks non-USDT candle
+    // pairs through `candlePair`).
+    let routedVenuePair: VenuePairRouting | undefined;
     if (suppliedVenuePair) {
       const verdict = await confirmSuppliedVenuePair(suppliedVenuePair, symbol);
       if (verdict.status === 'unconfirmed' && !identityEstablished) {
         console.warn(`Unconfirmed venue pair identity for ${symbol}: ${suppliedVenuePair.exchange} ${suppliedVenuePair.providerSymbol}`);
         return res.status(503).json({ error: 'Verified exchange candles unavailable for the selected coin.' });
+      }
+      if (verdict.status === 'confirmed') {
+        routedVenuePair = {
+          providerSymbol: suppliedVenuePair.providerSymbol,
+          exchange: suppliedVenuePair.exchange,
+          instrumentType: 'spot',
+          quoteCurrency: verdict.quoteCurrency
+        };
       }
     }
 
@@ -905,7 +1005,15 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
     try {
       quote = await appState.marketData.getPriceQuote(symbol, resolvedMarketClass, assetInfo.coinGeckoId);
     } catch (error) {
-      if (assetInfo.coinGeckoId || resolvedMarketClass !== 'crypto' || symbol.includes('.') || symbol.startsWith('TOTAL')) throw error;
+      // The market-data identity fail-closed ("No identity-verified candle
+      // market", a broken chart-market pin) must surface as the explicit 503
+      // refusal below, never as a silent price-only page. Any other crypto
+      // spot failure keeps the aggregated (price-only) fallback, which the
+      // payload labels 'aggregated-price-only'.
+      const failureMessage = String((error as any)?.message || '');
+      const identityRefusal = failureMessage.includes('No identity-verified candle market')
+        || failureMessage.includes('Chart market pin');
+      if (identityRefusal || resolvedMarketClass !== 'crypto' || symbol.includes('.') || symbol.startsWith('TOTAL')) throw error;
       return res.json(await loadAggregated({
         ...cryptoReference, coinGeckoId: cryptoReference.coinGeckoId || assetInfo.coinGeckoId
       }));
@@ -917,7 +1025,8 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
           requestedTimeframe,
           requestedTimeframe === timeframe ? 1500 : limit,
           resolvedMarketClass,
-          assetInfo.coinGeckoId
+          assetInfo.coinGeckoId,
+          routedVenuePair
         );
       } catch (error: any) {
         // One unavailable interval (common for recent IPOs on 1M) must not
@@ -1028,6 +1137,10 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       assetProfile,
       businessQuality,
       onchain,
+      // Present only when the candles come from a confirmed pair quoted in
+      // something other than the canonical USDT market, so the chart can label
+      // its own series while the header quote stays USDT-labelled.
+      ...(routedVenuePair && routedVenuePair.quoteCurrency !== 'USDT' ? { candlePair: routedVenuePair } : {}),
       lastUpdated: Date.now()
     });
   } catch (err: any) {

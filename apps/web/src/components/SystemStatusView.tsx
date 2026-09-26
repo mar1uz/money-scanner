@@ -13,8 +13,17 @@ import {
 
 export const SystemStatusView: React.FC = () => {
   const [status, setStatus] = useState<any>(null);
+  const [chartMarket, setChartMarket] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [testSent, setTestSent] = useState(false);
+
+  const loadChartMarketDiagnostics = () => {
+    // Public read-only ops route (same auth posture as /api/health).
+    fetch('/api/chart-market-diagnostics')
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => setChartMarket(data))
+      .catch(() => setChartMarket(null));
+  };
 
   const loadStatus = () => {
     setLoading(true);
@@ -22,6 +31,7 @@ export const SystemStatusView: React.FC = () => {
       .then(res => setStatus(res))
       .catch(console.error)
       .finally(() => setLoading(false));
+    loadChartMarketDiagnostics();
   };
 
   useEffect(() => {
@@ -142,6 +152,42 @@ export const SystemStatusView: React.FC = () => {
               <span className="text-slate-500">Alerts Dispatched:</span>
               <span className="text-cyan-300">{status?.alertHistoryCount || 0}</span>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Chart-market resolver diagnostics (read-only ops snapshot) */}
+      <div className="cyber-glass rounded-xl p-5 border border-background-border space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs uppercase font-mono text-slate-400">Chart-Market Resolver</span>
+          <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
+            chartMarket ? 'bg-cyan-500/10 text-cyan-300' : 'bg-rose-500/10 text-rose-400'
+          }`}>
+            {chartMarket ? 'observable' : 'unavailable'}
+          </span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono text-xs text-slate-300">
+          <div className="flex justify-between sm:block">
+            <span className="text-slate-500">Resolutions / pin hits / heals:&nbsp;</span>
+            <span className="text-cyan-300">
+              {chartMarket?.resolver?.resolutions ?? '—'} / {chartMarket?.resolver?.pinHits ?? '—'} / {chartMarket?.resolver?.heals ?? '—'}
+            </span>
+          </div>
+          <div className="flex justify-between sm:block">
+            <span className="text-slate-500">Upstream failures:&nbsp;</span>
+            <span className={chartMarket?.resolver?.failuresTotal ? 'text-rose-400' : 'text-emerald-400'}>
+              {chartMarket?.resolver?.failuresTotal ?? '—'}
+              {chartMarket?.resolver?.lastFailure?.probe ? ` (last: ${chartMarket.resolver.lastFailure.probe})` : ''}
+            </span>
+          </div>
+          <div className="flex justify-between sm:block">
+            <span className="text-slate-500">Pins:&nbsp;</span>
+            <span>
+              {chartMarket?.pins?.supported ? chartMarket.pins.count : '—'}
+              {chartMarket?.pins?.supported
+                ? ` (dead ${chartMarket.pins.byHealth?.dead ?? 0}, unverified ${chartMarket.pins.byHealth?.unverified ?? 0})`
+                : ''}
+            </span>
           </div>
         </div>
       </div>

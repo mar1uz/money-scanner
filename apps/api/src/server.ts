@@ -13,6 +13,7 @@ import { backtestRouter } from './routes/backtest-routes.js';
 import { authRouter } from './routes/auth-routes.js';
 import { macroRouter } from './routes/macro-routes.js';
 import { tapeRouter, tapePageHandler } from './routes/tape-routes.js';
+import { chartMarketDiagnosticsRouter } from './routes/chart-market-diagnostics-routes.js';
 import { authMiddleware } from './middleware/auth.js';
 
 export function createServer() {
@@ -43,6 +44,7 @@ export function createServer() {
     if (
       req.path === '/radar/scheduled'
       || req.path === '/health'
+      || req.path === '/chart-market-diagnostics'
       || req.path === '/telegram/webhook'
       || req.path === '/alerts/daily-regime-scan'
       || req.path === '/alerts/daily-sma-reclaim/scheduled'
@@ -71,6 +73,7 @@ export function createServer() {
   app.use('/api', backtestRouter);
   app.use('/api', macroRouter);
   app.use('/api', tapeRouter);
+  app.use('/api', chartMarketDiagnosticsRouter);
 
   // Public Regime Tape page (no session)
   app.get('/tape', tapePageHandler as any);

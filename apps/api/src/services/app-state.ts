@@ -18,6 +18,7 @@ import {
   TRADING_360_ASSETS
 } from '@money-scanner/shared';
 import { MarketDataService } from '@money-scanner/market-data';
+import type { ChartMarketPinAudit, ChartMarketResolution } from '@money-scanner/market-data';
 import {
   BullishTradePlan,
   MoneyLineEngine,
@@ -37,6 +38,7 @@ import {
 } from '@money-scanner/notifications';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import { evaluateDailyStrategyAlerts, StrategyAlertEvaluation } from './strategy-alert-service.js';
 import { PriceAlertService } from './price-alert-service.js';
 import { ScannerSnapshots } from './scanner-snapshots.js';
@@ -299,20 +301,62 @@ export class AppState {
 
   constructor() {
     // Resolution is pinned by exact CoinGecko coin ID in the existing Firestore database.
-    this.marketData.setChartMarketStore({
-      get: async key => {
-        const snapshot = await this.chartMarketDocument(key).get();
-        return snapshot.exists ? snapshot.data() as import('@money-scanner/market-data').ChartMarketResolution : null;
-      },
-      set: async (key, value) => { await this.chartMarketDocument(key).create(value); }
-    });
+    // The store is backward compatible with pre-existing documents that carry
+    // no audit fields: they are read as-is, and the first health check adds the
+    // audit map with `merge: true` without touching the resolution payload.
+    this.marketData.setChartMarketStore(this.chartMarketPinStore);
   }
 
-  private chartMarketDocument(key: string) {
+  /**
+   * Firestore pin store. `set` stays create-only so a cross-instance race can
+   * still resolve to exactly one winner; `replace` overwrites only when the
+   * document still has the `resolvedAt` the resolver validated (a healed pin
+   * never clobbers another instance's concurrent heal).
+   */
+  private readonly chartMarketPinStore = createChartMarketPinStore(this.chartMarketFirestore());
+
+  /**
+   * Pin inventory for the ops diagnostics route. Never throws: an unavailable
+   * Firestore is reported as `supported: false` instead of failing the request.
+   */
+  public async listChartMarketPins(): Promise<{
+    supported: boolean;
+    count: number;
+    pins: Array<{
+      key: string;
+      symbol: string | null;
+      coinGeckoId: string | null;
+      resolvedAt: number | null;
+      audit: ChartMarketPinAudit | null;
+      candleSource: string | null;
+      tvSymbol: string | null;
+    }>;
+  }> {
+    try {
+      const entries = await this.chartMarketPinStore.list();
+      return {
+        supported: true,
+        count: entries.length,
+        pins: entries.map(({ key, resolution }) => ({
+          key,
+          symbol: resolution?.symbol ?? null,
+          coinGeckoId: resolution?.coinGeckoId ?? null,
+          resolvedAt: typeof resolution?.resolvedAt === 'number' ? resolution.resolvedAt : null,
+          audit: resolution?.audit ?? null,
+          candleSource: resolution?.candle?.source ?? null,
+          tvSymbol: resolution?.tv?.tvSymbol ?? null
+        }))
+      };
+    } catch {
+      return { supported: false, count: 0, pins: [] };
+    }
+  }
+
+  private chartMarketFirestore() {
     const app = getApps()[0] || initializeApp({
       projectId: process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || 'gen-lang-client-0610749770'
     });
-    return getFirestore(app, 'money-scanner-360').collection('chart-market-resolutions').doc(key);
+    return getFirestore(app, 'money-scanner-360');
   }
 
   private static instance: AppState;
@@ -2887,4 +2931,60 @@ export class AppState {
       };
     }).filter(summary => summary.assetCount > 0);
   }
+}
+
+/**
+ * Firestore-backed store for `chart-market-resolutions` (exported so the store
+ * contract can be exercised without a live database).
+ *
+ * - `get`        reads a document as-is; legacy documents without an `audit`
+ *                map stay valid and are never rewritten on read.
+ * - `set`        stays create-only: the cross-instance resolution race still
+ *                has exactly one winner, and a concurrent heal can never be
+ *                silently overwritten by a stale resolution.
+ * - `replace`    is the heal path. It runs in a transaction and only writes
+ *                when the stored `resolvedAt` still matches what the resolver
+ *                validated; otherwise it returns the winner so the caller can
+ *                serve that instead.
+ * - `mergeAudit` writes ONLY the audit map (`merge: true`), so the candidate
+ *                list, `resolvedAt` and every legacy field are preserved.
+ * - `list`       powers GET /api/chart-market-diagnostics.
+ */
+export function createChartMarketPinStore(db: Firestore) {
+  const collection = db.collection('chart-market-resolutions');
+  const document = (key: string) => collection.doc(key);
+  return {
+    get: async (key: string): Promise<ChartMarketResolution | null> => {
+      const snapshot = await document(key).get();
+      return snapshot.exists ? snapshot.data() as ChartMarketResolution : null;
+    },
+    set: async (key: string, value: ChartMarketResolution): Promise<void> => {
+      await document(key).create(value);
+    },
+    replace: async (
+      key: string, value: ChartMarketResolution, expected: { resolvedAt: number }
+    ): Promise<ChartMarketResolution | null> => {
+      const reference = document(key);
+      let stored: ChartMarketResolution = value;
+      await db.runTransaction(async transaction => {
+        const snapshot = await transaction.get(reference);
+        const current = snapshot.exists ? snapshot.data() as ChartMarketResolution : null;
+        if (current && current.resolvedAt !== expected.resolvedAt) {
+          // Another instance healed this pin first: keep its document.
+          stored = current;
+          return;
+        }
+        transaction.set(reference, value);
+      });
+      return stored;
+    },
+    mergeAudit: async (key: string, audit: ChartMarketPinAudit): Promise<void> => {
+      await document(key).set({ audit }, { merge: true });
+    },
+    /** Read-only enumeration used by GET /api/chart-market-diagnostics. */
+    list: async (): Promise<Array<{ key: string; resolution: ChartMarketResolution }>> => {
+      const snapshot = await collection.get();
+      return snapshot.docs.map(item => ({ key: item.id, resolution: item.data() as ChartMarketResolution }));
+    }
+  };
 }

@@ -5,6 +5,7 @@ import { HyperliquidMarketAdapter } from './adapters/hyperliquid.js';
 import { ChartMarketResolverDeps } from './chart-market-resolver.js';
 import { MexcMarketAdapter } from './adapters/mexc.js';
 import { MarketHealthMonitor } from './health-monitor.js';
+import { memoizeWithinResolution, recordHttpRequest } from './chart-market-diagnostics.js';
 
 const BINANCE_SPOT_URL = process.env.BINANCE_API_URL || 'https://data-api.binance.vision/api/v3';
 const BINANCE_FUTURES_URL = process.env.BINANCE_FUTURES_API_URL || 'https://fapi.binance.com/fapi/v1';
@@ -12,10 +13,23 @@ const COINBASE_URL = process.env.COINBASE_API_URL || 'https://api.exchange.coinb
 const KRAKEN_URL = process.env.KRAKEN_API_URL || 'https://api.kraken.com';
 
 const fetchJson = async <T>(url: string, timeoutMs = 8_000, headers?: Record<string, string>): Promise<T> => {
+  // Every probe-layer request is counted in the diagnostics registry (per host,
+  // attributed to the resolution that triggered it). Failures propagate to the
+  // resolver, which records them per source — nothing is swallowed anymore.
+  let host = 'unknown';
+  try { host = new URL(url).hostname; } catch { /* keep the placeholder */ }
+  recordHttpRequest(host);
   const response = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json() as Promise<T>;
 };
+
+/**
+ * Shares one upstream read between probes that need the same payload inside a
+ * single resolution (e.g. a venue's 24h ticker feeding both the volume
+ * tie-break and the price sanity check). Outside a resolution it is a no-op.
+ */
+const sharedFetch = async <T>(key: string, load: () => Promise<T>): Promise<T> => memoizeWithinResolution(key, load);
 
 let futuresPerpCache: { values: Set<string>; updatedAt: number } | null = null;
 const binanceFuturesPerpBases = async (): Promise<Set<string>> => {
@@ -39,6 +53,12 @@ const firstBinanceDailyTs = async (kind: 'spot' | 'futures', pair: string): Prom
   const ts = Number(rows?.[0]?.[0]);
   return Number.isFinite(ts) && ts > 0 ? ts : null;
 };
+
+interface BinanceTickerRow { quoteVolume?: string; lastPrice?: string }
+
+/** One Binance spot 24h ticker serves both the volume tie-break and the price check. */
+const binanceSpotTicker = (base: string) =>
+  sharedFetch(`binance_spot:ticker:${base}`, () => fetchJson<BinanceTickerRow>(`${BINANCE_SPOT_URL}/ticker/24hr?symbol=${base}USDT`));
 
 let coinbaseProductsCache: { values: Set<string>; updatedAt: number } | null = null;
 const coinbaseUsdProducts = async (): Promise<Set<string>> => {
@@ -176,6 +196,16 @@ const kucoinUsdtBases = () => smallVenueUsdtBases('kucoin', async () => {
 const baseSymbol = (pair: string) => pair.replace(/[-_]?(USDT|USDC|USD)$/i, '');
 const identityCache = new Map<string, { value: { markets: Set<string>; referencePrice: number | null; knownStart: number | null }; updatedAt: number }>();
 
+/** An identity answer without a single mapped venue is cached briefly, not for the full 6h. */
+const IDENTITY_EMPTY_TTL_MS = 10 * 60_000;
+/**
+ * After a CoinGecko failure (429/timeout/5xx) the same coin is not retried for
+ * a short jittered window: under anonymous-tier throttling every retry used to
+ * cost another two requests for an answer that was already recorded as failed.
+ */
+const IDENTITY_FAILURE_TTL_MS = 45_000;
+const identityFailureRetryAt = new Map<string, number>();
+
 /** Builds the resolver dependency probes from the live adapters and public exchange APIs. */
 export function buildChartMarketResolverDeps(
   binance: BinanceMarketAdapter,
@@ -184,6 +214,10 @@ export function buildChartMarketResolverDeps(
   hyperliquid: HyperliquidMarketAdapter,
   mexc = new MexcMarketAdapter(new MarketHealthMonitor())
 ): ChartMarketResolverDeps {
+  const bybitTicker = (base: string) => sharedFetch(`bybit_spot:ticker:${base}`, () => bybit.fetch24hTicker(`${base}USDT`, base));
+  const okxTicker = (instId: string) => sharedFetch(`okx_spot:ticker:${instId}`, () => okx.fetch24hTicker(instId, instId));
+  const mexcTicker = (base: string) =>
+    sharedFetch(`mexc_spot:ticker:${base}`, () => fetchJson<{ quoteVolume?: string; lastPrice?: string }>(`${MEXC_URL}/ticker/24hr?symbol=${base}USDT`));
   return {
     isOnBinanceSpot: async base => (await binance.getSupportedUsdtBaseAssets()).has(base),
     binanceSpotFirstDailyTs: base => firstBinanceDailyTs('spot', `${base}USDT`),
@@ -198,16 +232,17 @@ export function buildChartMarketResolverDeps(
     // `quoteVolume` alongside `volume`; `volume` is the base-asset amount, so
     // it is not comparable with the other venues' quote volumes, and reusing
     // binance.fetch24hTicker() would also fire an extra start-of-year kline.
+    // Inside one resolution the payload is shared with the price check.
     binanceSpotQuoteVolume24h: async base => {
-      const row = await fetchJson<{ quoteVolume?: string }>(`${BINANCE_SPOT_URL}/ticker/24hr?symbol=${base}USDT`);
+      const row = await binanceSpotTicker(base);
       const volume = Number(row?.quoteVolume);
       return Number.isFinite(volume) ? volume : null;
     },
     isOnBybitSpot: async base => (await bybit.getSupportedSpotUsdtAssets()).has(base),
     bybitFirstDailyTs: base => bybit.firstDailyCandleTs(`${base}USDT`),
-    bybitQuoteVolume24h: async base => (await bybit.fetch24hTicker(`${base}USDT`, base)).volume24h,
+    bybitQuoteVolume24h: async base => (await bybitTicker(base)).volume24h,
     okxSpotInstrument: async base => (await okx.getSpotUsdtInstruments()).get(base) || null,
-    okxQuoteVolume24h: async instId => (await okx.fetch24hTicker(instId, instId)).volume24h,
+    okxQuoteVolume24h: async instId => (await okxTicker(instId)).volume24h,
     isOnHyperliquid: async base => (await hyperliquid.getTradableCoins()).has(base),
     hyperliquidFirstDailyTs: base => hyperliquid.firstDailyCandleTs(base),
     hyperliquidQuoteVolume24h: base => hyperliquid.quoteVolume24h(base),
@@ -236,22 +271,34 @@ export function buildChartMarketResolverDeps(
     isOnMexcSpot: async base => (await mexcUsdtBases()).has(base),
     mexcFirstDailyTs: base => mexc.firstDailyCandleTs(`${base}USDT`),
     mexcQuoteVolume24h: async base => {
-      const row = await fetchJson<{ quoteVolume?: string }>(`${MEXC_URL}/ticker/24hr?symbol=${base}USDT`);
-      const volume = Number(row.quoteVolume);
+      const row = await mexcTicker(base);
+      const volume = Number(row?.quoteVolume);
       return Number.isFinite(volume) ? volume : null;
     },
     verifiedIdentity: async (base, coinId) => {
       if (!/^[a-z0-9-]{2,100}$/.test(coinId)) return null;
       const key = `${coinId}:${base}`;
       const cached = identityCache.get(key);
-      if (cached && Date.now() - cached.updatedAt < 6 * 3_600_000) return cached.value;
+      if (cached && Date.now() - cached.updatedAt < (cached.value.markets.size ? 6 * 3_600_000 : IDENTITY_EMPTY_TTL_MS)) return cached.value;
+      const retryAt = identityFailureRetryAt.get(key);
+      if (retryAt && retryAt > Date.now()) return null;
       const headers = process.env.COINGECKO_API_KEY ? { 'x-cg-demo-api-key': process.env.COINGECKO_API_KEY } : undefined;
-      const [coin, tickers] = await Promise.all([
-        fetchJson<{ id?: string; symbol?: string; genesis_date?: string; market_data?: { current_price?: { usd?: number } } }>(
-          `https://api.coingecko.com/api/v3/coins/${coinId}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false`, 8_000, headers),
-        fetchJson<{ tickers?: Array<{ base?: string; target?: string; market?: { identifier?: string }; is_anomaly?: boolean; is_stale?: boolean }> }>(
-          `https://api.coingecko.com/api/v3/coins/${coinId}/tickers?order=volume_desc&depth=false&page=1`, 8_000, headers)
-      ]);
+      let coin: { id?: string; symbol?: string; genesis_date?: string; market_data?: { current_price?: { usd?: number } } };
+      let tickers: { tickers?: Array<{ base?: string; target?: string; market?: { identifier?: string }; is_anomaly?: boolean; is_stale?: boolean }> };
+      try {
+        [coin, tickers] = await Promise.all([
+          fetchJson<{ id?: string; symbol?: string; genesis_date?: string; market_data?: { current_price?: { usd?: number } } }>(
+            `https://api.coingecko.com/api/v3/coins/${coinId}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false`, 8_000, headers),
+          fetchJson<{ tickers?: Array<{ base?: string; target?: string; market?: { identifier?: string }; is_anomaly?: boolean; is_stale?: boolean }> }>(
+            `https://api.coingecko.com/api/v3/coins/${coinId}/tickers?order=volume_desc&depth=false&page=1`, 8_000, headers)
+        ]);
+      } catch (error) {
+        // Recorded once, then suppressed for a short jittered window so a
+        // throttled tier does not burn two more requests per lookup.
+        identityFailureRetryAt.set(key, Date.now() + IDENTITY_FAILURE_TTL_MS + Math.floor(Math.random() * 15_000));
+        throw error;
+      }
+      identityFailureRetryAt.delete(key);
       if (coin.id !== coinId || String(coin.symbol || '').toUpperCase() !== base || !tickers.tickers) return null;
       const names: Record<string, string> = { binance: 'binance_spot', bybit_spot: 'bybit_spot', okex: 'okx_spot',
         mxc: 'mexc_spot', gate: 'gate_spot', bitget: 'bitget_spot', kucoin: 'kucoin_spot',
@@ -267,17 +314,49 @@ export function buildChartMarketResolverDeps(
       const genesis = coin.genesis_date ? Date.parse(coin.genesis_date) : NaN;
       const value = { markets, referencePrice: Number.isFinite(referencePrice) && referencePrice > 0 ? referencePrice : null,
         knownStart: Number.isFinite(genesis) ? genesis : null };
-      if (markets.size) identityCache.set(key, { value, updatedAt: Date.now() });
+      // Positive results are cached 6h; an empty venue set (identity verified,
+      // nothing mapped) only briefly, so a lagging tickers page can recover.
+      identityCache.set(key, { value, updatedAt: Date.now() });
       return value;
     },
     candidateLastPrice: async candidate => {
-      if (candidate.source === 'mexc_spot') return (await mexc.fetchQuote(candidate.providerSymbol, baseSymbol(candidate.providerSymbol))).price;
-      if (candidate.source === 'binance_spot') return (await binance.fetch24hTicker(baseSymbol(candidate.providerSymbol))).price;
+      if (candidate.source === 'mexc_spot') {
+        const row = await mexcTicker(baseSymbol(candidate.providerSymbol));
+        const price = Number(row?.lastPrice);
+        return Number.isFinite(price) && price > 0 ? price : null;
+      }
+      if (candidate.source === 'binance_spot') {
+        const row = await binanceSpotTicker(baseSymbol(candidate.providerSymbol));
+        const price = Number(row?.lastPrice);
+        return Number.isFinite(price) && price > 0 ? price : null;
+      }
       if (candidate.source === 'binance_futures') return (await binance.fetchFutures24hTicker(candidate.providerSymbol, baseSymbol(candidate.providerSymbol))).price;
-      if (candidate.source === 'bybit_spot') return (await bybit.fetch24hTicker(candidate.providerSymbol, baseSymbol(candidate.providerSymbol))).price;
-      if (candidate.source === 'okx_spot') return (await okx.fetch24hTicker(candidate.providerSymbol, baseSymbol(candidate.providerSymbol))).price;
+      if (candidate.source === 'bybit_spot') return (await bybitTicker(baseSymbol(candidate.providerSymbol))).price;
+      if (candidate.source === 'okx_spot') return (await okxTicker(candidate.providerSymbol)).price;
       if (candidate.source === 'hyperliquid') return (await hyperliquid.fetchQuote(candidate.providerSymbol)).price;
       return null;
+    },
+    /**
+     * Live listing check used by the pin health cycle: `false` means the venue
+     * answered its own market list and the pair is gone (a dead pin), `true`
+     * means the pair is still listed, `null` means the check is unsupported.
+     */
+    isCandidateStillListed: async candidate => {
+      const base = baseSymbol(candidate.providerSymbol);
+      switch (candidate.source) {
+        case 'binance_spot': return (await binance.getSupportedUsdtBaseAssets()).has(base);
+        case 'binance_futures': return (await binanceFuturesPerpBases()).has(base);
+        case 'bybit_spot': return (await bybit.getSupportedSpotUsdtAssets()).has(base);
+        case 'okx_spot': return (await okx.getSpotUsdtInstruments()).has(base);
+        case 'coinbase': return (await coinbaseUsdProducts()).has(base);
+        case 'kraken': return (await krakenUsdPairs()).has(base);
+        case 'mexc_spot': return (await mexcUsdtBases()).has(base);
+        case 'gate_spot': return (await gateUsdtBases()).has(base);
+        case 'bitget_spot': return (await bitgetUsdtBases()).has(base);
+        case 'kucoin_spot': return (await kucoinUsdtBases()).has(base);
+        case 'hyperliquid': return (await hyperliquid.getTradableCoins()).has(base);
+        default: return null;
+      }
     },
     isOnGateSpot: async base => (await gateUsdtBases()).has(base),
     isOnBitgetSpot: async base => (await bitgetUsdtBases()).has(base),

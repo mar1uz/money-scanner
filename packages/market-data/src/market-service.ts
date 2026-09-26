@@ -34,6 +34,19 @@ interface CoinGeckoMarketRow {
 
 const MARKET_OVERVIEW_TTL_MS = 5 * 60_000;
 
+/**
+ * Exact venue pair confirmed by the API's search-row identity gate
+ * (readSuppliedVenuePair / confirmSuppliedVenuePair). It is forwarded by the
+ * route only after the pair was verified against the venue's own live market
+ * list. Additive: without it every method behaves exactly as before.
+ */
+export interface VenuePairRouting {
+  providerSymbol: string;
+  exchange: string;
+  instrumentType?: string;
+  quoteCurrency?: string;
+}
+
 export class MarketDataService {
   private healthMonitor = new MarketHealthMonitor();
   private binanceAdapter = new BinanceMarketAdapter(this.healthMonitor);
@@ -108,6 +121,23 @@ export class MarketDataService {
   }
 
   /**
+   * A confirmed pair candles may be routed through. Only Binance spot pairs are
+   * accepted today: that is the venue the search rows carry and the only one
+   * the route's gate verifies against a live list. Anything else (other venue,
+   * other instrument, a symbol that cannot be this base asset's pair) is
+   * ignored, so the legacy routing stays in charge byte for byte.
+   */
+  private confirmedVenuePair(pair: VenuePairRouting | undefined, symbol: string): { providerSymbol: string } | undefined {
+    if (!pair) return undefined;
+    if (pair.exchange.replace(/[^A-Z0-9]/g, '') !== 'BINANCE') return undefined;
+    if (pair.instrumentType && pair.instrumentType.toLowerCase() !== 'spot') return undefined;
+    const providerSymbol = String(pair.providerSymbol || '').toUpperCase();
+    if (!/^[A-Z0-9]{3,24}$/.test(providerSymbol)) return undefined;
+    if (!providerSymbol.startsWith(symbol.replace(/\.P$/i, '').toUpperCase())) return undefined;
+    return { providerSymbol };
+  }
+
+  /**
    * Multi-exchange chart-market resolution for a crypto spot symbol.
    * Returns the resolver's candle-capable choice, or null to keep the
    * legacy Binance/Hyperliquid routing unchanged.
@@ -137,12 +167,16 @@ export class MarketDataService {
     timeframe: Timeframe = '1h',
     limit = 1000,
     requestedMarketClass?: AssetMarketClass,
-    coinGeckoId?: string
+    coinGeckoId?: string,
+    venuePair?: VenuePairRouting
   ): Promise<Candle[]> {
     const asset = this.getAssetDefinition(symbol);
     const resolvedMarketClass = requestedMarketClass || asset?.marketClass;
     const cacheScope = resolvedMarketClass || 'auto';
-    const cacheKey = `${cacheScope}_${symbol}_${coinGeckoId || ''}_${timeframe}_${limit}`;
+    // The confirmed pair is part of the cache identity: BTCUSDT and BTCEUR are
+    // different series and must never be served from one another's entry.
+    const routedPair = this.confirmedVenuePair(venuePair, symbol);
+    const cacheKey = `${cacheScope}_${symbol}_${coinGeckoId || ''}_${timeframe}_${limit}${routedPair ? `_pair_${routedPair.providerSymbol}` : ''}`;
     const source = this.resolveCryptoSource(symbol, asset);
     const isBinanceFutures = source === 'binance_futures';
     const providerSymbol = this.providerSymbolFor(symbol, asset, source);
@@ -158,8 +192,13 @@ export class MarketDataService {
     if (cached?.length && Date.now() - fetchedAt < this.candleCacheMs[timeframe]) return cached;
 
     try {
-      const chartMarket = isExplicitCryptoSpot ? await this.resolveCryptoChartMarket(symbol, coinGeckoId) : null;
-      if ((coinGeckoId || asset?.coinGeckoId) && isExplicitCryptoSpot && !chartMarket) {
+      // A confirmed pair IS the verified market: the route's gate checked it
+      // against the venue's live list, so the chart resolver is not consulted
+      // and its fail-closed cannot veto a market the venue itself confirmed.
+      const chartMarket = routedPair || !isExplicitCryptoSpot
+        ? null
+        : await this.resolveCryptoChartMarket(symbol, coinGeckoId);
+      if (!routedPair && (coinGeckoId || asset?.coinGeckoId) && isExplicitCryptoSpot && !chartMarket) {
         throw new Error('No identity-verified candle market for requested coin');
       }
       const legacyCandles = async () => isHyperliquid
@@ -172,7 +211,9 @@ export class MarketDataService {
         ? await this.stockAdapter.fetchCandles(symbol, timeframe, limit)
         : await this.binanceAdapter.fetchCandles(symbol, timeframe, limit);
       let candles: Candle[];
-      candles = chartMarket?.source === 'mexc_spot'
+      candles = routedPair
+          ? await this.binanceAdapter.fetchPairCandles(routedPair.providerSymbol, timeframe, limit)
+          : chartMarket?.source === 'mexc_spot'
           ? await this.mexcAdapter.fetchCandles(chartMarket.providerSymbol, timeframe, limit)
           : chartMarket?.source === 'bybit_spot'
           ? await this.bybitAdapter.fetchCandles(chartMarket.providerSymbol, timeframe, limit)
@@ -183,7 +224,7 @@ export class MarketDataService {
           : chartMarket?.source === 'hyperliquid'
           ? await this.hyperliquidAdapter.fetchCandles(chartMarket.providerSymbol, timeframe, limit)
           : chartMarket?.source === 'binance_spot'
-          ? await this.binanceAdapter.fetchCandles(chartMarket.providerSymbol, timeframe, limit)
+          ? await this.binanceAdapter.fetchPairCandles(chartMarket.providerSymbol, timeframe, limit)
           : await legacyCandles();
       this.candleCache.set(cacheKey, candles);
       this.candleFetchedAt.set(cacheKey, Date.now());
@@ -201,10 +242,12 @@ export class MarketDataService {
     beforeTimestamp: number,
     limit = 1000,
     requestedMarketClass?: AssetMarketClass,
-    coinGeckoId?: string
+    coinGeckoId?: string,
+    venuePair?: VenuePairRouting
   ): Promise<Candle[]> {
     const asset = this.getAssetDefinition(symbol);
     const resolvedMarketClass = requestedMarketClass || asset?.marketClass;
+    const routedPair = this.confirmedVenuePair(venuePair, symbol);
     const source = this.resolveCryptoSource(symbol, asset);
     const isBinanceFutures = source === 'binance_futures';
     const providerSymbol = this.providerSymbolFor(symbol, asset, source);
@@ -216,8 +259,8 @@ export class MarketDataService {
         ? false
         : this.stockAdapter.isStockOrMetal(symbol);
 
-    const chartMarket = isExplicitCryptoSpot ? await this.resolveCryptoChartMarket(symbol, coinGeckoId) : null;
-    if ((coinGeckoId || asset?.coinGeckoId) && isExplicitCryptoSpot && !chartMarket) {
+    const chartMarket = routedPair || !isExplicitCryptoSpot ? null : await this.resolveCryptoChartMarket(symbol, coinGeckoId);
+    if (!routedPair && (coinGeckoId || asset?.coinGeckoId) && isExplicitCryptoSpot && !chartMarket) {
       throw new Error('No identity-verified candle market for requested coin');
     }
     const legacyBefore = async () => {
@@ -236,6 +279,9 @@ export class MarketDataService {
       return this.binanceAdapter.fetchCandlesBefore(symbol, timeframe, beforeTimestamp, limit);
     };
     try {
+      if (routedPair) {
+        return await this.binanceAdapter.fetchPairCandlesBefore(routedPair.providerSymbol, timeframe, beforeTimestamp, limit);
+      }
       if (chartMarket?.source === 'mexc_spot') {
         return await this.mexcAdapter.fetchCandlesBefore(chartMarket.providerSymbol, timeframe, beforeTimestamp, limit);
       }
@@ -249,7 +295,7 @@ export class MarketDataService {
         return await this.binanceAdapter.fetchFuturesCandlesBefore(chartMarket.providerSymbol, timeframe, beforeTimestamp, limit);
       }
       if (chartMarket?.source === 'hyperliquid') return await this.hyperliquidAdapter.fetchCandlesBefore(chartMarket.providerSymbol, timeframe, beforeTimestamp, limit);
-      if (chartMarket?.source === 'binance_spot') return await this.binanceAdapter.fetchCandlesBefore(chartMarket.providerSymbol, timeframe, beforeTimestamp, limit);
+      if (chartMarket?.source === 'binance_spot') return await this.binanceAdapter.fetchPairCandlesBefore(chartMarket.providerSymbol, timeframe, beforeTimestamp, limit);
     } catch (error) {
       if (chartMarket) throw error; // Older pages must use the pinned source.
     }
