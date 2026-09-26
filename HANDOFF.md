@@ -4636,4 +4636,4 @@ Marius: bara pe toate paginile care scanează, ca să vadă progresul; pe cardur
 
 - High-ul salvat la scanare: `lastClosedHigh` + `lastClosedHighTime`, din ultima lumânare cu `isClosed !== false`. High invalid sau <= 0: câmpurile lipsesc, niciodată 0. La flipul confirmat, high-ul e al seriei complete, nu al lumânării de flip. Procentul se calculează la afișare: `(prețul de pe card − high) / high`. Lipsește high-ul (snapshot vechi) → „—”. Apare după următoarea scanare de flips, nu retroactiv.
 - Bara: procent real doar când există `scanate / total` (scanarea manuală de alarme). În rest, bară nedeterminată + secunde scurse, fără procent inventat. Pagini: alarme, scanner, heat map, bubbles, radar, Top Alpha, calitate, briefing AI, backtest cât rulează. Fără gradient.
-- Teste rerulate: `daily-regime-scan.test.ts` + `flip-distance-from-high.test.ts` + `scan-loading-bar.test.ts` — 35/35.
+- Teste rerulate: `daily-regime-scan.test.ts` + `flip-distance-from-high.test.ts` + `scan-loading-bar.test.ts` — 35/35. Commit `7ad28b8`.
