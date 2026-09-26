@@ -4645,4 +4645,4 @@ Marius: bara trebuie să se umple pe măsură ce se scanează asseturi și să a
 - Cauza timeout-ului: `GET /api/alerts/dashboard` cerea un preț live pentru fiecare flip confirmat, câte 4 odată. Sute de cereri treceau de limita de 45s a browserului (`AbortSignal.timeout` → „signal timed out”). Pagina rămânea fără date, deci 0/0. Prețul de pe card rămâne cel salvat la ultima scanare. Nu se inventează un preț.
 - Bara de scanare: lățimea e `scanate / total`, eticheta e `42/150`, fără animație care umple din nimic. Numărul include și asseturile eșuate, ca să ajungă la total. Progresul se scrie pe documentul de scanare, ca un poll pe altă instanță să vadă același număr.
 - Dacă încărcarea eșuează, acoperirea arată „—”, nu 0/0. Mesajul de timeout e în română, tradus în engleză.
-- Teste: `scan-loading-bar.test.ts` + `daily-regime-scan.test.ts` 29/29; `i18n-coverage.test.ts` 3/3.
+- Teste: `scan-loading-bar.test.ts` + `daily-regime-scan.test.ts` 29/29; `i18n-coverage.test.ts` 3/3. Commit `b3d8e08`. Deploy: Cloud Build `696a1dee` din `b3d8e08`, SUCCESS. Revision `market-scanner-360-00284-sxv` la 100%. `/api/health` 200 pe ambele URL-uri.
