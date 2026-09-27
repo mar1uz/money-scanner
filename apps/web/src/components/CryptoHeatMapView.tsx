@@ -18,6 +18,7 @@ import {
 } from '../services/api.js';
 import { useLanguage } from '../i18n.js';
 import { ScanLoadingBar } from './ScanLoadingBar.js';
+import { AssetExternalLinks } from './AssetExternalLinks.js';
 
 type HeatMapScope = 'crypto' | 'stocks' | 'metals';
 type SortField = 'rank' | 'price' | 'change' | 'changeYtd' | 'marketCap';
@@ -621,6 +622,9 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
                             </div>
                           </div>
                         </div>
+                        <div onClick={event => event.stopPropagation()}>
+                          <AssetExternalLinks className="mt-1" symbol={coin.symbol} marketClass={scope} coinGeckoId={scope === 'crypto' ? coin.coinGeckoId : undefined} showNarrative={false} />
+                        </div>
                       </td>
 
                       {/* Price */}
@@ -689,8 +693,8 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
               const hasYtd = coin.changeYtd !== undefined && coin.changeYtd !== null;
 
               return (
+                <div key={coin.id} className="border-b border-white/[0.04]">
                 <button
-                  key={coin.id}
                   type="button"
                   onClick={() => onSelectAsset(coin.symbol, scope === 'crypto' ? coin.coinGeckoId : undefined, scope === 'crypto' ? coin.coinPaprikaId : undefined, scope)}
                   className="w-full p-3.5 text-left hover:bg-white/[0.04] transition-colors flex flex-col gap-2.5"
@@ -760,6 +764,8 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
                     </div>
                   </div>
                 </button>
+                <AssetExternalLinks className="px-3.5 pb-3" symbol={coin.symbol} marketClass={scope} coinGeckoId={scope === 'crypto' ? coin.coinGeckoId : undefined} showNarrative={false} />
+                </div>
               );
             })
           )}

@@ -50,6 +50,7 @@ export function createServer() {
       || req.path === '/alerts/daily-sma-reclaim/scheduled'
       || req.path === '/alerts/ma-cross/scheduled'
       || req.path === '/alerts/structure-scanner/scheduled'
+      || req.path === '/ai/ask-queue/status'
       || req.path === '/ai/daily-warmup'
       || req.path === '/ai/publish-content'
       || req.path === '/scanner/warm'

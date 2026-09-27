@@ -7,6 +7,8 @@ import { translateText, useLanguage } from '../i18n.js';
 import { useAssetNavigation } from './AssetNavigation.js';
 import { CryptoBqAssetCard } from './CryptoBqAssetCard.js';
 import { ScanLoadingBar } from './ScanLoadingBar.js';
+import { AskAiButton } from './AskAiButton.js';
+import { tradingViewUrl } from './AssetExternalLinks.js';
 import { STOCK_CRITERIA, STOCK_CHIP_SHORT, STOCK_EXTRA_TILES, stockChipTone, indexTone, mcInline } from './StockBqBlocks.js';
 
 type StockUndervaluedRow = { asset: StockBusinessQualityAsset; ratio: number; basis: string; index: number };
@@ -51,6 +53,11 @@ const StockBqCard: React.FC<{
             <span className="block text-[9px] font-mono text-cyan-300">{isRo ? asset.aiVerdictLabelRo : asset.aiVerdict}</span>
           )}
         </div>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] text-slate-300" onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+        <a href={tradingViewUrl(asset.symbol, 'stocks')} target="_blank" rel="noopener noreferrer" className="underline">TradingView</a>
+        <AskAiButton symbol={asset.symbol} marketClass="stocks" />
+        <a href={`https://finance.yahoo.com/lookup/?s=${encodeURIComponent(asset.symbol)}`} target="_blank" rel="noopener noreferrer" className="underline">Yahoo Finance</a>
       </div>
       <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
         {STOCK_CRITERIA.map(item => {
@@ -181,6 +188,14 @@ export const TopAlphaView: React.FC = () => {
             </div>
             <div>
               <h2 className="text-sm font-bold text-slate-100 font-sans">Top Alpha</h2>
+              {Number.isFinite(assetClass === 'crypto' ? cryptoScan?.generatedAt : stockScan?.generatedAt) ? (
+                <p className="mt-1 text-[11px] font-mono text-amber-200" data-testid="top-alpha-generated-at">
+                  {isRo ? 'Generat la' : 'Generated at'} {new Intl.DateTimeFormat(isRo ? 'ro-RO' : 'en-GB', {
+                    timeZone: 'Europe/Oslo', dateStyle: 'medium', timeStyle: 'short'
+                  }).format(assetClass === 'crypto' ? cryptoScan!.generatedAt : stockScan!.generatedAt)}
+                  {loading ? (isRo ? ' · Rezultatele afișate sunt cele anterioare' : ' · Showing prior results') : ''}
+                </p>
+              ) : null}
               <p className="text-[11px] text-slate-400 font-sans">
                 {isRo
                   ? 'Scoruri Business Quality și evaluare relativă; nu reprezintă valoarea justă a monedei.'

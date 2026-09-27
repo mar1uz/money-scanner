@@ -5,6 +5,8 @@ import type { CryptoCriteriaStatus, CryptoFourCriteriaAsset, CryptoUndervaluedEn
 import { computePriceToRevenue, formatPriceToRevenue } from '../services/crypto-fundamentals.js';
 import { NarrativeTag } from './NarrativeTag.js';
 import { mcInline } from './StockBqBlocks.js';
+import { tradingViewUrl } from './AssetExternalLinks.js';
+import { AskAiButton } from './AskAiButton.js';
 
 const chipTone = (status: CryptoCriteriaStatus): string =>
   status === 'pass'
@@ -171,7 +173,9 @@ export const CryptoBqAssetCard: React.FC<{
       </div>
       <p className="mt-2 text-[10px] text-slate-400">{isRo ? 'Ritm extrapolat din 30z, nu APY garantat. Buyback/burn nu este o plată directă. — = date lipsă sau incomplete.' : '30d pace extrapolated, not guaranteed APY. Buybacks/burns are not direct payouts. — = missing or incomplete data.'}</p>
       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-400" onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
-        {asset.coinGeckoId && <a className="underline" target="_blank" rel="noreferrer" href={`https://www.coingecko.com/en/coins/${encodeURIComponent(asset.coinGeckoId)}`}>CoinGecko</a>}
+        <a className="underline" target="_blank" rel="noopener noreferrer" href={tradingViewUrl(asset.symbol, 'crypto')}>TradingView</a>
+        <AskAiButton symbol={asset.symbol} marketClass="crypto" coinGeckoId={asset.coinGeckoId} />
+        <a className="underline" target="_blank" rel="noreferrer" href={asset.coinGeckoId ? `https://www.coingecko.com/en/coins/${encodeURIComponent(asset.coinGeckoId)}` : `https://www.coingecko.com/en/search?query=${encodeURIComponent(asset.name)}`} title={asset.coinGeckoId ? 'Profil exact' : 'Căutare · identitate neverificată'}>CoinGecko</a>
         {asset.marketDataSource === 'coinpaprika' && <a className="underline" target="_blank" rel="noreferrer" href={`https://coinpaprika.com/coin/${encodeURIComponent(asset.id)}/`}>CoinPaprika</a>}
         {asset.protocolSlugs?.map(slug => <a key={slug} className="underline" target="_blank" rel="noreferrer" href={`https://defillama.com/protocol/${encodeURIComponent(slug)}`}>{slug}</a>)}
       </div>

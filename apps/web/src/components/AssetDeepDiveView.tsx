@@ -14,6 +14,7 @@ import { CryptoMarketOnlyView } from './CryptoMarketOnlyView.js';
 import { UnverifiedCandlesBadge } from './UnverifiedCandlesBadge.js';
 import { AssetLoadFailureNotice, classifyAssetLoadFailure, type AssetLoadFailure } from './AssetLoadFailureNotice.js';
 import { AssetExternalLinks } from './AssetExternalLinks.js';
+import { AskAiButton } from './AskAiButton.js';
 import { useCryptoFundamentals } from '../services/crypto-fundamentals.js';
 import {
   ArrowLeft,
@@ -475,12 +476,13 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
                 href={coinGeckoUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-emerald-500/25 bg-emerald-500/[0.08] text-[10px] font-bold text-emerald-200 hover:bg-emerald-500/[0.14] transition-all"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-emerald-500/25 bg-emerald-500/[0.08] text-[10px] font-bold text-emerald-200 hover:bg-emerald-500/[0.14] transition-all"
                 title={resolvedCoinGeckoId ? 'Deschide pagina exactă CoinGecko' : 'Caută activul pe CoinGecko'}
               >
                 CoinGecko <ExternalLink className="w-3 h-3" />
               </a>
             )}
+            <AskAiButton symbol={symbol} marketClass={resolvedMarketClass === 'stocks' ? 'stocks' : resolvedMarketClass === 'metals' ? 'metals' : 'crypto'} coinGeckoId={resolvedMarketClass === 'crypto' ? resolvedCoinGeckoId : undefined} />
             <button
               onClick={() => onToggleWatchlist(symbol)}
               className={`shrink-0 p-1.5 sm:p-2 rounded-lg transition-all ${
@@ -538,6 +540,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
         </div>
         <AssetExternalLinks
           showTradingView={false}
+          showAskAi={false}
           className="mt-2 max-w-[1600px] mx-auto"
           symbol={symbol}
           marketClass={resolvedMarketClass}

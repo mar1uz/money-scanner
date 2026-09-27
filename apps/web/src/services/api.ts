@@ -268,6 +268,17 @@ export async function fetchMarketIntelligence(
   return res.json();
 }
 
+export async function requestAskAiAnalysis(asset: { symbol: string; marketClass: 'crypto' | 'stocks' | 'metals'; coinGeckoId?: string }): Promise<{ id: string; queued: true; duplicate: boolean }> {
+  const csrfToken = await requestCsrfToken();
+  const res = await fetchWithDeadline(`${API_BASE}/ai/ask-asset`, {
+    method: 'POST', credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
+    body: JSON.stringify(asset), cache: 'no-store'
+  }, 20_000);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Cererea nu a fost înregistrată.`);
+  return res.json();
+}
+
 export async function fetchCryptoFourCriteriaScan(refresh = false): Promise<CryptoFourCriteriaScan> {
   const params = new URLSearchParams();
   if (refresh) params.set('refresh', '1');
@@ -595,6 +606,34 @@ export interface AlertsDashboardResponse {
 export async function fetchAlertsDashboard(): Promise<AlertsDashboardResponse> {
   const res = await fetchWithDeadline(`${API_BASE}/alerts/dashboard`, { cache: 'no-store' }, 45_000);
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch alerts dashboard`);
+  return res.json();
+}
+
+export interface MaRetestRecord {
+  id: string;
+  ruleId: string;
+  ruleVersion: number;
+  analyzedDay: string;
+  recordedAt: number;
+  stage: 'daily_stage2' | 'weekly_stage2';
+  symbol: string;
+  marketClass: 'crypto';
+  candleTimestamp: number;
+  close: number;
+  sma50: number;
+  sma200: number;
+  setup?: { entryZoneLow: number; entryZoneHigh: number; stop: number; invalidation: string; gainSinceFlipPct?: number };
+  rvol?: number;
+  delivery: 'pending' | 'sent' | 'failed' | 'not_configured' | 'interrupted';
+}
+
+export interface MaRetestPage { items: MaRetestRecord[]; nextBefore: string | null }
+
+export async function fetchMaRetests(before?: string, limit = 20): Promise<MaRetestPage> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (before) params.set('before', before);
+  const res = await fetchWithDeadline(`${API_BASE}/alerts/ma-retests?${params}`, { cache: 'no-store' }, 20_000);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Retest history unavailable`);
   return res.json();
 }
 

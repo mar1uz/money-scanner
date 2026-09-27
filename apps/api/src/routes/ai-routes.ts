@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { AuthenticatedRequest, validateCsrfToken } from '../middleware/auth.js';
+import { queueAskAiRequest, hasPendingAskAiRequests } from '../services/ask-ai-request-store.js';
 import { AppState } from '../services/app-state.js';
 import {
   AIContentTake,
@@ -27,6 +29,46 @@ import { validateScheduledRequestToken } from '../services/scheduler-auth.js';
 import { buildInstinctReport, isServableTake, takeIssues } from '../services/narrative-guard.js';
 
 export const aiRouter = Router();
+
+// Public, deliberately one bit only. Keep even failure bodies free of queue data.
+const askQueueStatusCache: { pending: boolean; checkedAt: number } = { pending: false, checkedAt: 0 };
+let askQueueStatusInFlight: Promise<boolean> | undefined;
+aiRouter.get('/ai/ask-queue/status', async (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    if (Date.now() - askQueueStatusCache.checkedAt > 30_000) {
+      askQueueStatusInFlight ||= hasPendingAskAiRequests().finally(() => { askQueueStatusInFlight = undefined; });
+      askQueueStatusCache.pending = await askQueueStatusInFlight;
+      askQueueStatusCache.checkedAt = Date.now();
+    }
+    return res.json({ pending: askQueueStatusCache.pending });
+  } catch (error) {
+    console.error('Ask AI public pending check failed:', error);
+    return res.status(503).json({ error: 'Queue status unavailable.' });
+  }
+});
+
+
+aiRouter.post('/ai/ask-asset', async (req: AuthenticatedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
+  if (!validateCsrfToken(req)) return res.status(403).json({ error: 'Invalid CSRF token.' });
+  const symbol = String(req.body?.symbol || '').trim().toUpperCase();
+  const marketClass = req.body?.marketClass;
+  const coinGeckoId = req.body?.coinGeckoId;
+  if (!/^[A-Z0-9][A-Z0-9._-]{0,24}$/.test(symbol) || !['crypto', 'stocks', 'metals'].includes(marketClass)
+    || (coinGeckoId !== undefined && (marketClass !== 'crypto' || typeof coinGeckoId !== 'string' || !/^[a-z0-9-]{1,100}$/.test(coinGeckoId)))) {
+    return res.status(400).json({ error: 'Invalid asset request.' });
+  }
+  try {
+    const queued = await queueAskAiRequest(req.user.id, symbol, marketClass, coinGeckoId);
+    res.set('Cache-Control', 'no-store');
+    return res.status(202).json(queued);
+  } catch (error) {
+    console.error('Ask AI queue persistence failed:', error);
+    return res.status(503).json({ error: 'Request was not saved. Please retry.' });
+  }
+});
+
 
 const synthesisCache = new Map<string, { payload: NewsSynthesisPayload; updatedAt: number }>();
 const SYNTHESIS_CACHE_MS = 5 * 60_000;

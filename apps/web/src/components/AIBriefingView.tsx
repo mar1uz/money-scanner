@@ -19,6 +19,7 @@ import {
 } from '../services/api.js';
 import { translateText, useLanguage } from '../i18n.js';
 import { AssetLink, useAssetNavigation } from './AssetNavigation.js';
+import { AssetExternalLinks } from './AssetExternalLinks.js';
 import { mcInline } from './StockBqBlocks.js';
 import { ScanLoadingBar } from './ScanLoadingBar.js';
 import {
@@ -963,6 +964,7 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
                   {item.notableConnection && <p className="mt-2 text-[11px] text-cyan-300/90"><strong>Connection:</strong> {item.notableConnection}</p>}
                   <p className="mt-2 text-[11px] text-slate-400"><strong className="text-slate-300">Catalyst:</strong> {item.catalyst}</p>
                   {item.risks[0] && <p className="mt-2 text-[10px] text-rose-300/75">Risk: {item.risks[0]}</p>}
+                  {item.symbol && <AssetExternalLinks className="mt-3" symbol={item.symbol} marketClass={scope} showNarrative={false} />}
                 </article>
               ))}
             </div>

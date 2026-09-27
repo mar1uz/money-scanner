@@ -29,6 +29,8 @@ import {
   AlertProgressStatus,
   clearAlerts,
   fetchAlertsDashboard,
+  fetchMaRetests,
+  MaRetestRecord,
   fetchStockBusinessQualityScan,
   FlipCandidateDashboardItem,
   FlipScanCoverageItem,
@@ -41,6 +43,7 @@ import { translateText, useLanguage } from '../i18n.js';
 import { ScanLoadingBar } from './ScanLoadingBar.js';
 import { distanceFromLastClosedHigh } from './flip-distance-from-high.js';
 import { StockBqChips, StockBqTiles, mcInline } from './StockBqBlocks.js';
+import { AssetExternalLinks } from './AssetExternalLinks.js';
 
 interface AlertsCenterViewProps {
   knownAssets: AssetScannerRow[];
@@ -51,6 +54,7 @@ interface AlertsCenterViewProps {
 const ALERT_STORAGE_PREFIX = 'moneyline-bullish-alert:';
 export const ALERTS_COVERAGE_OPEN_KEY = 'ms-alerts-coverage-open';
 export const ALERTS_SMA_OPEN_KEY = 'ms-alerts-sma-open';
+export const ALERTS_RETEST_OPEN_KEY = 'ms-alerts-retest-open';
 
 type FlagStorage = Pick<Storage, 'getItem' | 'setItem'>;
 
@@ -960,6 +964,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
         onOpenAsset={onOpenAsset}
         cryptoFundamentals={cryptoFundamentals}
       />
+      <MaRetestSection onOpenAsset={onOpenAsset} />
 
       {/* Filter Tabs */}
       <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.06] pb-3">
@@ -1277,7 +1282,7 @@ const DailySmaReclaimSection: React.FC<{
         <SummaryCard icon={CheckCircle2} label="Acoperire" value={`${report.totals.scanned}/${report.totals.total}`} tone="slate" />
       </div>
       <div className="rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] px-3 py-2 text-[10px] text-slate-500">Sursă: {report.source} · execuție {report.durationMs}ms · {report.telegram ? `Telegram ${report.telegram.deliveredParts}/${report.telegram.parts} părți livrate` : 'Telegram neprocesat'}</div>
-      {signals.length ? <div className="grid gap-3 lg:grid-cols-2">{signals.map(result => <DailySmaSignalCard key={result.symbol} result={result} marketCap={cryptoFundamentals?.get(result.symbol.toUpperCase())?.marketCap} onOpen={() => onOpenAsset(result.symbol, 'crypto', '1d')} />)}</div> : <div className="rounded-xl border border-dashed border-white/[0.08] px-4 py-5 text-center text-xs text-slate-500">Nu există traversări noi în ziua analizată. Monedele deja peste medii rămân vizibile în acoperirea de mai jos.</div>}
+      {signals.length ? <div className="grid gap-3 lg:grid-cols-2">{signals.map(result => <DailySmaSignalCard key={result.symbol} result={result} marketCap={cryptoFundamentals?.get(result.symbol.toUpperCase())?.marketCap} coinGeckoId={cryptoFundamentals?.get(result.symbol.toUpperCase())?.coinGeckoId} onOpen={() => onOpenAsset(result.symbol, 'crypto', '1d')} />)}</div> : <div className="rounded-xl border border-dashed border-white/[0.08] px-4 py-5 text-center text-xs text-slate-500">Nu există traversări noi în ziua analizată. Monedele deja peste medii rămân vizibile în acoperirea de mai jos.</div>}
       <details className="rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)]" open>
         <summary className="cursor-pointer list-none px-3 py-2 text-xs font-bold text-slate-300">Acoperire completă ({ordered.length})</summary>
         <div className="grid max-h-80 gap-1.5 overflow-y-auto border-t border-white/[0.06] p-3 sm:grid-cols-2 lg:grid-cols-3">{ordered.map(result => <button key={result.symbol} type="button" onClick={() => onOpenAsset(result.symbol, 'crypto', '1d')} className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-2.5 py-2 text-left transition hover:border-cyan-500/30"><div className="flex items-center justify-between gap-2"><span className="font-mono text-[11px] font-bold text-slate-200">{result.symbol}</span><span className="font-mono text-[9px] text-slate-500">{result.rank ? `#${result.rank}` : '—'}</span></div><div className="mt-1 flex items-center justify-between gap-2"><span className={`rounded border px-1.5 py-0.5 text-[9px] font-bold ${smaReclaimStatusMeta[result.status].tone}`}>{smaReclaimStatusMeta[result.status].label}</span><span className="truncate text-[9px] text-slate-600" title={result.reason}>{result.source}</span></div></button>)}</div>
@@ -1288,7 +1293,7 @@ const DailySmaReclaimSection: React.FC<{
   );
 };
 
-const DailySmaSignalCard: React.FC<{ result: DailySmaReclaimResult; marketCap?: number; onOpen: () => void }> = ({ result, marketCap, onOpen }) => {
+const DailySmaSignalCard: React.FC<{ result: DailySmaReclaimResult; marketCap?: number; coinGeckoId?: string; onOpen: () => void }> = ({ result, marketCap, coinGeckoId, onOpen }) => {
   const signal = result.signal!;
   const dailyMl = signal.dailyMoneyLine;
   const weeklyMl = signal.weeklyMoneyLine;
@@ -1436,6 +1441,7 @@ const FlipCandidateCard: React.FC<{
         </div>
       </div>
 
+      <AssetExternalLinks className="px-4 pb-3" symbol={candidate.symbol} marketClass={candidate.marketClass} coinGeckoId={fundamentals?.coinGeckoId} showNarrative={false} />
       <div className="grid grid-cols-2 border-t border-white/[0.05]">
         <button type="button" onClick={onOpen} className="flex items-center justify-center gap-1.5 px-3 py-3 text-[11px] font-semibold text-slate-400 transition hover:bg-white/[0.03] hover:text-cyan-300">
           Deschide graficul <ChevronRight className="h-3.5 w-3.5" />
@@ -1528,6 +1534,7 @@ const ConfirmedFlipCard: React.FC<{
 
       {candidate.marketClass === 'stocks' && stockAsset && <StockFundamentalsSection asset={stockAsset} />}
 
+      <AssetExternalLinks className="mt-3" symbol={candidate.symbol} marketClass={candidate.marketClass} coinGeckoId={fundamentals?.coinGeckoId} showNarrative={false} />
       <button type="button" onClick={onOpen} className="mt-3 flex w-full items-center justify-between border-t border-white/[0.05] pt-3 text-[11px] text-slate-500 transition hover:text-cyan-300">
         <span>Confluență {alignmentCount}/3 · SMA50 {candidate.sma50Aligned ? 'aliniat' : 'neconfirmat'} · SMA200 {candidate.sma200Aligned ? 'aliniat' : 'neconfirmat'}</span>
         <span className="flex items-center gap-1 font-semibold text-cyan-300">Deschide {candidate.timeframe.toUpperCase()} <ChevronRight className="h-3.5 w-3.5" /></span>
@@ -1607,6 +1614,7 @@ const ActiveAlertCard: React.FC<{ alert: ActiveAlertDashboardItem; removing: boo
       )}
 
       {alert.lastError && <div className="mt-3 text-[11px] text-rose-300">{alert.lastError}</div>}
+      <AssetExternalLinks className="mt-3" symbol={alert.symbol} marketClass={alert.marketClass} showNarrative={false} />
       <button type="button" onClick={onOpen} className="mt-3 flex w-full items-center justify-between border-t border-white/[0.05] pt-3 text-[11px] font-semibold text-slate-500 transition hover:text-cyan-300">
         <span>Setată {formatDate(alert.createdAt)} · evaluată {formatDate(alert.lastEvaluatedCandle)}</span>
         <span className="flex items-center gap-1">Deschide graficul <ChevronRight className="h-3.5 w-3.5" /></span>
@@ -1630,5 +1638,58 @@ const LevelBox: React.FC<{ label: string; value: string; tone: 'slate' | 'cyan' 
       <div className="text-[9px] font-bold uppercase tracking-wider text-slate-600">{label}</div>
       <div className={`mt-1 truncate font-mono text-[11px] font-bold ${colors[tone]}`}>{value}</div>
     </div>
+  );
+};
+
+/** Independent read: opening this card never runs a scanner or reloads the dashboard. */
+export const MaRetestSection: React.FC<{ onOpenAsset: AlertsCenterViewProps['onOpenAsset'] }> = ({ onOpenAsset }) => {
+  const fundamentals = useCryptoFundamentals();
+  const [open, setOpen] = useState(() => readPersistedOpen(ALERTS_RETEST_OPEN_KEY, false));
+  const [tab, setTab] = useState<'recent' | 'history'>('recent');
+  const [items, setItems] = useState<MaRetestRecord[]>([]);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const load = async (before?: string) => {
+    setLoading(true); setError('');
+    try {
+      const page = await fetchMaRetests(before);
+      setItems(current => before ? [...current, ...page.items] : page.items);
+      setCursor(page.nextBefore); setLoaded(true);
+    } catch { setError('Nu am putut încărca istoricul retesturilor.'); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { if (open && !loaded && !loading) void load(); }, [open, loaded]);
+  const visible = tab === 'recent' ? items.slice(0, 5) : items;
+  const date = (timestamp: number) => new Intl.DateTimeFormat('ro-RO', { timeZone: 'Europe/Oslo', dateStyle: 'medium' }).format(timestamp);
+  const price = (value: number) => Number.isFinite(value) ? `$${value.toPrecision(6)}` : 'indisponibil';
+  const status: Record<MaRetestRecord['delivery'], string> = {
+    pending: 'Livrare în curs', sent: 'Trimis', failed: 'Livrare eșuată', not_configured: 'Netrimis · Telegram neconfigurat', interrupted: 'Livrare neconfirmată'
+  };
+  return (
+    <section className="rounded-2xl border border-emerald-500/20 bg-[var(--t-surface)] p-4 sm:p-5" data-testid="ma-retests">
+      <button type="button" aria-expanded={open} onClick={() => { setOpen(v => { writePersistedOpen(ALERTS_RETEST_OPEN_KEY, !v); return !v; }); }} className="flex w-full items-center gap-2 text-left text-emerald-200">
+        <ChevronDown className={`h-4 w-4 transition-transform ${open ? '' : '-rotate-90'}`} />
+        <span className="font-bold">Retesturi SMA50/200 · 1D/1W</span>
+        <span className="ml-auto text-xs text-slate-500">{loaded ? `${items.length}${cursor ? '+' : ''} înregistrări` : 'Istoric din momentul activării'}</span>
+      </button>
+      {open && <div className="mt-4 space-y-3">
+        <p className="text-xs text-slate-400">Evenimente confirmate pe lumânări închise. Istoricul începe de la activarea acestei secțiuni; nu există date reconstruite.</p>
+        <div className="flex gap-2" role="tablist" aria-label="Retesturi">
+          {(['recent', 'history'] as const).map(value => <button key={value} type="button" role="tab" aria-selected={tab === value} onClick={() => setTab(value)} className={`rounded-lg border px-3 py-1.5 text-xs ${tab === value ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-200' : 'border-white/10 text-slate-400'}`}>{value === 'recent' ? 'Alerte recente' : 'Istoric'}</button>)}
+        </div>
+        {loading && !loaded && <p className="text-xs text-slate-400">Se încarcă retesturile…</p>}
+        {error && <div role="alert" className="text-xs text-rose-300">{error} <button type="button" className="underline" onClick={() => void load()}>Reîncearcă</button></div>}
+        {loaded && !items.length && !error && <p className="text-xs text-slate-400">Nu există retesturi înregistrate de la activarea istoricului.</p>}
+        {visible.map(item => <article key={item.id} className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3 text-xs text-slate-300">
+          <div className="flex flex-wrap items-center justify-between gap-2"><button type="button" className="font-bold text-emerald-200" onClick={() => onOpenAsset(item.symbol, 'crypto', item.stage === 'daily_stage2' ? '1d' : '1w')}>${item.symbol} · {item.stage === 'daily_stage2' ? '1D · SMA50' : '1W · SMA superioară'}</button><span>{date(item.candleTimestamp)} · {status[item.delivery]}</span></div>
+          <p className="mt-2">Închidere {price(item.close)} · SMA50 {price(item.sma50)} · SMA200 {price(item.sma200)}{item.rvol !== undefined ? ` · RVOL ${item.rvol.toFixed(2)}x` : ''}</p>
+          {item.setup && <p className="mt-1 text-slate-400">Zonă {price(item.setup.entryZoneLow)}-{price(item.setup.entryZoneHigh)} · stop {price(item.setup.stop)}</p>}
+          <AssetExternalLinks className="mt-2" symbol={item.symbol} marketClass="crypto" coinGeckoId={fundamentals.get(item.symbol.toUpperCase())?.coinGeckoId} showNarrative={false} />
+        </article>)}
+        {tab === 'history' && cursor && <button type="button" disabled={loading} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-slate-300 disabled:opacity-50" onClick={() => void load(cursor)}>{loading ? 'Se încarcă…' : 'Mai vechi'}</button>}
+      </div>}
+    </section>
   );
 };

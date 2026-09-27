@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   ALERTS_COVERAGE_OPEN_KEY,
   ALERTS_SMA_OPEN_KEY,
+  ALERTS_RETEST_OPEN_KEY,
   peekAlertsDashboardCache,
   readPersistedOpen,
   rememberAlertsDashboard,
@@ -24,12 +25,15 @@ describe('Alerts panels — collapse persistence', () => {
     const storage = memoryStorage();
     assert.equal(readPersistedOpen(ALERTS_COVERAGE_OPEN_KEY, true, storage), true);
     assert.equal(readPersistedOpen(ALERTS_SMA_OPEN_KEY, true, storage), true);
+    assert.equal(readPersistedOpen(ALERTS_RETEST_OPEN_KEY, false, storage), false);
   });
 
   it('remembers a collapsed coverage / SMA panel', () => {
     const storage = memoryStorage();
     writePersistedOpen(ALERTS_COVERAGE_OPEN_KEY, false, storage);
     writePersistedOpen(ALERTS_SMA_OPEN_KEY, false, storage);
+    writePersistedOpen(ALERTS_RETEST_OPEN_KEY, true, storage);
+    assert.equal(readPersistedOpen(ALERTS_RETEST_OPEN_KEY, false, storage), true);
     assert.equal(readPersistedOpen(ALERTS_COVERAGE_OPEN_KEY, true, storage), false);
     assert.equal(readPersistedOpen(ALERTS_SMA_OPEN_KEY, true, storage), false);
     writePersistedOpen(ALERTS_COVERAGE_OPEN_KEY, true, storage);

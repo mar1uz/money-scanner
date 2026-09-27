@@ -7,6 +7,7 @@ import {
   fetchCryptoBubbles
 } from '../services/api.js';
 import { ScanLoadingBar } from './ScanLoadingBar.js';
+import { AssetExternalLinks } from './AssetExternalLinks.js';
 
 interface CryptoBubbleViewProps {
   onSelectAsset: (symbol: string, coinGeckoId?: string, coinPaprikaId?: string) => void;
@@ -192,6 +193,7 @@ export const CryptoBubbleView: React.FC<CryptoBubbleViewProps> = ({ onSelectAsse
                         {coin.image && <img src={coin.image} alt="" className="hidden h-7 w-7 rounded-full sm:block" loading="lazy" />}
                         <span><span className="block font-mono font-bold text-slate-100">{coin.symbol}</span><span className="block max-w-[130px] truncate text-xs text-slate-500 sm:max-w-[220px]">{coin.name}</span></span>
                       </button>
+                      <AssetExternalLinks className="mt-1" symbol={coin.symbol} marketClass="crypto" coinGeckoId={coin.coinGeckoId} layout="wrap" showNarrative={false} />
                     </td>
                     <td className={`whitespace-nowrap px-3 py-3 text-right font-mono font-bold ${!validChange(coin.change) || coin.change === 0 ? 'text-slate-400' : coin.change > 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{formatChange(coin.change)}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-400">{categoryOf(coin)}</td>

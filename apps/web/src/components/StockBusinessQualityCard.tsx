@@ -22,6 +22,7 @@ import type {
 } from '../types.js';
 import { fetchStockBusinessQualityScan } from '../services/api.js';
 import { translateText, useLanguage } from '../i18n.js';
+import { AssetExternalLinks } from './AssetExternalLinks.js';
 
 /* ─────────────────────────────────────────────────────────
    Lookup helper — exported for unit-testing without DOM
@@ -204,6 +205,7 @@ export const StockBusinessQualityCard: React.FC<StockBusinessQualityCardProps> =
 
   return (
     <div className="rounded-[30px] bg-[var(--t-surface)] border border-purple-500/25 shadow-lg overflow-hidden">
+      <AssetExternalLinks className="px-4 pt-3" symbol={symbol} marketClass="stocks" showNarrative={false} />
       {/* ── Compact Header (always visible) ── */}
       <button
         onClick={() => setExpanded(prev => !prev)}

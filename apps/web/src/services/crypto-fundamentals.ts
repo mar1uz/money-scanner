@@ -6,6 +6,7 @@ import type { CryptoFourCriteriaAsset } from '../types.js';
 export const PR_ANNUALIZATION = 365 / 30;
 
 export interface CryptoFundamentals {
+  coinGeckoId?: string;
   marketCap?: number;
   revenue30d?: number;
   /** P/R = marketCap / (revenue30d x 365/30); undefined when revenue is missing. */
@@ -36,7 +37,7 @@ export const formatRevenue30d = (value?: number): string => {
 
 export const fundamentalsFromAsset = (asset: CryptoFourCriteriaAsset): CryptoFundamentals => {
   const revenue30d = asset.metrics?.revenue30d;
-  return { marketCap: asset.marketCap, revenue30d, priceToRevenue: computePriceToRevenue(asset.marketCap, revenue30d), narrative: asset.narrative };
+  return { coinGeckoId: asset.coinGeckoId, marketCap: asset.marketCap, revenue30d, priceToRevenue: computePriceToRevenue(asset.marketCap, revenue30d), narrative: asset.narrative };
 };
 
 // One shared scan request per page load; every coin card reads from it.

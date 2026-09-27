@@ -25,6 +25,7 @@ import {
 } from '@money-scanner/shared';
 import { AssetScannerRow } from '../types.js';
 import { searchUniversalAssets, SearchAssetItem } from '../services/api.js';
+import { AssetExternalLinks } from './AssetExternalLinks.js';
 
 interface UniversalSearchModalProps {
   isOpen: boolean;
@@ -443,6 +444,7 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
                           <div className="text-xs text-slate-400 truncate font-sans mt-0.5">
                             <bdi translate="no">{item.name}</bdi>
                           </div>
+                          {(item.marketClass === 'crypto' || item.marketClass === 'stocks' || item.marketClass === 'metals') && <div onClick={event => event.stopPropagation()} className="mt-1"><AssetExternalLinks symbol={item.symbol} marketClass={item.marketClass} coinGeckoId={item.coinGeckoId} showNarrative={false} /></div>}
                         </div>
                       </div>
 

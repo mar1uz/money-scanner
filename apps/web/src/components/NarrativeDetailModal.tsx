@@ -1,3 +1,4 @@
+import { AssetExternalLinks } from './AssetExternalLinks.js';
 import React, { useState } from 'react';
 import { formatPrice } from '../utils/price.js';
 import { NarrativeSummary, AssetScannerRow, Timeframe } from '../types.js';
@@ -258,6 +259,7 @@ export const NarrativeDetailModal: React.FC<NarrativeDetailModalProps> = ({
                         <span className="text-xs text-slate-400 truncate block font-sans">
                           {asset.name}
                         </span>
+                        <div onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}><AssetExternalLinks symbol={asset.symbol} marketClass={asset.marketClass} showNarrative={false} /></div>
                       </div>
                     </div>
 

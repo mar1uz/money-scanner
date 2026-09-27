@@ -772,6 +772,10 @@ export class AppState {
     return this.dailySmaReclaim.run(now);
   }
 
+  public listMaCrossRetests(limit = 20, before?: string) {
+    return this.maCrossAlerts.listRetests(limit, before);
+  }
+
   public runMaCrossAlertScan(now = Date.now()) {
     return this.maCrossAlerts.run(now);
   }

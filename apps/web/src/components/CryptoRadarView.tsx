@@ -10,6 +10,7 @@ import {
   getRadarTableMinWidth
 } from './crypto-radar-headers.js';
 import { ScanLoadingBar } from './ScanLoadingBar.js';
+import { AssetExternalLinks } from './AssetExternalLinks.js';
 
 interface Payload {
   latest: RadarSnapshot | null;
@@ -577,6 +578,9 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
                               <p className="text-slate-200 text-xs leading-snug">{sec.title}</p>
                             </div>
                           )}
+                        <div onClick={event => event.stopPropagation()} className="mt-1 whitespace-normal">
+                          <AssetExternalLinks symbol={r.symbol} marketClass="crypto" coinGeckoId={r.coinGeckoId || undefined} showNarrative={false} />
+                        </div>
                         <span className="block text-xs text-slate-500 mt-1">
                           {r.symbol} · {r.chain} ·{' '}
                           <button

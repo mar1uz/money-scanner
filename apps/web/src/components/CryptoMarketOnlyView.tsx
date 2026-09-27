@@ -115,7 +115,7 @@ export const CryptoMarketOnlyView: React.FC<{
         </div>
       )}
       {/* Row 3: external actions, one fixed 3-button strip */}
-      <AssetExternalLinks layout="strip" showNarrative={false} symbol={info.symbol} marketClass="crypto" coinGeckoId={info.coinGeckoId} protocolSlugs={data.businessQuality?.asset?.protocolSlugs} contractAddress={dex?.contractAddress} narrative={data.businessQuality?.asset?.narrative || cryptoFundamentals.get(String(info.symbol).toUpperCase())?.narrative} language={language} />
+      <AssetExternalLinks layout="strip" showNarrative={false} symbol={info.symbol} marketClass="crypto" coinGeckoId={info.coinGeckoId} coinPaprikaId={info.coinPaprikaId} protocolSlugs={data.businessQuality?.asset?.protocolSlugs} contractAddress={dex?.contractAddress} narrative={data.businessQuality?.asset?.narrative || cryptoFundamentals.get(String(info.symbol).toUpperCase())?.narrative} language={language} />
     </div>
     <div className="rounded-[30px] border border-white/10 bg-[var(--t-surface)] p-5 sm:p-6">
       <div className="flex flex-wrap items-baseline gap-3">

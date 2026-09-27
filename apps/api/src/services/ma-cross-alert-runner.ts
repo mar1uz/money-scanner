@@ -78,6 +78,24 @@ export interface MaCrossReport {
   error?: string;
 }
 
+export interface MaRetestRecord {
+  id: string;
+  ruleId: string;
+  ruleVersion: number;
+  analyzedDay: string;
+  recordedAt: number;
+  stage: 'daily_stage2' | 'weekly_stage2';
+  symbol: string;
+  marketClass: 'crypto';
+  candleTimestamp: number;
+  close: number;
+  sma50: number;
+  sma200: number;
+  setup?: MaAlertEvent['setup'];
+  rvol?: number;
+  delivery: 'pending' | 'sent' | 'failed' | 'not_configured' | 'interrupted';
+}
+
 /** Orchestrates the daily 08:00 Europe/Oslo 2x2 MA cross/retest alert pass. */
 export class MaCrossAlertRunner {
   private running?: Promise<MaCrossReport>;
@@ -88,6 +106,43 @@ export class MaCrossAlertRunner {
     private readonly marketData: MarketDataService,
     private readonly telegram: TelegramBotHandler
   ) {}
+
+  public async listRetests(limit = 20, before?: string): Promise<{ items: MaRetestRecord[]; nextBefore: string | null }> {
+    const capped = Math.min(50, Math.max(1, Math.floor(limit)));
+    let query = firestore().collection('ma-cross-retest-events').orderBy('recordedAt', 'desc');
+    if (before) {
+      const after = await firestore().collection('ma-cross-retest-events').doc(before).get();
+      if (!after.exists) throw new Error('Retest history cursor unavailable');
+      query = query.startAfter(after);
+    }
+    const result = await query.limit(capped + 1).get();
+    const items = result.docs.slice(0, capped).map(doc => {
+      const row = doc.data() as MaRetestRecord;
+      // A pending marker from an interrupted scan is not evidence of a message sent.
+      return row.delivery === 'pending' && Date.now() - row.recordedAt > 20 * 60_000
+        ? { ...row, delivery: 'interrupted' as const } : row;
+    });
+    return { items, nextBefore: result.size > capped ? items.at(-1)!.id : null };
+  }
+
+  private async recordRetest(analyzedDay: string, event: MaAlertEvent, key: string): Promise<void> {
+    if (event.stage !== 'daily_stage2' && event.stage !== 'weekly_stage2') return;
+    const record: MaRetestRecord = safeJson({
+      id: key, ruleId: MA_CROSS_RULE_ID, ruleVersion: MA_CROSS_RULE_VERSION,
+      analyzedDay, recordedAt: Date.now(),
+      stage: event.stage, symbol: event.symbol, marketClass: event.marketClass,
+      candleTimestamp: event.candleTimestamp, close: event.close,
+      sma50: event.sma50, sma200: event.sma200,
+      ...(event.setup ? { setup: event.setup } : {}),
+      ...(event.rvol !== undefined ? { rvol: event.rvol } : {}),
+      delivery: this.telegram.getDeliveryConfiguration().telegramConfigured ? 'pending' : 'not_configured'
+    });
+    await firestore().collection('ma-cross-retest-events').doc(key).create(record);
+  }
+
+  private async recordRetestDelivery(key: string, status: MaRetestRecord['delivery']): Promise<void> {
+    await firestore().collection('ma-cross-retest-events').doc(key).update({ delivery: status, deliveredAt: Date.now() });
+  }
 
   public run(now = Date.now()): Promise<MaCrossReport> {
     if (this.running) return this.running;
@@ -241,6 +296,32 @@ export class MaCrossAlertRunner {
         if (!rearmed) continue;
       }
       if (!(await this.claimDelivery(key))) continue;
+      if (event.stage === 'daily_stage2' || event.stage === 'weekly_stage2') {
+        try { await this.recordRetest(dayLabel(analyzedTimestamp), event, key); }
+        catch (error) {
+          console.error('Retest event persistence failed; alert not delivered:', error);
+          // A failed create may have committed despite an acknowledgement error.
+          // Keep the claim when the record cannot be read; never send unrecorded.
+          const ref = firestore().collection('ma-cross-retest-events').doc(key);
+          const persisted = await ref.get().catch(() => null);
+          if (persisted?.exists) { fresh.push({ scan, event, key }); continue; }
+          if (persisted) {
+            try {
+              await firestore().runTransaction(async tx => {
+                const claim = firestore().collection('ma-cross-alert-deliveries').doc(key);
+                const rearm = firestore().collection('ma-cross-alert-state').doc(`${event.stage}:${event.symbol}`);
+                const [currentClaim, currentRearm] = await Promise.all([tx.get(claim), tx.get(rearm)]);
+                if (currentClaim.data()?.status !== 'sending') return;
+                tx.delete(claim);
+                if (currentRearm.data()?.awaitingRearm === true && currentRearm.data()?.lastEventKey === `${dayLabel(event.candleTimestamp)}:${event.stage}:${event.symbol}`) {
+                  tx.set(rearm, { awaitingRearm: false }, { merge: true });
+                }
+              });
+            } catch (recoveryError) { console.error('Retest retry state recovery failed:', recoveryError); }
+          }
+          continue;
+        }
+      }
       fresh.push({ scan, event, key });
     }
     return fresh;
@@ -258,10 +339,11 @@ export class MaCrossAlertRunner {
         await ref.set({ lastClose: event.close, lastSma: event.stage === 'daily_stage2' ? event.sma50 : Math.max(event.sma50, event.sma200), updatedAt: Date.now(), expiresAt: Date.now() + RETENTION_MS }, { merge: true });
         return false;
       }
-      await ref.set({ awaitingRearm: true, lastClose: event.close, lastSma: event.stage === 'daily_stage2' ? event.sma50 : Math.max(event.sma50, event.sma200), updatedAt: Date.now(), expiresAt: Date.now() + RETENTION_MS }, { merge: true });
+      await ref.set({ awaitingRearm: true, lastEventKey: `${dayLabel(event.candleTimestamp)}:${event.stage}:${event.symbol}`, lastClose: event.close, lastSma: event.stage === 'daily_stage2' ? event.sma50 : Math.max(event.sma50, event.sma200), updatedAt: Date.now(), expiresAt: Date.now() + RETENTION_MS }, { merge: true });
       return true;
-    } catch {
-      return true;
+    } catch (error) {
+      console.error("MA retest rearm state unavailable:", error);
+      return false;
     }
   }
 
@@ -274,8 +356,9 @@ export class MaCrossAlertRunner {
         transaction.create(ref, { status: 'sending', updatedAt: Date.now(), expiresAt: Date.now() + RETENTION_MS });
         return true;
       });
-    } catch {
-      return true;
+    } catch (error) {
+      console.error('MA delivery claim unavailable:', error);
+      return false;
     }
   }
 
@@ -362,6 +445,8 @@ export class MaCrossAlertRunner {
       lines.push('', regimeLine, disclaimer);
       const sent = await this.sendParts(lines.join('\n'));
       await this.finishDelivery(key, sent ? 'sent' : 'failed');
+      try { await this.recordRetestDelivery(key, sent ? 'sent' : 'failed'); }
+      catch (error) { console.error('Retest delivery persistence failed:', error); }
       if (sent) report.deliveries.individual += 1;
       else report.deliveries.failed += 1;
     }

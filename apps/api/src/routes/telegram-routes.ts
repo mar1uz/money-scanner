@@ -553,6 +553,24 @@ telegramRouter.post('/alerts/structure-scanner/scheduled', async (req, res) => {
   return res.json(report);
 });
 
+// Indexed history is separate from the heavy alerts dashboard and never scans on read.
+telegramRouter.get('/alerts/ma-retests', async (req: AuthenticatedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
+  const limit = Number(req.query.limit ?? 20);
+  const before = req.query.before === undefined ? undefined : String(req.query.before);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 50 || (before !== undefined && !/^MA_2X2_CROSS_RETEST:[0-9-]{10}:\w+:[A-Za-z0-9_-]+:[0-9-]{10}$/.test(before))) {
+    return res.status(400).json({ error: 'Invalid retest history cursor or limit.' });
+  }
+  try {
+    const records = await AppState.getInstance().listMaCrossRetests(limit, before);
+    res.set('Cache-Control', 'no-store');
+    return res.json(records);
+  } catch (error) {
+    console.error('Retest history read failed:', error);
+    return res.status(503).json({ error: 'Retest history unavailable.' });
+  }
+});
+
 // Dedicated Cloud Scheduler target for the 2x2 MA cross/retest daily pass.
 telegramRouter.post('/alerts/ma-cross/scheduled', async (req, res) => {
   if (!validateScheduledRequestToken(req.get('x-daily-scan-token'))) {

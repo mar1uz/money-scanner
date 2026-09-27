@@ -4646,3 +4646,11 @@ Marius: bara trebuie să se umple pe măsură ce se scanează asseturi și să a
 - Bara de scanare: lățimea e `scanate / total`, eticheta e `42/150`, fără animație care umple din nimic. Numărul include și asseturile eșuate, ca să ajungă la total. Progresul se scrie pe documentul de scanare, ca un poll pe altă instanță să vadă același număr.
 - Dacă încărcarea eșuează, acoperirea arată „—”, nu 0/0. Mesajul de timeout e în română, tradus în engleză.
 - Teste: `scan-loading-bar.test.ts` + `daily-regime-scan.test.ts` 29/29; `i18n-coverage.test.ts` 3/3. Commit `b3d8e08`. Deploy: Cloud Build `696a1dee` din `b3d8e08`, SUCCESS. Revision `market-scanner-360-00284-sxv` la 100%. `/api/health` 200 pe ambele URL-uri.
+
+## Step 159 - 2026-09-27 - Ask AI/asset controls/retest batch (LOCAL; not deployed)
+
+Marius withdrew scan-on-entry; morning warmup and manual Rescan remain. Top Alpha displays the real generatedAt. Alerte has a separate collapsible/paginated SMA50/200 retest history; new stage-2 events are persisted create-only by key with honest delivery states, no backfill. Unknown event-write outcome preserves the sending claim; confirmed absence permits claim/rearm reset. Failed Telegram send is logged, not retried.
+
+Paired TradingView/CoinGecko or Yahoo and Ask AI controls cover verified asset rows/panels across Top Alpha, BQ, Alerte, Radar, Bubble/Heatmap lists, asset detail, AI Briefing, search, scanner table, and narrative detail. Spatial tiles remain navigation. Authenticated CSRF POST queues a deduped Firestore Ask AI request; registration does not mean WhatsApp delivery. Marius approved a public pending boolean at 11:53:53; its GET returns only pending true/false with generic 503 on failure. Main owns the five-minute watcher. No Doc publisher/Drive scope.
+
+API/web builds pass; web 102/106 (four known PONS/DEX failures), MA evaluator 10/10, Alerte persistence 5/5 and public flag integration test pass. Full API suite interrupted by CoinGecko 429. Mobile/desktop fixture pixels inspected, not signed-in app. One combined deploy, production smoke, ETH demonstration and full signed-in visual pass remain open. No money/trading changes.

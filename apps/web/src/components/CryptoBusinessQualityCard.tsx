@@ -16,6 +16,7 @@ import {
 import type { CryptoFourCriteriaScan, CryptoFourCriteriaAsset, CryptoCriteriaStatus } from '../types.js';
 import { fetchCryptoFourCriteriaScan } from '../services/api.js';
 import { useLanguage } from '../i18n.js';
+import { AssetExternalLinks } from './AssetExternalLinks.js';
 
 /* ─────────────────────────────────────────────────────────
    Lookup helper — exported for unit-testing without DOM
@@ -235,6 +236,7 @@ export const CryptoBusinessQualityCard: React.FC<CryptoBusinessQualityCardProps>
 
   return (
     <div className="rounded-[30px] bg-[var(--t-surface)] border border-cyan-500/20 shadow-lg overflow-hidden">
+      <AssetExternalLinks className="px-4 pt-3" symbol={symbol} marketClass="crypto" coinGeckoId={coinGeckoId} showNarrative={false} />
       {/* ── Compact Header (always visible) ── */}
       <button
         onClick={() => setExpanded(prev => !prev)}

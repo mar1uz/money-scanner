@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Check, Copy, ExternalLink } from 'lucide-react';
 import { NarrativeTag } from './NarrativeTag.js';
+import { AskAiButton } from './AskAiButton.js';
 
 // Manual fallback buttons on every coin page (Marius, 2026-09-23): TradingView,
 // DefiLlama and "copy contract address", shown whether or not the in-app chart
@@ -10,6 +11,7 @@ interface Props {
   symbol: string;
   marketClass?: string;
   coinGeckoId?: string;
+  coinPaprikaId?: string;
   /** DefiLlama protocol slug(s) from the business-quality scan, when known. */
   protocolSlugs?: string[];
   /** Contract address already known (DEX fallback). */
@@ -24,6 +26,7 @@ interface Props {
   showNarrative?: boolean;
   /** Set false on the asset page: its header already has the TradingView button (Marius, 2026-09-24). */
   showTradingView?: boolean;
+  showAskAi?: boolean;
 }
 
 interface Identifier { value: string; kind: 'contract' | 'coingecko' | 'symbol'; chain?: string }
@@ -66,7 +69,7 @@ export const defiLlamaUrl = (symbol: string, protocolSlugs?: string[]) => {
     : `https://defillama.com/token/${encodeURIComponent(symbol.toLowerCase())}`;
 };
 
-export const AssetExternalLinks: React.FC<Props> = ({ symbol, marketClass, coinGeckoId, protocolSlugs, contractAddress, language = 'ro', className = '', narrative, layout = 'wrap', showNarrative = true, showTradingView = true }) => {
+export const AssetExternalLinks: React.FC<Props> = ({ symbol, marketClass, coinGeckoId, coinPaprikaId, protocolSlugs, contractAddress, language = 'ro', className = '', narrative, layout = 'wrap', showNarrative = true, showTradingView = true, showAskAi = true }) => {
   const strip = layout === 'strip';
   const isRo = language === 'ro';
   const isCrypto = marketClass === 'crypto' || !marketClass;
@@ -116,16 +119,19 @@ export const AssetExternalLinks: React.FC<Props> = ({ symbol, marketClass, coinG
     window.setTimeout(() => setCopied(false), 1600);
   };
 
-  if (!isCrypto && !showTradingView) return null;
+  if (!isCrypto && !showTradingView && !showAskAi) return null;
 
   const btn = 'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition-all whitespace-nowrap';
   const stripBtn = `${btn} w-full min-w-0 justify-center px-1.5`;
   return (
-    <div className={strip ? `grid grid-cols-3 gap-2 ${className}` : `flex flex-wrap items-center gap-2 ${className}`}>
+    <div className={strip ? `grid grid-cols-2 gap-2 ${className}` : `flex flex-wrap items-center gap-2 ${className}`}>
       {isCrypto && showNarrative && !strip && <NarrativeTag narrative={narrative} className="py-1.5 text-[11px]" />}
       {showTradingView && <a href={tradingViewUrl(symbol, marketClass)} target="_blank" rel="noopener noreferrer" className={`${strip ? stripBtn : btn} border-blue-500/30 bg-blue-500/[0.08] text-blue-200 hover:bg-blue-500/[0.16]`}>
         TradingView <ExternalLink className="h-3 w-3 shrink-0" />
       </a>}
+      {showAskAi && <AskAiButton symbol={symbol} marketClass={marketClass === 'stocks' ? 'stocks' : marketClass === 'metals' ? 'metals' : 'crypto'} coinGeckoId={coinGeckoId} />}
+      {!isCrypto && <a href={`https://finance.yahoo.com/lookup/?s=${encodeURIComponent(symbol)}`} target="_blank" rel="noopener noreferrer" className={`${strip ? stripBtn : btn} border-amber-500/30 text-amber-200`}>Yahoo Finance <ExternalLink className="h-3 w-3" /></a>}
+      {isCrypto && !coinPaprikaId && <a href={coinGeckoId ? `https://www.coingecko.com/en/coins/${encodeURIComponent(coinGeckoId)}` : `https://www.coingecko.com/en/search?query=${encodeURIComponent(symbol)}`} title={coinGeckoId ? 'Profil CoinGecko exact' : 'Caută pe CoinGecko · identitate neverificată'} target="_blank" rel="noopener noreferrer" className={`${strip ? stripBtn : btn} border-emerald-500/30 text-emerald-200`}>CoinGecko <ExternalLink className="h-3 w-3" /></a>}
       {isCrypto && (
         <a href={defiLlamaUrl(symbol, protocolSlugs)} target="_blank" rel="noopener noreferrer" className={`${strip ? stripBtn : btn} border-violet-500/30 bg-violet-500/[0.08] text-violet-200 hover:bg-violet-500/[0.16]`}>
           DefiLlama <ExternalLink className="h-3 w-3 shrink-0" />

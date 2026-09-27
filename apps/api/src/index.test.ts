@@ -28,6 +28,28 @@ describe('API Server Integration Tests', () => {
     await new Promise<void>(resolve => server.close(() => resolve()));
   });
 
+  it('keeps the public Ask AI queue response to one boolean without leaking request data', async () => {
+    const savedMode = process.env.NODE_ENV;
+    const savedBypass = process.env.AUTH_TEST_BYPASS;
+    process.env.NODE_ENV = 'production';
+    delete process.env.AUTH_TEST_BYPASS;
+    const server = http.createServer(createServer());
+    await new Promise<void>(resolve => server.listen(0, resolve));
+    const port = (server.address() as any).port;
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/api/ai/ask-queue/status`);
+      assert.ok([200, 503].includes(res.status));
+      const body = await res.json() as Record<string, unknown>;
+      assert.deepEqual(Object.keys(body), res.status === 200 ? ['pending'] : ['error']);
+      if (res.status === 200) assert.equal(typeof body.pending, 'boolean');
+      assert.match(res.headers.get('cache-control') || '', /no-store/);
+    } finally {
+      await new Promise<void>(resolve => server.close(() => resolve()));
+      process.env.NODE_ENV = savedMode;
+      if (savedBypass) process.env.AUTH_TEST_BYPASS = savedBypass;
+    }
+  });
+
   it('rejects protected market data when no authenticated session is present', async () => {
     const savedMode = process.env.NODE_ENV;
     const savedBypass = process.env.AUTH_TEST_BYPASS;

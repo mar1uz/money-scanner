@@ -3,6 +3,7 @@ import { BookOpen, CheckCircle2, Globe, Layers, ShieldCheck, Sparkles } from 'lu
 import { getAssetProfile } from '@money-scanner/shared';
 import type { AIContentTake } from '@money-scanner/shared';
 import { useLanguage } from '../i18n.js';
+import { AssetExternalLinks } from './AssetExternalLinks.js';
 
 interface AssetProfileOverviewCardProps {
   symbol: string;
@@ -69,6 +70,8 @@ export const AssetProfileOverviewCard: React.FC<AssetProfileOverviewCardProps> =
           </span>
         </div>
       </div>
+
+      <AssetExternalLinks symbol={symbol} marketClass={marketClass} coinGeckoId={coinGeckoId} showNarrative={false} />
 
       {instinctTake && (
         <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.08] space-y-2">
