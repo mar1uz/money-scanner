@@ -4654,3 +4654,13 @@ Marius withdrew scan-on-entry; morning warmup and manual Rescan remain. Top Alph
 Paired TradingView/CoinGecko or Yahoo and Ask AI controls cover verified asset rows/panels across Top Alpha, BQ, Alerte, Radar, Bubble/Heatmap lists, asset detail, AI Briefing, search, scanner table, and narrative detail. Spatial tiles remain navigation. Authenticated CSRF POST queues a deduped Firestore Ask AI request; registration does not mean WhatsApp delivery. Marius approved a public pending boolean at 11:53:53; its GET returns only pending true/false with generic 503 on failure. Main owns the five-minute watcher. No Doc publisher/Drive scope.
 
 API/web builds pass; web 102/106 (four known PONS/DEX failures), MA evaluator 10/10, Alerte persistence 5/5 and public flag integration test pass. Full API suite interrupted by CoinGecko 429. Mobile/desktop fixture pixels inspected, not signed-in app. One combined deploy, production smoke, ETH demonstration and full signed-in visual pass remain open. No money/trading changes.
+
+## Step 160 - 2026-09-28 - Banda de deasupra graficului, compactă (local, nedeployat)
+
+Marius a aprobat preview-ul: banda de pe pagina de asset ocupă prea mult pe telefon. CoinGecko era de două ori, iar linkurile se înfășurau peste grafic.
+
+- Timeframe-ul stă pe un rând, pe toată lățimea pe telefon. Bullish și vârsta sunt text, nu butoane. Steaua, clopoțelul și reîncărcarea rămân la un tap.
+- CoinGecko, DefiLlama, Ask AI, TradingView și copierea ID-ului stau într-un meniu (trei puncte). Meniul împinge graficul, nu îl acoperă. TradingView tot deschide tabul din grafic, nu un link extern.
+- L1 stă lângă rang, pentru că e categorie. CoinGecko apare o dată.
+- Vârsta scurtă din bară (`acum 14z 6h`) se traduce. Forma lungă rămâne în tooltip.
+- Test: `flip-age-short.test.ts` 1/1. Traducerile noi verificate. Deploy-ul așteaptă acordul.

@@ -20,8 +20,8 @@ interface Props {
   className?: string;
   /** Main narrative tag; crypto shows "Crypto" when unknown. */
   narrative?: string;
-  /** 'wrap' (default): free-flowing row. 'strip': one fixed 3-button row, mobile-first. */
-  layout?: 'wrap' | 'strip';
+  /** 'wrap' (default): free-flowing row. 'strip': one fixed row. 'menu': full-width rows for the asset link menu. */
+  layout?: 'wrap' | 'strip' | 'menu';
   /** Set false when the caller renders the narrative tag elsewhere (e.g. the meta line). */
   showNarrative?: boolean;
   /** Set false on the asset page: its header already has the TradingView button (Marius, 2026-09-24). */
@@ -71,6 +71,7 @@ export const defiLlamaUrl = (symbol: string, protocolSlugs?: string[]) => {
 
 export const AssetExternalLinks: React.FC<Props> = ({ symbol, marketClass, coinGeckoId, coinPaprikaId, protocolSlugs, contractAddress, language = 'ro', className = '', narrative, layout = 'wrap', showNarrative = true, showTradingView = true, showAskAi = true }) => {
   const strip = layout === 'strip';
+  const menu = layout === 'menu';
   const isRo = language === 'ro';
   const isCrypto = marketClass === 'crypto' || !marketClass;
   const [fetched, setFetched] = useState<{ address: string; chain: string } | null>(null);
@@ -123,6 +124,24 @@ export const AssetExternalLinks: React.FC<Props> = ({ symbol, marketClass, coinG
 
   const btn = 'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition-all whitespace-nowrap';
   const stripBtn = `${btn} w-full min-w-0 justify-center px-1.5`;
+  const menuRow = 'flex h-11 w-full min-h-0 items-center justify-between gap-2 border-b border-[var(--t-line)] px-3 text-left text-sm font-semibold text-[var(--t-text)] last:border-b-0';
+  if (menu) {
+    return (
+      <>
+        {showTradingView && <a href={tradingViewUrl(symbol, marketClass)} target="_blank" rel="noopener noreferrer" className={menuRow}>TradingView <ExternalLink className="h-3.5 w-3.5 shrink-0 text-[var(--t-muted)]" /></a>}
+        {showAskAi && <AskAiButton variant="row" symbol={symbol} marketClass={marketClass === 'stocks' ? 'stocks' : marketClass === 'metals' ? 'metals' : 'crypto'} coinGeckoId={coinGeckoId} />}
+        {!isCrypto && <a href={`https://finance.yahoo.com/lookup/?s=${encodeURIComponent(symbol)}`} target="_blank" rel="noopener noreferrer" className={menuRow}>Yahoo Finance <ExternalLink className="h-3.5 w-3.5 shrink-0 text-[var(--t-muted)]" /></a>}
+        {isCrypto && !coinPaprikaId && <a href={coinGeckoId ? `https://www.coingecko.com/en/coins/${encodeURIComponent(coinGeckoId)}` : `https://www.coingecko.com/en/search?query=${encodeURIComponent(symbol)}`} title={coinGeckoId ? 'Profil CoinGecko exact' : 'Caută pe CoinGecko · identitate neverificată'} target="_blank" rel="noopener noreferrer" className={menuRow}>CoinGecko <ExternalLink className="h-3.5 w-3.5 shrink-0 text-[var(--t-muted)]" /></a>}
+        {isCrypto && <a href={defiLlamaUrl(symbol, protocolSlugs)} target="_blank" rel="noopener noreferrer" className={menuRow}>DefiLlama <ExternalLink className="h-3.5 w-3.5 shrink-0 text-[var(--t-muted)]" /></a>}
+        {isCrypto && (
+          <button type="button" onClick={() => void copy()} aria-label={copyLabel} title={`${copyLabel}: ${identifier.chain ? `${identifier.chain}: ` : ''}${identifier.value}`} className={menuRow}>
+            <span>{copied ? (isRo ? 'Copiat' : 'Copied') : copyLabel}</span>
+            {copied ? <Check className="h-3.5 w-3.5 shrink-0" /> : <Copy className="h-3.5 w-3.5 shrink-0 text-[var(--t-muted)]" />}
+          </button>
+        )}
+      </>
+    );
+  }
   return (
     <div className={strip ? `grid grid-cols-2 gap-2 ${className}` : `flex flex-wrap items-center gap-2 ${className}`}>
       {isCrypto && showNarrative && !strip && <NarrativeTag narrative={narrative} className="py-1.5 text-[11px]" />}

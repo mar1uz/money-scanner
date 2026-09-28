@@ -15,6 +15,8 @@ import { UnverifiedCandlesBadge } from './UnverifiedCandlesBadge.js';
 import { AssetLoadFailureNotice, classifyAssetLoadFailure, type AssetLoadFailure } from './AssetLoadFailureNotice.js';
 import { AssetExternalLinks } from './AssetExternalLinks.js';
 import { AskAiButton } from './AskAiButton.js';
+import { NarrativeTag } from './NarrativeTag.js';
+import { formatFlipAgeShort } from './flip-age.js';
 import { useCryptoFundamentals } from '../services/crypto-fundamentals.js';
 import {
   ArrowLeft,
@@ -37,7 +39,8 @@ import {
   ChevronRight,
   TrendingDown,
   RefreshCw,
-  Twitter
+  Twitter,
+  MoreHorizontal
 } from 'lucide-react';
 
 interface AssetDeepDiveViewProps {
@@ -142,6 +145,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   const [alertSent, setAlertSent] = useState(false);
   const [activeInfoTab, setActiveInfoTab] = useState<InfoTab>('ai');
   const [chartTab, setChartTab] = useState<'chart' | 'tv_embed' | 'pinescript'>('chart');
+  const [linksOpen, setLinksOpen] = useState(false);
   const { language } = useLanguage();
   const cryptoFundamentals = useCryptoFundamentals();
   const [showFlipTooltip, setShowFlipTooltip] = useState(false);
@@ -172,6 +176,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
     setHasMoreHistory(true);
     setLoadingOlderHistory(false);
     historyRequestActiveRef.current = false;
+    setLinksOpen(false);
     loadData();
     window.scrollTo({ top: 0, behavior: 'smooth' });
     return () => { detailRequestRef.current++; };
@@ -274,7 +279,6 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   const biasColor = isBull ? 'text-emerald-400' : (isBear ? 'text-rose-400' : 'text-slate-400');
   const biasDotColor = isBull ? 'bg-emerald-400' : (isBear ? 'bg-rose-400' : 'bg-slate-500');
   const biasLabel = isBull ? 'Bullish' : (isBear ? 'Bearish' : 'Neutral');
-  const biasBorderColor = isBull ? 'border-emerald-500/30' : (isBear ? 'border-rose-500/30' : 'border-slate-700');
   const resolvedMarketClass = marketClass || data?.info?.marketClass;
   const resolvedCoinGeckoId = coinGeckoId || data?.info?.coinGeckoId;
   const coinGeckoUrl = resolvedCoinGeckoId
@@ -354,115 +358,81 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
           ZONE 1 — Sticky Compact Header
           ═══════════════════════════════════════════════════════════════════ */}
       <div className="asset-header-sticky px-4 sm:px-6 py-3 mb-4 -mx-4 lg:-mx-8">
-        <div className="flex flex-col gap-2.5 max-w-[1600px] mx-auto sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <div className="mx-auto flex max-w-[1600px] flex-col gap-2">
 
-          {/* Left: Back + Asset Identity + Price */}
-          <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:gap-3">
+          <div className="flex w-full min-w-0 items-center gap-2">
             <button
               onClick={onBack}
-              className="p-2 rounded-lg text-slate-400 hover:text-cyan-300 hover:bg-white/[0.04] transition-all shrink-0"
+              className="min-h-0 shrink-0 rounded-lg p-2 text-slate-400 transition-all hover:bg-white/[0.04] hover:text-cyan-300"
               title="Înapoi la Scanner"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
 
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 sm:flex-nowrap">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
               {marketCapRank !== null && (
                 <span
-                  className="px-1.5 py-0.5 rounded-md border border-cyan-500/30 bg-cyan-500/10 font-mono text-[11px] font-bold text-cyan-300 shrink-0"
+                  className="shrink-0 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[11px] font-bold text-cyan-300"
                   title={`Locul #${marketCapRank} în clasamentul după Market Cap`}
                 >
                   #{marketCapRank}
                 </span>
               )}
-              <span className="text-sm font-bold text-slate-100 font-mono shrink-0">
+              {resolvedMarketClass === 'crypto' && (
+                <NarrativeTag narrative={data?.businessQuality?.asset?.narrative || cryptoFundamentals.get(symbol.toUpperCase())?.narrative} className="py-0.5" />
+              )}
+              <span className="shrink-0 font-mono text-sm font-bold text-slate-100">
                 ${symbol}
               </span>
-              <span className="text-sm text-slate-400 font-sans truncate hidden sm:inline">
+              <span className="hidden truncate font-sans text-sm text-slate-400 sm:inline">
                 {data?.info?.name || symbol}
               </span>
-              <span className="text-sm font-bold text-slate-100 font-mono shrink-0">
+              <span className="shrink-0 font-mono text-sm font-bold text-slate-100">
                 ${formatPrice(quote?.price)}
               </span>
-              <span className={`text-xs font-bold font-mono shrink-0 ${quote?.change24h >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              <span className={`shrink-0 font-mono text-xs font-bold ${quote?.change24h >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {quote?.change24h >= 0 ? `+${quote?.change24h}%` : `${quote?.change24h}%`}
               </span>
               {quote?.changeYtd !== undefined && (
-                <span className={`text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md border shrink-0 hidden md:inline-flex items-center gap-1 ${
-                  quote.changeYtd >= 0 
-                    ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' 
-                    : 'bg-rose-500/10 text-rose-300 border-rose-500/20'
+                <span className={`hidden shrink-0 items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-[11px] font-semibold md:inline-flex ${
+                  quote.changeYtd >= 0
+                    ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+                    : 'border-rose-500/20 bg-rose-500/10 text-rose-300'
                 }`}>
-                  <span className="text-slate-400 font-normal">YTD:</span>
+                  <span className="font-normal text-slate-400">YTD:</span>
                   <span>{quote.changeYtd >= 0 ? `+${quote.changeYtd}%` : `${quote.changeYtd}%`}</span>
                 </span>
               )}
               {effectiveMarketCap > 0 && (
-                <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md border shrink-0 sm:hidden inline-flex items-center gap-1 border-white/[0.08] bg-white/[0.03] text-slate-300">
-                  <span className="text-slate-400 font-normal">MCap:</span>
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-300 sm:hidden">
+                  <span className="font-normal text-slate-400">MCap:</span>
                   <span className="font-bold text-cyan-300">{formatMarketCap(effectiveMarketCap)}</span>
                 </span>
               )}
             </div>
 
-            {/* Bias Badge with Flip Tooltip */}
-            <div className="relative shrink-0 hidden sm:block">
-              <button
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-semibold border transition-all ${biasBorderColor} bg-white/[0.03]`}
-                onMouseEnter={() => setShowFlipTooltip(true)}
-                onMouseLeave={() => setShowFlipTooltip(false)}
-                onClick={() => setShowFlipTooltip(prev => !prev)}
-              >
-                <span className={`w-2 h-2 rounded-full ${biasDotColor}`}></span>
-                <span className={biasColor}>{biasLabel}</span>
-                <span className="text-slate-400">{forceScore > 0 ? `+${forceScore}` : forceScore}</span>
-              </button>
-
-              {/* Flip Timer Tooltip */}
-              {showFlipTooltip && (
-                <div className="absolute top-full left-0 mt-2 z-50 w-64 p-3 rounded-xl bg-background-card border border-white/[0.08] shadow-elevated font-mono text-xs space-y-1.5 animate-fade-in">
-                  <div className="flex items-center gap-1.5 text-slate-300">
-                    <span className="text-[10px] uppercase tracking-wider text-slate-500">Flip ({timeframe.toUpperCase()})</span>
-                  </div>
-                  <div className={`font-semibold ${biasColor}`}>
-                    {formatFlipAge(currentTfSignal?.transitionTime)}
-                  </div>
-                  {flipTimeFormatted && (
-                    <div className="text-slate-500 text-[11px]">
-                      Confirmat: {flipTimeFormatted}
-                    </div>
-                  )}
-                  <div className="text-slate-500 text-[11px]">
-                    Tier: {currentTfSignal?.tier || 'Neutral'}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Market Cap Badge (where the red arrow points in the screenshot!) */}
             {effectiveMarketCap > 0 && (
               <div
-                className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-semibold border border-white/[0.08] bg-white/[0.03] text-slate-300 shrink-0"
+                className="hidden shrink-0 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 font-mono text-xs font-semibold text-slate-300 sm:inline-flex"
                 title={`Capitalizare de piață: $${effectiveMarketCap.toLocaleString('en-US')}`}
               >
-                <span className="text-slate-500 font-normal text-[10px] uppercase">MCap:</span>
+                <span className="text-[10px] font-normal uppercase text-slate-500">MCap:</span>
                 <span className="font-bold text-cyan-300">{formatMarketCap(effectiveMarketCap)}</span>
               </div>
             )}
           </div>
 
-          {/* Right: Timeframe pills + Actions */}
-          <div className="flex w-full min-w-0 items-center gap-1.5 sm:w-auto sm:shrink-0 sm:gap-2">
-            {/* Timeframe pills */}
-            <div className="flex min-w-0 flex-1 items-center rounded-lg border border-white/[0.06] bg-white/[0.03] p-0.5 sm:flex-none">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex w-full min-w-0 items-center rounded-lg border border-[var(--t-line)] bg-[var(--t-surface)] p-0.5 sm:w-auto sm:min-w-[16rem]" role="group" aria-label="Timeframe">
               {(['1h', '4h', '8h', '1d', '1w', '1m'] as Timeframe[]).map((tf) => (
                 <button
                   key={tf}
+                  type="button"
                   onClick={() => onTimeframeChange(tf)}
-                  className={`min-w-0 flex-1 px-1.5 py-1 text-[10px] font-mono rounded-md transition-all sm:flex-none sm:px-2.5 sm:text-[11px] ${
+                  className={`min-h-0 min-w-0 flex-1 rounded-md px-2 py-1.5 font-mono text-xs transition-all sm:flex-none sm:px-2.5 ${
                     timeframe === tf
-                      ? 'bg-cyan-500/15 text-cyan-300 font-bold'
-                      : 'text-slate-500 hover:text-slate-300'
+                      ? 'bg-cyan-500/15 font-bold text-cyan-300'
+                      : 'font-semibold text-slate-500 hover:text-slate-300'
                   }`}
                 >
                   {tf.toUpperCase()}
@@ -470,86 +440,111 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
               ))}
             </div>
 
-            {/* Action icons */}
-            {resolvedMarketClass === 'crypto' && (
-              <a
-                href={coinGeckoUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-emerald-500/25 bg-emerald-500/[0.08] text-[10px] font-bold text-emerald-200 hover:bg-emerald-500/[0.14] transition-all"
-                title={resolvedCoinGeckoId ? 'Deschide pagina exactă CoinGecko' : 'Caută activul pe CoinGecko'}
+            <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+              <button
+                type="button"
+                className="relative flex min-h-0 min-w-0 items-center gap-2 bg-transparent p-0 text-left"
+                onClick={() => setShowFlipTooltip(prev => !prev)}
+                onMouseEnter={() => setShowFlipTooltip(true)}
+                onMouseLeave={() => setShowFlipTooltip(false)}
               >
-                CoinGecko <ExternalLink className="w-3 h-3" />
-              </a>
-            )}
-            <AskAiButton symbol={symbol} marketClass={resolvedMarketClass === 'stocks' ? 'stocks' : resolvedMarketClass === 'metals' ? 'metals' : 'crypto'} coinGeckoId={resolvedMarketClass === 'crypto' ? resolvedCoinGeckoId : undefined} />
-            <button
-              onClick={() => onToggleWatchlist(symbol)}
-              className={`shrink-0 p-1.5 sm:p-2 rounded-lg transition-all ${
-                isInWatchlist
-                  ? 'text-amber-300 hover:bg-amber-500/10'
-                  : 'text-slate-500 hover:text-slate-300 hover:bg-white/[0.04]'
-              }`}
-              title={isInWatchlist ? 'Scoate din Watchlist' : 'Adaugă în Watchlist'}
-            >
-              <Star className={`w-4 h-4 ${isInWatchlist ? 'fill-amber-300' : ''}`} />
-            </button>
+                <span className={`h-2 w-2 shrink-0 rounded-full ${biasDotColor}`}></span>
+                <span className={`shrink-0 font-mono text-[13px] font-bold ${biasColor}`}>{biasLabel} {forceScore > 0 ? `+${forceScore}` : forceScore}</span>
+                <span className="truncate font-mono text-xs text-[var(--t-muted)]">{formatFlipAgeShort(currentTfSignal?.transitionTime)}</span>
+                {showFlipTooltip && (
+                  <div className="absolute left-0 top-full z-50 mt-2 w-64 animate-fade-in space-y-1.5 rounded-xl border border-white/[0.08] bg-background-card p-3 font-mono text-xs shadow-elevated">
+                    <div className="flex items-center gap-1.5 text-slate-300">
+                      <span className="text-[10px] uppercase tracking-wider text-slate-500">Flip ({timeframe.toUpperCase()})</span>
+                    </div>
+                    <div className={`font-semibold ${biasColor}`}>
+                      {formatFlipAge(currentTfSignal?.transitionTime)}
+                    </div>
+                    {flipTimeFormatted && (
+                      <div className="text-[11px] text-slate-500">
+                        Confirmat: {flipTimeFormatted}
+                      </div>
+                    )}
+                    <div className="text-[11px] text-slate-500">
+                      Tier: {currentTfSignal?.tier || 'Neutral'}
+                    </div>
+                  </div>
+                )}
+              </button>
 
-            <button
-              onClick={handleSendAlert}
-              className={`shrink-0 p-1.5 sm:p-2 rounded-lg transition-all ${
-                alertSent
-                  ? 'text-emerald-400 bg-emerald-500/10'
-                  : 'text-slate-500 hover:text-cyan-300 hover:bg-white/[0.04]'
-              }`}
-              title={alertSent ? 'Alertă trimisă!' : 'Trimite alertă Telegram'}
-            >
-              <BellRing className="w-4 h-4" />
-            </button>
-
-            <button
-              onClick={loadData}
-              className="shrink-0 p-1.5 sm:p-2 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/[0.04] transition-all"
-              title="Refresh"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
+              <div className="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => onToggleWatchlist(symbol)}
+                  className={`inline-flex h-9 w-9 min-h-0 items-center justify-center rounded-lg border border-[var(--t-line)] bg-[var(--t-surface)] ${
+                    isInWatchlist ? 'text-amber-300' : 'text-[var(--t-text-2)]'
+                  }`}
+                  title={isInWatchlist ? 'Scoate din Watchlist' : 'Adaugă în Watchlist'}
+                  aria-label={isInWatchlist ? 'Scoate din Watchlist' : 'Adaugă în Watchlist'}
+                >
+                  <Star className={`h-4 w-4 ${isInWatchlist ? 'fill-amber-300' : ''}`} />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSendAlert}
+                  className={`inline-flex h-9 w-9 min-h-0 items-center justify-center rounded-lg border border-[var(--t-line)] bg-[var(--t-surface)] ${
+                    alertSent ? 'text-emerald-400' : 'text-[var(--t-text-2)]'
+                  }`}
+                  title={alertSent ? 'Alertă trimisă!' : 'Trimite alertă Telegram'}
+                  aria-label={alertSent ? 'Alertă trimisă!' : 'Trimite alertă Telegram'}
+                >
+                  <BellRing className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={loadData}
+                  className="inline-flex h-9 w-9 min-h-0 items-center justify-center rounded-lg border border-[var(--t-line)] bg-[var(--t-surface)] text-[var(--t-text-2)]"
+                  title="Refresh"
+                  aria-label="Refresh"
+                >
+                  <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLinksOpen(open => !open)}
+                  className={`inline-flex h-9 w-9 min-h-0 items-center justify-center rounded-lg border bg-[var(--t-surface)] text-[var(--t-text)] ${
+                    linksOpen ? 'border-[var(--t-line-strong)]' : 'border-[var(--t-line)]'
+                  }`}
+                  aria-expanded={linksOpen}
+                  aria-label={linksOpen ? 'Închide linkurile' : 'Linkuri'}
+                  title={linksOpen ? 'Închide linkurile' : 'Linkuri'}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* Mobile: Bias badge row (visible only on small screens) */}
-        <div className="flex items-center gap-2 mt-2 sm:hidden max-w-[1600px] mx-auto">
-          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-semibold border ${biasBorderColor} bg-white/[0.03]`}>
-            <span className={`w-2 h-2 rounded-full ${biasDotColor}`}></span>
-            <span className={biasColor}>{biasLabel} {forceScore > 0 ? `+${forceScore}` : forceScore}</span>
-          </div>
-          <span className="text-[11px] text-slate-500 font-mono">
-            {formatFlipAge(currentTfSignal?.transitionTime)}
-          </span>
-          <button
-            onClick={() => setChartTab('tv_embed')}
-            title="Deschide graficul TradingView extern"
-            className={`ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold whitespace-nowrap transition-all ${
-              chartTab === 'tv_embed'
-                ? 'border-blue-500/50 bg-blue-500/20 text-blue-100'
-                : 'border-blue-500/30 bg-blue-500/[0.08] text-blue-200 hover:bg-blue-500/[0.16]'
-            }`}
-          >
-            TradingView <ExternalLink className="h-3 w-3 shrink-0" />
-          </button>
+          {linksOpen && (
+            <div className="overflow-hidden rounded-xl border border-[var(--t-line)] bg-[var(--t-surface)]">
+              <AskAiButton variant="row" symbol={symbol} marketClass={resolvedMarketClass === 'stocks' ? 'stocks' : resolvedMarketClass === 'metals' ? 'metals' : 'crypto'} coinGeckoId={resolvedMarketClass === 'crypto' ? resolvedCoinGeckoId : undefined} />
+              <button
+                type="button"
+                onClick={() => setChartTab('tv_embed')}
+                className="flex h-11 w-full min-h-0 items-center justify-between border-b border-[var(--t-line)] bg-transparent px-3 text-left text-sm font-semibold text-[var(--t-text)]"
+              >
+                <span>TradingView</span>
+                <span className="text-xs font-medium text-[var(--t-muted)]">tabul din grafic</span>
+              </button>
+              <AssetExternalLinks
+                layout="menu"
+                showTradingView={false}
+                showAskAi={false}
+                showNarrative={false}
+                symbol={symbol}
+                marketClass={resolvedMarketClass}
+                coinGeckoId={resolvedCoinGeckoId}
+                protocolSlugs={data?.businessQuality?.asset?.protocolSlugs}
+                contractAddress={data?.dexMarket?.contractAddress}
+                language={language}
+              />
+            </div>
+          )}
         </div>
-        <AssetExternalLinks
-          showTradingView={false}
-          showAskAi={false}
-          className="mt-2 max-w-[1600px] mx-auto"
-          symbol={symbol}
-          marketClass={resolvedMarketClass}
-          coinGeckoId={resolvedCoinGeckoId}
-          protocolSlugs={data?.businessQuality?.asset?.protocolSlugs}
-          contractAddress={data?.dexMarket?.contractAddress}
-          narrative={data?.businessQuality?.asset?.narrative || cryptoFundamentals.get(symbol.toUpperCase())?.narrative}
-          language={language}
-        />
       </div>
 
 
