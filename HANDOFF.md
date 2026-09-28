@@ -4655,7 +4655,7 @@ Paired TradingView/CoinGecko or Yahoo and Ask AI controls cover verified asset r
 
 API/web builds pass; web 102/106 (four known PONS/DEX failures), MA evaluator 10/10, Alerte persistence 5/5 and public flag integration test pass. Full API suite interrupted by CoinGecko 429. Mobile/desktop fixture pixels inspected, not signed-in app. One combined deploy, production smoke, ETH demonstration and full signed-in visual pass remain open. No money/trading changes.
 
-## Step 160 - 2026-09-28 - Banda de deasupra graficului, compactă (local, nedeployat)
+## Step 160 - 2026-09-28 - Banda de deasupra graficului, compactă
 
 Marius a aprobat preview-ul: banda de pe pagina de asset ocupă prea mult pe telefon. CoinGecko era de două ori, iar linkurile se înfășurau peste grafic.
 
@@ -4663,4 +4663,4 @@ Marius a aprobat preview-ul: banda de pe pagina de asset ocupă prea mult pe tel
 - CoinGecko, DefiLlama, Ask AI, TradingView și copierea ID-ului stau într-un meniu (trei puncte). Meniul împinge graficul, nu îl acoperă. TradingView tot deschide tabul din grafic, nu un link extern.
 - L1 stă lângă rang, pentru că e categorie. CoinGecko apare o dată.
 - Vârsta scurtă din bară (`acum 14z 6h`) se traduce. Forma lungă rămâne în tooltip.
-- Test: `flip-age-short.test.ts` 1/1. Traducerile noi verificate. Deploy-ul așteaptă acordul.
+- Test: `flip-age-short.test.ts` 1/1. Traducerile noi verificate. Deploy: Cloud Build `1541b7f7` din `b48f244`, SUCCESS. Revision `market-scanner-360-00286-wnw` la 100%. `/api/health` 200 pe ambele URL-uri.
