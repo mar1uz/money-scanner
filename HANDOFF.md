@@ -4672,3 +4672,7 @@ Marius a aprobat preview-ul: banda de pe pagina de asset ocupă prea mult pe tel
 - Ask AI moves from the bottom links to the top-right of Top Score cards, with reserved header space and card-click isolation. Criteria chips are preserved. Other local changes are excluded.
 - API/web builds passed. Route and DEX tests 24/24 passed, including CEX collision, quote refusal, sampled-data refusal and Solana case mismatch. Local 390px screenshots inspected; actual service fetched 36 real daily candle rows from the exact pool. Gaps remain gaps. Weekly MoneyLine retains the existing minimum history requirement.
 - Commit 3360d09. Both fixes held for one combined deployment after preview approval. Production remains unchanged.
+
+## 2026-10-04 STONK MEXC spot routing
+
+User approved exact-contract identity method at15:31 and combined deployment after preview at15:35. Reviewed binding aec645c supplements missing CoinGecko MEXC venue ONLY for stonk-3/STONK after fresh CoinGecko and Gate full Solana contracts agree. Existing MEXC spot adapter, live listing and price check remain. Link-only STONK pin upgrades transactionally; unrelated pins untouched. Builds passed; resolver/probe/pin/MEXC45/45 and API/DEX24/24. Live resolver returned MEXC spot;1D61,1W9,1M3,4H364,8H182,1H500. No200-day or15-week history implied. Final actual390px InteractiveChart pixels and AskAI placement inspected. Clean combined build6113e379 excludes dirty scanner/theme changes. Deploy verification to follow.
