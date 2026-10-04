@@ -4664,3 +4664,11 @@ Marius a aprobat preview-ul: banda de pe pagina de asset ocupă prea mult pe tel
 - L1 stă lângă rang, pentru că e categorie. CoinGecko apare o dată.
 - Vârsta scurtă din bară (`acum 14z 6h`) se traduce. Forma lungă rămâne în tooltip.
 - Test: `flip-age-short.test.ts` 1/1. Traducerile noi verificate. Deploy: Cloud Build `1541b7f7` din `b48f244`, SUCCESS. Revision `market-scanner-360-00286-wnw` la 100%. `/api/health` 200 pe ambele URL-uri.
+
+## 2026-10-04 - STONK exact-contract chart and Ask AI card placement (local, deploy pending)
+
+- Exact CoinGecko stonk-3 identity maps to Solana contract 6GmAFSYs4gk3FDao5FzzySQpPZaWsa4rUJHacpMpUNgx. Real GeckoTerminal candles from the independently bound DEX pool may rescue a refused exchange ticker. Dust pairs, sampled price candles, absent candles, failed provider identity and supplied unconfirmed exchange pairs still fail closed.
+- Solana/base58 contract matching is case-sensitive; EVM hexadecimal remains case-insensitive.
+- Ask AI moves from the bottom links to the top-right of Top Score cards, with reserved header space and card-click isolation. Criteria chips are preserved. Other local changes are excluded.
+- API/web builds passed. Route and DEX tests 24/24 passed, including CEX collision, quote refusal, sampled-data refusal and Solana case mismatch. Local 390px screenshots inspected; actual service fetched 36 real daily candle rows from the exact pool. Gaps remain gaps. Weekly MoneyLine retains the existing minimum history requirement.
+- Commit 3360d09. Both fixes held for one combined deployment after preview approval. Production remains unchanged.
