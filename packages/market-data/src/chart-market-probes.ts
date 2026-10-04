@@ -7,6 +7,20 @@ import { MexcMarketAdapter } from './adapters/mexc.js';
 import { MarketHealthMonitor } from './health-monitor.js';
 import { memoizeWithinResolution, recordHttpRequest } from './chart-market-diagnostics.js';
 
+/** Reviewed MEXC spot binding, approved 2026-10-04. Evidence: MEXC's
+ * StonkFun project article https://www.mexc.fm/news/1206549 and Gate's
+ * exchange currency metadata. Live contract checks must still agree.
+ * This is NOT a generic ticker/price alias and never authorizes futures. */
+export const STONK_SOLANA_CONTRACT = '6GmAFSYs4gk3FDao5FzzySQpPZaWsa4rUJHacpMpUNgx';
+export function matchesReviewedStonkContract(base: string, coinId: string, coin: any, gate: any): boolean {
+  return base === 'STONK' && coinId === 'stonk-3' && coin?.id === coinId
+    && String(coin?.symbol || '').toUpperCase() === base
+    && coin?.platforms?.solana === STONK_SOLANA_CONTRACT
+    && gate?.currency === base && gate?.trade_disabled === false
+    && Array.isArray(gate?.chains) && gate.chains.some((chain: any) =>
+      chain.name === 'SOL' && chain.addr === STONK_SOLANA_CONTRACT);
+}
+
 const BINANCE_SPOT_URL = process.env.BINANCE_API_URL || 'https://data-api.binance.vision/api/v3';
 const BINANCE_FUTURES_URL = process.env.BINANCE_FUTURES_API_URL || 'https://fapi.binance.com/fapi/v1';
 const COINBASE_URL = process.env.COINBASE_API_URL || 'https://api.exchange.coinbase.com';
@@ -283,11 +297,11 @@ export function buildChartMarketResolverDeps(
       const retryAt = identityFailureRetryAt.get(key);
       if (retryAt && retryAt > Date.now()) return null;
       const headers = process.env.COINGECKO_API_KEY ? { 'x-cg-demo-api-key': process.env.COINGECKO_API_KEY } : undefined;
-      let coin: { id?: string; symbol?: string; genesis_date?: string; market_data?: { current_price?: { usd?: number } } };
+      let coin: { id?: string; symbol?: string; platforms?: Record<string, string>; genesis_date?: string; market_data?: { current_price?: { usd?: number } } };
       let tickers: { tickers?: Array<{ base?: string; target?: string; market?: { identifier?: string }; is_anomaly?: boolean; is_stale?: boolean }> };
       try {
         [coin, tickers] = await Promise.all([
-          fetchJson<{ id?: string; symbol?: string; genesis_date?: string; market_data?: { current_price?: { usd?: number } } }>(
+          fetchJson<{ id?: string; symbol?: string; platforms?: Record<string, string>; genesis_date?: string; market_data?: { current_price?: { usd?: number } } }>(
             `https://api.coingecko.com/api/v3/coins/${coinId}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false`, 8_000, headers),
           fetchJson<{ tickers?: Array<{ base?: string; target?: string; market?: { identifier?: string }; is_anomaly?: boolean; is_stale?: boolean }> }>(
             `https://api.coingecko.com/api/v3/coins/${coinId}/tickers?order=volume_desc&depth=false&page=1`, 8_000, headers)
@@ -309,6 +323,15 @@ export function buildChartMarketResolverDeps(
         if (!['USD', 'USDT', 'USDC'].includes(String(row.target || '').toUpperCase())) continue;
         const provider = names[String(row.market?.identifier || '').toLowerCase()];
         if (provider) markets.add(provider);
+      }
+      // The provider ticker list can lag a new listing. Only this reviewed
+      // exact-ID binding can supplement it, after fresh independent exchange
+      // and provider contract checks. Failure retains ordinary refusal/DEX.
+      if (base === 'STONK' && coinId === 'stonk-3') {
+        try {
+          const gate = await fetchJson<any>(`${GATE_URL}/spot/currencies/STONK`);
+          if (matchesReviewedStonkContract(base, coinId, coin, gate)) markets.add('mexc_spot');
+        } catch { /* No unverifiable venue enters the identity set. */ }
       }
       const referencePrice = Number(coin.market_data?.current_price?.usd);
       const genesis = coin.genesis_date ? Date.parse(coin.genesis_date) : NaN;

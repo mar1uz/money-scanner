@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildChartMarketResolverDeps } from './chart-market-probes.js';
+import { matchesReviewedStonkContract, STONK_SOLANA_CONTRACT, buildChartMarketResolverDeps } from './chart-market-probes.js';
 import { BinanceMarketAdapter } from './adapters/binance.js';
 import { BybitMarketAdapter } from './adapters/bybit.js';
 import { OkxMarketAdapter } from './adapters/okx.js';
@@ -187,5 +187,20 @@ describe('chart-market-probes listing windows', () => {
       assert.equal(await deps.isCandidateStillListed!(candidate('kraken', 'NOSUCHUSD')), false);
       assert.equal(await deps.isCandidateStillListed!(candidate('public_stock', 'AAPL')), null);
     });
+  });
+});
+
+
+describe('reviewed STONK spot contract binding', () => {
+  const coin={id:'stonk-3',symbol:'stonk',platforms:{solana:STONK_SOLANA_CONTRACT}};
+  const gate={currency:'STONK',trade_disabled:false,chains:[{name:'SOL',addr:STONK_SOLANA_CONTRACT}]};
+  it('requires both exact live contracts for the single reviewed identity',()=>{
+    assert.equal(matchesReviewedStonkContract('STONK','stonk-3',coin,gate),true);
+    assert.equal(matchesReviewedStonkContract('STONK','stonk-4',coin,gate),false);
+    assert.equal(matchesReviewedStonkContract('STONKS','stonk-3',coin,gate),false);
+    assert.equal(matchesReviewedStonkContract('STONK','stonk-3',{...coin,platforms:{}},gate),false);
+    assert.equal(matchesReviewedStonkContract('STONK','stonk-3',coin,{...gate,trade_disabled:true}),false);
+    assert.equal(matchesReviewedStonkContract('STONK','stonk-3',coin,{...gate,chains:[{name:'SOL',addr:STONK_SOLANA_CONTRACT.toLowerCase()}]}),false);
+    assert.equal(matchesReviewedStonkContract('STONK','stonk-3',coin,null),false);
   });
 });

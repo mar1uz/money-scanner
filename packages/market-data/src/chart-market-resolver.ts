@@ -246,6 +246,25 @@ export class ChartMarketResolver {
       if (pin.symbol !== symbol || pin.coinGeckoId !== coinId || ![pin.candle, pin.tv].filter(Boolean).every(candidate => candidate!.identityVerified)) {
         throw new Error('Chart market pin identity mismatch');
       }
+      // One reviewed source upgrade: historical STONK pins were Gate links
+      // without candles. Recompute through the live exact-contract gate;
+      // never replace a candle pin or write a guessed/unverified candidate.
+      if (symbol === 'STONK' && coinId === 'stonk-3' && !pin.candle) {
+        const fresh = await this.computeResolution(symbol, coinId);
+        if (fresh?.candle?.source === 'mexc_spot' && fresh.candle.identityVerified) {
+          fresh.audit = { ...fresh.audit, reason: 'reviewed-contract-candle-upgrade', repinnedAt: Date.now() };
+          const stored = this.store?.replace
+            ? await this.store.replace(key, fresh, { resolvedAt: pin.resolvedAt }) : (!this.store ? fresh : null);
+          if (stored) {
+            if (stored.symbol !== symbol || stored.coinGeckoId !== coinId
+              || ![stored.candle, stored.tv].filter(Boolean).every(candidate => candidate!.identityVerified)) {
+              throw new Error('Chart market pin identity mismatch');
+            }
+            this.pinned.set(key, stored);
+            return stored;
+          }
+        }
+      }
       this.pinned.set(key, pin);
       const scope = beginResolutionScope({ key, symbol, coinGeckoId: coinId, pinState: 'hit' });
       return runInResolutionScope(scope, async () => {
@@ -450,7 +469,8 @@ export class ChartMarketResolver {
   private async computeResolution(symbol: string, coinId: string): Promise<ChartMarketResolution | null> {
     const identity = await this.safeCall('verifiedIdentity', 'identity', () => this.deps.verifiedIdentity!(symbol, coinId));
     if (!identity?.markets.size) return null;
-    // Only venues CoinGecko mapped to this exact coin ID can ever be verified,
+    // Only exact-ID venues established by provider mapping or a reviewed
+    // live contract binding can be verified,
     // so probing any other venue would burn requests on a candidate that the
     // identity filter drops later anyway.
     const verifiable = (source: AssetMarketDataSource) => identity.markets.has(source);

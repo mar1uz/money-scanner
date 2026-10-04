@@ -263,3 +263,15 @@ describe('chart-market pin health and healing', () => {
     assert.deepEqual(seen.merges, []);
   });
 });
+
+describe('reviewed STONK link-only pin upgrade',()=>{
+  const pin:ChartMarketResolution={symbol:'STONK',coinGeckoId:'stonk-3',candle:null,tv:{source:'gate_spot',exchange:'GATE',providerSymbol:'STONK_USDT',tvSymbol:'GATE:STONKUSDT',quoteCurrency:'USDT',listingStart:null,volume24hQuote:null,candleCapable:false,identityVerified:true},candidates:[],resolvedAt:123};
+  it('replaces only with an independently verified MEXC spot candidate',async()=>{
+    const seen=counters();const resolver=new ChartMarketResolver(buildDeps({mexc:{listing:T('2026-08-05'),volume:100},verifiedMarkets:['mexc_spot']},seen));resolver.setStore(makeStore(pin,seen));
+    const r=await resolver.resolve('STONK','stonk-3');assert.equal(r?.candle?.source,'mexc_spot');assert.equal(seen.replaces.length,1);assert.equal(r?.audit?.reason,'reviewed-contract-candle-upgrade');
+  });
+  it('keeps the link-only pin if no exact verified candle source exists',async()=>{
+    const seen=counters();const resolver=new ChartMarketResolver(buildDeps({mexc:{listing:T('2026-08-05'),volume:100},verifiedMarkets:[]},seen));resolver.setStore(makeStore(pin,seen));
+    const r=await resolver.resolve('STONK','stonk-3');assert.equal(r?.candle,null);assert.equal(seen.replaces.length,0);
+  });
+});
