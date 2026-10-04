@@ -208,3 +208,30 @@ test('the market-data identity fail-closed surfaces as 503, never as a price-onl
   assert.equal(status, 503);
   assert.deepEqual(body, { error: 'Verified exchange candles unavailable for the selected coin.' });
 });
+
+test('exact contract-bound DEX candles rescue a refused CEX ticker without using its candles', async t => {
+  const calls = mockAppState(t, () => ({ getTopCryptoAssets: async () => [{symbol:'ZZDEX',name:'Other',coinGeckoId:'other'}] }));
+  mockProfiles(t, profileRow('zzdex','zzdex','ZZDex Coin'));
+  t.mock.method(dexMarketData, 'load', async () => ({contractAddress:'ExactSolanaContract',pairAddress:'ExactPool',chainId:'solana',candleSource:'GeckoTerminal',pairIsDust:false,candles:[{timestamp:1000,open:1,high:2,low:1,close:2,volume:1,isClosed:true}]} as any));
+  const {status,body} = await callAsset({coinGeckoId:'zzdex'});
+  assert.equal(status,undefined); assert.equal(body.dataAvailability,'dex-fallback');
+  assert.equal(body.dexMarket.contractAddress,'ExactSolanaContract'); assert.equal(calls.candles,0); assert.deepEqual(calls.quotes,[]);
+});
+
+test('sampled or dust DEX data never bypasses CEX identity refusal', async t => {
+  mockAppState(t, () => ({ getTopCryptoAssets: async () => [{symbol:'ZZDEX',name:'Other',coinGeckoId:'other'}] }));
+  mockProfiles(t, profileRow('zzdex','zzdex','ZZDex Coin'));
+  t.mock.method(dexMarketData, 'load', async () => ({contractAddress:'ExactSolanaContract',candleSource:'CoinGecko',pairIsDust:true,candles:[{}]} as any));
+  const {status} = await callAsset({coinGeckoId:'zzdex'}); assert.equal(status,503);
+});
+
+test('quote identity refusal can use exact DEX candles but never exchange candles', async t => {
+  const calls = mockAppState(t, () => ({
+    getTopCryptoAssets: async () => [{symbol:'ZZDEX',name:'ZZDex Coin',coinGeckoId:'zzdex'}],
+    getPriceQuote: async () => {throw new Error('No identity-verified candle market');}
+  }));
+  mockProfiles(t,profileRow('zzdex','zzdex','ZZDex Coin'));
+  t.mock.method(dexMarketData,'load',async()=>({contractAddress:'ExactSolanaContract',candleSource:'GeckoTerminal',pairIsDust:false,candles:[{timestamp:1000,open:1,high:2,low:1,close:2,volume:1,isClosed:true}]} as any));
+  const {status,body}=await callAsset({coinGeckoId:'zzdex'});
+  assert.equal(status,undefined); assert.equal(body.dataAvailability,'dex-fallback'); assert.equal(calls.candles,0);
+});

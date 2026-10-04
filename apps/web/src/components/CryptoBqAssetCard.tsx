@@ -77,7 +77,10 @@ export const CryptoBqAssetCard: React.FC<{
       onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onNavigate(asset); } }}
       className="bq-asset-card cursor-pointer rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] p-3 sm:p-4 transition-colors hover:border-cyan-500/30"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="relative pr-24">
+        <div className="absolute right-0 top-0" onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+          <AskAiButton symbol={asset.symbol} marketClass="crypto" coinGeckoId={asset.coinGeckoId} className="whitespace-nowrap min-h-9" />
+        </div>
         <div className="flex items-center gap-2.5 min-w-0">
           <span className={`w-7 text-center text-sm font-mono font-black ${rank <= 3 ? 'text-emerald-300' : 'text-slate-500'}`}>{rank}</span>
           {asset.image ? <img src={asset.image} alt="" className="w-8 h-8 rounded-full bg-white/[0.04]" loading="lazy" /> : <Coins className="w-8 h-8 text-slate-600" />}
@@ -174,7 +177,6 @@ export const CryptoBqAssetCard: React.FC<{
       <p className="mt-2 text-[10px] text-slate-400">{isRo ? 'Ritm extrapolat din 30z, nu APY garantat. Buyback/burn nu este o plată directă. — = date lipsă sau incomplete.' : '30d pace extrapolated, not guaranteed APY. Buybacks/burns are not direct payouts. — = missing or incomplete data.'}</p>
       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-400" onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
         <a className="underline" target="_blank" rel="noopener noreferrer" href={tradingViewUrl(asset.symbol, 'crypto')}>TradingView</a>
-        <AskAiButton symbol={asset.symbol} marketClass="crypto" coinGeckoId={asset.coinGeckoId} />
         <a className="underline" target="_blank" rel="noreferrer" href={asset.coinGeckoId ? `https://www.coingecko.com/en/coins/${encodeURIComponent(asset.coinGeckoId)}` : `https://www.coingecko.com/en/search?query=${encodeURIComponent(asset.name)}`} title={asset.coinGeckoId ? 'Profil exact' : 'Căutare · identitate neverificată'}>CoinGecko</a>
         {asset.marketDataSource === 'coinpaprika' && <a className="underline" target="_blank" rel="noreferrer" href={`https://coinpaprika.com/coin/${encodeURIComponent(asset.id)}/`}>CoinPaprika</a>}
         {asset.protocolSlugs?.map(slug => <a key={slug} className="underline" target="_blank" rel="noreferrer" href={`https://defillama.com/protocol/${encodeURIComponent(slug)}`}>{slug}</a>)}

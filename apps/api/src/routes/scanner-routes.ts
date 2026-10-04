@@ -768,6 +768,17 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       symbol, timeframe, reference, undefined, undefined,
       (assetSymbol, assetTimeframe, candles) => appState.moneyLine.calculateLatest(assetSymbol, assetTimeframe, candles)
     );
+    const loadContractBoundDex = async () => {
+      if (!isCryptoSpot || !cryptoReference.coinGeckoId || suppliedVenuePair) return null;
+      try {
+        const detail = await loadAggregated();
+        const dex = detail.dexMarket;
+        // An exact provider ID -> platform contract -> exact pool binding is
+        // independent of a refused CEX ticker. Never accept sampled price data.
+        return dex?.contractAddress && dex.candleSource === 'GeckoTerminal'
+          && !dex.pairIsDust && dex.candles.length > 0 ? detail : null;
+      } catch { return null; }
+    };
     // Business-quality lookup is path-independent: both the aggregated and
     // the exchange response carry it so a resolver fallback never loses it.
     const computeBusinessQuality = async () => {
@@ -841,6 +852,8 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
           // but the exact identity cannot be bound to it: refuse explicitly
           // instead of serving another coin's market or a silently degraded
           // page. Same 503 as the market-data fail-closed.
+          const dexDetail = await loadContractBoundDex();
+          if (dexDetail) return res.json({ ...dexDetail, businessQuality: await computeBusinessQuality() });
           return res.status(503).json({ error: 'Verified exchange candles unavailable for the selected coin.' });
         }
       }
@@ -1013,7 +1026,12 @@ scannerRouter.get('/assets/:symbol', async (req, res) => {
       const failureMessage = String((error as any)?.message || '');
       const identityRefusal = failureMessage.includes('No identity-verified candle market')
         || failureMessage.includes('Chart market pin');
-      if (identityRefusal || resolvedMarketClass !== 'crypto' || symbol.includes('.') || symbol.startsWith('TOTAL')) throw error;
+      if (identityRefusal) {
+        const dexDetail = await loadContractBoundDex();
+        if (dexDetail) return res.json({ ...dexDetail, businessQuality: await computeBusinessQuality() });
+        throw error;
+      }
+      if (resolvedMarketClass !== 'crypto' || symbol.includes('.') || symbol.startsWith('TOTAL')) throw error;
       return res.json(await loadAggregated({
         ...cryptoReference, coinGeckoId: cryptoReference.coinGeckoId || assetInfo.coinGeckoId
       }));

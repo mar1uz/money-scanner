@@ -160,3 +160,12 @@ test('numeric invalids remain absent rather than becoming zero metrics', async (
   assert.equal(result?.liquidityUsd, null);
   assert.equal(result?.transactions24h, null);
 });
+
+
+test('Solana base58 contract identity is case-sensitive, unlike EVM hex', () => {
+  const contract='6GmAFSYs4gk3FDao5FzzySQpPZaWsa4rUJHacpMpUNgx';
+  const solPair = pair({chainId:'solana',baseToken:{address:contract.toLowerCase(),symbol:'PONS',name:'Pons'}});
+  assert.equal(selectExactMostLiquidPair([solPair],profile,contract),null);
+  solPair.baseToken.address=contract;
+  assert.equal(selectExactMostLiquidPair([solPair],profile,contract)?.chainId,'solana');
+});

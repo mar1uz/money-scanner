@@ -31,7 +31,11 @@ const positive = (value: unknown): number | null => {
   return parsed !== null && parsed >= 0 ? parsed : null;
 };
 const safeSegment = (value: unknown) => typeof value === 'string' && /^[a-zA-Z0-9._:-]{1,160}$/.test(value) ? value : null;
-const sameAddress = (left: unknown, right: unknown) => String(left || '').toLowerCase() === String(right || '').toLowerCase();
+const sameAddress = (left: unknown, right: unknown) => {
+  const a = String(left || ''); const b = String(right || '');
+  // EVM hex is case-insensitive; Solana/base58 identities are case-sensitive.
+  return /^0x[0-9a-f]+$/i.test(a) && /^0x[0-9a-f]+$/i.test(b) ? a.toLowerCase() === b.toLowerCase() : a === b;
+};
 
 const geckoNetworkId = (dexChainId: string): string => ({
   ethereum: 'eth', polygon: 'polygon_pos', avalanche: 'avax', arbitrum: 'arbitrum',
