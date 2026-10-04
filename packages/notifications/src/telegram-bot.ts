@@ -51,10 +51,22 @@ export interface TelegramLiveScanInput {
     currentPrice: number;
     confirmationPrice?: number;
     confirmedAt?: number;
+    candleTimestamp?: number;
     priorityScore: number;
     rvol: number;
   }>;
 }
+
+// Sort a copy so detailed and overflow pages share one chronology without mutating scan data.
+export const newestConfirmedTelegramFlips = (flips: TelegramLiveScanInput['flips']) => {
+  const timestamp = (flip: TelegramLiveScanInput['flips'][number]) => {
+    const value = flip.confirmedAt || flip.candleTimestamp;
+    return Number.isFinite(value) && value! > 0 ? value! : 0;
+  };
+  return [...flips].sort((left, right) =>
+    timestamp(right) - timestamp(left) || right.priorityScore - left.priorityScore
+  );
+};
 
 const telegramPrice = (value: number) => `$${value.toLocaleString('en-US', {
   minimumFractionDigits: value < 1 ? 4 : 2,
@@ -72,6 +84,7 @@ const telegramFlipAge = (confirmedAt: number, now = Date.now()) => {
 };
 
 const telegramFlipDate = (confirmedAt: number) => new Intl.DateTimeFormat('ro-RO', {
+  hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
   day: '2-digit',
   month: '2-digit',
   year: 'numeric',
@@ -312,13 +325,13 @@ export class TelegramBotHandler {
     if (input.mode === 'flips') {
       const lines = [
         `🔄 *FLIPURI MONEYLINE CONFIRMATE · ${input.timeframe.toUpperCase()}*`,
-        `_${scope}${directionScope} · scanare live_`,
+        `_${scope}${directionScope} · scanare live · cele mai noi flipuri primele_`,
         ``
       ];
       if (!input.flips.length) {
         lines.push(`Nu există flipuri confirmate în istoricul disponibil pentru filtrul ales.`);
       } else {
-        input.flips.slice(0, 10).forEach(flip => {
+        newestConfirmedTelegramFlips(input.flips).slice(0, 10).forEach(flip => {
           const confirmationPrice = flip.confirmationPrice || flip.currentPrice;
           lines.push(
           `${flip.direction === 'BULLISH' ? '🟢 ▲' : '🔴 ▼'} ${telegramAssetLink({
@@ -328,7 +341,7 @@ export class TelegramBotHandler {
             marketClass: flip.marketClass
           })}${telegramAssetLabel(flip.symbol, flip.name, flip.marketClass)} · ${flip.direction === 'BULLISH' ? 'BULL FLIP' : 'BEAR FLIP'}`,
           `*Închidere flip:* ${telegramPrice(confirmationPrice)} → *Preț acum:* ${telegramPrice(flip.currentPrice)} (*${telegramFlipMove(confirmationPrice, flip.currentPrice)}*)`,
-          `${flip.confirmedAt ? `*Confirmat:* ${telegramFlipAge(flip.confirmedAt)} · ${telegramFlipDate(flip.confirmedAt)} · ` : ''}Scor tehnic ${flip.priorityScore.toFixed(0)}/100 · RVOL ${flip.rvol.toFixed(2)}x`
+          `${flip.confirmedAt ? `*Confirmat:* ${telegramFlipAge(flip.confirmedAt)} · ${telegramFlipDate(flip.confirmedAt)} (Europe/Oslo) · ` : ''}Scor tehnic ${flip.priorityScore.toFixed(0)}/100 · RVOL ${flip.rvol.toFixed(2)}x`
           );
         });
         if (input.flips.length > 10) lines.push(`…și încă ${input.flips.length - 10} flipuri mai jos (format compact).`);
@@ -384,8 +397,8 @@ export class TelegramBotHandler {
     const flush = (to: number) => {
       chunks.push([`*Continuare ${from}–${to} din ${input.flips.length}:*`, ``, ...lines].join('\n'));
     };
-    input.flips.slice(detailedCount).forEach((flip, index) => {
-      const age = flip.confirmedAt ? ` · ${telegramFlipAge(flip.confirmedAt)}` : '';
+    newestConfirmedTelegramFlips(input.flips).slice(detailedCount).forEach((flip, index) => {
+      const age = flip.confirmedAt ? ` · Confirmat: ${telegramFlipAge(flip.confirmedAt)} · ${telegramFlipDate(flip.confirmedAt)} (Europe/Oslo)` : '';
       const line = `${flip.direction === 'BULLISH' ? '🟢 ▲' : '🔴 ▼'} ${telegramAssetLink({
         baseUrl: this.dashboardBaseUrl,
         symbol: flip.symbol,

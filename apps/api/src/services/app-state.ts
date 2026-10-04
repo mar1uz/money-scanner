@@ -262,6 +262,7 @@ const formatFlipAge = (confirmedAt: number, now = Date.now()) => {
 };
 
 const formatFlipDate = (confirmedAt: number) => new Intl.DateTimeFormat('ro-RO', {
+  hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
   day: '2-digit',
   month: '2-digit',
   year: 'numeric',
@@ -2080,7 +2081,10 @@ export class AppState {
       return !this.alertHistory.some(alert => alert.idempotencyKey === key);
     });
     if (!fresh.length) return 0;
-    const ranked = fresh.slice().sort((left, right) => right.priorityScore - left.priorityScore);
+    const ranked = fresh.slice().sort((left, right) =>
+      (right.confirmedAt || right.candleTimestamp) - (left.confirmedAt || left.candleTimestamp)
+      || right.priorityScore - left.priorityScore
+    );
     const dashboardBaseUrl = process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app';
     const candidateKey = (candidate: FlipCandidate) =>
       `${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}:${candidate.direction}:${candidate.candleTimestamp}`;
@@ -2098,7 +2102,7 @@ export class AppState {
 
       const lines = [
         `🔔 *${selected.length} FLIP${selected.length === 1 ? '' : 'URI'} MONEYLINE CONFIRMAT${selected.length === 1 ? '' : 'E'}*`,
-        `_Numai lumânări închise · ordonate după scorul setupului_`,
+        `_Numai lumânări închise · cele mai noi flipuri primele_`,
         ''
       ];
       selected.slice(0, 10).forEach(candidate => {
@@ -2111,7 +2115,7 @@ export class AppState {
         lines.push(
           `${candidate.direction === 'BULLISH' ? '🟢 ▲' : '🔴 ▼'} ${telegramAssetLink({ baseUrl: dashboardBaseUrl, symbol: candidate.symbol, timeframe: candidate.timeframe, marketClass: candidate.marketClass })}${assetLabel} ${candidate.timeframe.toUpperCase()} · ${candidate.priorityScore.toFixed(0)}/100 · ${candidate.marketClass.toUpperCase()}`,
           `*Închidere flip:* ${formatAlertPrice(confirmationPrice)} → *Preț acum:* ${formatAlertPrice(candidate.currentPrice)} (*${formatFlipMove(confirmationPrice, candidate.currentPrice)}*)`,
-          `*Confirmat:* ${formatFlipAge(confirmedAt)} · ${formatFlipDate(confirmedAt)}`,
+          `*Confirmat:* ${formatFlipAge(confirmedAt)} · ${formatFlipDate(confirmedAt)} (Europe/Oslo)`,
           `ML1W ${candidate.weeklyTier} (${candidate.weeklyScore > 0 ? '+' : ''}${candidate.weeklyScore}) · RVOL ${candidate.rvol.toFixed(2)}x · SMA50 ${candidate.sma50Aligned ? 'aliniat' : 'neconfirmat'} · SMA200 ${candidate.sma200Aligned ? 'aliniat' : 'neconfirmat'}`
         );
       });
