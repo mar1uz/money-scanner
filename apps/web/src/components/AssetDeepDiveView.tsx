@@ -535,6 +535,14 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
                 <span>TradingView</span>
                 <span className="text-xs font-medium text-[var(--t-muted)]">tabul din grafic</span>
               </button>
+              <button
+                type="button"
+                onClick={() => { setChartTab('pinescript'); setLinksOpen(false); }}
+                className="flex h-11 w-full min-h-0 items-center justify-between border-b border-[var(--t-line)] bg-transparent px-3 text-left text-sm font-semibold text-[var(--t-text)]"
+              >
+                <span>Pine Script v6 Code</span>
+                <span className="text-xs font-medium text-[var(--t-muted)]">codul indicatorului</span>
+              </button>
               <AssetExternalLinks
                 layout="menu"
                 showTradingView={false}

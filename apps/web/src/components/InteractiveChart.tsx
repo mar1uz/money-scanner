@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { tradingViewUrl } from './AssetExternalLinks.js';
 import { formatPrice } from '../utils/price.js';
 import { Candle, Timeframe } from '../types.js';
 import {
@@ -1181,17 +1182,7 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="âš ï¸
               <span className="hidden sm:inline">MoneyLine Cloud</span>
             </button>
 
-            <button
-              onClick={() => setActiveTab('tv_embed')}
-              className={`${coinGeckoUrl ? 'hidden sm:flex' : 'flex'} flex-1 sm:flex-none justify-center items-center gap-1.5 px-2 sm:px-3.5 py-1.5 text-xs font-mono whitespace-nowrap rounded-lg transition-all ${
-                activeTab === 'tv_embed'
-                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40 font-bold shadow-glow-cyan'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <BarChart2 className="w-3.5 h-3.5 text-blue-400" />
-              <span>TradingView extern</span>
-            </button>
+
 
             {coinGeckoUrl && (
               <a
@@ -1206,18 +1197,17 @@ alertcondition(sellSignal, title="MoneyLine Bearish Flip (SELL)", message="âš ï¸
               </a>
             )}
 
-            <button
-              onClick={() => setActiveTab('pinescript')}
-              className={`flex flex-1 sm:flex-none justify-center items-center gap-1.5 px-2 sm:px-3.5 py-1.5 text-xs font-mono whitespace-nowrap rounded-lg transition-all ${
-                activeTab === 'pinescript'
-                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
+            <a
+              href={tradingViewUrl(symbol, marketClass)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex flex-1 sm:flex-none justify-center items-center gap-1.5 px-2 sm:px-3.5 py-1.5 text-xs font-mono whitespace-nowrap rounded-lg transition-all text-slate-400 hover:text-slate-200"
+              title="Deschide graficul pe TradingView"
             >
-              <Code className="w-3.5 h-3.5 text-purple-400" />
-              <span className="sm:hidden">Pine</span>
-              <span className="hidden sm:inline">Pine Script v6 Code</span>
-            </button>
+              <BarChart2 className="w-3.5 h-3.5 text-blue-400" />
+              <span>TradingView</span>
+            </a>
+
 
           </div>
 
