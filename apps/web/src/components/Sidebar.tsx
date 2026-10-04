@@ -19,6 +19,7 @@ import {
 import { AppTab } from '../types.js';
 import { ThemeSwitcher } from './ThemeSwitcher.js';
 import { useLanguage } from '../i18n.js';
+import { useOutsideDismiss } from '../hooks/useOutsideDismiss.js';
 import { useMobileViewport } from '../hooks/useMobileViewport.js';
 
 interface SidebarProps {
@@ -54,6 +55,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [lens, setLens] = useState({ x: 0, width: 64 });
   const [moreOpen, setMoreOpen] = useState(false);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+  useOutsideDismiss(moreOpen, () => setMoreOpen(false), [moreButtonRef, moreMenuRef]);
   const { language, setLanguage } = useLanguage();
 
   const navItems: { id: AppTab; label: string; shortLabel: string; icon: any; accent?: string; badge?: string }[] = [
@@ -135,11 +139,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button ref={activeTab === 'market' ? activeTabRef : undefined} onClick={() => { setMoreOpen(false); onTabChange('market'); }} aria-current={activeTab === 'market' && !moreOpen ? 'page' : undefined} className={`mobile-nav-item ${activeTab === 'market' && !moreOpen ? 'is-active' : ''}`}><LayoutGrid size={19} /><span>Scanner</span></button>
             <button ref={watchlistOnly ? watchlistTabRef : undefined} onClick={() => { setMoreOpen(false); onOpenWatchlist?.(); }} aria-current={watchlistOnly ? 'page' : undefined} className={`mobile-nav-item ${watchlistOnly ? 'is-active' : ''}`}><Star size={19} /><span>Watchlist</span><b>{watchlistCount}</b></button>
             <button onClick={() => { setMoreOpen(false); onOpenAlerts?.(); }} aria-current={activeTab === 'alerts' ? 'page' : undefined} className={`mobile-nav-item ${activeTab === 'alerts' ? 'is-active' : ''}`}><BellRing size={19} /><span>Alerte</span></button>
-            <button onClick={() => setMoreOpen(value => !value)} aria-expanded={moreOpen} className={`mobile-nav-item ${moreOpen ? 'is-active' : ''}`}><MoreHorizontal size={19} /><span>Mai mult</span></button>
+            <button ref={moreButtonRef} onClick={() => setMoreOpen(value => !value)} aria-expanded={moreOpen} className={`mobile-nav-item ${moreOpen ? 'is-active' : ''}`}><MoreHorizontal size={19} /><span>Mai mult</span></button>
           </div>
         </div>
         {onOpenSearchModal && <button onClick={onOpenSearchModal} className="mobile-search-orb" aria-label="Caută active"><Search size={21} strokeWidth={1.9} /></button>}
-        {moreOpen && <div className="mobile-more-menu" role="menu">
+        {moreOpen && <div ref={moreMenuRef} className="mobile-more-menu" role="menu">
           {navItems.filter(item => item.id !== 'market' && item.id !== 'status').map(item => { const Icon = item.icon; return <button role="menuitem" key={item.id} onClick={() => { setMoreOpen(false); onTabChange(item.id); }}><Icon size={17} /><span>{item.label}</span></button>; })}
           <button role="menuitem" onClick={() => { setMoreOpen(false); onTabChange('status'); }}><Activity size={17} /><span>System & Bot Health</span></button>
           <div className="mobile-more-sep" aria-hidden="true" />

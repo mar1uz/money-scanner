@@ -17,6 +17,7 @@ import { AssetExternalLinks } from './AssetExternalLinks.js';
 import { AskAiButton } from './AskAiButton.js';
 import { NarrativeTag } from './NarrativeTag.js';
 import { formatFlipAgeShort } from './flip-age.js';
+import { useOutsideDismiss } from '../hooks/useOutsideDismiss.js';
 import { useCryptoFundamentals } from '../services/crypto-fundamentals.js';
 import {
   ArrowLeft,
@@ -146,6 +147,9 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
   const [activeInfoTab, setActiveInfoTab] = useState<InfoTab>('ai');
   const [chartTab, setChartTab] = useState<'chart' | 'tv_embed' | 'pinescript'>('chart');
   const [linksOpen, setLinksOpen] = useState(false);
+  const linksButtonRef = useRef<HTMLButtonElement>(null);
+  const linksMenuRef = useRef<HTMLDivElement>(null);
+  useOutsideDismiss(linksOpen, () => setLinksOpen(false), [linksButtonRef, linksMenuRef]);
   const { language } = useLanguage();
   const cryptoFundamentals = useCryptoFundamentals();
   const [showFlipTooltip, setShowFlipTooltip] = useState(false);
@@ -505,6 +509,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
                 </button>
                 <button
                   type="button"
+                  ref={linksButtonRef}
                   onClick={() => setLinksOpen(open => !open)}
                   className={`inline-flex h-9 w-9 min-h-0 items-center justify-center rounded-lg border bg-[var(--t-surface)] text-[var(--t-text)] ${
                     linksOpen ? 'border-[var(--t-line-strong)]' : 'border-[var(--t-line)]'
@@ -520,7 +525,7 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
           </div>
 
           {linksOpen && (
-            <div className="overflow-hidden rounded-xl border border-[var(--t-line)] bg-[var(--t-surface)]">
+            <div ref={linksMenuRef} role="menu" className="overflow-hidden rounded-xl border border-[var(--t-line)] bg-[var(--t-surface)]">
               <AskAiButton variant="row" symbol={symbol} marketClass={resolvedMarketClass === 'stocks' ? 'stocks' : resolvedMarketClass === 'metals' ? 'metals' : 'crypto'} coinGeckoId={resolvedMarketClass === 'crypto' ? resolvedCoinGeckoId : undefined} />
               <button
                 type="button"
