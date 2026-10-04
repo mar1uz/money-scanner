@@ -48,6 +48,7 @@ import { StructureScannerRunner, StructureScanTimeframe } from './structure-scan
 import { calculateFlipPriorityScore } from './flip-priority-score.js';
 import { RegimeTapeService } from './regime-tape-service.js';
 import { DailySmaReclaimReport } from '@money-scanner/shared';
+import { TelegramDeliveryGuard } from './telegram-delivery-guard.js';
 
 export interface BullishCloudAlertRule {
   id: string;
@@ -1196,10 +1197,29 @@ export class AppState {
   public runDailyRegimeScan(options: { timeframes?: TelegramFlipTimeframe[] } = {}): Promise<DailyRegimeScanStatus> {
     if (this.dailyRegimeScanPromise) return this.dailyRegimeScanPromise;
 
-    this.dailyRegimeScanPromise = this.executeDailyRegimeScan(options.timeframes || TELEGRAM_FLIP_TIMEFRAMES).finally(() => {
+    this.dailyRegimeScanPromise = this.executeLockedDailyRegimeScan(options.timeframes || TELEGRAM_FLIP_TIMEFRAMES).finally(() => {
       this.dailyRegimeScanPromise = undefined;
     });
     return this.dailyRegimeScanPromise;
+  }
+
+  private telegramDeliveryGuard() {
+    return new TelegramDeliveryGuard(this.dailyRegimeDocument().firestore);
+  }
+
+  private async executeLockedDailyRegimeScan(timeframes: TelegramFlipTimeframe[]): Promise<DailyRegimeScanStatus> {
+    const guard = this.telegramDeliveryGuard();
+    const owner = await guard.acquireScan();
+    if (!owner) {
+      await this.restoreDailyRegimeState(true);
+      console.info('Daily MoneyLine scan skipped: shared scan lock held.');
+      return { ...this.dailyRegimeScanStatus };
+    }
+    try {
+      return await this.executeDailyRegimeScan(timeframes);
+    } finally {
+      await guard.releaseScan(owner);
+    }
   }
 
   private async executeDailyRegimeScan(timeframes: TelegramFlipTimeframe[] = TELEGRAM_FLIP_TIMEFRAMES): Promise<DailyRegimeScanStatus> {
@@ -2076,10 +2096,7 @@ export class AppState {
         ])
       ).values()
     );
-    const fresh = deduped.filter(candidate => {
-      const key = `flip:${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}:${candidate.direction}:${candidate.candleTimestamp}`;
-      return !this.alertHistory.some(alert => alert.idempotencyKey === key);
-    });
+    const fresh = deduped; // Delivery eligibility is durable and destination-specific below.
     if (!fresh.length) return 0;
     const ranked = fresh.slice().sort((left, right) =>
       (right.confirmedAt || right.candleTimestamp) - (left.confirmedAt || left.candleTimestamp)
@@ -2095,9 +2112,21 @@ export class AppState {
 
     await Promise.all(destinations.map(async destination => {
       const preferences = await this.getTelegramFlipAlertPreferences(destination.chatId, true);
-      const selected = preferences.enabled
+      const eligible = preferences.enabled
         ? ranked.filter(candidate => preferences.timeframes.includes(candidate.timeframe))
         : [];
+      if (!eligible.length) return;
+      const deliveryKey = (candidate: FlipCandidate) => `flip:${candidateKey(candidate)}`;
+      // Only migrate existing history for the configured owner destination. Old
+      // history has no recipient field, so it cannot prove group delivery.
+      const ownerChatId = String(process.env.TELEGRAM_CHAT_ID || '');
+      const legacy = destination.chatId === ownerChatId
+        ? new Set(this.alertHistory.filter(alert => alert.isDelivered).map(alert => alert.idempotencyKey))
+        : new Set<string>();
+      const guard = this.telegramDeliveryGuard();
+      const claim = await guard.claim(destination.chatId, eligible.map(deliveryKey), legacy);
+      const claimed = new Set(claim.keys);
+      const selected = eligible.filter(candidate => claimed.has(deliveryKey(candidate)));
       if (!selected.length) return;
 
       const lines = [
@@ -2134,10 +2163,13 @@ export class AppState {
       });
       const delivered = await this.telegramBot.sendMarkdown(message, destination.chatId);
       if (delivered) selected.forEach(candidate => deliveredKeys.add(candidateKey(candidate)));
+      await guard.finish(destination.chatId, claim.keys, claim.owner, delivered);
+      if (!delivered) console.warn('Telegram flip batch delivery uncertain; durable claims retained to prevent duplicate sends.');
     }));
 
     ranked.forEach(candidate => {
       const idempotencyKey = `flip:${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}:${candidate.direction}:${candidate.candleTimestamp}`;
+      if (this.alertHistory.some(alert => alert.idempotencyKey === idempotencyKey)) return;
       const key = candidateKey(candidate);
       const telegramSelected = selectedKeys.has(key);
       this.alertHistory.unshift({
@@ -2661,7 +2693,6 @@ export class AppState {
     }
   }
 
-  private lastScheduledScanDateBucharest?: string;
   private lastMaCrossScanDateOslo?: string;
   private lastStructureScanKey?: string;
 
@@ -2670,24 +2701,9 @@ export class AppState {
     this.bullishAlertTimer = setInterval(() => {
       this.checkAllBullishCloudAlerts().catch(error => console.error('Bullish alert monitor failed:', error));
 
-      // Automated daily 08:00 AM Europe/Bucharest scan across all assets
+      // Daily MoneyLine scan is owned by external Cloud Scheduler only.
+      // Do not launch it from each Cloud Run process.
       try {
-        const bucharestTime = new Intl.DateTimeFormat('en-CA', {
-          timeZone: 'Europe/Bucharest',
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false
-        }).format(new Date());
-        const [datePart, timePart] = bucharestTime.split(', ');
-        const [hour, minute] = (timePart || '').split(':').map(Number);
-        if (hour === 8 && minute <= 5 && this.lastScheduledScanDateBucharest !== datePart && !this.dailyRegimeScanStatus.running) {
-          this.lastScheduledScanDateBucharest = datePart;
-          this.runDailyRegimeScan({ timeframes: AUTOMATED_FLIP_TIMEFRAMES }).catch(error => console.error('Automated 08:00 AM scan failed:', error));
-        }
-
         // Automated daily 08:00 Europe/Oslo 2x2 MA cross/retest alert pass
         const osloTime = new Intl.DateTimeFormat('en-CA', {
           timeZone: 'Europe/Oslo',

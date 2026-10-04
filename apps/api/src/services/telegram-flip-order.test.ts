@@ -5,6 +5,7 @@ import { AppState } from './app-state.js';
 it('sends confirmed scan alert batches newest-first with visible Oslo confirmation time, not setup-score order', async () => {
   const state = new AppState();
   const sent: string[] = [];
+  (state as any).telegramDeliveryGuard = () => ({ claim: async (_chatId: number, keys: string[]) => ({owner: 'test', keys}), finish: async () => {} });
   (state as any).getTelegramFlipAlertDestinations = async () => [{chatId: 123}];
   (state as any).getTelegramFlipAlertPreferences = async () => ({enabled: true, timeframes: ['1d']});
   state.telegramBot.sendMarkdown = async (text: string) => { sent.push(text); return true; };
