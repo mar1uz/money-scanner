@@ -75,3 +75,13 @@ it('two AppState instances invoke only one scan while overlapping', async () => 
   await b.runDailyRegimeScan(); assert.equal(count, 1);
   release(); await first;
 });
+
+it('historical suppression is durable, destination-specific and preserves existing uncertain/sent records', async () => {
+  const db = fakeFirestore(); const guard = new TelegramDeliveryGuard(db as any);
+  const claim = await guard.claim('a',['uncertain']); await guard.finish('a',claim.keys,claim.owner,false);
+  await guard.suppress('a',['old','uncertain'],'historical');
+  assert.deepEqual((await guard.claim('a',['old','uncertain'])).keys,[]);
+  assert.ok([...db.values.values()].some(v=>v.key==='old'&&v.status==='suppressed-historical'));
+  assert.ok([...db.values.values()].some(v=>v.key==='uncertain'&&v.status==='uncertain'));
+  assert.deepEqual((await guard.claim('b',['old'])).keys,['old']);
+});

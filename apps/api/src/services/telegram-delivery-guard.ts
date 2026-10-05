@@ -46,6 +46,18 @@ export class TelegramDeliveryGuard {
     }
     return { owner, keys: claimed };
   }
+  async suppress(chatId: string, keys: string[], reason: 'historical' | 'invalid'): Promise<void> {
+    for (let i = 0; i < keys.length; i += 200) {
+      const refs = [...new Set(keys.slice(i, i + 200))].map(key => ({ key, ref: this.deliveryRef(chatId, key) }));
+      await this.db.runTransaction(async tx => {
+        const snapshots = await Promise.all(refs.map(({ ref }) => tx.get(ref)));
+        snapshots.forEach((snapshot, index) => {
+          if (!snapshot.exists) tx.set(refs[index].ref, { chatId, key: refs[index].key,
+            status: `suppressed-${reason}`, suppressedAt: Date.now() });
+        });
+      });
+    }
+  }
   async finish(chatId: string, keys: string[], owner: string, delivered: boolean): Promise<void> {
     for (let i = 0; i < keys.length; i += 200) {
       const batch = this.db.batch();

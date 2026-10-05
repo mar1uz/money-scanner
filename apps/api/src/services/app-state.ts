@@ -1119,6 +1119,7 @@ export class AppState {
         });
       }
 
+      const runStartedAt = Date.now();
       const assets = Array.from(universe.values());
       let errors = normalizedWatchlist.filter(item =>
         !assets.some(asset => asset.symbol === item.symbol && (!item.marketClass || asset.marketClass === item.marketClass))
@@ -1163,7 +1164,7 @@ export class AppState {
         });
       }
 
-      await this.publishConfirmedFlipEvents([...newlyConfirmed, ...confirmedHistory.filter(c => c.timeframe === '1w')], 'manual quick scan');
+      await this.publishConfirmedFlipEvents([...newlyConfirmed, ...confirmedHistory.filter(c => c.timeframe === '1w')], 'manual quick scan', runStartedAt);
       this.mergeConfirmedFlips(confirmedHistory);
       this.flipCandidates = this.rankUpcomingCandidates([...candidates, ...this.flipCandidates]);
       await this.persistDailyRegimeState();
@@ -1302,7 +1303,7 @@ export class AppState {
       const outcomes = { CONFIRMED: 0, CANDIDATE: 0, NO_SETUP: 0, INSUFFICIENT_DATA: 0, ERROR: 0 } as Record<FlipScanCoverageStatus, number>;
       const byMarket = { crypto: 0, stocks: 0, metals: 0 } as Record<AssetMarketClass, number>;
       this.flipScanCoverage.forEach(item => { outcomes[item.status] += 1; byMarket[item.marketClass] += 1; });
-      await this.publishConfirmedFlipEvents([...newlyConfirmed, ...confirmedHistory.filter(c => c.timeframe === '1w')], 'scheduled/full scan');
+      await this.publishConfirmedFlipEvents([...newlyConfirmed, ...confirmedHistory.filter(c => c.timeframe === '1w')], 'scheduled/full scan', this.dailyRegimeScanStatus.lastStartedAt);
       this.mergeConfirmedFlips(confirmedHistory);
 
       this.dailyRegimeScanStatus = {
@@ -1870,7 +1871,7 @@ export class AppState {
       sma200
     }).total;
     const confirmedAt = confirmed
-      ? Math.min(Date.now(), closedCandles[lastIndex].timestamp + FLIP_TIMEFRAME_DURATION_MS[timeframe])
+      ? closedCandles[lastIndex].timestamp + FLIP_TIMEFRAME_DURATION_MS[timeframe]
       : undefined;
     const assetInfo = TRADING_360_ASSETS.find(a =>
       a.symbol.toUpperCase() === symbol.toUpperCase()
@@ -1947,7 +1948,7 @@ export class AppState {
     );
     if (!candidate || candidate.status !== 'CONFIRMED') return undefined;
 
-    const confirmedAt = Math.min(Date.now(), confirmationCandle.timestamp + FLIP_TIMEFRAME_DURATION_MS[timeframe]);
+    const confirmedAt = confirmationCandle.timestamp + FLIP_TIMEFRAME_DURATION_MS[timeframe];
     // calculateFlipCandidate saw only the slice ending on the flip candle. Replace that
     // high with the last closed candle of the full series, or drop it if that high is invalid.
     const latestClosedHigh = lastClosedCandleHigh(candles);
@@ -2084,7 +2085,8 @@ export class AppState {
 
   private async publishConfirmedFlipEvents(
     candidates: FlipCandidate[],
-    source: 'scheduled/full scan' | 'manual quick scan'
+    source: 'scheduled/full scan' | 'manual quick scan',
+    runStartedAt = Date.now()
   ) {
     // Dedupe identical flips arriving from two sources so no duplicate lines
     // are emitted within one publish batch.
@@ -2096,7 +2098,14 @@ export class AppState {
         ])
       ).values()
     );
-    const fresh = deduped; // Delivery eligibility is durable and destination-specific below.
+    // Delivery uses original candle-close time, never the time this row was discovered.
+    const confirmationTime = (candidate: FlipCandidate) => candidate.confirmedAt
+      ?? candidate.candleTimestamp + FLIP_TIMEFRAME_DURATION_MS[candidate.timeframe];
+    const validTime = (candidate: FlipCandidate) => Number.isFinite(confirmationTime(candidate))
+      && confirmationTime(candidate) > 0 && confirmationTime(candidate) <= runStartedAt;
+    const recent = (candidate: FlipCandidate) => validTime(candidate)
+      && confirmationTime(candidate) >= runStartedAt - 48 * 60 * 60_000;
+    const fresh = deduped; // Historical rows remain available on the dashboard.
     if (!fresh.length) return 0;
     const ranked = fresh.slice().sort((left, right) =>
       (right.confirmedAt || right.candleTimestamp) - (left.confirmedAt || left.candleTimestamp)
@@ -2107,7 +2116,6 @@ export class AppState {
       `${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}:${candidate.direction}:${candidate.candleTimestamp}`;
     const selectedKeys = new Set<string>();
     const deliveredKeys = new Set<string>();
-    const candidateMessages = new Map<string, string>();
     const destinations = await this.getTelegramFlipAlertDestinations();
 
     await Promise.all(destinations.map(async destination => {
@@ -2124,7 +2132,9 @@ export class AppState {
         ? new Set(this.alertHistory.filter(alert => alert.isDelivered).map(alert => alert.idempotencyKey))
         : new Set<string>();
       const guard = this.telegramDeliveryGuard();
-      const claim = await guard.claim(destination.chatId, eligible.map(deliveryKey), legacy);
+      await guard.suppress(destination.chatId, eligible.filter(c => validTime(c) && !recent(c)).map(deliveryKey), 'historical');
+      await guard.suppress(destination.chatId, eligible.filter(c => !validTime(c)).map(deliveryKey), 'invalid');
+      const claim = await guard.claim(destination.chatId, eligible.filter(recent).map(deliveryKey), legacy);
       const claimed = new Set(claim.keys);
       const selected = eligible.filter(candidate => claimed.has(deliveryKey(candidate)));
       if (!selected.length) return;
@@ -2136,8 +2146,7 @@ export class AppState {
       ];
       selected.slice(0, 10).forEach(candidate => {
         const confirmationPrice = candidate.confirmationPrice || candidate.currentPrice;
-        const confirmedAt = candidate.confirmedAt
-          || Math.min(Date.now(), candidate.candleTimestamp + FLIP_TIMEFRAME_DURATION_MS[candidate.timeframe]);
+        const confirmedAt = confirmationTime(candidate);
         const assetLabel = candidate.name && candidate.name.toUpperCase() !== candidate.symbol.toUpperCase()
           ? ` (${candidate.name})`
           : '';
@@ -2145,7 +2154,7 @@ export class AppState {
           `${candidate.direction === 'BULLISH' ? '🟢 ▲' : '🔴 ▼'} ${telegramAssetLink({ baseUrl: dashboardBaseUrl, symbol: candidate.symbol, timeframe: candidate.timeframe, marketClass: candidate.marketClass })}${assetLabel} ${candidate.timeframe.toUpperCase()} · ${candidate.priorityScore.toFixed(0)}/100 · ${candidate.marketClass.toUpperCase()}`,
           `*Închidere flip:* ${formatAlertPrice(confirmationPrice)} → *Preț acum:* ${formatAlertPrice(candidate.currentPrice)} (*${formatFlipMove(confirmationPrice, candidate.currentPrice)}*)`,
           `*Confirmat:* ${formatFlipAge(confirmedAt)} · ${formatFlipDate(confirmedAt)} (Europe/Oslo)`,
-          `ML1W ${candidate.weeklyTier} (${candidate.weeklyScore > 0 ? '+' : ''}${candidate.weeklyScore}) · RVOL ${candidate.rvol.toFixed(2)}x · SMA50 ${candidate.sma50Aligned ? 'aliniat' : 'neconfirmat'} · SMA200 ${candidate.sma200Aligned ? 'aliniat' : 'neconfirmat'}`
+          `Direcție la confirmare: ${candidate.direction} · RVOL ${candidate.rvol.toFixed(2)}x · SMA50 ${candidate.sma50Aligned ? 'aliniat' : 'neconfirmat'} · SMA200 ${candidate.sma200Aligned ? 'aliniat' : 'neconfirmat'}`
         );
       });
       if (selected.length > 10) lines.push(`…și încă ${selected.length - 10} flipuri în pagina Alerte.`);
@@ -2159,7 +2168,6 @@ export class AppState {
       selected.forEach(candidate => {
         const key = candidateKey(candidate);
         selectedKeys.add(key);
-        if (!candidateMessages.has(key)) candidateMessages.set(key, message);
       });
       const delivered = await this.telegramBot.sendMarkdown(message, destination.chatId);
       if (delivered) selected.forEach(candidate => deliveredKeys.add(candidateKey(candidate)));
@@ -2179,17 +2187,15 @@ export class AppState {
         symbol: candidate.symbol,
         type: 'MoneyLineTransition',
         title: `${candidate.direction === 'BULLISH' ? 'Bull' : 'Bear'} flip ${candidate.timeframe.toUpperCase()} confirmat — ${candidate.symbol}`,
-        message: telegramSelected
-          ? candidateMessages.get(key) || `Flip ${candidate.direction.toLowerCase()} ${candidate.timeframe.toUpperCase()} confirmat.`
-          : `Flip ${candidate.direction.toLowerCase()} ${candidate.timeframe.toUpperCase()} confirmat. Telegram filtrat conform preferințelor; evenimentul rămâne disponibil în pagina Alerte.`,
+        // Store this event, not a destination-specific multi-event batch header.
+        message: `Flip ${candidate.direction.toLowerCase()} ${candidate.timeframe.toUpperCase()} confirmat · ${validTime(candidate) ? formatFlipDate(confirmationTime(candidate)) : 'dată invalidă'} (Europe/Oslo). ${!validTime(candidate) ? 'Telegram suprimat: dată invalidă.' : !recent(candidate) ? 'Istoric: nu este o alertă nouă.' : telegramSelected ? 'Selectat pentru Telegram; livrarea este urmărită separat.' : 'Telegram filtrat sau deja revendicat.'}`,
         timeframe: candidate.timeframe,
         price: candidate.currentPrice,
         confirmationPrice: candidate.confirmationPrice || candidate.currentPrice,
         currentPrice: candidate.currentPrice,
         priceChangePercent: flipPriceMovePercent(candidate.confirmationPrice || candidate.currentPrice, candidate.currentPrice),
-        confirmedAt: candidate.confirmedAt
-          || Math.min(Date.now(), candidate.candleTimestamp + FLIP_TIMEFRAME_DURATION_MS[candidate.timeframe]),
-        tier: candidate.moneyLineTier,
+        confirmedAt: Number.isFinite(confirmationTime(candidate)) ? confirmationTime(candidate) : 0,
+        tier: candidate.direction === 'BULLISH' ? 'Bullish' : 'Bearish',
         reason: `Flip ${candidate.direction.toLowerCase()} confirmat pe lumânare închisă; scor tehnic ${candidate.priorityScore.toFixed(0)}/100.`,
         confidence: candidate.priorityScore / 100,
         timestamp: candidate.scannedAt,
