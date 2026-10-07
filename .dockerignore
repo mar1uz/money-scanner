@@ -7,3 +7,14 @@ coverage
 tmp
 scratch
 .agents
+# Working material that is not needed to build or run the image. Keeping these
+# out shrinks the build context sent to Cloud Build and keeps them out of the
+# builder layer, which shortens every build.
+.instinct-tmp
+.instinct-tmp-publisher-backup-*.mjs
+docs
+insight
+*.md
+phone_connect_qr.png
+.opencode
+.instinct-run.sh

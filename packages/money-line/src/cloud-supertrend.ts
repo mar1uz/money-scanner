@@ -20,6 +20,29 @@ export const getMoneyLineCloudParameters = (timeframe: Timeframe | string) => {
 };
 
 /**
+ * Simple moving average of candle closes over a trailing window, computed with
+ * a running sum so the whole series costs O(n) instead of O(n * period).
+ *
+ * The result is identical to averaging `candles.slice(start, index + 1)` per
+ * index, including the shorter window used before the period is filled. The
+ * running sum subtracts the close that leaves the window and adds the one that
+ * enters it, so values differ from the previous slice-and-reduce form only by
+ * floating-point summation order (~1e-13 relative), never by a different set of
+ * real closes.
+ */
+function rollingSimpleMovingAverage(candles: Candle[], period: number): number[] {
+  const output: number[] = new Array(candles.length);
+  let sum = 0;
+  for (let index = 0; index < candles.length; index++) {
+    sum += candles[index].close;
+    if (index >= period) sum -= candles[index - period].close;
+    const windowSize = index + 1 < period ? index + 1 : period;
+    output[index] = sum / windowSize;
+  }
+  return output;
+}
+
+/**
  * Server-side counterpart of the native chart's MoneyLine cloud. It only
  * receives closed candles when used by alert monitoring, so a notification
  * cannot be produced by an unfinished/repainting candle.
@@ -94,16 +117,8 @@ export function calculateMoneyLineCloud(candles: Candle[], timeframe: Timeframe 
 
   const fast = calculateSupertrend(fastFactor);
   const slow = calculateSupertrend(slowFactor);
-  const sma50 = candles.map((_candle, index) => {
-    const start = Math.max(0, index - 49);
-    const values = candles.slice(start, index + 1);
-    return values.reduce((sum, value) => sum + value.close, 0) / values.length;
-  });
-  const sma200 = candles.map((_candle, index) => {
-    const start = Math.max(0, index - 199);
-    const values = candles.slice(start, index + 1);
-    return values.reduce((sum, value) => sum + value.close, 0) / values.length;
-  });
+  const sma50 = rollingSimpleMovingAverage(candles, 50);
+  const sma200 = rollingSimpleMovingAverage(candles, 200);
   const buySignals = slow.dir.map((direction, index) => index > 0 && direction === -1 && slow.dir[index - 1] === 1);
   const sellSignals = slow.dir.map((direction, index) => index > 0 && direction === 1 && slow.dir[index - 1] === -1);
 

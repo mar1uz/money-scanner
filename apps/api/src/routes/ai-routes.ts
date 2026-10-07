@@ -487,7 +487,7 @@ const attachLiveNarrativeChanges = async (
     // Only ticker-like values are resolved; free-form names are skipped so no
     // value is ever invented. Quotes come from the verified provider path:
     // Binance /ticker/24hr for crypto, Yahoo Finance for stocks/metals.
-    // The 60s quote cache keeps this fast on repeat views.
+    // The shared quote cache keeps this fast on repeat views.
     const symbols = Array.from(new Set(
       payload.narratives.flatMap(narrative => narrative.assets || [])
         .map(asset => String(asset || '').replace(/^[$#]/, '').trim().toUpperCase())

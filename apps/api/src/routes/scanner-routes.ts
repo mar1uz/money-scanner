@@ -460,8 +460,10 @@ scannerRouter.get('/search', async (req, res) => {
   }
 });
 
-// Cloud Scheduler still computes a new scan every minute. Dashboard readers
-// reuse that completed result for up to 60 seconds on the same instance.
+// Cloud Scheduler computes a new scan on its configured cadence (every three
+// minutes in production). Dashboard readers reuse that completed result for the
+// whole interval on the same instance, so opening a view never triggers a
+// second full-universe computation.
 let warmInFlight: Promise<{ rows: number; durationMs: number }> | null = null;
 scannerRouter.get('/scanner/warm', async (req, res) => {
   if (!validateScheduledRequestToken(req.get('x-daily-scan-token'))) {

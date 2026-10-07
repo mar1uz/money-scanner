@@ -9,5 +9,11 @@ tmp
 scratch
 .agents
 .instinct-tmp
+.instinct-tmp-publisher-backup-*.mjs
+docs
+insight
+*.md
+.opencode
+phone_connect_qr.png
 .env
 .env.*

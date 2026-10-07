@@ -77,7 +77,16 @@ export class MarketDataService {
       : { accept: 'application/json' };
   }
 
-  private readonly quoteCacheMs = 60_000;
+  /**
+   * How long a verified quote is reused.
+   *
+   * 180s matches the production cache-warmer cadence and the dashboard poll
+   * interval, so a scheduled warm still refreshes every quote it needs, while a
+   * warm landing shortly after the previous one costs nothing. The value is a
+   * freshness window over verified provider rows, never a synthesised number:
+   * `isStale`/`timestamp` still come from the venue.
+   */
+  private readonly quoteCacheMs = 180_000;
   private readonly candleCacheMs: Record<Timeframe, number> = {
     '1h': 60_000,
     '4h': 2 * 60_000,
@@ -324,17 +333,35 @@ export class MarketDataService {
       if ((coinGeckoId || asset?.coinGeckoId) && isExplicitCryptoSpot && !chartMarket) {
         throw new Error('No identity-verified candle market for requested coin');
       }
+      // A plain Binance spot quote is the same row whether it arrives from the
+      // bulk snapshot or from the single-pair endpoint, so prefer the bulk
+      // snapshot when the snapshot already holds this pair. Any other venue,
+      // a futures contract, a non-USDT pair or a missing row falls through to
+      // the unchanged per-symbol path.
+      // The bulk snapshot is Binance data, so it may only answer a symbol whose
+      // identity-verified source is Binance spot (or the legacy Binance routing
+      // where no chart market was resolved). An asset resolved to OKX/MEXC/
+      // Bybit/Hyperliquid must keep using its own venue's endpoint.
+      const bulkEligible = !isBinanceFutures
+        && !isHyperliquid
+        && isExplicitCryptoSpot
+        && (chartMarket === null || chartMarket.source === 'binance_spot');
+      const bulkQuote = bulkEligible
+        ? await this.binanceAdapter.fetch24hTickerFromBulk(symbol)
+        : null;
       const legacyQuote = async () => isHyperliquid
         ? await this.hyperliquidAdapter.fetchQuote(providerSymbol)
         : isBinanceFutures
-        ? await this.binanceAdapter.fetchFutures24hTicker(providerSymbol, symbol)
-        : isExplicitCryptoSpot
-        ? await this.binanceAdapter.fetch24hTicker(symbol)
-        : isStockOrMetal
-        ? await this.stockAdapter.fetchQuote(symbol)
-        : await this.binanceAdapter.fetch24hTicker(symbol);
+          ? await this.binanceAdapter.fetchFutures24hTicker(providerSymbol, symbol)
+          : isExplicitCryptoSpot
+            ? await this.binanceAdapter.fetch24hTicker(symbol)
+            : isStockOrMetal
+              ? await this.stockAdapter.fetchQuote(symbol)
+              : await this.binanceAdapter.fetch24hTicker(symbol);
       let quote;
-      quote = chartMarket?.source === 'mexc_spot'
+      quote = bulkQuote
+        ? bulkQuote
+        : chartMarket?.source === 'mexc_spot'
           ? await this.mexcAdapter.fetchQuote(chartMarket.providerSymbol, symbol)
           : chartMarket?.source === 'bybit_spot'
           ? await this.bybitAdapter.fetch24hTicker(chartMarket.providerSymbol, symbol)
@@ -358,8 +385,13 @@ export class MarketDataService {
   }
 
   public async getQuotesForAssets(assets: AssetInfo[]): Promise<AssetPriceQuote[]> {
+    // One bulk Binance request serves every plain-USDT spot pair in the batch.
+    // Assets routed to another venue, to a futures contract or to Yahoo keep
+    // their own request path, so this only removes redundant calls.
+    this.binanceAdapter.fetchAll24hTickers().catch(() => undefined);
+
     const quotes: AssetPriceQuote[] = [];
-    const concurrency = 6;
+    const concurrency = 16;
     for (let index = 0; index < assets.length; index += concurrency) {
       const settled = await Promise.allSettled(
         assets.slice(index, index + concurrency).map(asset => this.getPriceQuote(asset.symbol, asset.marketClass, asset.coinGeckoId))

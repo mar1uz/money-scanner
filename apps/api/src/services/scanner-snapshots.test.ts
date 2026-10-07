@@ -6,7 +6,7 @@ import { AppState } from './app-state.js';
 
 const row = (symbol: string) => ({ symbol, lastUpdated: 123 }) as AssetScannerRow;
 
-test('minute refresh computes again while dashboard readers reuse its latest result', async () => {
+test('scheduled refresh computes again while dashboard readers reuse its latest result', async () => {
   let now = 0;
   let scans = 0;
   const cache = new ScannerSnapshots(() => now);
@@ -17,7 +17,13 @@ test('minute refresh computes again while dashboard readers reuse its latest res
   assert.equal((await cache.refresh('1w:ALL', scan))[0].symbol, '2');
   assert.equal((await cache.read('1w:ALL', scan))[0].symbol, '2');
   assert.equal(scans, 2);
-  now = 70_000;
+  // Still inside the reader window (165s, just under the 3-minute warm
+  // cadence), so the scheduled result is reused instead of recomputed.
+  now = 120_000;
+  assert.equal((await cache.read('1w:ALL', scan))[0].symbol, '2');
+  assert.equal(scans, 2);
+  // Past the window: a reader now recomputes rather than serve a stale scan.
+  now = 200_000;
   assert.equal((await cache.read('1w:ALL', scan))[0].symbol, '3');
 });
 

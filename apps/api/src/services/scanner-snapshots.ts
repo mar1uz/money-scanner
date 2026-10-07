@@ -1,15 +1,27 @@
 import type { AssetScannerRow } from '@money-scanner/shared';
 
-/** Per-instance results shared by the scheduled scan and dashboard readers. */
+/**
+ * Per-instance results shared by the scheduled scan and dashboard readers.
+ *
+ * `maxAgeMs` bounds how long a completed scan is served to readers. It is set
+ * just under the production cache-warmer cadence so the scheduled scan always
+ * refreshes the snapshot first and a dashboard reader reuses that result instead
+ * of triggering a second full-universe computation. Rows carry the real
+ * `lastUpdated` timestamp of their scan, so freshness stays visible either way.
+ */
 export class ScannerSnapshots {
   private readonly completed = new Map<string, { rows: AssetScannerRow[]; completedAt: number }>();
   private readonly running = new Map<string, Promise<AssetScannerRow[]>>();
 
-  constructor(private readonly now = Date.now, private readonly maxEntries = 64) {}
+  constructor(
+    private readonly now = Date.now,
+    private readonly maxEntries = 64,
+    private readonly maxAgeMs = 165_000
+  ) {}
 
   async read(key: string, scan: () => Promise<AssetScannerRow[]>): Promise<AssetScannerRow[]> {
     const snapshot = this.completed.get(key);
-    if (snapshot && this.now() - snapshot.completedAt < 60_000) {
+    if (snapshot && this.now() - snapshot.completedAt < this.maxAgeMs) {
       return [...snapshot.rows];
     }
     return this.refresh(key, scan);

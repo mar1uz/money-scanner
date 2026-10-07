@@ -1,6 +1,17 @@
 import { Candle, AssetPriceQuote, Timeframe } from '@money-scanner/shared';
 import { MarketHealthMonitor } from '../health-monitor.js';
 
+/** Raw 24h ticker row as Binance returns it, identical for the single and bulk endpoints. */
+export interface Binance24hTickerRow {
+  symbol: string;
+  lastPrice: string;
+  priceChangePercent: string;
+  highPrice: string;
+  lowPrice: string;
+  volume: string;
+  closeTime: number;
+}
+
 export class BinanceMarketAdapter {
   // Binance recommends this host for public, market-data-only requests.
   private baseUrl = process.env.BINANCE_API_URL || 'https://data-api.binance.vision/api/v3';
@@ -254,6 +265,7 @@ export class BinanceMarketAdapter {
   }
 
   private startOfYearPriceCache: Map<string, number> = new Map();
+  private allTickersCache: { rows: Map<string, Binance24hTickerRow>; updatedAt: number } | null = null;
 
   private async getStartOfYearPrice(symbol: string): Promise<number | null> {
     if (this.startOfYearPriceCache.has(symbol)) {
@@ -283,6 +295,92 @@ export class BinanceMarketAdapter {
     } catch {}
 
     return null;
+  }
+
+  /**
+   * One bulk request for every spot 24h ticker Binance lists, keyed by pair.
+   *
+   * Scanning the universe used to issue one `/ticker/24hr?symbol=X` request per
+   * asset. The unfiltered endpoint returns the same verified rows for all pairs
+   * in a single response, so a full-universe quote pass costs one request
+   * instead of one per asset. Field names and semantics are untouched: callers
+   * still receive `lastPrice`, `priceChangePercent`, `highPrice`, `lowPrice`,
+   * `volume`, `closeTime` per pair, exactly as the per-symbol endpoint returns.
+   */
+  public async fetchAll24hTickers(): Promise<Map<string, Binance24hTickerRow>> {
+    if (this.allTickersCache && Date.now() - this.allTickersCache.updatedAt < 15_000) {
+      return this.allTickersCache.rows;
+    }
+
+    const startTime = Date.now();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15_000);
+
+    try {
+      const response = await fetch(`${this.baseUrl}/ticker/24hr`, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`Binance bulk ticker HTTP error: ${response.status}`);
+      }
+
+      const rows = await response.json() as Binance24hTickerRow[];
+      const byPair = new Map<string, Binance24hTickerRow>();
+      for (const row of Array.isArray(rows) ? rows : []) {
+        if (row?.symbol) byPair.set(row.symbol, row);
+      }
+      if (!byPair.size) throw new Error('Binance bulk ticker returned no rows');
+
+      this.healthMonitor.recordSuccess('Binance', Date.now() - startTime);
+      this.allTickersCache = { rows: byPair, updatedAt: Date.now() };
+      return byPair;
+    } catch (err) {
+      clearTimeout(timeoutId);
+      // A provider failure must never evict a good snapshot: fall back to the
+      // last successful bulk response so a scan can still be served from real,
+      // previously verified rows rather than invented values.
+      if (this.allTickersCache) return this.allTickersCache.rows;
+      this.healthMonitor.recordError('Binance');
+      throw err;
+    }
+  }
+
+  /**
+   * Builds the same quote as `fetch24hTicker` from an already-fetched bulk
+   * snapshot instead of issuing a per-symbol request. Returns null when the
+   * snapshot has no row for this pair, so the caller falls back to the
+   * per-symbol endpoint rather than inventing a value.
+   */
+  public async fetch24hTickerFromBulk(symbol: string): Promise<AssetPriceQuote | null> {
+    const pair = `${symbol}USDT`;
+    const rows = await this.fetchAll24hTickers();
+    const data = rows.get(pair);
+    if (!data) return null;
+
+    const startTime = Date.now();
+    this.healthMonitor.recordSuccess('Binance', Date.now() - startTime);
+
+    const currentPrice = parseFloat(data.lastPrice);
+    if (!Number.isFinite(currentPrice) || currentPrice <= 0) return null;
+
+    const startOfYearPrice = await this.getStartOfYearPrice(symbol);
+    let changeYtd: number | undefined;
+    if (startOfYearPrice && startOfYearPrice > 0) {
+      changeYtd = Number((((currentPrice - startOfYearPrice) / startOfYearPrice) * 100).toFixed(2));
+    }
+
+    return {
+      symbol,
+      price: currentPrice,
+      change24h: parseFloat(data.priceChangePercent),
+      changeYtd,
+      high24h: parseFloat(data.highPrice),
+      low24h: parseFloat(data.lowPrice),
+      volume24h: parseFloat(data.volume),
+      timestamp: data.closeTime,
+      source: 'Binance',
+      isStale: false
+    };
   }
 
   public async fetch24hTicker(symbol: string): Promise<AssetPriceQuote> {
