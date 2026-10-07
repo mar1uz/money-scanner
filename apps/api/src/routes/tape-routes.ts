@@ -177,7 +177,10 @@ tapeRouter.get('/tape/proof', async (_req, res) => {
   // stocks to the Tape too). Latest cached daily scan only.
   let stockQuality: { generatedAt: number; entries: TapeStockEntry[] } | null = null;
   try {
-    const cachedStocks = await readPersistentAICache<{ generatedAt?: number; assets?: TapeStockAssetInput[] }>('stock-business-quality-top');
+    // Must match stockCriteriaPersistentKey in ai-routes.ts. The tape used to read
+    // 'stock-business-quality-top' while the daily scan writes '-top-v2', so the
+    // public tape's stock block was always empty.
+    const cachedStocks = await readPersistentAICache<{ generatedAt?: number; assets?: TapeStockAssetInput[] }>('stock-business-quality-top-v2');
     if (cachedStocks?.payload && Date.now() - cachedStocks.updatedAt <= 4 * 24 * 60 * 60_000) {
       const entries = buildStockTop(cachedStocks.payload.assets);
       if (entries.length) stockQuality = { generatedAt: cachedStocks.payload.generatedAt ?? cachedStocks.updatedAt, entries };
