@@ -542,6 +542,12 @@ scannerRouter.get('/scanner', async (req, res) => {
       rows = rows.sort((left, right) => (right.marketCap || 0) - (left.marketCap || 0));
     }
 
+    // Browser-only revalidation window. The rows themselves carry the real
+    // `lastUpdated` of the scan that produced them, and the scheduled warmer
+    // refreshes them on its own cadence, so a short private cache only avoids a
+    // duplicate transfer when a view is re-entered. `private` keeps a signed-in
+    // user's response out of shared caches.
+    res.set('Cache-Control', 'private, max-age=60');
     res.json(rows);
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to execute scanner', details: err.message });
@@ -557,6 +563,7 @@ scannerRouter.get('/narratives', async (req, res) => {
       : 'ALL';
     const appState = AppState.getInstance();
     const narratives = await appState.getNarrativeSummaries(timeframe, marketClass);
+    res.set('Cache-Control', 'private, max-age=60');
     res.json(narratives);
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to compute narrative summaries', details: err.message });
