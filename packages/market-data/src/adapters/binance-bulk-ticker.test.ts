@@ -67,6 +67,7 @@ describe('Binance bulk 24h ticker', () => {
       assert.equal(fromBulk.high24h, single.high24h);
       assert.equal(fromBulk.low24h, single.low24h);
       assert.equal(fromBulk.volume24h, single.volume24h);
+      assert.equal(fromBulk.volume24h, 999999);
       assert.equal(fromBulk.source, single.source);
       assert.equal(fromBulk.isStale, single.isStale);
       assert.deepEqual(Object.keys(fromBulk).sort(), Object.keys(single).sort());

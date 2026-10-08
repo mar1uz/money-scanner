@@ -130,7 +130,7 @@ export class HyperliquidMarketAdapter {
       changeYtd: yearOpen ? Number((((price - yearOpen) / yearOpen) * 100).toFixed(2)) : undefined,
       high24h: recent.length ? Math.max(...recent.map(candle => candle.high)) : price,
       low24h: recent.length ? Math.min(...recent.map(candle => candle.low)) : price,
-      volume24h: recent.reduce((sum, candle) => sum + candle.volume, 0),
+      volume24h: (await this.quoteVolume24h(symbol)) ?? Number.NaN,
       timestamp: now,
       source: 'Hyperliquid',
       isStale: false

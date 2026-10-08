@@ -1,3 +1,4 @@
+import { calculateBreadth } from '../utils/market-breadth.js';
 import React, { useState, useEffect } from 'react';
 import { MarketOverviewSummary, AssetScannerRow } from '../types.js';
 import {
@@ -51,19 +52,7 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
     return true;
   });
 
-  const totalAssets = filteredRows.length || 1;
-
-  // 1. Dynamic Market Breadth Calculation
-  const advancingCount = filteredRows.filter(r => 
-    r.tier?.includes('Bullish') || (r.change24h && r.change24h > 0)
-  ).length;
-
-  const decliningCount = filteredRows.filter(r => 
-    r.tier?.includes('Bearish') || (r.change24h && r.change24h < 0)
-  ).length;
-
-  const neutralCount = Math.max(0, totalAssets - advancingCount - decliningCount);
-  const bullishPercent = Math.round((advancingCount / totalAssets) * 100) || 50;
+  const { advancingCount, decliningCount, neutralCount, totalAssets, bullishPercent, missingCount } = calculateBreadth(filteredRows);
 
   // 2. Dynamic Market Regime & MoneyLine Score
   const avgMoneyLineScore = filteredRows.length > 0
@@ -223,8 +212,9 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
   const fearGreedInfo = getFearGreedDetails(fearGreedScore, activeFng.classification);
 
   // 4. Dynamic Liquidity & Market Cap Calculation
-  const totalMarketCap = filteredRows.reduce((acc, r) => acc + (r.marketCap || 0), 0);
-  const total24hVol = filteredRows.reduce((acc, r) => acc + (r.volume24h || 0), 0);
+  const totalMarketCap = overview?.totalMarketCap;
+  const cryptoVolumeRows = filteredRows.filter(r => r.marketClass ? r.marketClass === 'crypto' : isCrypto(r.symbol, r.category));
+  const total24hVol = cryptoVolumeRows.length && cryptoVolumeRows.every(r => Number.isFinite(r.volume24h) && r.volume24h >= 0) ? cryptoVolumeRows.reduce((acc, r) => acc + r.volume24h, 0) : null;
 
   const formatLargeNumber = (num: number) => {
     if (num >= 1e12) return `$${(num / 1e12).toFixed(2)}T`;
@@ -308,26 +298,27 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
         {/* Card 2: Market Breadth */}
         <div className="card-base p-5">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-slate-400">Market Breadth</span>
+            <span className="text-xs font-medium text-slate-400">Market Breadth · 24h</span>
             <span className="text-xs font-mono font-bold text-cyan-300">
-              {bullishPercent}% Bullish
+              {bullishPercent === null ? 'Unavailable' : `${bullishPercent}% Bullish`}
             </span>
           </div>
+          <p className="text-[10px] text-slate-500">24h price direction · ±0.5% neutral{missingCount ? ` · ${missingCount} unavailable` : ""}</p>
           {/* Multi-segment Breadth Bar */}
           <div className="w-full h-2 rounded-full bg-white/[0.04] flex overflow-hidden my-3 border border-white/[0.06]">
             <div 
               className="bg-emerald-400 h-full transition-all duration-500" 
-              style={{ width: `${(advancingCount / totalAssets) * 100}%` }}
+              style={{ width: `${(totalAssets ? advancingCount / totalAssets : 0) * 100}%` }}
               title={`${advancingCount} Up`}
             />
             <div 
               className="bg-slate-600 h-full transition-all duration-500" 
-              style={{ width: `${(neutralCount / totalAssets) * 100}%` }}
+              style={{ width: `${(totalAssets ? neutralCount / totalAssets : 0) * 100}%` }}
               title={`${neutralCount} Neutral`}
             />
             <div 
               className="bg-rose-500 h-full transition-all duration-500" 
-              style={{ width: `${(decliningCount / totalAssets) * 100}%` }}
+              style={{ width: `${(totalAssets ? decliningCount / totalAssets : 0) * 100}%` }}
               title={`${decliningCount} Down`}
             />
           </div>
@@ -341,21 +332,21 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
         {/* Card 3: Global Liquidity & Market Cap */}
         <div className="card-base p-5">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-slate-400">Global Liquidity</span>
+            <span className="text-xs font-medium text-slate-400">Global market cap</span>
             <Layers className="w-4 h-4 text-cyan-400" />
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-3xl font-semibold tracking-tight text-slate-100">
-              {totalMarketCap > 0 ? formatLargeNumber(totalMarketCap) : '$2.42T'}
+              {typeof totalMarketCap === 'number' && Number.isFinite(totalMarketCap) && totalMarketCap > 0 ? formatLargeNumber(totalMarketCap) : 'Unavailable'}
             </span>
-            <span className="text-xs text-slate-500 font-mono">Total Cap</span>
+            <span className="text-xs text-slate-500 font-mono">Total Cap · CoinGecko</span>
           </div>
           <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono mt-2 pt-2 border-t border-white/[0.04]">
-            <span>24h Vol: <strong className="text-slate-300">{total24hVol > 0 ? formatLargeNumber(total24hVol) : '$78.4B'}</strong></span>
-            <span className="text-cyan-400">{filteredRows.length} Active</span>
+            <span>Tracked 24h vol: <strong className="text-slate-300">{total24hVol === null ? 'Unavailable' : formatLargeNumber(total24hVol)}</strong></span>
+            <span className="text-cyan-400">{filteredRows.length} tracked</span>
           </div>
+          <p className="text-[10px] text-slate-500">Tracked crypto volume in USDT/USD</p>
         </div>
-
         {/* Card 4: Fear and Greed Index */}
         <div className="card-base p-5">
           <div className="flex items-center justify-between mb-1.5">

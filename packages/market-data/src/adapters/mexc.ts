@@ -84,6 +84,6 @@ export class MexcMarketAdapter {
     if (!Number.isFinite(price) || price <= 0) throw new Error('MEXC ticker price unavailable');
     return { symbol, price, change24h: Number(row.priceChangePercent) || 0,
       high24h: Number(row.highPrice) || price, low24h: Number(row.lowPrice) || price,
-      volume24h: Number(row.volume) || 0, timestamp: Date.now(), source: 'MEXC', isStale: false };
+      volume24h: Number(row.quoteVolume), timestamp: Date.now(), source: 'MEXC', isStale: false };
   }
 }

@@ -1,4 +1,4 @@
-import { AssetExternalLinks } from './AssetExternalLinks.js';
+import { AssetLinksMenu } from './AssetLinksMenu.js';
 import React, { useState } from 'react';
 import { formatPrice } from '../utils/price.js';
 import {
@@ -1025,7 +1025,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
 
                     {/* Actions */}
                     <td data-col="actions" className="py-3.5 px-4 text-right">
-                      <div onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()} className="mb-1 flex justify-end"><AssetExternalLinks symbol={row.symbol} marketClass={row.marketClass} showNarrative={false} /></div>
+                      <div onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()} className="flex items-center justify-end gap-2 whitespace-nowrap"><AssetLinksMenu symbol={row.symbol} marketClass={row.marketClass} />
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -1036,6 +1036,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                       >
                         <Eye className="w-4 h-4" />
                       </button>
+                      </div>
                     </td>
                   </tr>
                 );

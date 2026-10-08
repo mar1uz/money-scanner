@@ -8,7 +8,7 @@ export interface Binance24hTickerRow {
   priceChangePercent: string;
   highPrice: string;
   lowPrice: string;
-  volume: string;
+  volume: string; quoteVolume: string;
   closeTime: number;
 }
 
@@ -376,7 +376,7 @@ export class BinanceMarketAdapter {
       changeYtd,
       high24h: parseFloat(data.highPrice),
       low24h: parseFloat(data.lowPrice),
-      volume24h: parseFloat(data.volume),
+      volume24h: parseFloat(data.quoteVolume),
       timestamp: data.closeTime,
       source: 'Binance',
       isStale: false
@@ -404,7 +404,7 @@ export class BinanceMarketAdapter {
         priceChangePercent: string;
         highPrice: string;
         lowPrice: string;
-        volume: string;
+        volume: string; quoteVolume: string;
         closeTime: number;
       };
 
@@ -427,7 +427,7 @@ export class BinanceMarketAdapter {
         changeYtd,
         high24h: parseFloat(data.highPrice),
         low24h: parseFloat(data.lowPrice),
-        volume24h: parseFloat(data.volume),
+        volume24h: parseFloat(data.quoteVolume),
         timestamp: data.closeTime,
         source: 'Binance',
         isStale: false
@@ -456,7 +456,7 @@ export class BinanceMarketAdapter {
         priceChangePercent: string;
         highPrice: string;
         lowPrice: string;
-        volume: string;
+        volume: string; quoteVolume: string;
         closeTime: number;
       };
 
@@ -474,7 +474,7 @@ export class BinanceMarketAdapter {
         changeYtd,
         high24h: parseFloat(data.highPrice),
         low24h: parseFloat(data.lowPrice),
-        volume24h: parseFloat(data.volume),
+        volume24h: parseFloat(data.quoteVolume),
         timestamp: data.closeTime,
         source: 'Binance Futures',
         isStale: false
