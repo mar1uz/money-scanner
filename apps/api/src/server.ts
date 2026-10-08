@@ -47,6 +47,7 @@ export function createServer() {
       || req.path === '/chart-market-diagnostics'
       || req.path === '/telegram/webhook'
       || req.path === '/alerts/daily-regime-scan'
+      || req.path === '/alerts/daily-regime-scan/no-send'
       || req.path === '/alerts/daily-sma-reclaim/scheduled'
       || req.path === '/alerts/ma-cross/scheduled'
       || req.path === '/alerts/structure-scanner/scheduled'

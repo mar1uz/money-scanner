@@ -66,7 +66,12 @@ export interface BullishCloudAlertRule {
   lastError?: string;
 }
 
+export type ScanDeliveryMode = 'none' | 'telegram';
+
 export interface DailyRegimeScanStatus {
+  deliveryMode?: ScanDeliveryMode;
+  persistedRunId?: string;
+  persistedUpdatedAt?: number;
   enabled: true;
   schedule: '0 8 * * *';
   timezone: 'Europe/Bucharest';
@@ -308,6 +313,7 @@ export class AppState {
   private evaluatingAlertIds = new Set<string>();
   private bullishAlertTimer?: NodeJS.Timeout;
   private dailyRegimeScanPromise?: Promise<DailyRegimeScanStatus>;
+  private dailyRegimeScanDelivery?: ScanDeliveryMode;
   private dailyRegimeStateLoadedAt = 0;
   private manualAlertScanPromises = new Map<string, Promise<ManualAlertScanStatus>>();
   private manualAlertScanStatuses = new Map<string, ManualAlertScanStatus>();
@@ -1209,11 +1215,17 @@ export class AppState {
    * the latest Daily candle must cross into the opposite tier and confirm on
    * the correct side of SMA 50.
    */
-  public runDailyRegimeScan(options: { timeframes?: TelegramFlipTimeframe[] } = {}): Promise<DailyRegimeScanStatus> {
-    if (this.dailyRegimeScanPromise) return this.dailyRegimeScanPromise;
-
-    this.dailyRegimeScanPromise = this.executeLockedDailyRegimeScan(options.timeframes || TELEGRAM_FLIP_TIMEFRAMES).finally(() => {
+  public runDailyRegimeScan(options: { timeframes?: TelegramFlipTimeframe[]; delivery?: ScanDeliveryMode } = {}): Promise<DailyRegimeScanStatus> {
+    const delivery = options.delivery ?? 'telegram';
+    if (delivery !== 'none' && delivery !== 'telegram') return Promise.reject(new Error('Invalid scan delivery mode.'));
+    if (this.dailyRegimeScanPromise) {
+      if (this.dailyRegimeScanDelivery !== delivery) return Promise.reject(Object.assign(new Error('Another scan with a different delivery mode is running.'), { code: 'SCAN_BUSY' }));
+      return this.dailyRegimeScanPromise;
+    }
+    this.dailyRegimeScanDelivery = delivery;
+    this.dailyRegimeScanPromise = this.executeLockedDailyRegimeScan(options.timeframes || TELEGRAM_FLIP_TIMEFRAMES, delivery).finally(() => {
       this.dailyRegimeScanPromise = undefined;
+      this.dailyRegimeScanDelivery = undefined;
     });
     return this.dailyRegimeScanPromise;
   }
@@ -1222,28 +1234,32 @@ export class AppState {
     return new TelegramDeliveryGuard(this.dailyRegimeDocument().firestore);
   }
 
-  private async executeLockedDailyRegimeScan(timeframes: TelegramFlipTimeframe[]): Promise<DailyRegimeScanStatus> {
+  private async executeLockedDailyRegimeScan(timeframes: TelegramFlipTimeframe[], delivery: ScanDeliveryMode): Promise<DailyRegimeScanStatus> {
     const guard = this.telegramDeliveryGuard();
     const owner = await guard.acquireScan();
     if (!owner) {
       await this.restoreDailyRegimeState(true);
       console.info('Daily MoneyLine scan skipped: shared scan lock held.');
+      if (delivery === 'none') throw Object.assign(new Error('Shared scan lock held; no fresh run created.'), { code: 'SCAN_BUSY' });
       return { ...this.dailyRegimeScanStatus };
     }
     try {
-      return await this.executeDailyRegimeScan(timeframes);
+      return await this.executeDailyRegimeScan(timeframes, delivery);
     } finally {
       await guard.releaseScan(owner);
     }
   }
 
-  private async executeDailyRegimeScan(timeframes: TelegramFlipTimeframe[] = TELEGRAM_FLIP_TIMEFRAMES): Promise<DailyRegimeScanStatus> {
+  private async executeDailyRegimeScan(timeframes: TelegramFlipTimeframe[] = TELEGRAM_FLIP_TIMEFRAMES, delivery: ScanDeliveryMode = 'telegram'): Promise<DailyRegimeScanStatus> {
     // Restore the last persisted results first so scheduler retries or cold
     // starts cannot duplicate a signal for the same closed Daily candle.
     await this.restoreDailyRegimeState(true);
     this.dailyRegimeScanStatus = {
       ...this.dailyRegimeScanStatus,
       lastStartedAt: Date.now(),
+      deliveryMode: delivery,
+      persistedRunId: undefined,
+      persistedUpdatedAt: undefined,
       running: true,
       scannedAssets: 0,
       matches: 0,
@@ -1322,7 +1338,9 @@ export class AppState {
       const outcomes = { CONFIRMED: 0, CANDIDATE: 0, NO_SETUP: 0, INSUFFICIENT_DATA: 0, ERROR: 0 } as Record<FlipScanCoverageStatus, number>;
       const byMarket = { crypto: 0, stocks: 0, metals: 0 } as Record<AssetMarketClass, number>;
       this.flipScanCoverage.forEach(item => { outcomes[item.status] += 1; byMarket[item.marketClass] += 1; });
-      await this.publishConfirmedFlipEvents([...newlyConfirmed, ...confirmedHistory.filter(c => c.timeframe === '1w')], 'scheduled/full scan', this.dailyRegimeScanStatus.lastStartedAt);
+      if (delivery === 'telegram') {
+        await this.publishConfirmedFlipEvents([...newlyConfirmed, ...confirmedHistory.filter(c => c.timeframe === '1w')], 'scheduled/full scan', this.dailyRegimeScanStatus.lastStartedAt);
+      }
       this.mergeConfirmedFlips(confirmedHistory);
 
       this.dailyRegimeScanStatus = {
@@ -1337,7 +1355,7 @@ export class AppState {
       };
       const activeKeys = new Set(universe.map(asset => `${asset.marketClass}:${asset.symbol}`));
       this.confirmedFlips = this.confirmedFlips.filter(candidate => activeKeys.has(`${candidate.marketClass}:${candidate.symbol}`));
-      await this.persistDailyRegimeState();
+      await this.persistDailyRegimeState(delivery === 'none');
       await this.publishScanProgress();
     } catch (error) {
       this.dailyRegimeScanStatus = {
@@ -1347,7 +1365,7 @@ export class AppState {
         lastError: error instanceof Error ? error.message : 'Scanarea zilnică a eșuat.'
       };
       console.error('Daily MoneyLine regime scan failed:', this.dailyRegimeScanStatus.lastError);
-      await this.persistDailyRegimeState();
+      await this.persistDailyRegimeState(delivery === 'none');
       await this.publishScanProgress();
     }
 
@@ -1736,7 +1754,7 @@ export class AppState {
     }
   }
 
-  private async persistDailyRegimeState() {
+  private async persistDailyRegimeState(strict = false) {
     try {
       const alerts = this.alertHistory
         .filter(alert => alert.ruleId === 'global:flip-scan' || alert.ruleId === 'global:daily-strategy-scan')
@@ -1746,7 +1764,8 @@ export class AppState {
       const main = this.dailyRegimeDocument();
       const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const run = main.collection('runs').doc(runId);
-      const safeStatus = JSON.parse(JSON.stringify(this.dailyRegimeScanStatus)) as DailyRegimeScanStatus;
+      const persistedUpdatedAt = Date.now();
+      const safeStatus = JSON.parse(JSON.stringify({ ...this.dailyRegimeScanStatus, persistedRunId: runId, persistedUpdatedAt })) as DailyRegimeScanStatus;
       const segmentIds: string[] = [];
       const groups = new Map<string, { kind: string; group: string; items: unknown[] }>();
       const add = (kind: string, group: string, items: unknown[]) => {
@@ -1775,7 +1794,7 @@ export class AppState {
       let batch = db.batch();
       let writes = 0;
       for (const [id, segment] of groups) {
-        batch.set(run.collection('segments').doc(id), { ...segment, updatedAt: Date.now() });
+        batch.set(run.collection('segments').doc(id), { ...segment, updatedAt: persistedUpdatedAt });
         writes += 1;
         if (writes === 450) { await batch.commit(); batch = db.batch(); writes = 0; }
       }
@@ -1790,7 +1809,7 @@ export class AppState {
           alerts: alerts.length,
           strategies: this.strategySetups.length
         },
-        updatedAt: Date.now()
+        updatedAt: persistedUpdatedAt
       });
       await batch.commit();
       await main.set({
@@ -1798,7 +1817,7 @@ export class AppState {
         activeRunId: runId,
         status: safeStatus,
         summary: this.dailyRegimeScanStatus.coverage,
-        updatedAt: Date.now()
+        updatedAt: persistedUpdatedAt
       });
       const oldRuns = await main.collection('runs').listDocuments();
       const keep = new Set(oldRuns.map(ref => ref.id).sort().slice(-3));
@@ -1815,8 +1834,10 @@ export class AppState {
         deleteBatch.delete(oldRun);
         await deleteBatch.commit();
       }
+      this.dailyRegimeScanStatus = safeStatus;
       this.dailyRegimeStateLoadedAt = Date.now();
     } catch (error) {
+      if (strict) throw error;
       console.warn('Daily regime state persistence failed:', error instanceof Error ? error.message : error);
     }
   }

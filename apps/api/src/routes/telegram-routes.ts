@@ -531,6 +531,20 @@ telegramRouter.post('/alerts/daily-regime-scan', async (req, res) => {
   res.json(status);
 });
 
+// Internal briefing refresh: fixed no-delivery mode, never body-controlled.
+telegramRouter.post('/alerts/daily-regime-scan/no-send', async (req, res) => {
+  if (!validateScheduledRequestToken(req.get('x-daily-scan-token'))) {
+    return res.status(401).json({ error: 'Invalid daily scan token.' });
+  }
+  try {
+    const status = await AppState.getInstance().runDailyRegimeScan({ timeframes: AUTOMATED_FLIP_TIMEFRAMES, delivery: 'none' });
+    res.set('Cache-Control', 'no-store');
+    return res.status(status.lastError ? 502 : 200).json(status);
+  } catch (error: any) {
+    return res.status(error?.code === 'SCAN_BUSY' ? 409 : 500).json({ error: error?.message || 'No-send scan failed.' });
+  }
+});
+
 // Dedicated Cloud Scheduler target. It deliberately does not share the
 // existing regime-scan execution or its state machine.
 telegramRouter.post('/alerts/daily-sma-reclaim/scheduled', async (req, res) => {
