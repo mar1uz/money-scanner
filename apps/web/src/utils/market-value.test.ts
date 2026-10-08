@@ -1,0 +1,10 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { getMarketValue, companyComponent, type CapSnapshot } from './market-value.js';
+const now = Date.parse('2026-10-08T14:00:00Z');
+const data: CapSnapshot = {fetchedAt:'2026-10-08T12:00:00Z',maxAgeDays:7,universe:[{symbol:'A',name:'A',marketClass:'stocks'},{symbol:'B',name:'B',marketClass:'metals'}],companies:{A:{value:100,url:'https://source.invalid/a',dataAsOf:null},B:{value:200,url:'https://source.invalid/b',dataAsOf:null}}};
+test('selection switches exact crypto, companies, gold and all total',()=>{assert.equal(getMarketValue('crypto',1000,now,data).value,1000);assert.equal(getMarketValue('stocks',1000,now,data).value,100);assert.equal(getMarketValue('metals',1000,now,data).value,29e12);assert.equal(getMarketValue('ALL',1000,now,data).value,29e12+1300)});
+test('missing companies make total unavailable but preserve available components',()=>{const x={...data,companies:{A:data.companies.A}};const v=getMarketValue('ALL',1000,now,x);assert.equal(v.value,null);assert.equal(v.components[0].value,1000);assert.equal(v.components[1].value,29e12);assert.equal(v.components[3].value,null)});
+test('stale snapshots and failed crypto do not manufacture total',()=>{assert.equal(companyComponent('stocks',now+8*86400000,data).value,null);assert.equal(getMarketValue('ALL',NaN,now,data).value,null);assert.equal(getMarketValue('ALL',undefined,now,data).value,null)});
+test('negative, invalid, future and empty inputs fail safely',()=>{assert.equal(companyComponent('stocks',now,{...data,companies:{A:{...data.companies.A,value:-1}}}).value,null);assert.equal(companyComponent('stocks',now,{...data,fetchedAt:'bad'}).value,null);assert.equal(companyComponent('stocks',now,{...data,fetchedAt:'2026-10-09'}).value,null);assert.equal(companyComponent('stocks',now,{...data,universe:[]}).value,null)});
+test('dated gold becomes unavailable after its validity window',()=>{assert.equal(getMarketValue('metals',1000,Date.parse('2027-01-02'),data).value,null)});

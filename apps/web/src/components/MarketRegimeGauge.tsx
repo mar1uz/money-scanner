@@ -1,3 +1,4 @@
+import { getMarketValue } from '../utils/market-value.js';
 import { calculateBreadth } from '../utils/market-breadth.js';
 import React, { useState, useEffect } from 'react';
 import { MarketOverviewSummary, AssetScannerRow } from '../types.js';
@@ -212,7 +213,7 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
   const fearGreedInfo = getFearGreedDetails(fearGreedScore, activeFng.classification);
 
   // 4. Dynamic Liquidity & Market Cap Calculation
-  const totalMarketCap = overview?.totalMarketCap;
+  const marketValue = getMarketValue(selectedCategory, overview?.totalMarketCap);
   const cryptoVolumeRows = filteredRows.filter(r => r.marketClass ? r.marketClass === 'crypto' : isCrypto(r.symbol, r.category));
   const total24hVol = cryptoVolumeRows.length && cryptoVolumeRows.every(r => Number.isFinite(r.volume24h) && r.volume24h >= 0) ? cryptoVolumeRows.reduce((acc, r) => acc + r.volume24h, 0) : null;
 
@@ -329,23 +330,27 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
           </div>
         </div>
 
-        {/* Card 3: Global Liquidity & Market Cap */}
-        <div className="card-base p-5">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-slate-400">Global market cap</span>
-            <Layers className="w-4 h-4 text-cyan-400" />
+        {/* Card 3: selection-aware, source-dated market value */}
+        <div className="card-base p-5 min-w-0" data-testid="market-value-card">
+          <div className="flex items-center justify-between mb-2 gap-2">
+            <span className="text-xs font-medium text-slate-400">{marketValue.title}</span>
+            <Layers className="w-4 h-4 text-cyan-400 shrink-0" />
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-semibold tracking-tight text-slate-100">
-              {typeof totalMarketCap === 'number' && Number.isFinite(totalMarketCap) && totalMarketCap > 0 ? formatLargeNumber(totalMarketCap) : 'Unavailable'}
-            </span>
-            <span className="text-xs text-slate-500 font-mono">Total Cap · CoinGecko</span>
+          <div className="text-3xl font-semibold tracking-tight text-slate-100 break-words">
+            {marketValue.value === null ? 'Unavailable' : `${marketValue.estimated ? '≈ ' : ''}${formatLargeNumber(marketValue.value)}`}
           </div>
-          <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono mt-2 pt-2 border-t border-white/[0.04]">
-            <span>Tracked 24h vol: <strong className="text-slate-300">{total24hVol === null ? 'Unavailable' : formatLargeNumber(total24hVol)}</strong></span>
+          <p className="text-[10px] text-slate-400 mt-1">{marketValue.estimated ? 'Estimat · ' : ''}{marketValue.note}</p>
+          <div className="space-y-1 mt-2 text-[10px] text-slate-400 leading-relaxed">
+            {marketValue.components.map(c => <div key={c.label}>
+              <span>{c.label}: <strong className="text-slate-300">{c.value === null ? 'Unavailable' : `${c.estimated ? '≈ ' : ''}${formatLargeNumber(c.value)}`}</strong></span>
+              <div><a href={c.url} target="_blank" rel="noreferrer" className="text-cyan-400 hover:underline">{c.source}</a> · {c.asOf}</div>
+            </div>)}
+          </div>
+          <div className="flex flex-wrap justify-between gap-1 text-[11px] text-slate-400 mt-2 pt-2 border-t border-white/[0.04]">
+            <span>Tracked crypto 24h vol: <strong className="text-slate-300">{total24hVol === null ? 'Unavailable' : formatLargeNumber(total24hVol)}</strong></span>
             <span className="text-cyan-400">{filteredRows.length} tracked</span>
           </div>
-          <p className="text-[10px] text-slate-500">Tracked crypto volume in USDT/USD</p>
+          <p className="text-[10px] text-slate-500">Quote turnover in USDT/USD; shares/contracts excluded</p>
         </div>
         {/* Card 4: Fear and Greed Index */}
         <div className="card-base p-5">

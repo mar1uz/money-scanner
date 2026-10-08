@@ -1,0 +1,893 @@
+{
+  "fetchedAt": "2026-10-08T13:12:57.122652+00:00",
+  "source": "CompaniesMarketCap",
+  "currency": "USD",
+  "maxAgeDays": 7,
+  "sourcePages": [
+    "https://companiesmarketcap.com/",
+    "https://companiesmarketcap.com/page/2/",
+    "https://companiesmarketcap.com/page/3/",
+    "https://companiesmarketcap.com/page/4/",
+    "https://companiesmarketcap.com/page/5/",
+    "https://companiesmarketcap.com/page/6/",
+    "https://companiesmarketcap.com/page/7/",
+    "https://companiesmarketcap.com/page/8/",
+    "https://companiesmarketcap.com/page/9/",
+    "https://companiesmarketcap.com/page/10/",
+    "https://companiesmarketcap.com/page/11/",
+    "https://companiesmarketcap.com/page/12/",
+    "https://companiesmarketcap.com/page/13/",
+    "https://companiesmarketcap.com/page/14/",
+    "https://companiesmarketcap.com/page/15/",
+    "https://companiesmarketcap.com/page/16/",
+    "https://companiesmarketcap.com/page/17/",
+    "https://companiesmarketcap.com/page/18/",
+    "https://companiesmarketcap.com/page/19/",
+    "https://companiesmarketcap.com/page/20/"
+  ],
+  "error": null,
+  "companies": {
+    "NVDA": {
+      "value": 5734188187648,
+      "url": "https://companiesmarketcap.com/nvidia/marketcap/",
+      "dataAsOf": null
+    },
+    "AAPL": {
+      "value": 4913422663680,
+      "url": "https://companiesmarketcap.com/apple/marketcap/",
+      "dataAsOf": null
+    },
+    "MSFT": {
+      "value": 3933757243392,
+      "url": "https://companiesmarketcap.com/microsoft/marketcap/",
+      "dataAsOf": null
+    },
+    "AMZN": {
+      "value": 2803578699776,
+      "url": "https://companiesmarketcap.com/amazon/marketcap/",
+      "dataAsOf": null
+    },
+    "TSM": {
+      "value": 2449053057024,
+      "url": "https://companiesmarketcap.com/tsmc/marketcap/",
+      "dataAsOf": null
+    },
+    "META": {
+      "value": 1837541621760,
+      "url": "https://companiesmarketcap.com/meta-platforms/marketcap/",
+      "dataAsOf": null
+    },
+    "AVGO": {
+      "value": 1797319426048,
+      "url": "https://companiesmarketcap.com/broadcom/marketcap/",
+      "dataAsOf": null
+    },
+    "TSLA": {
+      "value": 1492178567168,
+      "url": "https://companiesmarketcap.com/tesla/marketcap/",
+      "dataAsOf": null
+    },
+    "MU": {
+      "value": 1228779814912,
+      "url": "https://companiesmarketcap.com/micron-technology/marketcap/",
+      "dataAsOf": null
+    },
+    "AMD": {
+      "value": 1054350311424,
+      "url": "https://companiesmarketcap.com/amd/marketcap/",
+      "dataAsOf": null
+    },
+    "WMT": {
+      "value": 858114031616,
+      "url": "https://companiesmarketcap.com/walmart/marketcap/",
+      "dataAsOf": null
+    },
+    "ASML": {
+      "value": 693285093376,
+      "url": "https://companiesmarketcap.com/asml/marketcap/",
+      "dataAsOf": null
+    },
+    "XOM": {
+      "value": 674559164416,
+      "url": "https://companiesmarketcap.com/exxon-mobil/marketcap/",
+      "dataAsOf": null
+    },
+    "INTC": {
+      "value": 597964226560,
+      "url": "https://companiesmarketcap.com/intel/marketcap/",
+      "dataAsOf": null
+    },
+    "PLTR": {
+      "value": 466481676288,
+      "url": "https://companiesmarketcap.com/palantir/marketcap/",
+      "dataAsOf": null
+    },
+    "ORCL": {
+      "value": 435202293760,
+      "url": "https://companiesmarketcap.com/oracle/marketcap/",
+      "dataAsOf": null
+    },
+    "COST": {
+      "value": 417538637824,
+      "url": "https://companiesmarketcap.com/costco/marketcap/",
+      "dataAsOf": null
+    },
+    "AMAT": {
+      "value": 413186523136,
+      "url": "https://companiesmarketcap.com/applied-materials/marketcap/",
+      "dataAsOf": null
+    },
+    "LRCX": {
+      "value": 412356870144,
+      "url": "https://companiesmarketcap.com/lam-research/marketcap/",
+      "dataAsOf": null
+    },
+    "CVX": {
+      "value": 402422923264,
+      "url": "https://companiesmarketcap.com/chevron/marketcap/",
+      "dataAsOf": null
+    },
+    "KO": {
+      "value": 369244766208,
+      "url": "https://companiesmarketcap.com/coca-cola/marketcap/",
+      "dataAsOf": null
+    },
+    "DELL": {
+      "value": 368110141440,
+      "url": "https://companiesmarketcap.com/dell/marketcap/",
+      "dataAsOf": null
+    },
+    "PG": {
+      "value": 343597711360,
+      "url": "https://companiesmarketcap.com/procter-and-gamble/marketcap/",
+      "dataAsOf": null
+    },
+    "PANW": {
+      "value": 331756273664,
+      "url": "https://companiesmarketcap.com/palo-alto-networks/marketcap/",
+      "dataAsOf": null
+    },
+    "ARM": {
+      "value": 314386743296,
+      "url": "https://companiesmarketcap.com/arm-holdings/marketcap/",
+      "dataAsOf": null
+    },
+    "PM": {
+      "value": 300329205760,
+      "url": "https://companiesmarketcap.com/philip-morris/marketcap/",
+      "dataAsOf": null
+    },
+    "SHEL": {
+      "value": 275720077312,
+      "url": "https://companiesmarketcap.com/shell/marketcap/",
+      "dataAsOf": null
+    },
+    "CRWD": {
+      "value": 271793274880,
+      "url": "https://companiesmarketcap.com/crowdstrike/marketcap/",
+      "dataAsOf": null
+    },
+    "TXN": {
+      "value": 263910326272,
+      "url": "https://companiesmarketcap.com/texas-instruments/marketcap/",
+      "dataAsOf": null
+    },
+    "RTX": {
+      "value": 242946867200,
+      "url": "https://companiesmarketcap.com/raytheon-technologies/marketcap/",
+      "dataAsOf": null
+    },
+    "SAP": {
+      "value": 242532958208,
+      "url": "https://companiesmarketcap.com/sap/marketcap/",
+      "dataAsOf": null
+    },
+    "BHP": {
+      "value": 216584667136,
+      "url": "https://companiesmarketcap.com/bhp-group/marketcap/",
+      "dataAsOf": null
+    },
+    "IBM": {
+      "value": 207750053888,
+      "url": "https://companiesmarketcap.com/ibm/marketcap/",
+      "dataAsOf": null
+    },
+    "ADI": {
+      "value": 198710607872,
+      "url": "https://companiesmarketcap.com/analog-devices/marketcap/",
+      "dataAsOf": null
+    },
+    "QCOM": {
+      "value": 189135732736,
+      "url": "https://companiesmarketcap.com/qualcomm/marketcap/",
+      "dataAsOf": null
+    },
+    "TTE": {
+      "value": 185935593472,
+      "url": "https://companiesmarketcap.com/totalenergies/marketcap/",
+      "dataAsOf": null
+    },
+    "CRM": {
+      "value": 184812879872,
+      "url": "https://companiesmarketcap.com/salesforce/marketcap/",
+      "dataAsOf": null
+    },
+    "SCCO": {
+      "value": 169350021120,
+      "url": "https://companiesmarketcap.com/southern-copper/marketcap/",
+      "dataAsOf": null
+    },
+    "PEP": {
+      "value": 169015181312,
+      "url": "https://companiesmarketcap.com/pepsico/marketcap/",
+      "dataAsOf": null
+    },
+    "MCD": {
+      "value": 163380281344,
+      "url": "https://companiesmarketcap.com/mcdonald/marketcap/",
+      "dataAsOf": null
+    },
+    "NEE": {
+      "value": 160716750848,
+      "url": "https://companiesmarketcap.com/nextera-energy/marketcap/",
+      "dataAsOf": null
+    },
+    "COP": {
+      "value": 155981660160,
+      "url": "https://companiesmarketcap.com/conocophillips/marketcap/",
+      "dataAsOf": null
+    },
+    "RIO": {
+      "value": 151514464256,
+      "url": "https://companiesmarketcap.com/rio-tinto/marketcap/",
+      "dataAsOf": null
+    },
+    "BA": {
+      "value": 148733739008,
+      "url": "https://companiesmarketcap.com/boeing/marketcap/",
+      "dataAsOf": null
+    },
+    "NOW": {
+      "value": 142538555392,
+      "url": "https://companiesmarketcap.com/servicenow/marketcap/",
+      "dataAsOf": null
+    },
+    "FTNT": {
+      "value": 138877321216,
+      "url": "https://companiesmarketcap.com/fortinet/marketcap/",
+      "dataAsOf": null
+    },
+    "SNOW": {
+      "value": 117429485568,
+      "url": "https://companiesmarketcap.com/snowflake/marketcap/",
+      "dataAsOf": null
+    },
+    "MO": {
+      "value": 115846823936,
+      "url": "https://companiesmarketcap.com/altria-group/marketcap/",
+      "dataAsOf": null
+    },
+    "LMT": {
+      "value": 115215360000,
+      "url": "https://companiesmarketcap.com/lockheed-martin/marketcap/",
+      "dataAsOf": null
+    },
+    "BP": {
+      "value": 114639568896,
+      "url": "https://companiesmarketcap.com/bp/marketcap/",
+      "dataAsOf": null
+    },
+    "FCX": {
+      "value": 103192223744,
+      "url": "https://companiesmarketcap.com/freeport-mcmoran/marketcap/",
+      "dataAsOf": null
+    },
+    "HOOD": {
+      "value": 98458501120,
+      "url": "https://companiesmarketcap.com/robinhood/marketcap/",
+      "dataAsOf": null
+    },
+    "DDOG": {
+      "value": 97431412736,
+      "url": "https://companiesmarketcap.com/datadog/marketcap/",
+      "dataAsOf": null
+    },
+    "ADBE": {
+      "value": 90594082816,
+      "url": "https://companiesmarketcap.com/adobe/marketcap/",
+      "dataAsOf": null
+    },
+    "GD": {
+      "value": 88372092928,
+      "url": "https://companiesmarketcap.com/general-dynamics/marketcap/",
+      "dataAsOf": null
+    },
+    "EOG": {
+      "value": 76810362880,
+      "url": "https://companiesmarketcap.com/eog-resources/marketcap/",
+      "dataAsOf": null
+    },
+    "MDLZ": {
+      "value": 76223127552,
+      "url": "https://companiesmarketcap.com/mondelez/marketcap/",
+      "dataAsOf": null
+    },
+    "SLB": {
+      "value": 71179509760,
+      "url": "https://companiesmarketcap.com/schlumberger/marketcap/",
+      "dataAsOf": null
+    },
+    "CL": {
+      "value": 69521440768,
+      "url": "https://companiesmarketcap.com/colgate-palmolive/marketcap/",
+      "dataAsOf": null
+    },
+    "TGT": {
+      "value": 68561666048,
+      "url": "https://companiesmarketcap.com/target/marketcap/",
+      "dataAsOf": null
+    },
+    "NOC": {
+      "value": 67261157376,
+      "url": "https://companiesmarketcap.com/northrop-grumman/marketcap/",
+      "dataAsOf": null
+    },
+    "OXY": {
+      "value": 58188890112,
+      "url": "https://companiesmarketcap.com/occidental-petroleum/marketcap/",
+      "dataAsOf": null
+    },
+    "VALE": {
+      "value": 57920929792,
+      "url": "https://companiesmarketcap.com/vale/marketcap/",
+      "dataAsOf": null
+    },
+    "NKE": {
+      "value": 51035209728,
+      "url": "https://companiesmarketcap.com/nike/marketcap/",
+      "dataAsOf": null
+    },
+    "COIN": {
+      "value": 47081697280,
+      "url": "https://companiesmarketcap.com/coinbase/marketcap/",
+      "dataAsOf": null
+    },
+    "RKLB": {
+      "value": 45986439168,
+      "url": "https://companiesmarketcap.com/rocket-lab-usa/marketcap/",
+      "dataAsOf": null
+    },
+    "WDAY": {
+      "value": 44406657024,
+      "url": "https://companiesmarketcap.com/workday/marketcap/",
+      "dataAsOf": null
+    },
+    "CCJ": {
+      "value": 38792925184,
+      "url": "https://companiesmarketcap.com/cameco/marketcap/",
+      "dataAsOf": null
+    },
+    "ZS": {
+      "value": 34820333568,
+      "url": "https://companiesmarketcap.com/zscaler/marketcap/",
+      "dataAsOf": null
+    },
+    "HSY": {
+      "value": 32216420352,
+      "url": "https://companiesmarketcap.com/hershey-company/marketcap/",
+      "dataAsOf": null
+    },
+    "TECK": {
+      "value": 32080332800,
+      "url": "https://companiesmarketcap.com/teck-resources/marketcap/",
+      "dataAsOf": null
+    },
+    "KMB": {
+      "value": 32025606144,
+      "url": "https://companiesmarketcap.com/kimberly-clark/marketcap/",
+      "dataAsOf": null
+    },
+    "MDB": {
+      "value": 29244368896,
+      "url": "https://companiesmarketcap.com/mongodb/marketcap/",
+      "dataAsOf": null
+    },
+    "STZ": {
+      "value": 20218458112,
+      "url": "https://companiesmarketcap.com/constellation-brands/marketcap/",
+      "dataAsOf": null
+    },
+    "SQM": {
+      "value": 18455060480,
+      "url": "https://companiesmarketcap.com/sqm/marketcap/",
+      "dataAsOf": null
+    },
+    "ALB": {
+      "value": 12125019136,
+      "url": "https://companiesmarketcap.com/albemarle/marketcap/",
+      "dataAsOf": null
+    },
+    "AA": {
+      "value": 11210872832,
+      "url": "https://companiesmarketcap.com/alcoa/marketcap/",
+      "dataAsOf": null
+    },
+    "GOOGL": {
+      "value": 4248000000000.0,
+      "url": "https://companiesmarketcap.com/alphabet-google/marketcap/",
+      "dataAsOf": "Oct 7th, 2026"
+    },
+    "AI": {
+      "value": 1800000000.0,
+      "url": "https://companiesmarketcap.com/c3-ai/marketcap/",
+      "dataAsOf": "Oct 7th, 2026"
+    },
+    "SOUN": {
+      "value": 2500000000.0,
+      "url": "https://companiesmarketcap.com/soundhound-ai/marketcap/",
+      "dataAsOf": "Oct 7th, 2026"
+    },
+    "BBAI": {
+      "value": 1200000000.0,
+      "url": "https://companiesmarketcap.com/bigbear-ai/marketcap/",
+      "dataAsOf": "Oct 7th, 2026"
+    },
+    "MP": {
+      "value": 8240000000.0,
+      "url": "https://companiesmarketcap.com/mp-materials/marketcap/",
+      "dataAsOf": "Oct 7th, 2026"
+    },
+    "UEC": {
+      "value": 4690000000.0,
+      "url": "https://companiesmarketcap.com/uranium-energy/marketcap/",
+      "dataAsOf": "Oct 7th, 2026"
+    },
+    "LAC": {
+      "value": 870000000.0,
+      "url": "https://companiesmarketcap.com/lithium-americas/marketcap/",
+      "dataAsOf": "Oct 7th, 2026"
+    },
+    "PATH": {
+      "value": 6810000000.0,
+      "url": "https://companiesmarketcap.com/uipath/marketcap/",
+      "dataAsOf": "Oct 7th, 2026"
+    },
+    "ESTC": {
+      "value": 9770000000.0,
+      "url": "https://companiesmarketcap.com/elastic/marketcap/",
+      "dataAsOf": "Oct 7th, 2026"
+    }
+  },
+  "universe": [
+    {
+      "symbol": "AAPL",
+      "name": "Apple Inc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "MSFT",
+      "name": "Microsoft Corp",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "NVDA",
+      "name": "Nvidia Corp",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "GOOGL",
+      "name": "Alphabet (Google)",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "AMZN",
+      "name": "Amazon.com Inc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "META",
+      "name": "Meta Platforms (Facebook)",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "TSM",
+      "name": "Taiwan Semiconductor (TSMC)",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "AVGO",
+      "name": "Broadcom Inc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "TSLA",
+      "name": "Tesla Inc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "WMT",
+      "name": "Walmart Inc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "XOM",
+      "name": "Exxon Mobil Corp",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "PG",
+      "name": "Procter & Gamble Co",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "COST",
+      "name": "Costco Wholesale",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "ORCL",
+      "name": "Oracle Corp",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "ASML",
+      "name": "ASML Holding NV",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "KO",
+      "name": "The Coca-Cola Co",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "CRM",
+      "name": "Salesforce Inc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "CVX",
+      "name": "Chevron Corp",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "SAP",
+      "name": "SAP SE",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "AMD",
+      "name": "Advanced Micro Devices",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "PEP",
+      "name": "PepsiCo Inc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "ADBE",
+      "name": "Adobe Inc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "SHEL",
+      "name": "Shell plc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "MCD",
+      "name": "McDonald's Corp",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "QCOM",
+      "name": "Qualcomm Inc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "PM",
+      "name": "Philip Morris International",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "IBM",
+      "name": "IBM Corp",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "TXN",
+      "name": "Texas Instruments",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "NOW",
+      "name": "ServiceNow Inc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "AMAT",
+      "name": "Applied Materials",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "TTE",
+      "name": "TotalEnergies SE",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "RTX",
+      "name": "RTX Corp (Raytheon)",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "NEE",
+      "name": "NextEra Energy",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "ARM",
+      "name": "Arm Holdings plc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "LMT",
+      "name": "Lockheed Martin Corp",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "COP",
+      "name": "ConocoPhillips",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "NKE",
+      "name": "Nike Inc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "PANW",
+      "name": "Palo Alto Networks",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "MU",
+      "name": "Micron Technology",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "ADI",
+      "name": "Analog Devices Inc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "LRCX",
+      "name": "Lam Research Corp",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "BP",
+      "name": "BP plc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "INTC",
+      "name": "Intel Corp",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "DELL",
+      "name": "Dell Technologies",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "BA",
+      "name": "The Boeing Company",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "MDLZ",
+      "name": "Mondelez International",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "MO",
+      "name": "Altria Group Inc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "CRWD",
+      "name": "CrowdStrike Holdings",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "CL",
+      "name": "Colgate-Palmolive Co",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "GD",
+      "name": "General Dynamics",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "NOC",
+      "name": "Northrop Grumman",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "PLTR",
+      "name": "Palantir Technologies",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "EOG",
+      "name": "EOG Resources Inc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "WDAY",
+      "name": "Workday Inc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "TGT",
+      "name": "Target Corp",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "SLB",
+      "name": "Schlumberger (SLB)",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "FTNT",
+      "name": "Fortinet Inc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "OXY",
+      "name": "Occidental Petroleum",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "COIN",
+      "name": "Coinbase Global",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "KMB",
+      "name": "Kimberly-Clark Corp",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "SNOW",
+      "name": "Snowflake Inc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "STZ",
+      "name": "Constellation Brands",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "DDOG",
+      "name": "Datadog Inc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "HSY",
+      "name": "The Hershey Company",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "ZS",
+      "name": "Zscaler Inc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "MDB",
+      "name": "MongoDB Inc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "HOOD",
+      "name": "Robinhood Markets",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "ESTC",
+      "name": "Elastic N.V.",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "PATH",
+      "name": "UiPath Inc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "RKLB",
+      "name": "Rocket Lab USA Inc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "AI",
+      "name": "C3.ai Inc",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "SOUN",
+      "name": "SoundHound AI",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "BBAI",
+      "name": "BigBear.ai Holdings",
+      "marketClass": "stocks"
+    },
+    {
+      "symbol": "BHP",
+      "name": "BHP Group",
+      "marketClass": "metals"
+    },
+    {
+      "symbol": "RIO",
+      "name": "Rio Tinto",
+      "marketClass": "metals"
+    },
+    {
+      "symbol": "SCCO",
+      "name": "Southern Copper",
+      "marketClass": "metals"
+    },
+    {
+      "symbol": "FCX",
+      "name": "Freeport-McMoRan",
+      "marketClass": "metals"
+    },
+    {
+      "symbol": "VALE",
+      "name": "Vale",
+      "marketClass": "metals"
+    },
+    {
+      "symbol": "CCJ",
+      "name": "Cameco",
+      "marketClass": "metals"
+    },
+    {
+      "symbol": "TECK",
+      "name": "Teck Resources",
+      "marketClass": "metals"
+    },
+    {
+      "symbol": "ALB",
+      "name": "Albemarle",
+      "marketClass": "metals"
+    },
+    {
+      "symbol": "SQM",
+      "name": "Sociedad Quimica y Minera",
+      "marketClass": "metals"
+    },
+    {
+      "symbol": "MP",
+      "name": "MP Materials",
+      "marketClass": "metals"
+    },
+    {
+      "symbol": "AA",
+      "name": "Alcoa",
+      "marketClass": "metals"
+    },
+    {
+      "symbol": "UEC",
+      "name": "Uranium Energy Corp",
+      "marketClass": "metals"
+    },
+    {
+      "symbol": "LAC",
+      "name": "Lithium Americas",
+      "marketClass": "metals"
+    }
+  ]
+}
