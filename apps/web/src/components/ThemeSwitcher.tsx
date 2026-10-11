@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, Moon, Palette, Sun } from 'lucide-react';
 
-export type ThemeId = 'dark' | 'l1' | 'l2' | 'l3' | 'l4' | 'l5';
+export type ThemeId = 'dark' | 'l1' | 'l2' | 'l3' | 'l4' | 'l5' | 'ember' | 'arctic' | 'burgundy' | 'redline' | 'terra';
 
 interface ThemeOption {
   id: ThemeId;
@@ -10,12 +10,20 @@ interface ThemeOption {
   swatch: string;
 }
 
+const VALID_THEME_IDS: string[] = ['dark', 'l1', 'l2', 'l3', 'l4', 'l5', 'ember', 'arctic', 'burgundy', 'redline', 'terra'];
+const LIGHT_THEME_IDS: ThemeId[] = ['l1', 'l2', 'l3', 'l4', 'l5', 'arctic', 'terra'];
+
 export const THEME_OPTIONS: ThemeOption[] = [
   { id: 'l1', label: 'L1 · Paper', hint: 'alb rece, minimal', swatch: '#F5F7FA' },
   { id: 'l2', label: 'L2 · Ivory', hint: 'alb cald, de hârtie', swatch: '#F7F4EC' },
   { id: 'l3', label: 'L3 · Sky', hint: 'albastru senin', swatch: '#ECF3FA' },
   { id: 'l4', label: 'L4 · Mint', hint: 'verde proaspăt', swatch: '#E9F5EE' },
-  { id: 'l5', label: 'L5 · Sorbet', hint: 'pastel multicolor', swatch: '#F6F0FF' }
+  { id: 'l5', label: 'L5 · Sorbet', hint: 'pastel multicolor', swatch: '#F6F0FF' },
+  { id: 'ember', label: 'Ember Terminal', hint: 'grafit · amber și coral', swatch: '#171310' },
+  { id: 'arctic', label: 'Arctic Paper', hint: 'alb · navy și cobalt', swatch: '#F2F7FC' },
+  { id: 'burgundy', label: 'Burgundy Spectrum', hint: 'burgundy · roz-roșu', swatch: '#241018' },
+  { id: 'redline', label: 'Redline Monochrome Quant', hint: 'monocrom · vermilion', swatch: '#111111' },
+  { id: 'terra', label: 'Terra Quant', hint: 'nisip · navy și cupru', swatch: '#F3EBDD' }
 ];
 
 const STORAGE_KEY = 'ms-theme';
@@ -23,7 +31,7 @@ const STORAGE_KEY = 'ms-theme';
 export const getStoredTheme = (): ThemeId => {
   try {
     const value = localStorage.getItem(STORAGE_KEY);
-    if (value && ['dark', 'l1', 'l2', 'l3', 'l4', 'l5'].includes(value)) return value as ThemeId;
+    if (value && VALID_THEME_IDS.includes(value)) return value as ThemeId;
   } catch {
     /* storage unavailable */
   }
@@ -43,7 +51,6 @@ export const ThemeSwitcher: React.FC = () => {
   const [theme, setTheme] = useState<ThemeId>(getStoredTheme);
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     const onPointerDown = (event: MouseEvent | TouchEvent) => {
       if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
@@ -60,15 +67,12 @@ export const ThemeSwitcher: React.FC = () => {
       document.removeEventListener('keydown', onKeyDown);
     };
   }, []);
-
-  const isLight = theme !== 'dark';
-
+  const isLight = LIGHT_THEME_IDS.includes(theme);
   const select = (id: ThemeId) => {
     setTheme(id);
     applyTheme(id);
     setOpen(false);
   };
-
   return (
     <div ref={rootRef} className="theme-switcher">
       <button
@@ -82,30 +86,26 @@ export const ThemeSwitcher: React.FC = () => {
       >
         {isLight ? <Sun size={16} /> : <Moon size={16} />}
       </button>
-
       {open && (
         <div className="theme-menu" role="listbox" aria-label="Alege tema">
           <div className="theme-menu-head">
             <Palette size={13} /> Temă
           </div>
-
           <button type="button" role="option" aria-selected={theme === 'dark'} data-active={theme === 'dark'} onClick={() => select('dark')}>
             <span className="sw sw-dark">
               <Moon size={12} />
             </span>
             <span className="tx">
-              <b>Dark</b>
-              <i>seara · ca până acum</i>
+              <b>Signal Graphite</b>
+              <i>graphite · lime signature · tema curentă</i>
             </span>
             {theme === 'dark' && <Check size={15} className="check" />}
           </button>
-
           <div className="theme-menu-sep" />
-
           {THEME_OPTIONS.map(option => (
             <button key={option.id} type="button" role="option" aria-selected={theme === option.id} data-active={theme === option.id} onClick={() => select(option.id)}>
               <span className="sw" style={{ background: option.swatch }}>
-                <Sun size={11} className="sun" />
+                {LIGHT_THEME_IDS.includes(option.id) ? <Sun size={11} className="sun" /> : <Moon size={11} className="sun" />}
               </span>
               <span className="tx">
                 <b>{option.label}</b>
