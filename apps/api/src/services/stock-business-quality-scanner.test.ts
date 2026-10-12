@@ -1,16 +1,19 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildStockBusinessQualityScan, scanStockBusinessQuality } from './stock-business-quality-scanner.js';
+import { buildStockBusinessQualityScan } from './stock-business-quality-scanner.js';
 
 describe('Stock Business Quality & Profitability Scanner', () => {
-  it('scans stock catalog assets and computes 6 fundamental criteria', async () => {
-    const scan = await scanStockBusinessQuality();
+  it('builds stock catalog coverage, 6 criteria and declared source identities without network access', () => {
+    const scan = buildStockBusinessQualityScan();
 
     assert.ok(scan.scannedCount > 50, `Expected at least 50 scanned stocks, got ${scan.scannedCount}`);
-    assert.ok(scan.coveredCount > 50, `Expected at least 50 covered stocks, got ${scan.coveredCount}`);
+    assert.equal(scan.coveredCount, scan.assets.filter(asset => asset.classification !== 'insufficient-data').length);
+    assert.ok(scan.coveredCount > 0 && scan.coveredCount <= scan.scannedCount);
+    assert.ok(scan.assets.some(asset => asset.classification === 'insufficient-data'), 'Curated-only scan must not imply full live coverage');
     assert.ok(scan.assets.length === scan.scannedCount);
     assert.ok(scan.methodology.length === 6, 'Expected 6 methodology criteria');
-    assert.ok(scan.sources.length >= 4, 'Expected at least 4 verified sources');
+    assert.deepEqual(scan.sources.map(source => source.id), ['yahoo-finance', 'sec-edgar']);
+    assert.deepEqual(scan.sources.map(source => new URL(source.url).hostname), ['finance.yahoo.com', 'www.sec.gov']);
     assert.ok(typeof scan.disclaimer === 'string' && scan.disclaimer.length > 20);
   });
 
