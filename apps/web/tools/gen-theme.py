@@ -283,3 +283,119 @@ print('theme.css written:', len('\n'.join(out)), 'bytes')
 import re
 m = re.search(r"html\[data-theme='l1'\] \{(.*?)\n\}", '\n'.join(out), re.S)
 print(m.group(1)[:600] if m else 'L1 block missing!')
+
+# Curated signature themes stay separate from the existing dark and l1-l5 palettes.
+EXTRA_THEME_CSS = r"""/* Five selectable signature themes. The existing dark theme remains Signal Graphite. */
+html[data-theme='ember'] {
+  color-scheme: dark;
+  --t-bg: #0B0A09; --t-bg-image: radial-gradient(900px 520px at 78% -8%, rgba(242,163,58,.10), transparent 62%), radial-gradient(800px 540px at -8% 52%, rgba(255,115,95,.06), transparent 60%);
+  --t-accent-soft: #44250E; --t-surface: #12110F; --t-surface-2: #191612; --t-surface-raised: #1D1915; --t-surface-inset: #0A0908;
+  --t-line: #342820; --t-line-strong: #4A382C; --t-hover: #241B16; --t-text: #F4ECE3; --t-text-2: #D7C3B2; --t-muted: #AA8F7C; --t-faint: #886F60;
+  --t-header-bg: rgba(11,10,9,.92); --t-header-solid: rgba(11,10,9,.98); --t-dock-bg: rgba(18,17,15,.94);
+  --t-overlay-04: rgba(255,255,255,.04); --t-overlay-06: rgba(255,255,255,.06); --t-overlay-08: rgba(255,255,255,.08); --t-overlay-15: rgba(255,255,255,.15); --t-sheen: rgba(255,255,255,.025);
+  --t-nav-active-text: #FFF4E8; --t-shadow-card: 0 8px 24px rgba(0,0,0,.28); --t-shadow-hover: 0 10px 28px rgba(0,0,0,.34); --t-dock-shadow: 0 16px 40px rgba(0,0,0,.48); --t-brief-gradient: #12110F;
+  --glass-fill: #12110F; --glass-edge: #342820; --glass-shadow: 0 8px 24px rgba(0,0,0,.28); --ml-bg: #0B0A09; --ml-surface: #12110F; --ml-surface-raised: #1D1915; --ml-line: #342820; --ml-muted: #AA8F7C; --ml-text: #F4ECE3;
+  --t-bg-rgb: 11 10 9; --t-surface-rgb: 18 17 15; --t-surface-2-rgb: 25 22 18; --t-surface-raised-rgb: 29 25 21; --t-line-rgb: 52 40 32; --t-hover-rgb: 36 27 22;
+  --t-cyan-100-rgb: 255 235 205; --t-cyan-200-rgb: 255 214 160; --t-cyan-300-rgb: 255 194 112; --t-cyan-400-rgb: 242 163 58; --t-cyan-500-rgb: 216 131 40; --t-cyan-950-rgb: 61 37 16;
+  --t-rose-50-rgb: 255 240 237; --t-rose-200-rgb: 255 188 177; --t-rose-300-rgb: 255 146 127; --t-rose-400-rgb: 255 115 95; --t-rose-500-rgb: 233 91 73; --t-rose-950-rgb: 58 23 20;
+}
+html[data-theme='arctic'] {
+  color-scheme: light;
+  --t-bg: #F2F7FC; --t-bg-image: none; --t-accent-soft: #DBEAFE;
+  --t-surface: #FFFFFF; --t-surface-2: #FFFFFF; --t-surface-raised: #F8FAFD; --t-surface-inset: #E8F0F8;
+  --t-line: #DCE6F0; --t-line-strong: #B9CADB; --t-hover: #EAF2FA; --t-text: #102A43; --t-text-2: #334E68; --t-muted: #52677D; --t-faint: #647C94;
+  --t-header-bg: #FFFFFF; --t-header-solid: #FFFFFF; --t-dock-bg: #FFFFFF;
+  --t-overlay-04: rgba(16,42,67,.04); --t-overlay-06: rgba(16,42,67,.06); --t-overlay-08: rgba(16,42,67,.08); --t-overlay-15: rgba(16,42,67,.15); --t-sheen: rgba(255,255,255,.48);
+  --t-nav-active-text: #173B68; --t-shadow-card: 0 12px 28px -20px rgba(16,42,67,.20); --t-shadow-hover: 0 14px 32px -20px rgba(16,42,67,.28); --t-dock-shadow: 0 16px 40px -18px rgba(16,42,67,.24); --t-brief-gradient: #FFFFFF;
+  --glass-fill: #FFFFFF; --glass-edge: #DCE6F0; --glass-shadow: 0 12px 28px -20px rgba(16,42,67,.20); --ml-bg: #F2F7FC; --ml-surface: #FFFFFF; --ml-surface-raised: #F8FAFD; --ml-line: #DCE6F0; --ml-muted: #52677D; --ml-text: #102A43;
+  --t-bg-rgb: 242 247 252; --t-surface-rgb: 255 255 255; --t-surface-2-rgb: 255 255 255; --t-surface-raised-rgb: 248 250 253; --t-line-rgb: 220 230 240; --t-hover-rgb: 234 242 250;
+  --t-white-rgb: 13 35 58; --t-slate-100-rgb: 13 35 58; --t-slate-200-rgb: 22 47 72; --t-slate-300-rgb: 51 68 86; --t-slate-400-rgb: 79 98 119; --t-slate-500-rgb: 96 114 134; --t-slate-600-rgb: 126 144 161; --t-slate-700-rgb: 218 229 241; --t-slate-800-rgb: 233 240 247; --t-slate-900-rgb: 243 247 251; --t-slate-950-rgb: 248 250 252;
+  --t-cyan-100-rgb: 30 64 120; --t-cyan-200-rgb: 30 64 120; --t-cyan-300-rgb: 37 99 235; --t-cyan-400-rgb: 37 99 235; --t-cyan-500-rgb: 29 78 216; --t-cyan-950-rgb: 219 234 254;
+  --t-blue-200-rgb: 30 64 120; --t-blue-300-rgb: 37 99 235; --t-blue-400-rgb: 37 99 235; --t-blue-500-rgb: 29 78 216; --t-blue-950-rgb: 219 234 254;
+}
+html[data-theme='burgundy'] {
+  color-scheme: dark;
+  --t-bg: #160A10; --t-bg-image: radial-gradient(900px 540px at 82% -8%, rgba(219,91,128,.13), transparent 62%), radial-gradient(700px 600px at 2% 90%, rgba(92,28,51,.20), transparent 60%);
+  --t-accent-soft: #4A1F30; --t-surface: #201018; --t-surface-2: #29141D; --t-surface-raised: #311923; --t-surface-inset: #10070B;
+  --t-line: #462633; --t-line-strong: #603344; --t-hover: #381B29; --t-text: #F6E8ED; --t-text-2: #E0C6D0; --t-muted: #B3919F; --t-faint: #967382;
+  --t-header-bg: rgba(22,10,16,.92); --t-header-solid: rgba(22,10,16,.98); --t-dock-bg: rgba(32,16,24,.95);
+  --t-overlay-04: rgba(255,255,255,.04); --t-overlay-06: rgba(255,255,255,.06); --t-overlay-08: rgba(255,255,255,.08); --t-overlay-15: rgba(255,255,255,.15); --t-sheen: rgba(255,255,255,.025);
+  --t-nav-active-text: #FFF0F4; --t-shadow-card: 0 8px 24px rgba(0,0,0,.30); --t-shadow-hover: 0 10px 28px rgba(0,0,0,.36); --t-dock-shadow: 0 16px 40px rgba(0,0,0,.5); --t-brief-gradient: #201018;
+  --glass-fill: #201018; --glass-edge: #462633; --glass-shadow: 0 8px 24px rgba(0,0,0,.30); --ml-bg: #160A10; --ml-surface: #201018; --ml-surface-raised: #311923; --ml-line: #462633; --ml-muted: #B3919F; --ml-text: #F6E8ED;
+  --t-bg-rgb: 22 10 16; --t-surface-rgb: 32 16 24; --t-surface-2-rgb: 41 20 29; --t-surface-raised-rgb: 49 25 35; --t-line-rgb: 70 38 51; --t-hover-rgb: 56 27 41;
+  --t-cyan-100-rgb: 255 221 231; --t-cyan-200-rgb: 255 179 200; --t-cyan-300-rgb: 245 132 163; --t-cyan-400-rgb: 232 102 140; --t-cyan-500-rgb: 199 70 111; --t-cyan-950-rgb: 63 21 38;
+  --t-rose-50-rgb: 255 235 241; --t-rose-200-rgb: 255 179 200; --t-rose-300-rgb: 245 132 163; --t-rose-400-rgb: 232 102 140; --t-rose-500-rgb: 199 70 111; --t-rose-950-rgb: 63 21 38;
+}
+html[data-theme='redline'] {
+  color-scheme: dark;
+  --t-bg: #090909; --t-bg-image: linear-gradient(rgba(255,75,62,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,75,62,.035) 1px, transparent 1px);
+  --t-accent-soft: #361312; --t-surface: #121212; --t-surface-2: #191919; --t-surface-raised: #161616; --t-surface-inset: #080808;
+  --t-line: #2B2B2B; --t-line-strong: #484848; --t-hover: #222222; --t-text: #F3F3F3; --t-text-2: #D0D0D0; --t-muted: #A4A4A4; --t-faint: #858585;
+  --t-header-bg: rgba(9,9,9,.94); --t-header-solid: rgba(9,9,9,.99); --t-dock-bg: rgba(18,18,18,.96);
+  --t-overlay-04: rgba(255,255,255,.04); --t-overlay-06: rgba(255,255,255,.06); --t-overlay-08: rgba(255,255,255,.08); --t-overlay-15: rgba(255,255,255,.15); --t-sheen: rgba(255,255,255,.02);
+  --t-nav-active-text: #FFFFFF; --t-shadow-card: 0 8px 24px rgba(0,0,0,.34); --t-shadow-hover: 0 10px 28px rgba(0,0,0,.42); --t-dock-shadow: 0 16px 40px rgba(0,0,0,.55); --t-brief-gradient: #121212;
+  --glass-fill: #121212; --glass-edge: #2B2B2B; --glass-shadow: 0 8px 24px rgba(0,0,0,.34); --ml-bg: #090909; --ml-surface: #121212; --ml-surface-raised: #161616; --ml-line: #2B2B2B; --ml-muted: #A4A4A4; --ml-text: #F3F3F3;
+  --t-bg-rgb: 9 9 9; --t-surface-rgb: 18 18 18; --t-surface-2-rgb: 25 25 25; --t-surface-raised-rgb: 22 22 22; --t-line-rgb: 43 43 43; --t-hover-rgb: 34 34 34;
+  --t-cyan-100-rgb: 255 226 223; --t-cyan-200-rgb: 255 192 186; --t-cyan-300-rgb: 255 136 126; --t-cyan-400-rgb: 255 75 62; --t-cyan-500-rgb: 214 54 45; --t-cyan-950-rgb: 54 19 18;
+  --t-rose-50-rgb: 255 226 223; --t-rose-200-rgb: 255 192 186; --t-rose-300-rgb: 255 136 126; --t-rose-400-rgb: 255 75 62; --t-rose-500-rgb: 214 54 45; --t-rose-950-rgb: 54 19 18;
+  --t-emerald-50-rgb: 238 238 238; --t-emerald-200-rgb: 210 210 210; --t-emerald-300-rgb: 195 195 195; --t-emerald-400-rgb: 178 178 178; --t-emerald-500-rgb: 156 156 156; --t-emerald-600-rgb: 130 130 130;
+  --t-purple-100-rgb: 238 238 238; --t-purple-200-rgb: 218 218 218; --t-purple-300-rgb: 198 198 198; --t-purple-400-rgb: 175 175 175; --t-purple-500-rgb: 145 145 145; --t-purple-600-rgb: 123 123 123; --t-purple-950-rgb: 38 38 38;
+  --t-amber-100-rgb: 238 238 238; --t-amber-200-rgb: 218 218 218; --t-amber-300-rgb: 198 198 198; --t-amber-400-rgb: 175 175 175; --t-amber-500-rgb: 145 145 145;
+  --t-blue-200-rgb: 218 218 218; --t-blue-300-rgb: 198 198 198; --t-blue-400-rgb: 175 175 175; --t-blue-500-rgb: 145 145 145; --t-blue-950-rgb: 38 38 38;
+}
+html[data-theme='terra'] {
+  color-scheme: light;
+  --t-bg: #F3EBDD; --t-bg-image: none; --t-accent-soft: #E7D5C3;
+  --t-surface: #FCF9F3; --t-surface-2: #F9F5EE; --t-surface-raised: #F7F1E7; --t-surface-inset: #EAE0D2;
+  --t-line: #DED1C0; --t-line-strong: #C8B49B; --t-hover: #EFE5D7; --t-text: #1F2F3B; --t-text-2: #3F515D; --t-muted: #667177; --t-faint: #778184;
+  --t-header-bg: #FCF9F3; --t-header-solid: #FCF9F3; --t-dock-bg: #FCF9F3;
+  --t-overlay-04: rgba(31,47,59,.04); --t-overlay-06: rgba(31,47,59,.06); --t-overlay-08: rgba(31,47,59,.08); --t-overlay-15: rgba(31,47,59,.15); --t-sheen: rgba(255,255,255,.40);
+  --t-nav-active-text: #263F52; --t-shadow-card: 0 12px 28px -20px rgba(71,50,32,.20); --t-shadow-hover: 0 14px 32px -20px rgba(71,50,32,.27); --t-dock-shadow: 0 16px 40px -18px rgba(71,50,32,.25); --t-brief-gradient: #FCF9F3;
+  --glass-fill: #FCF9F3; --glass-edge: #DED1C0; --glass-shadow: 0 12px 28px -20px rgba(71,50,32,.20); --ml-bg: #F3EBDD; --ml-surface: #FCF9F3; --ml-surface-raised: #F7F1E7; --ml-line: #DED1C0; --ml-muted: #667177; --ml-text: #1F2F3B;
+  --t-bg-rgb: 243 235 221; --t-surface-rgb: 252 249 243; --t-surface-2-rgb: 249 245 238; --t-surface-raised-rgb: 247 241 231; --t-line-rgb: 222 209 192; --t-hover-rgb: 239 229 215;
+  --t-white-rgb: 31 47 59; --t-slate-100-rgb: 31 47 59; --t-slate-200-rgb: 45 61 73; --t-slate-300-rgb: 72 86 96; --t-slate-400-rgb: 102 113 119; --t-slate-500-rgb: 119 129 132; --t-slate-600-rgb: 140 149 151; --t-slate-700-rgb: 220 209 193; --t-slate-800-rgb: 235 227 213; --t-slate-900-rgb: 243 235 222; --t-slate-950-rgb: 249 246 239;
+  --t-cyan-100-rgb: 117 69 42; --t-cyan-200-rgb: 145 81 48; --t-cyan-300-rgb: 169 101 67; --t-cyan-400-rgb: 181 110 75; --t-cyan-500-rgb: 151 82 55; --t-cyan-950-rgb: 242 226 213;
+  --t-blue-200-rgb: 38 63 82; --t-blue-300-rgb: 38 63 82; --t-blue-400-rgb: 55 83 101; --t-blue-500-rgb: 73 105 123; --t-blue-950-rgb: 227 236 239;
+}
+
+/* Solid, low-glare surfaces for the two added light themes. */
+html[data-theme='arctic'] .app-header, html[data-theme='terra'] .app-header,
+html[data-theme='arctic'] .card-base, html[data-theme='terra'] .card-base,
+html[data-theme='arctic'] .card-elevated, html[data-theme='terra'] .card-elevated,
+html[data-theme='arctic'] .cyber-glass, html[data-theme='terra'] .cyber-glass,
+html[data-theme='arctic'] .market-overview .card-base, html[data-theme='terra'] .market-overview .card-base,
+html[data-theme='arctic'] .app-sidebar, html[data-theme='terra'] .app-sidebar,
+html[data-theme='arctic'] .mobile-nav, html[data-theme='terra'] .mobile-nav,
+html[data-theme='arctic'] .mobile-search-orb, html[data-theme='terra'] .mobile-search-orb,
+html[data-theme='arctic'] .intro-watchlist, html[data-theme='terra'] .intro-watchlist,
+html[data-theme='arctic'] .theme-menu, html[data-theme='terra'] .theme-menu,
+html[data-theme='arctic'] .mobile-more-menu, html[data-theme='terra'] .mobile-more-menu {
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+html[data-theme='arctic'] .card-base, html[data-theme='terra'] .card-base,
+html[data-theme='arctic'] .card-elevated, html[data-theme='terra'] .card-elevated,
+html[data-theme='arctic'] .cyber-glass, html[data-theme='terra'] .cyber-glass,
+html[data-theme='arctic'] .market-overview .card-base, html[data-theme='terra'] .market-overview .card-base { background-image: none; }
+html[data-theme='arctic'] .market-overview .card-base:first-child, html[data-theme='terra'] .market-overview .card-base:first-child { background-image: none; background-color: var(--t-surface); border-color: var(--t-line-strong); }
+html[data-theme='arctic'] .scanner-section table th, html[data-theme='terra'] .scanner-section table th { color: var(--t-muted); }
+html[data-theme='arctic'] .mobile-nav-lens, html[data-theme='terra'] .mobile-nav-lens { box-shadow: inset 0 1px 1px rgba(255,255,255,.48), 0 2px 8px rgba(16,42,67,.12); }
+html[data-theme='arctic'] ::-webkit-scrollbar-thumb, html[data-theme='terra'] ::-webkit-scrollbar-thumb { background: var(--t-overlay-15); }
+
+/* Brand marks echo each approved concept while keeping the existing mark asset. */
+html[data-theme='ember'] .brand-mark { color: #FFB449; background: linear-gradient(145deg,#3A2114,#1A120E); border: 1px solid #8C542A; border-radius: 7px; box-shadow: 0 6px 18px -8px rgba(242,163,58,.55); }
+html[data-theme='arctic'] .brand-mark { color: #2563EB; background: linear-gradient(145deg,#FFFFFF,#DBEAFE); border: 1px solid #B9D5F3; border-radius: 6px; box-shadow: 0 6px 18px -8px rgba(37,99,235,.30); }
+html[data-theme='burgundy'] .brand-mark { color: #F084A0; background: #321723; border: 1px solid #8A405A; border-radius: 50%; box-shadow: 0 0 0 2px rgba(219,91,128,.12), 0 6px 18px -8px rgba(219,91,128,.35); }
+html[data-theme='redline'] .brand-mark { color: #FF4B3E; background: #111111; border: 1px solid #FF4B3E; border-radius: 2px; box-shadow: 0 0 0 2px rgba(255,75,62,.10); }
+html[data-theme='terra'] .brand-mark { color: #A65D3F; background: #F3EBDD; border: 1px solid #B56E4B; border-radius: 50%; box-shadow: inset 0 0 0 2px #FCF9F3, 0 0 0 1px rgba(181,110,75,.50); }
+
+/* Compact terminal typography and editorial heading treatments. */
+html[data-theme='ember'] body { font-family: ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', monospace; letter-spacing: -.015em; }
+html[data-theme='arctic'] body { font-family: 'Helvetica Neue', Helvetica, Arial, system-ui, sans-serif; }
+html[data-theme='burgundy'] :is(h1,h2,h3,h4) { font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif; letter-spacing: -.025em; }
+html[data-theme='redline'] body { font-family: ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', monospace; letter-spacing: -.02em; }
+html[data-theme='terra'] :is(h1,h2,h3,h4) { font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif; letter-spacing: -.025em; }
+"""
+_extra_theme_file = pathlib.Path('apps/web/src/theme.css')
+_extra_theme_file.write_text(
+    _extra_theme_file.read_text().rstrip() + '\n\n' + EXTRA_THEME_CSS.strip() + '\n'
+)
