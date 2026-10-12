@@ -16,6 +16,20 @@ const DEFILLAMA_FEES_URL = 'https://api.llama.fi/overview/fees?excludeTotalDataC
 const DEFILLAMA_REVENUE_URL = 'https://api.llama.fi/overview/fees?excludeTotalDataChart=true&excludeTotalDataChartBreakdown=true&dataType=dailyRevenue';
 const DEFILLAMA_HOLDERS_REVENUE_URL = 'https://api.llama.fi/overview/fees?excludeTotalDataChart=true&excludeTotalDataChartBreakdown=true&dataType=dailyHoldersRevenue';
 
+// DefiLlama's Pons V1/V2 rows have no gecko_id. This exact family was
+// cross-checked against CoinGecko's PONS identity and Robinhood token contract;
+// never infer an identity from a ticker alone (symbols are ambiguous).
+const VERIFIED_PROTOCOL_FAMILIES: Record<string, { coinId: string; symbol: string; name: string; slugs: string[] }> = {
+  'parent#pons': { coinId: 'pons', symbol: 'PONS', name: 'Pons', slugs: ['pons-v1', 'pons-v2'] }
+};
+const verifiedProtocolCoinId = (protocol: DefiLlamaProtocolRow): string | undefined => {
+  const family = VERIFIED_PROTOCOL_FAMILIES[String(protocol.parentProtocol || '').toLowerCase()];
+  if (!family || protocol.gecko_id || !family.slugs.includes(String(protocol.slug || '').toLowerCase())) return undefined;
+  if (String(protocol.symbol || '').toUpperCase() !== family.symbol) return undefined;
+  if (!String(protocol.name || '').toLowerCase().startsWith(family.name.toLowerCase() + ' ')) return undefined;
+  return family.coinId;
+};
+
 interface CoinGeckoMarketRow {
   id: string;
   coin_gecko_id?: string;
@@ -504,9 +518,11 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
 
   const familyCoinIds = new Map<string, Set<string>>();
   for (const protocol of input.protocols) {
-    if (!protocol.parentProtocol || !protocol.gecko_id) continue;
+    if (!protocol.parentProtocol) continue;
+    const verifiedId = protocol.gecko_id?.toLowerCase() || verifiedProtocolCoinId(protocol);
+    if (!verifiedId) continue;
     const ids = familyCoinIds.get(protocol.parentProtocol) || new Set<string>();
-    ids.add(protocol.gecko_id.toLowerCase());
+    ids.add(verifiedId);
     familyCoinIds.set(protocol.parentProtocol, ids);
   }
   const protocolToCoinId = new Map<string, string>();
@@ -515,7 +531,8 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
   for (const protocol of input.protocols) {
     const slug = String(protocol.slug || '').toLowerCase();
     const symbol = validSymbol(protocol.symbol);
-    const directCoin = protocol.gecko_id ? coinById.get(protocol.gecko_id.toLowerCase()) : undefined;
+    const protocolCoinId = protocol.gecko_id?.toLowerCase() || verifiedProtocolCoinId(protocol);
+    const directCoin = protocolCoinId ? coinById.get(protocolCoinId) : undefined;
     const symbolCoins = symbol ? coinsBySymbol.get(symbol) : undefined;
     const uniqueSymbolCoin = symbolCoins?.length === 1 ? symbolCoins[0] : undefined;
     const nameCoin = coinByNormalizedName.get(normalize(protocol.name));
@@ -526,7 +543,7 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
       normalize(protocol.name).startsWith(normalize(uniqueSymbolCoin.name)) ||
       normalize(protocol.parentProtocol?.replace('parent#', '')) === normalize(uniqueSymbolCoin.coin_gecko_id || uniqueSymbolCoin.id)
     ) ? uniqueSymbolCoin : undefined;
-    const coin = protocol.gecko_id ? directCoin : familyIds?.size ? familyCoin : namedSymbolCoin || nameCoin;
+    const coin = protocolCoinId ? directCoin : familyIds?.size ? familyCoin : namedSymbolCoin || nameCoin;
     if (!coin) continue;
     if (slug) protocolToCoinId.set(slug, coin.id);
     const current = protocolAggregates.get(coin.id) || {
@@ -557,7 +574,7 @@ export function buildCryptoFourCriteriaScan(input: CryptoScannerInput): CryptoFo
     const mappedId = protocolToCoinId.get(slug);
     if (mappedId) return coinById.get(mappedId);
     // Do not fall back to a name if an explicit protocol ID was unmatched.
-    if (input.protocols.some(protocol => protocol.slug?.toLowerCase() === slug && protocol.gecko_id)) return undefined;
+    if (input.protocols.some(protocol => protocol.slug?.toLowerCase() === slug && (protocol.gecko_id || verifiedProtocolCoinId(protocol)))) return undefined;
     const exactSlug = coinById.get(slug);
     if (exactSlug) return exactSlug;
     return coinByNormalizedName.get(normalize(row.name));
@@ -794,7 +811,7 @@ export async function scanCryptoFourCriteria(fetcher: typeof fetch = fetch): Pro
   const candidateIds: string[] = [];
   const seenCandidates = new Set<string>();
   for (const protocol of protocols) {
-    const geckoId = String(protocol.gecko_id || '').toLowerCase();
+    const geckoId = String(protocol.gecko_id || verifiedProtocolCoinId(protocol) || '').toLowerCase();
     const slug = String(protocol.slug || '').toLowerCase();
     if (!geckoId || !slug || knownIds.has(geckoId) || seenCandidates.has(geckoId)) continue;
     if (overviewSlugs.has(slug)) {
@@ -802,19 +819,44 @@ export async function scanCryptoFourCriteria(fetcher: typeof fetch = fetch): Pro
       candidateIds.push(geckoId);
     }
   }
-  const [extraCoins, coinCategories] = await Promise.all([
-    fetchCoinsByIds(fetcher, candidateIds),
-    fetchCoinCategories(fetcher)
-  ]);
+  const extraCoins: CoinGeckoMarketRow[] = [];
+  // CoinGecko's public markets endpoint can return 403 while the coin detail
+  // endpoint remains available. For a verified family only, recover the exact
+  // ID and live market cap from detail; never invent a cap from price or FDV.
+  for (const family of Object.values(VERIFIED_PROTOCOL_FAMILIES)) {
+    if (!candidateIds.includes(family.coinId) || extraCoins.some(coin => coin.id === family.coinId)) continue;
+    try {
+      const detail = await fetchJson<{
+        id?: string; symbol?: string; name?: string; market_cap_rank?: number;
+        market_data?: { market_cap?: { usd?: number }; fully_diluted_valuation?: { usd?: number }; last_updated?: string };
+      }>(fetcher, `https://api.coingecko.com/api/v3/coins/${encodeURIComponent(family.coinId)}`);
+      const cap = finitePositive(detail.market_data?.market_cap?.usd);
+      if (detail.id !== family.coinId || String(detail.symbol || '').toUpperCase() !== family.symbol ||
+          normalize(detail.name) !== normalize(family.name) || cap < UNDERVALUED_MIN_MARKET_CAP ||
+          !finitePositive(detail.market_cap_rank)) {
+        console.warn(`Verified family market data incomplete or mismatched: ${family.coinId}`);
+        continue;
+      }
+      extraCoins.push({ id: family.coinId, coin_gecko_id: family.coinId, symbol: family.symbol,
+        name: family.name, market_cap_rank: detail.market_cap_rank, market_cap: cap,
+        fully_diluted_valuation: finitePositive(detail.market_data?.fully_diluted_valuation?.usd),
+        last_updated: detail.market_data?.last_updated, market_data_source: 'coingecko' });
+    } catch (error) {
+      console.warn(`Verified family market data unavailable: ${family.coinId}:`, error instanceof Error ? error.message : error);
+    }
+  }
+  extraCoins.push(...await fetchCoinsByIds(fetcher, candidateIds.filter(id => !extraCoins.some(coin => coin.id === id))));
+  const coinCategories = await fetchCoinCategories(fetcher);
   const canonicalCoins = coins.map(coin => {
     if (coin.market_data_source !== 'coinpaprika') return coin;
     const matches = extraCoins.filter(extra => normalize(extra.name) === normalize(coin.name) && extra.symbol.toLowerCase() === coin.symbol.toLowerCase());
     return matches.length === 1 ? matches[0] : coin;
   });
-  const extraIdSet = new Set(extraCoins.map(coin => coin.id.toLowerCase()));
+  const canonicalIds = new Set(canonicalCoins.map(coin => coin.id.toLowerCase()));
+  const extraIdSet = new Set(extraCoins.map(coin => coin.id.toLowerCase()).filter(id => !canonicalIds.has(id)));
 
   return buildCryptoFourCriteriaScan({
-    coins: [...canonicalCoins, ...extraCoins],
+    coins: [...canonicalCoins, ...extraCoins.filter(coin => !canonicalIds.has(coin.id.toLowerCase()))],
     protocols,
     fees,
     revenue,

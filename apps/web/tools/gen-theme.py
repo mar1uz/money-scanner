@@ -20,7 +20,7 @@ THEMES = {
    'surface': '#12151A', 'surface2': '#171B22', 'surface_raised': '#151A21', 'surface_inset': '#0F1216',
    'line': '#232A35', 'line_strong': '#334054', 'hover': '#1D222B',
    'text': '#E9EDF3', 'text2': '#C9D2DD', 'muted': '#9AA4B2', 'faint': '#8791A1',
-   'header_bg': 'rgba(11,13,16,.9)', 'header_solid': 'rgba(11,13,16,.96)',
+   'header_bg': '#0B0D10', 'header_solid': 'rgba(11,13,16,.96)',
    'dock_bg': 'rgba(18,21,26,.92)',
    'overlay04': 'rgba(255,255,255,.04)', 'overlay06': 'rgba(255,255,255,.06)',
    'overlay08': 'rgba(255,255,255,.08)', 'overlay15': 'rgba(255,255,255,.15)',

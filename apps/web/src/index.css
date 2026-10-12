@@ -744,3 +744,8 @@ body,
  .alert-card-type .text-\[9px\] { font-size: 11px; }
  .alert-card-type .text-\[8px\] { font-size: 10px; }
 }
+
+.mobile-more-setting:has(.theme-switcher){flex-wrap:wrap;}
+.mobile-more-setting .theme-switcher{width:100%;}
+.mobile-more-setting .theme-switcher-btn{width:100%;}
+.mobile-more-setting .theme-menu{position:static;width:100%;margin-top:8px;box-sizing:border-box;box-shadow:none;}

@@ -254,6 +254,53 @@ it('canonicalizes a CoinPaprika fallback before merging CoinGecko coverage', asy
   assert.equal(scan.assets[0].fullyDilutedValuation, 24_000_000);
 });
 
+it('recovers verified PONS from null-ID DefiLlama children during CoinPaprika fallback', async () => {
+  const fetcher = (async (input: string | URL | Request) => {
+    const url = String(input);
+    if (url.includes('&category=')) return Response.json([]);
+    if (url.includes('order=market_cap_desc')) return new Response('', { status: 403 });
+    if (url.includes('coinpaprika')) return Response.json([{ id: 'alpha-alpha', symbol: 'ALPHA', name: 'Alpha', rank: 1, quotes: { USD: { market_cap: 50_000_000 } } }]);
+    if (url.includes('/coins/markets')) return new Response('', { status: 403 });
+    if (url.endsWith('/coins/pons')) return Response.json({ id: 'pons', symbol: 'pons', name: 'Pons', market_cap_rank: 134,
+      market_data: { market_cap: { usd: 360_000_000 }, fully_diluted_valuation: { usd: 360_000_000 }, last_updated: '2026-09-29T17:32:40Z' } });
+    if (url.endsWith('/protocols')) return Response.json([
+      { slug: 'pons-v1', parentProtocol: 'parent#pons', gecko_id: null, symbol: 'PONS', name: 'Pons V1', tvl: null },
+      { slug: 'pons-v2', parentProtocol: 'parent#pons', gecko_id: null, symbol: 'PONS', name: 'Pons V2', tvl: null }
+    ]);
+    if (url.includes('dailyFees')) return Response.json({ protocols: [
+      { slug: 'pons-v1', parentProtocol: 'parent#pons', total24h: 75_354, total7d: 446_451, total30d: 5_840_594 },
+      { slug: 'pons-v2', parentProtocol: 'parent#pons', total24h: 1_203_736, total7d: 12_458_061, total30d: 138_142_436 }
+    ] });
+    if (url.includes('dailyRevenue')) return Response.json({ protocols: [
+      { slug: 'pons-v1', parentProtocol: 'parent#pons', total24h: 17_243, total7d: 97_244, total30d: 1_206_522 },
+      { slug: 'pons-v2', parentProtocol: 'parent#pons', total24h: 185_869, total7d: 1_803_146, total30d: 23_618_133 }
+    ] });
+    if (url.includes('dailyHoldersRevenue')) return Response.json({ protocols: [
+      { slug: 'pons-v1', parentProtocol: 'parent#pons', total24h: 258_940, total7d: 1_810_060, total30d: 16_391_260 }
+    ] });
+    return Response.json([]);
+  }) as typeof fetch;
+  const scan = await scanCryptoFourCriteria(fetcher);
+  const asset = scan.assets.find(a => a.id === 'pons');
+  assert.ok(asset);
+  assert.equal(asset.coinGeckoId, 'pons');
+  assert.equal(asset.marketCap, 360_000_000);
+  assert.equal(asset.metrics.fees30d, 143_983_030);
+  assert.equal(asset.metrics.revenue30d, 24_824_655);
+  assert.equal(asset.metrics.tvl, undefined);
+  assert.ok(scan.undervalued.some(a => a.assetId === 'pons'));
+  assert.equal(scan.assets.filter(a => a.symbol === 'PONS').length, 1);
+});
+
+it('does not map a same-symbol, unverified protocol to PONS', () => {
+  const scan = buildCryptoFourCriteriaScan({ coins: [
+    { id: 'pons', coin_gecko_id: 'pons', symbol: 'PONS', name: 'Pons', market_cap_rank: 134, market_cap: 360_000_000 },
+    { id: 'impostor', coin_gecko_id: 'impostor', symbol: 'PONS', name: 'Other Pons', market_cap_rank: 135, market_cap: 20_000_000 }
+  ], protocols: [{ slug: 'other-v1', parentProtocol: 'parent#other', symbol: 'PONS', name: 'Other Protocol', tvl: null }],
+  fees: [{ slug: 'other-v1', total24h: 1, total7d: 7, total30d: 1_000_000 }], revenue: [], holdersRevenue: [] });
+  assert.ok(scan.assets.every(a => a.metrics.fees30d === undefined));
+});
+
 it('rejects malformed provider payloads instead of caching an empty successful scan', async () => {
   const fetcher = (async (input: string | URL | Request) => {
     const url = String(input);
