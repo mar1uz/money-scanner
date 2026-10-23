@@ -10,16 +10,15 @@ const gold: ValueComponent = { label: 'Physical gold (above-ground stock)', valu
 export function companyComponent(group: 'stocks' | 'metals', now = Date.now(), data: CapSnapshot = snapshot): ValueComponent {
   const assets = data.universe.filter(a => a.marketClass === group);
   const age = now - Date.parse(data.fetchedAt);
-  const fresh = Number.isFinite(age) && age >= 0 && age <= data.maxAgeDays * 86400000;
+  const validTimestamp = Number.isFinite(age) && age >= 0;
   const entries = assets.map(a => data.companies[a.symbol]).filter(v => v && Number.isFinite(v.value) && v.value > 0);
   const complete = assets.length > 0 && entries.length === assets.length;
-  return { label: group === 'stocks' ? 'Tracked stock companies' : 'Tracked mining/materials companies', value: fresh && complete ? entries.reduce((n, e) => n + e.value, 0) : null, estimated: true, source: 'CompaniesMarketCap', url: 'https://companiesmarketcap.com/', asOf: `checked ${data.fetchedAt.slice(0,10)} · ${entries.length}/${assets.length} companies · ${fresh ? '7-day snapshot' : 'snapshot expired'}` };
+  return { label: group === 'stocks' ? 'Tracked stock companies' : 'Tracked mining/materials companies', value: validTimestamp && complete ? entries.reduce((n, e) => n + e.value, 0) : null, estimated: true, source: 'CompaniesMarketCap', url: 'https://companiesmarketcap.com/', asOf: `checked ${data.fetchedAt.slice(0,10)} · ${entries.length}/${assets.length} companies` };
 }
 export function getMarketValue(category: string, cryptoCap?: number, now = Date.now(), data: CapSnapshot = snapshot) {
   const crypto: ValueComponent = { label: 'Global crypto', value: typeof cryptoCap === 'number' && Number.isFinite(cryptoCap) && cryptoCap > 0 ? cryptoCap : null, estimated: false, source: 'CoinGecko', url: 'https://api.coingecko.com/api/v3/global', asOf: 'current app feed' };
   const stock = companyComponent('stocks', now, data), mining = companyComponent('metals', now, data);
-  // WGC's static quarterly valuation must never be represented as today's gold price.
-  const datedGold = { ...gold, value: now <= Date.parse('2027-01-01T00:00:00Z') ? gold.value : null };
+  const datedGold = { ...gold };
   if (category === 'crypto') return { title: 'Global crypto market cap', value: crypto.value, estimated: false, note: 'Global crypto universe', components: [crypto] };
   if (category === 'stocks') return { title: 'Tracked company market cap', value: stock.value, estimated: true, note: '73 tracked companies · 10 ETFs excluded', components: [stock] };
   if (category === 'metals') return { title: 'Metals value estimates', value: datedGold.value, estimated: true, note: 'Headline: physical gold only. ETFs, silver, oil, copper and PAXG excluded from this gold estimate.', components: [datedGold, mining] };

@@ -230,8 +230,6 @@ export class PublicStockMarketAdapter {
         const meta = data?.chart?.result?.[0]?.meta;
         if (meta && meta.regularMarketPrice) {
           const price = Number(meta.regularMarketPrice.toFixed(4));
-          const prevClose = meta.previousClose || meta.chartPreviousClose || price;
-          const change24h = Number((((price - prevClose) / prevClose) * 100).toFixed(2));
           if (
             typeof meta.regularMarketDayHigh !== 'number' ||
             typeof meta.regularMarketDayLow !== 'number' ||
@@ -245,11 +243,33 @@ export class PublicStockMarketAdapter {
           const volume24h = meta.regularMarketVolume;
 
           const quotes = data?.chart?.result?.[0]?.indicators?.quote?.[0];
+          const validCloses: number[] = Array.isArray(quotes?.close)
+            ? quotes.close.filter((v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0)
+            : [];
+          const prevSessionClose =
+            typeof meta.previousClose === 'number' && Number.isFinite(meta.previousClose) && meta.previousClose > 0
+              ? meta.previousClose
+              : validCloses.length >= 2
+                ? validCloses[validCloses.length - 2]
+                : typeof meta.chartPreviousClose === 'number' && Number.isFinite(meta.chartPreviousClose) && meta.chartPreviousClose > 0
+                  ? meta.chartPreviousClose
+                  : price;
+          const change24h =
+            typeof meta.regularMarketChangePercent === 'number' && Number.isFinite(meta.regularMarketChangePercent)
+              ? Number(meta.regularMarketChangePercent.toFixed(2))
+              : prevSessionClose > 0
+                ? Number((((price - prevSessionClose) / prevSessionClose) * 100).toFixed(2))
+                : 0;
+
           const firstOpen = quotes?.open ? quotes.open.find((v: any) => v !== null && v !== undefined && v > 0) : null;
+          const ytdBaseline =
+            typeof meta.chartPreviousClose === 'number' && Number.isFinite(meta.chartPreviousClose) && meta.chartPreviousClose > 0
+              ? meta.chartPreviousClose
+              : firstOpen;
 
           let changeYtd: number | undefined;
-          if (firstOpen && firstOpen > 0) {
-            changeYtd = Number((((price - firstOpen) / firstOpen) * 100).toFixed(2));
+          if (ytdBaseline && ytdBaseline > 0) {
+            changeYtd = Number((((price - ytdBaseline) / ytdBaseline) * 100).toFixed(2));
           }
 
           return {

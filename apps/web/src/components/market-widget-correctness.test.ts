@@ -16,6 +16,8 @@ test('zero is zero, empty or invalid data is unavailable',()=>{
 test('global cap comes from overview; stock share volume excluded; no fake fallback',()=>{
  const row={symbol:'BTC',name:'Bitcoin',marketClass:'crypto',change24h:-1,marketCap:123,volume24h:456,moneyLineScore:60,tier:'Bullish'};
  const html=renderToStaticMarkup(React.createElement(MarketRegimeGauge,{overview:{totalMarketCap:2.83e12} as any,rows:[row,{...row,symbol:'NVDA',marketClass:'stocks',volume24h:1e12}] as any,selectedCategory:'ALL'}));
- assert.match(html,/\$2.83T/);assert.match(html,/\$456/);assert.match(html,/0% Bullish/);assert.doesNotMatch(html,/\$2.42T|\$78.4B/);
+ assert.match(html,/≈ \$76\.57T/);assert.match(html,/\$456/);assert.match(html,/0% Bullish/);assert.doesNotMatch(html,/\$2.42T|\$78.4B|Scope estimate/);
+ const cryptoHtml=renderToStaticMarkup(React.createElement(MarketRegimeGauge,{overview:{totalMarketCap:2.83e12} as any,rows:[row] as any,selectedCategory:'crypto'}));
+ assert.match(cryptoHtml,/\$2\.83T/);
  const empty=renderToStaticMarkup(React.createElement(MarketRegimeGauge,{overview:null,rows:[]}));assert.match(empty,/Unavailable/);assert.doesNotMatch(empty,/\$2.42T|\$78.4B|50% Bullish/);
 });
