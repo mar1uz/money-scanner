@@ -625,7 +625,10 @@ function translateCore(core: string, language: Language): string {
   return output;
 }
 
-export function translateText(value: string, language: Language): string {
+const TRANSLATION_CACHE_LIMIT = 5000;
+const translationCache: Record<Language, Map<string, string>> = { ro: new Map(), en: new Map() };
+
+function translateTextUncached(value: string, language: Language): string {
   const match = value.match(/^(\s*)([\s\S]*?)(\s*)$/);
   const lead = match?.[1] ?? '';
   const core = match?.[2] ?? value;
@@ -648,6 +651,16 @@ export function translateText(value: string, language: Language): string {
   output = translateCore(output, language);
 
   return lead + output + trail;
+}
+
+export function translateText(value: string, language: Language): string {
+  const cache = translationCache[language];
+  const hit = cache.get(value);
+  if (hit !== undefined) return hit;
+  const result = translateTextUncached(value, language);
+  if (cache.size >= TRANSLATION_CACHE_LIMIT) cache.clear();
+  cache.set(value, result);
+  return result;
 }
 
 const sourceText = new WeakMap<Text, string>();

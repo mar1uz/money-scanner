@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, CircleDot, RefreshCw } from 'lucide-react';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 import { CRYPTO_SPOT_ASSETS } from '@money-scanner/shared';
 import { createGrowthBubbleLayout, rankCryptoBubbles, validChange } from './crypto-bubble-layout.js';
 import {
@@ -8,6 +8,8 @@ import {
 } from '../services/api.js';
 import { ScanLoadingBar } from './ScanLoadingBar.js';
 import { AssetExternalLinks } from './AssetExternalLinks.js';
+import { ViewHeader } from './ui/ViewHeader.js';
+import { HelpDisclosure } from './ui/HelpDisclosure.js';
 
 interface CryptoBubbleViewProps {
   onSelectAsset: (symbol: string, coinGeckoId?: string, coinPaprikaId?: string) => void;
@@ -75,40 +77,26 @@ export const CryptoBubbleView: React.FC<CryptoBubbleViewProps> = ({ onSelectAsse
   const gainers = rankedCoins.filter(coin => validChange(coin.change) && coin.change > 0).length;
 
   return (
-    <section className="space-y-5 tab-content-enter">
+    <section className="space-y-5">
       <ScanLoadingBar active={loading} />
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-fuchsia-300">
-            <CircleDot className="w-5 h-5" />
-            <span className="font-mono text-xs font-bold tracking-[0.18em] uppercase">Momentum · 24 ore</span>
-          </div>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">Crypto Bubble</h1>
-          <p className="mt-1 text-sm text-slate-400">Câștigătorii ultimelor 24 de ore. Cu cât creșterea procentuală este mai mare, cu atât bula este mai mare.</p>
-        </div>
-
-        <div className="flex items-center gap-2 self-start rounded-xl border border-white/[0.07] bg-white/[0.03] p-1">
-          <span className="rounded-lg bg-fuchsia-500/20 px-3.5 py-2 text-xs font-mono font-bold text-fuchsia-200">24H</span>
-          <button
-            type="button"
-            onClick={loadCoins}
-            disabled={loading}
-            title="Actualizează datele"
-            aria-label="Actualizează datele"
-            className="ml-1 rounded-lg p-2 text-slate-400 transition-colors hover:bg-white/[0.06] hover:text-fuchsia-200 disabled:opacity-50"
-          >
+      <ViewHeader
+        title="Crypto Bubble"
+        badge="24H"
+        subtitle="Câștigătorii ultimelor 24 de ore. Cu cât creșterea procentuală este mai mare, cu atât bula este mai mare."
+        actions={
+          <button type="button" onClick={loadCoins} disabled={loading} title="Actualizează datele" aria-label="Actualizează datele" className="ms-icon-btn">
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
-        </div>
-      </div>
+        }
+      />
 
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-white/[0.05] bg-white/[0.02] px-4 py-3 text-[11px] font-mono text-slate-400">
+      <div className="ms-legend">
         <span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full bg-emerald-400" />Creștere</span>
         <span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full bg-rose-400" />Scădere</span>
         <span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full bg-slate-500" />Neutru / fără date</span>
-        <span>Bule mari = creșteri mari pe 24h · scăderile rămân mici</span>
-        <span className="ml-auto text-slate-500">{lastUpdated ? `Actualizat ${lastUpdated.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })}` : 'Se încarcă datele...'}</span>
+        <span className="ms-legend-end">{lastUpdated ? `Actualizat ${lastUpdated.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })}` : 'Se încarcă datele...'}</span>
       </div>
+      <HelpDisclosure>Bule mari = creșteri mari pe 24h · scăderile rămân mici</HelpDisclosure>
 
       {error && (
         <div className="flex items-center gap-2 rounded-xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">

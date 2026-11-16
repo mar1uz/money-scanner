@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchSystemStatus, triggerTestAlert } from '../services/api.js';
+import { ViewHeader } from './ui/ViewHeader.js';
 import {
-  Activity,
   Server,
   Bot,
   BellRing,
@@ -51,35 +51,23 @@ export const SystemStatusView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="cyber-glass rounded-xl p-5 border border-cyan-500/30 bg-cyan-500/5 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Activity className="w-5 h-5 text-cyan-400" />
-            <h2 className="text-base font-bold text-slate-100">System Health, Data Providers & Telegram Bot</h2>
-          </div>
-          <p className="text-xs text-slate-400">
-            Real-time infrastructure health, provider response times, circuit breakers, and webhook status.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => handleTestAlert('BTC')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/30 text-xs font-mono transition-all"
-          >
-            <BellRing className="w-3.5 h-3.5" />
-            <span>{testSent ? 'Alert Dispatched!' : 'Send Test Market Alert'}</span>
-          </button>
-          <button
-            onClick={loadStatus}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono border border-slate-700 transition-all"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Refresh</span>
-          </button>
-        </div>
-      </div>
+      <ViewHeader
+        as="h2"
+        title={<>System Health, Data Providers &amp; Telegram Bot</>}
+        subtitle="Real-time infrastructure health, provider response times, circuit breakers, and webhook status."
+        actions={
+          <>
+            <button onClick={() => handleTestAlert('BTC')} className="ms-btn ms-btn--sm ms-btn--outline">
+              <BellRing className="w-3.5 h-3.5" />
+              <span>{testSent ? 'Alert Dispatched!' : 'Send Test Market Alert'}</span>
+            </button>
+            <button onClick={loadStatus} className="ms-btn ms-btn--sm ms-btn--secondary">
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Refresh</span>
+            </button>
+          </>
+        }
+      />
 
       {/* Services Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

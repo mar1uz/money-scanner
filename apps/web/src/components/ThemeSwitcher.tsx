@@ -47,6 +47,34 @@ export const applyTheme = (id: ThemeId) => {
   }
 };
 
+/** Swatch grid used by the More sheet. Applies the theme on click, same as ThemeSwitcher. */
+export const ThemeSwatchGrid: React.FC = () => {
+  const [theme, setTheme] = useState<ThemeId>(getStoredTheme);
+  const options = [{ id: 'dark' as ThemeId, label: 'Signal Graphite', hint: '', swatch: '#0B0D10' }, ...THEME_OPTIONS];
+  const current = options.find(option => option.id === theme);
+  return (
+    <>
+      <div className="ms-theme-grid" role="group" aria-label="Alege tema">
+        {options.map(option => (
+          <button
+            key={option.id}
+            type="button"
+            aria-pressed={theme === option.id}
+            data-active={theme === option.id}
+            title={option.label}
+            className="ms-theme-swatch"
+            style={{ background: option.swatch }}
+            onClick={() => { setTheme(option.id); applyTheme(option.id); }}
+          >
+            {theme === option.id && <Check size={14} />}
+          </button>
+        ))}
+      </div>
+      <p className="ms-theme-name" translate="no">{current?.label ?? ''}</p>
+    </>
+  );
+};
+
 export const ThemeSwitcher: React.FC = () => {
   const [theme, setTheme] = useState<ThemeId>(getStoredTheme);
   const [open, setOpen] = useState(false);

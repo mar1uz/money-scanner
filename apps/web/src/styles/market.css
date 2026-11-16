@@ -1,0 +1,15 @@
+/* Market page styles. Owner: WP3. */
+.scanner-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.scanner-toolbar-right { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* Segmented sets display on .ms-segmented (motion.css loads after Tailwind), so the density toggle needs a stronger selector to honour `hidden md:inline-flex`. */
+.scanner-toolbar-right > .ms-segmented.hidden { display: none; }
+@media (min-width: 768px) {
+  .scanner-toolbar-right > .ms-segmented.md\:inline-flex { display: inline-flex; }
+}
+@media (min-width: 768px) {
+  .scanner-section[data-density="essential"] :is(th, td):is([data-col="changeYtd"], [data-col="rvol"], [data-col="atr"], [data-col="x"], [data-col="ai"], [data-col="actions"]) { display: none; }
+  /* The Actions header has no data-col; hide it by position so the header and body columns stay aligned. */
+  .scanner-section[data-density="essential"] thead th:last-child { display: none; }
+}
+.market-overview .card-base { min-height: 0; padding: 16px 18px; }
+@media (max-width: 639px) { .market-overview .card-base { min-height: 0; padding: 14px 12px; } }

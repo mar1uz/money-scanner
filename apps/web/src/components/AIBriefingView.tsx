@@ -22,6 +22,7 @@ import { AssetLink, useAssetNavigation } from './AssetNavigation.js';
 import { AssetExternalLinks } from './AssetExternalLinks.js';
 import { mcInline } from './StockBqBlocks.js';
 import { ScanLoadingBar } from './ScanLoadingBar.js';
+import { Segmented } from './ui/Segmented.js';
 import {
   Sparkles,
   ExternalLink,
@@ -204,7 +205,7 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
       return (
         <section className="rounded-[30px] border border-rose-500/20 bg-rose-500/[0.05] p-4">
           <p className="text-sm text-rose-300">{criteriaScanError}</p>
-          <button onClick={() => void loadCriteriaScan(true)} className="mt-3 inline-flex items-center gap-2 text-xs text-slate-200">
+          <button onClick={() => void loadCriteriaScan(true)} className="mt-3 ms-btn ms-btn--sm ms-btn--secondary">
             <RefreshCw className="w-3.5 h-3.5" /> {language === 'ro' ? 'Reîncearcă scanarea' : 'Retry scan'}
           </button>
         </section>
@@ -294,7 +295,7 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
     ];
 
     return (
-      <section className="rounded-[30px] border border-cyan-500/20 bg-[var(--t-surface)] p-4 sm:p-5 space-y-4">
+      <section className="rounded-[30px] border border-[var(--t-line)] bg-[var(--t-surface)] p-4 sm:p-5 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <button
             type="button"
@@ -325,7 +326,7 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
           <button
             onClick={() => void loadCriteriaScan(true)}
             disabled={loadingCriteriaScan}
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-cyan-500/25 bg-cyan-500/10 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/20 disabled:opacity-50 transition"
+            className="ms-btn ms-btn--sm ms-btn--secondary"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loadingCriteriaScan ? 'animate-spin' : ''}`} />
             <span>{language === 'ro' ? 'Scanează din nou' : 'Scan again'}</span>
@@ -349,17 +350,18 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
             </div>
 
             <div className="flex flex-col sm:flex-row gap-2">
-              <div className="flex items-center rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] p-1 overflow-x-auto">
-                {([
+              <Segmented
+                ariaLabel={language === 'ro' ? 'Filtru criterii' : 'Criteria filter'}
+                size="sm"
+                scrollable
+                value={criteriaFilter}
+                onChange={setCriteriaFilter}
+                options={([
                   ['leaders', language === 'ro' ? 'Top scor' : 'Top score'],
                   ['all-four', '4 / 4'],
                   ['first-three', language === 'ro' ? 'Primele 3' : 'First 3']
-                ] as [CryptoCriteriaFilter, string][]).map(([id, label]) => (
-                  <button key={id} onClick={() => setCriteriaFilter(id)} className={`shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-semibold ${criteriaFilter === id ? 'bg-purple-500/20 text-purple-200' : 'text-slate-500'}`}>
-                    {label}
-                  </button>
-                ))}
-              </div>
+                ] as [CryptoCriteriaFilter, string][]).map(([id, label]) => ({ value: id, label }))}
+              />
               <div className="flex-1 flex items-center gap-2 rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] px-3">
                 <Search className={`w-3.5 h-3.5 ${loadingDexLookup ? 'animate-pulse text-cyan-300' : 'text-slate-600'}`} />
                 <input value={criteriaSearch} onChange={event => setCriteriaSearch(event.target.value)} placeholder={language === 'ro' ? 'Ticker sau adresă (DexScreener)…' : 'Ticker or contract (DexScreener)…'} className="w-full bg-transparent py-2 text-xs text-slate-200 placeholder-slate-600 outline-none" />
@@ -482,7 +484,7 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
         return (
           <section className="rounded-[30px] border border-rose-500/20 bg-rose-500/[0.05] p-4">
             <p className="text-sm text-rose-300">{stockCriteriaScanError}</p>
-            <button onClick={() => void loadStockCriteriaScan(true)} className="mt-3 inline-flex items-center gap-2 text-xs text-slate-200">
+            <button onClick={() => void loadStockCriteriaScan(true)} className="mt-3 ms-btn ms-btn--sm ms-btn--secondary">
               <RefreshCw className="w-3.5 h-3.5" /> {language === 'ro' ? 'Reîncearcă scanarea' : 'Retry scan'}
             </button>
           </section>
@@ -524,7 +526,7 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
           : 'border-white/[0.08] bg-white/[0.02] text-slate-400';
 
     return (
-      <section className="rounded-[30px] border border-purple-500/25 bg-[var(--t-surface)] p-4 sm:p-5 space-y-4">
+      <section className="rounded-[30px] border border-[var(--t-line)] bg-[var(--t-surface)] p-4 sm:p-5 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <button
             type="button"
@@ -555,7 +557,7 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
           <button
             onClick={() => void loadStockCriteriaScan(true)}
             disabled={loadingStockCriteriaScan}
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-purple-500/25 bg-purple-500/10 text-xs font-semibold text-purple-200 hover:bg-purple-500/20 disabled:opacity-50 transition"
+            className="ms-btn ms-btn--sm ms-btn--secondary"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loadingStockCriteriaScan ? 'animate-spin' : ''}`} />
             <span>{language === 'ro' ? 'Scanează din nou' : 'Scan again'}</span>
@@ -579,27 +581,20 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
             </div>
 
             <div className="flex flex-col sm:flex-row gap-2">
-              <div className="flex items-center rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] p-1 overflow-x-auto">
-                {([
+              <Segmented
+                ariaLabel={language === 'ro' ? 'Filtru acțiuni' : 'Stock filter'}
+                size="sm"
+                scrollable
+                value={stockCriteriaFilter}
+                onChange={setStockCriteriaFilter}
+                options={([
                   ['top-pick', language === 'ro' ? '🟢 Top Recomandate AI' : '🟢 Top AI Picks'],
                   ['all-passed', language === 'ro' ? '🌟 Toate (6/6)' : '🌟 All 6/6'],
                   ['high-profitability', language === 'ro' ? '💰 Marje Mari & ROE' : '💰 High Margins & ROE'],
                   ['growth-fcf', language === 'ro' ? '🚀 Creștere & FCF' : '🚀 Growth & FCF'],
                   ['dividend-value', language === 'ro' ? '🛡️ Valoare & Dividende' : '🛡️ Value & Dividends']
-                ] as [StockCriteriaFilter, string][]).map(([id, label]) => (
-                  <button
-                    key={id}
-                    onClick={() => setStockCriteriaFilter(id)}
-                    className={`shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
-                      stockCriteriaFilter === id
-                        ? 'bg-purple-500/25 text-purple-200 border border-purple-500/30'
-                        : 'text-slate-500 hover:text-slate-300'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
+                ] as [StockCriteriaFilter, string][]).map(([id, label]) => ({ value: id, label }))}
+              />
               <div className="flex-1 flex items-center gap-2 rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] px-3">
                 <Search className="w-3.5 h-3.5 text-slate-500" />
                 <input
@@ -766,7 +761,7 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
       return (
         <div className="rounded-[30px] border border-rose-500/25 bg-rose-500/[0.06] p-5">
           <p className="text-sm text-rose-300">{intelligenceError || (language === 'ro' ? 'Raportul nu este disponibil.' : 'Report unavailable.')}</p>
-          <button onClick={() => void loadIntelligence(true)} className="mt-3 inline-flex items-center gap-2 text-xs text-slate-200">
+          <button onClick={() => void loadIntelligence(true)} className="mt-3 ms-btn ms-btn--sm ms-btn--secondary">
             <RefreshCw className="w-3.5 h-3.5" /> {language === 'ro' ? 'Încearcă din nou' : 'Try again'}
           </button>
         </div>
@@ -775,7 +770,7 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
 
     return (
       <div className={`space-y-6 transition-opacity ${loadingIntelligence ? 'opacity-60' : 'opacity-100'}`}>
-        <section className="rounded-[30px] border border-purple-500/20 bg-[var(--t-surface)] p-4 sm:p-6">
+        <section className="rounded-[30px] border border-[var(--t-line)] bg-[var(--t-surface)] p-4 sm:p-6">
           <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-[10px] sm:text-xs font-mono uppercase tracking-wider">
@@ -1056,12 +1051,12 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
                 </p>
               </div>
             </button>
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
               {scope === 'crypto' && onOpenBusinessQuality && (
                 <button
                   onClick={onOpenBusinessQuality}
                   title={language === 'ro' ? 'Deschide clasamentul Business Quality (subevaluate)' : 'Open the Business Quality ranking (undervalued)'}
-                  className="inline-flex items-center gap-1.5 h-9 px-2.5 sm:px-3 rounded-xl border border-amber-500/25 bg-amber-500/[0.08] text-[10px] sm:text-[11px] font-semibold text-amber-200 hover:bg-amber-500/15 transition"
+                  className="ms-btn ms-btn--sm ms-btn--secondary"
                 >
                   <Scale className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Business Quality</span>
@@ -1073,7 +1068,7 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
                   onClick={() => void loadCriteriaScan(Boolean(criteriaScan))}
                   disabled={loadingCriteriaScan}
                   title={language === 'ro' ? 'Verifică top 200 după cele 4 criterii din clip' : 'Check the top 200 against the four video criteria'}
-                  className="inline-flex items-center gap-1.5 h-9 px-2.5 sm:px-3 rounded-xl border border-cyan-500/25 bg-cyan-500/[0.08] text-[10px] sm:text-[11px] font-semibold text-cyan-200 disabled:opacity-45"
+                  className="ms-btn ms-btn--sm ms-btn--secondary"
                 >
                   <Radar className={`w-3.5 h-3.5 ${loadingCriteriaScan ? 'animate-spin' : ''}`} />
                   <span className="hidden sm:inline">{language === 'ro' ? '4 criterii · Top 200' : '4 criteria · Top 200'}</span>
@@ -1085,33 +1080,29 @@ export const AIBriefingView: React.FC<{ onOpenBusinessQuality?: () => void }> = 
                   onClick={() => void loadStockCriteriaScan(Boolean(stockCriteriaScan))}
                   disabled={loadingStockCriteriaScan}
                   title={language === 'ro' ? 'Verifică calitatea și profitabilitatea acțiunilor' : 'Check stock business quality and profitability'}
-                  className="inline-flex items-center gap-1.5 h-9 px-2.5 sm:px-3 rounded-xl border border-purple-500/25 bg-purple-500/[0.08] text-[10px] sm:text-[11px] font-semibold text-purple-200 disabled:opacity-45"
+                  className="ms-btn ms-btn--sm ms-btn--secondary"
                 >
                   <Award className={`w-3.5 h-3.5 ${loadingStockCriteriaScan ? 'animate-spin' : ''}`} />
                   <span className="hidden sm:inline">{language === 'ro' ? 'Calitate & Profitabilitate' : 'Quality & Profitability'}</span>
                   <span className="sm:hidden">{language === 'ro' ? 'Calitate' : 'Quality'}</span>
                 </button>
               )}
-              <div className="flex items-center rounded-xl border border-white/[0.07] bg-white/[0.025] p-1">
-                {scopeOptions.map(option => {
+              <Segmented
+                ariaLabel={language === 'ro' ? 'Clasă de active' : 'Asset class'}
+                size="sm"
+                value={scope}
+                onChange={setScope}
+                options={scopeOptions.map(option => {
                   const Icon = option.icon;
-                  return (
-                    <button
-                      key={option.id}
-                      onClick={() => setScope(option.id)}
-                      className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${scope === option.id ? 'bg-purple-500/20 text-purple-200 border border-purple-500/25' : 'text-slate-500 hover:text-slate-300 border border-transparent'}`}
-                    >
-                      <Icon className="w-3.5 h-3.5" />
-                      {option.label}
-                    </button>
-                  );
+                  return { value: option.id, label: <><Icon className="w-3.5 h-3.5" />{option.label}</> };
                 })}
-              </div>
+              />
               <button
                 onClick={() => void loadIntelligence(true)}
                 disabled={loadingIntelligence}
                 title={language === 'ro' ? 'Reîmprospătează analiza' : 'Refresh analysis'}
-                className="w-9 h-9 rounded-xl border border-white/[0.07] bg-white/[0.025] text-slate-400 hover:text-cyan-300 disabled:opacity-40 flex items-center justify-center transition-all"
+                aria-label={language === 'ro' ? 'Reîmprospătează analiza' : 'Refresh analysis'}
+                className="ms-icon-btn"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${loadingIntelligence ? 'animate-spin' : ''}`} />
               </button>

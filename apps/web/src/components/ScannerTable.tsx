@@ -1,5 +1,7 @@
 import { AssetLinksMenu } from './AssetLinksMenu.js';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { Segmented } from './ui/Segmented.js';
+import { useLanguage } from '../i18n.js';
 import { formatPrice } from '../utils/price.js';
 import {
   AssetScannerRow,
@@ -96,6 +98,18 @@ const getMoneyLineFlipState = (row: AssetScannerRow, field: MoneyLineSortField) 
   return { isTransition: Boolean(row.moneyLine1wIsTransition), flipTime: row.moneyLine1wFlipTime || 0 };
 };
 
+// Tier numerical weight for sorting
+const getTierWeight = (tier: string) => {
+  switch (tier) {
+    case 'Strong Bullish': return 5;
+    case 'Bullish': return 4;
+    case 'Neutral': return 3;
+    case 'Bearish': return 2;
+    case 'Strong Bearish': return 1;
+    default: return 0;
+  }
+};
+
 interface ScannerTableProps {
   rows: AssetScannerRow[];
   onSelectAsset: (
@@ -117,7 +131,7 @@ interface ScannerTableProps {
   loading?: boolean;
 }
 
-export const ScannerTable: React.FC<ScannerTableProps> = ({
+const ScannerTableImpl: React.FC<ScannerTableProps> = ({
   rows,
   onSelectAsset,
   watchlist,
@@ -143,6 +157,9 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
   const [isMlExpanded, setIsMlExpanded] = useState<boolean>(false);
   const [draggedSymbol, setDraggedSymbol] = useState<string | null>(null);
   const [dragOverSymbol, setDragOverSymbol] = useState<string | null>(null);
+  const { language } = useLanguage();
+  const [density, setDensity] = useState<'essential' | 'full'>(() => { try { return localStorage.getItem('ms-scanner-density') === 'full' ? 'full' : 'essential'; } catch { return 'essential'; } });
+  const changeDensity = (next: 'essential' | 'full') => { setDensity(next); try { localStorage.setItem('ms-scanner-density', next); } catch {} };
 
   const tiers: { id: string; label: string; color: string }[] = [
     { id: 'ALL', label: 'Toate Semnalele', color: 'text-slate-300' },
@@ -160,7 +177,8 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
     { id: 'metals', label: 'Metale & Gold 🥇', icon: Award }
   ];
 
-  const cleanWatchlist = watchlist.map(w => w.replace(/^[$#]/, '').trim().toUpperCase());
+  const cleanWatchlist = useMemo(() => watchlist.map(w => w.replace(/^[$#]/, '').trim().toUpperCase()), [watchlist]);
+  const watchSet = useMemo(() => new Set(cleanWatchlist), [cleanWatchlist]);
 
   // Helper for formatting Market Cap
   const formatMarketCap = (cap?: number) => {
@@ -370,18 +388,6 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
     }
   };
 
-  // Tier numerical weight for sorting
-  const getTierWeight = (tier: string) => {
-    switch (tier) {
-      case 'Strong Bullish': return 5;
-      case 'Bullish': return 4;
-      case 'Neutral': return 3;
-      case 'Bearish': return 2;
-      case 'Strong Bearish': return 1;
-      default: return 0;
-    }
-  };
-
   // Drag and Drop reordering for Watchlist
   const handleDragStart = (e: React.DragEvent, symbol: string) => {
     e.dataTransfer.setData('text/plain', symbol);
@@ -438,109 +444,113 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
     }
   };
 
-  // Filter rows based on tier, watchlist, narrative and 360° market class
-  let filteredRows = rows.filter(r => {
-    const sym = r.symbol.replace(/^[$#]/, '').trim().toUpperCase();
-    if (watchlistOnly && !cleanWatchlist.includes(sym)) return false;
-    if (selectedTier !== 'ALL' && r.tier !== selectedTier) return false;
-    if (selectedNarrative && selectedNarrative !== 'ALL') {
-      if (!r.narratives?.includes(selectedNarrative as any)) return false;
-    }
-
-    if (selectedMarketClass !== 'ALL') {
-      // Market class comes from the verified backend asset definition. Do not
-      // use ticker/category guesses here: a Crypto selection must contain only
-      // assets explicitly classified as crypto.
-      if (selectedMarketClass === 'crypto') return r.marketClass === 'crypto';
-      if (r.marketClass) return r.marketClass === selectedMarketClass;
-      const isStock = ['SPACEX', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'PLTR', 'AMD', 'MSTR', 'COIN', 'SPY', 'QQQ'].includes(sym) || r.category?.includes('Stock') || r.category?.includes('Index') || r.category?.includes('Mega-Cap');
-      const isMetal = ['XAU', 'XAG', 'PAXG', 'OIL', 'COPPER'].includes(sym) || r.category?.includes('Metal') || r.category?.includes('Commodity');
-
-      if (selectedMarketClass === 'stocks' && !isStock) return false;
-      if (selectedMarketClass === 'metals' && !isMetal) return false;
-    }
-
-    return true;
-  });
-
   const isNewFlipMode = sortDirection === 'newFlip' && isMoneyLineSortField(sortField);
   const activeMoneyLineTimeframe = getMoneyLineTimeframe(sortField);
 
-  // NEW FLIP is an exact current-closed-candle filter for the selected Money
-  // Line timeframe. It intentionally does not mix older transitions into view.
-  if (isNewFlipMode) {
-    filteredRows = filteredRows.filter(row => getMoneyLineFlipState(row, sortField).isTransition);
-    filteredRows = [...filteredRows].sort((left, right) => {
-      const timeDifference = getMoneyLineFlipState(right, sortField).flipTime - getMoneyLineFlipState(left, sortField).flipTime;
-      return timeDifference || (right.marketCap || 0) - (left.marketCap || 0);
-    });
-  } else if (sortField) {
-    filteredRows = [...filteredRows].sort((a, b) => {
-      let comparison = 0;
-      switch (sortField) {
-        case 'symbol':
-          comparison = a.symbol.localeCompare(b.symbol);
-          break;
-        case 'price':
-          comparison = a.price - b.price;
-          break;
-        case 'change24h':
-          comparison = a.change24h - b.change24h;
-          break;
-        case 'changeYtd':
-          comparison = (a.changeYtd || 0) - (b.changeYtd || 0);
-          break;
-        case 'moneyLine1hPercent':
-          comparison = (a.moneyLine1hPercent || 0) - (b.moneyLine1hPercent || 0);
-          break;
-        case 'moneyLine4hPercent':
-          comparison = (a.moneyLine4hPercent || 0) - (b.moneyLine4hPercent || 0);
-          break;
-        case 'moneyLine8hPercent':
-          comparison = (a.moneyLine8hPercent || 0) - (b.moneyLine8hPercent || 0);
-          break;
-        case 'moneyLine1dPercent':
-          comparison = (a.moneyLine1dPercent || 0) - (b.moneyLine1dPercent || 0);
-          break;
-        case 'moneyLine1wPercent':
-          comparison = (a.moneyLine1wPercent || 0) - (b.moneyLine1wPercent || 0);
-          break;
-        case 'marketCap':
-          comparison = (a.marketCap || 0) - (b.marketCap || 0);
-          break;
-        case 'moneyLineScore':
-          comparison = a.moneyLineScore - b.moneyLineScore;
-          break;
-        case 'tier':
-          comparison = getTierWeight(a.tier) - getTierWeight(b.tier);
-          break;
-        case 'rvol':
-          comparison = a.rvol - b.rvol;
-          break;
-        case 'volatilityAtrPercent':
-          comparison = a.volatilityAtrPercent - b.volatilityAtrPercent;
-          break;
-        case 'xTrendScore':
-          comparison = (a.xTrendScore ?? Number.NEGATIVE_INFINITY) - (b.xTrendScore ?? Number.NEGATIVE_INFINITY);
-          break;
-        case 'aiConfidence':
-          comparison = (a.aiConfidence ?? Number.NEGATIVE_INFINITY) - (b.aiConfidence ?? Number.NEGATIVE_INFINITY);
-          break;
-        default:
-          comparison = 0;
+  // Filter and sort derived rows. Memoized so the table does not re-sort on unrelated renders.
+  const filteredRows = useMemo(() => {
+    // Filter rows based on tier, watchlist, narrative and 360° market class
+    let result = rows.filter(r => {
+      const sym = r.symbol.replace(/^[$#]/, '').trim().toUpperCase();
+      if (watchlistOnly && !cleanWatchlist.includes(sym)) return false;
+      if (selectedTier !== 'ALL' && r.tier !== selectedTier) return false;
+      if (selectedNarrative && selectedNarrative !== 'ALL') {
+        if (!r.narratives?.includes(selectedNarrative as any)) return false;
       }
-      return sortDirection === 'asc' ? comparison : -comparison;
+
+      if (selectedMarketClass !== 'ALL') {
+        // Market class comes from the verified backend asset definition. Do not
+        // use ticker/category guesses here: a Crypto selection must contain only
+        // assets explicitly classified as crypto.
+        if (selectedMarketClass === 'crypto') return r.marketClass === 'crypto';
+        if (r.marketClass) return r.marketClass === selectedMarketClass;
+        const isStock = ['SPACEX', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'PLTR', 'AMD', 'MSTR', 'COIN', 'SPY', 'QQQ'].includes(sym) || r.category?.includes('Stock') || r.category?.includes('Index') || r.category?.includes('Mega-Cap');
+        const isMetal = ['XAU', 'XAG', 'PAXG', 'OIL', 'COPPER'].includes(sym) || r.category?.includes('Metal') || r.category?.includes('Commodity');
+
+        if (selectedMarketClass === 'stocks' && !isStock) return false;
+        if (selectedMarketClass === 'metals' && !isMetal) return false;
+      }
+
+      return true;
     });
-  } else if (watchlistOnly) {
-    // Keep custom manual drag order when watchlistOnly is active and no column sort is clicked
-    filteredRows = [...filteredRows].sort((a, b) => {
-      const idxA = cleanWatchlist.indexOf(a.symbol.toUpperCase());
-      const idxB = cleanWatchlist.indexOf(b.symbol.toUpperCase());
-      if (idxA === -1) return 1;
-      if (idxB === -1) return -1;
-      return idxA - idxB;
-    });
-  }
+
+    // NEW FLIP is an exact current-closed-candle filter for the selected Money
+    // Line timeframe. It intentionally does not mix older transitions into view.
+    if (isNewFlipMode) {
+      result = result.filter(row => getMoneyLineFlipState(row, sortField).isTransition);
+      result = [...result].sort((left, right) => {
+        const timeDifference = getMoneyLineFlipState(right, sortField).flipTime - getMoneyLineFlipState(left, sortField).flipTime;
+        return timeDifference || (right.marketCap || 0) - (left.marketCap || 0);
+      });
+    } else if (sortField) {
+      result = [...result].sort((a, b) => {
+        let comparison = 0;
+        switch (sortField) {
+          case 'symbol':
+            comparison = a.symbol.localeCompare(b.symbol);
+            break;
+          case 'price':
+            comparison = a.price - b.price;
+            break;
+          case 'change24h':
+            comparison = a.change24h - b.change24h;
+            break;
+          case 'changeYtd':
+            comparison = (a.changeYtd || 0) - (b.changeYtd || 0);
+            break;
+          case 'moneyLine1hPercent':
+            comparison = (a.moneyLine1hPercent || 0) - (b.moneyLine1hPercent || 0);
+            break;
+          case 'moneyLine4hPercent':
+            comparison = (a.moneyLine4hPercent || 0) - (b.moneyLine4hPercent || 0);
+            break;
+          case 'moneyLine8hPercent':
+            comparison = (a.moneyLine8hPercent || 0) - (b.moneyLine8hPercent || 0);
+            break;
+          case 'moneyLine1dPercent':
+            comparison = (a.moneyLine1dPercent || 0) - (b.moneyLine1dPercent || 0);
+            break;
+          case 'moneyLine1wPercent':
+            comparison = (a.moneyLine1wPercent || 0) - (b.moneyLine1wPercent || 0);
+            break;
+          case 'marketCap':
+            comparison = (a.marketCap || 0) - (b.marketCap || 0);
+            break;
+          case 'moneyLineScore':
+            comparison = a.moneyLineScore - b.moneyLineScore;
+            break;
+          case 'tier':
+            comparison = getTierWeight(a.tier) - getTierWeight(b.tier);
+            break;
+          case 'rvol':
+            comparison = a.rvol - b.rvol;
+            break;
+          case 'volatilityAtrPercent':
+            comparison = a.volatilityAtrPercent - b.volatilityAtrPercent;
+            break;
+          case 'xTrendScore':
+            comparison = (a.xTrendScore ?? Number.NEGATIVE_INFINITY) - (b.xTrendScore ?? Number.NEGATIVE_INFINITY);
+            break;
+          case 'aiConfidence':
+            comparison = (a.aiConfidence ?? Number.NEGATIVE_INFINITY) - (b.aiConfidence ?? Number.NEGATIVE_INFINITY);
+            break;
+          default:
+            comparison = 0;
+        }
+        return sortDirection === 'asc' ? comparison : -comparison;
+      });
+    } else if (watchlistOnly) {
+      // Keep custom manual drag order when watchlistOnly is active and no column sort is clicked
+      result = [...result].sort((a, b) => {
+        const idxA = cleanWatchlist.indexOf(a.symbol.toUpperCase());
+        const idxB = cleanWatchlist.indexOf(b.symbol.toUpperCase());
+        if (idxA === -1) return 1;
+        if (idxB === -1) return -1;
+        return idxA - idxB;
+      });
+    }
+    return result;
+  }, [rows, watchlistOnly, cleanWatchlist, selectedTier, selectedNarrative, selectedMarketClass, sortField, sortDirection, isNewFlipMode]);
 
   // Header Sort Icon helper
   const renderSortIcon = (field: SortField) => {
@@ -558,46 +568,20 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
   };
 
   return (
-    <div className="scanner-section space-y-5">
+    <div className="scanner-section space-y-5" data-density={density}>
       {/* 360° Market Class & Tier Filter Toolbar */}
-      <div className="card-base p-4 space-y-3">
-        {/* Tier Status Chips & Sort Indicator */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <div className="flex items-center gap-1.5 text-xs text-slate-400 mr-1 font-mono">
-              <Filter className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Semnale:</span>
-            </div>
-            {tiers.map(t => (
-              <button
-                key={t.id}
-                onClick={() => onSelectTier(t.id)}
-                className={`px-3 py-1 text-xs font-mono rounded-lg transition-all border ${
-                  selectedTier === t.id
-                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-glow-cyan font-bold'
-                    : 'bg-white/[0.03] text-slate-400 border-white/[0.06] hover:bg-white/[0.06] hover:text-slate-200'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onToggleWatchlistOnly}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono rounded-xl border transition-all ${
-                watchlistOnly
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold shadow-glow-gold'
-                  : 'bg-white/[0.03] text-slate-400 border-white/[0.06] hover:text-slate-200 hover:bg-white/[0.06]'
-              }`}
-            >
-              <Star className={`w-3.5 h-3.5 ${watchlistOnly ? 'fill-amber-400 text-amber-400' : 'text-slate-400'}`} />
-              <span>Watchlist ({cleanWatchlist.length})</span>
-            </button>
-
+      <div className="scanner-toolbar">
+        <Segmented ariaLabel={language === 'ro' ? 'Filtru semnale' : 'Signal filter'} scrollable size="sm"
+          options={tiers.map(t => ({ value: t.id, label: t.label }))} value={selectedTier} onChange={onSelectTier} />
+        <div className="scanner-toolbar-right">
+          <Segmented ariaLabel="Watchlist" size="sm"
+            options={[{ value: 'all', label: language === 'ro' ? 'Toate' : 'All' }, { value: 'watch', label: 'Watchlist', badge: cleanWatchlist.length }]}
+            value={watchlistOnly ? 'watch' : 'all'} onChange={() => onToggleWatchlistOnly()} />
+          <Segmented className="hidden md:inline-flex" ariaLabel={language === 'ro' ? 'Coloane' : 'Columns'} size="sm"
+            options={[{ value: 'essential', label: language === 'ro' ? 'Esențial' : 'Essential' }, { value: 'full', label: language === 'ro' ? 'Complet' : 'Full' }]}
+            value={density} onChange={changeDensity} />
             {/* Active Sort Pill with Reset Button */}
-            {sortField && (
+            {sortField && !(sortField === 'marketCap' && sortDirection === 'desc') && (
               <div className="flex items-center gap-1.5 text-xs font-mono bg-white/[0.04] px-2.5 py-1 rounded-xl border border-white/[0.08]">
                 <span className="text-slate-500">Sort:</span>
                 <span className="text-cyan-300 font-semibold uppercase">
@@ -624,7 +608,6 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
                 </button>
               </div>
             )}
-          </div>
         </div>
       </div>
 
@@ -849,7 +832,7 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
             {filteredRows.length > 0 ? (
               filteredRows.map((row) => {
                 const sym = row.symbol.replace(/^[$#]/, '').trim().toUpperCase();
-                const isWatch = cleanWatchlist.includes(sym);
+                const isWatch = watchSet.has(sym);
                 const isPositiveChange = row.change24h >= 0;
                 const isBull = row.tier?.includes('Bullish');
                 const isBear = row.tier?.includes('Bearish');
@@ -1107,3 +1090,5 @@ export const ScannerTable: React.FC<ScannerTableProps> = ({
     </div>
   );
 };
+
+export const ScannerTable = React.memo(ScannerTableImpl);

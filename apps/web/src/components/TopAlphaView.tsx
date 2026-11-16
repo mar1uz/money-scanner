@@ -10,6 +10,9 @@ import { ScanLoadingBar } from './ScanLoadingBar.js';
 import { AskAiButton } from './AskAiButton.js';
 import { tradingViewUrl } from './AssetExternalLinks.js';
 import { STOCK_CRITERIA, STOCK_CHIP_SHORT, STOCK_EXTRA_TILES, stockChipTone, indexTone, mcInline } from './StockBqBlocks.js';
+import { Segmented } from './ui/Segmented.js';
+import { ViewHeader } from './ui/ViewHeader.js';
+import { HelpDisclosure } from './ui/HelpDisclosure.js';
 
 type StockUndervaluedRow = { asset: StockBusinessQualityAsset; ratio: number; basis: string; index: number };
 
@@ -180,74 +183,59 @@ export const TopAlphaView: React.FC = () => {
   return (
     <div className="space-y-4">
       <ScanLoadingBar active={loading} />
-      <div className="rounded-[30px] border border-amber-500/20 bg-[var(--t-surface)] p-4 sm:p-5 space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex items-start gap-2.5">
-            <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300">
-              <Trophy className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-slate-100 font-sans">Top Alpha</h2>
-              {Number.isFinite(assetClass === 'crypto' ? cryptoScan?.generatedAt : stockScan?.generatedAt) ? (
-                <p className="mt-1 text-[11px] font-mono text-amber-200" data-testid="top-alpha-generated-at">
-                  {isRo ? 'Generat la' : 'Generated at'} {new Intl.DateTimeFormat(isRo ? 'ro-RO' : 'en-GB', {
-                    timeZone: 'Europe/Oslo', dateStyle: 'medium', timeStyle: 'short'
-                  }).format(assetClass === 'crypto' ? cryptoScan!.generatedAt : stockScan!.generatedAt)}
-                  {loading ? (isRo ? ' · Rezultatele afișate sunt cele anterioare' : ' · Showing prior results') : ''}
-                </p>
-              ) : null}
-              <p className="text-[11px] text-slate-400 font-sans">
-                {isRo
-                  ? 'Scoruri Business Quality și evaluare relativă; nu reprezintă valoarea justă a monedei.'
-                  : 'Business Quality scores and relative valuation; neither estimates fair value.'}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => void load(assetClass, true)}
-            disabled={loading}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.08] px-2.5 py-1.5 text-[10px] font-semibold text-slate-300 hover:text-amber-200 disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
-            {isRo ? 'Rescaneaz\u0103' : 'Rescan'}
-          </button>
-        </div>
-
-        {/* Asset-class selector (Marius, 2026-09-22): full-width segmented control, mobile-first. */}
-        <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] p-1">
-          {(['crypto', 'stocks'] as const).map(option => (
-            <button
-              key={option}
-              onClick={() => setAssetClass(option)}
-              aria-pressed={assetClass === option}
-              className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wide transition ${assetClass === option ? 'bg-amber-500/20 text-amber-200 border border-amber-500/40' : 'text-slate-500 border border-transparent hover:text-slate-300'}`}
-            >
-              {option === 'crypto' ? <Coins className="w-3.5 h-3.5" /> : <TrendingUp className="w-3.5 h-3.5" />}
-              {option === 'crypto' ? 'Crypto' : (isRo ? 'Ac\u021bii' : 'Stocks')}
+      <div className="rounded-[30px] border border-[var(--t-line)] bg-[var(--t-surface)] p-4 sm:p-5 space-y-4">
+        <ViewHeader
+          as="h2"
+          title="Top Alpha"
+          subtitle={isRo
+            ? 'Scoruri Business Quality și evaluare relativă; nu reprezintă valoarea justă a monedei.'
+            : 'Business Quality scores and relative valuation; neither estimates fair value.'}
+          meta={Number.isFinite(assetClass === 'crypto' ? cryptoScan?.generatedAt : stockScan?.generatedAt) ? (
+            <p className="ms-view-meta" data-testid="top-alpha-generated-at">
+              {isRo ? 'Generat la' : 'Generated at'} {new Intl.DateTimeFormat(isRo ? 'ro-RO' : 'en-GB', {
+                timeZone: 'Europe/Oslo', dateStyle: 'medium', timeStyle: 'short'
+              }).format(assetClass === 'crypto' ? cryptoScan!.generatedAt : stockScan!.generatedAt)}
+              {loading ? (isRo ? ' · Rezultatele afișate sunt cele anterioare' : ' · Showing prior results') : ''}
+            </p>
+          ) : null}
+          actions={
+            <button onClick={() => void load(assetClass, true)} disabled={loading} className="ms-btn ms-btn--sm ms-btn--secondary">
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              {isRo ? 'Rescanează' : 'Rescan'}
             </button>
-          ))}
-        </div>
+          }
+        />
 
-        {/* Ranking sub-tabs (Marius, 2026-09-22): Scor top | Subevaluate side by side, one tap away */}
-        <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/[0.07] bg-[var(--t-surface-raised)] p-1">
-          {(['score', 'undervalued'] as const).map(option => (
-            <button
-              key={option}
-              onClick={() => setRanking(option)}
-              aria-pressed={ranking === option}
-              className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wide transition ${ranking === option ? 'bg-amber-500/20 text-amber-200 border border-amber-500/40' : 'text-slate-500 border border-transparent hover:text-slate-300'}`}
-            >
-              {option === 'score' ? <Trophy className="w-3.5 h-3.5" /> : <Scale className="w-3.5 h-3.5" />}
-              {option === 'score' ? (isRo ? 'Scor top' : 'Top score') : (isRo ? 'Subevaluate' : 'Undervalued')}
-            </button>
-          ))}
+        <div className="ms-view-toolbar">
+          <Segmented
+            ariaLabel={isRo ? 'Clasă de active' : 'Asset class'}
+            full
+            className="ms-seg-fluid"
+            value={assetClass}
+            onChange={setAssetClass}
+            options={[
+              { value: 'crypto', label: <><Coins className="w-3.5 h-3.5" />Crypto</> },
+              { value: 'stocks', label: <><TrendingUp className="w-3.5 h-3.5" />{isRo ? 'Acții' : 'Stocks'}</> },
+            ]}
+          />
+          <Segmented
+            ariaLabel={isRo ? 'Clasament' : 'Ranking'}
+            full
+            className="ms-seg-fluid"
+            value={ranking}
+            onChange={setRanking}
+            options={[
+              { value: 'score', label: <><Trophy className="w-3.5 h-3.5" />{isRo ? 'Scor top' : 'Top score'}</> },
+              { value: 'undervalued', label: <><Scale className="w-3.5 h-3.5" />{isRo ? 'Subevaluate' : 'Undervalued'}</> },
+            ]}
+          />
         </div>
 
         {loading && !(assetClass === 'crypto' ? cryptoScan : stockScan) && <p className="py-8 text-center text-xs text-slate-500">{isRo ? 'Se \u00eencarc\u0103 clasamentele\u2026' : 'Loading leaderboards\u2026'}</p>}
         {error && (
           <div className="py-6 text-center space-y-2">
             <p className="text-sm text-rose-300">{error}</p>
-            <button onClick={() => void load(assetClass, true)} className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.08] px-3 py-1.5 text-[10px] text-slate-300">
+            <button onClick={() => void load(assetClass, true)} className="ms-btn ms-btn--sm ms-btn--secondary">
               <RefreshCw className="w-3 h-3" /> {isRo ? 'Re\u00eencearc\u0103' : 'Retry'}
             </button>
           </div>
@@ -259,7 +247,7 @@ export const TopAlphaView: React.FC = () => {
             <div className="space-y-2.5">
               <div>
                 <h3 className="text-[11px] font-bold uppercase tracking-wide text-emerald-300">{isRo ? 'Scor top' : 'Top score'} · {topScoreAssets.length}</h3>
-                <p className="text-[10px] text-slate-500">{isRo ? 'Business-uri mari la preț corect: sortat după mărime (revenue 30z, log) combinată cu P/R (mai mic = mai bine). Doar cu revenue ≥ $100K/30z, market cap ≥ $10M și minim 3/4 criterii; 3/4 și 4/4 sunt tratate la fel. Subevaluate spune ce este ieftin; Scor top spune ce este bun.' : 'Big businesses at a fair price: sorted by size (30d revenue, log) blended with P/R (lower is better). Revenue ≥ $100K/30d, market cap ≥ $10M and at least 3/4 criteria; 3/4 and 4/4 rank the same. Undervalued tells you what is cheap; Top Score tells you what is good.'}</p>
+                <HelpDisclosure>{isRo ? 'Business-uri mari la preț corect: sortat după mărime (revenue 30z, log) combinată cu P/R (mai mic = mai bine). Doar cu revenue ≥ $100K/30z, market cap ≥ $10M și minim 3/4 criterii; 3/4 și 4/4 sunt tratate la fel. Subevaluate spune ce este ieftin; Scor top spune ce este bun.' : 'Big businesses at a fair price: sorted by size (30d revenue, log) blended with P/R (lower is better). Revenue ≥ $100K/30d, market cap ≥ $10M and at least 3/4 criteria; 3/4 and 4/4 rank the same. Undervalued tells you what is cheap; Top Score tells you what is good.'}</HelpDisclosure>
               </div>
               <div className="bq-card-grid">
               {topScoreAssets.map((asset, index) => (
@@ -279,7 +267,7 @@ export const TopAlphaView: React.FC = () => {
             <div className="space-y-2.5">
               <div>
                 <h3 className="text-[11px] font-bold uppercase tracking-wide text-amber-300">{isRo ? 'Subevaluate' : 'Undervalued'} · {undervaluedRows.length}</h3>
-                <p className="text-[10px] text-slate-500">{isRo ? 'Cel mai ieftin raportat la revenue, indiferent de mărime: sortat pur după P/R. Cere fees 30z complete ≥ $100K, market cap ≥ $10M, minim 3/4 criterii și fără stablecoins; pragul TVL ≥ $10M se aplică doar când există date TVL. 3/4 și 4/4 criterii sunt tratate la fel. Activele pe bază de fees sunt excluse. Clasament relativ, nu preț țintă.' : 'Cheapest against revenue, regardless of size: sorted purely by P/R. Requires complete 30d fees ≥ $100K, market cap ≥ $10M, at least 3/4 criteria and no stablecoins; the TVL ≥ $10M check applies only when TVL data exists. 3/4 and 4/4 criteria are treated the same. Fees-basis assets are excluded. Relative ranking, not a price target.'}</p>
+                <HelpDisclosure>{isRo ? 'Cel mai ieftin raportat la revenue, indiferent de mărime: sortat pur după P/R. Cere fees 30z complete ≥ $100K, market cap ≥ $10M, minim 3/4 criterii și fără stablecoins; pragul TVL ≥ $10M se aplică doar când există date TVL. 3/4 și 4/4 criterii sunt tratate la fel. Activele pe bază de fees sunt excluse. Clasament relativ, nu preț țintă.' : 'Cheapest against revenue, regardless of size: sorted purely by P/R. Requires complete 30d fees ≥ $100K, market cap ≥ $10M, at least 3/4 criteria and no stablecoins; the TVL ≥ $10M check applies only when TVL data exists. 3/4 and 4/4 criteria are treated the same. Fees-basis assets are excluded. Relative ranking, not a price target.'}</HelpDisclosure>
               </div>
               <div className="bq-card-grid">
               {undervaluedRows.map(({ entry, asset }, index) => (
@@ -304,7 +292,7 @@ export const TopAlphaView: React.FC = () => {
             <div className="space-y-2.5">
               <div>
                 <h3 className="text-[11px] font-bold uppercase tracking-wide text-emerald-300">{isRo ? 'Scor top' : 'Top score'} · {stockAssets.length}</h3>
-                <p className="text-[10px] text-slate-500">{isRo ? 'Sortat dup\u0103 scorul pe 6 criterii: profitabilitate, eficien\u021ba capitalului, cre\u0219tere, pre\u021b/venituri, FCF, evaluare.' : 'Sorted by the 6-criteria score: profitability, capital efficiency, growth, price/revenue, FCF, valuation.'}</p>
+                <HelpDisclosure>{isRo ? 'Sortat dup\u0103 scorul pe 6 criterii: profitabilitate, eficien\u021ba capitalului, cre\u0219tere, pre\u021b/venituri, FCF, evaluare.' : 'Sorted by the 6-criteria score: profitability, capital efficiency, growth, price/revenue, FCF, valuation.'}</HelpDisclosure>
               </div>
               <div className="bq-card-grid">
               {stockAssets.map((asset, index) => (
@@ -324,7 +312,7 @@ export const TopAlphaView: React.FC = () => {
             <div className="space-y-2.5">
               <div>
                 <h3 className="text-[11px] font-bold uppercase tracking-wide text-amber-300">{isRo ? 'Subevaluate' : 'Undervalued'} · {stockUndervalued.length}</h3>
-                <p className="text-[10px] text-slate-500">{isRo ? 'Mai întâi criteriile trecute, apoi indicele relativ în fiecare grupă P/FCF, P/E sau P/S. Bazele diferite nu se compară direct. Acțiunile fără multiplu utilizabil nu sunt clasate.' : 'Criteria passed first, then the relative index within each P/FCF, P/E or P/S group. Different denominators are not compared directly. Stocks without a usable multiple are not ranked.'}</p>
+                <HelpDisclosure>{isRo ? 'Mai întâi criteriile trecute, apoi indicele relativ în fiecare grupă P/FCF, P/E sau P/S. Bazele diferite nu se compară direct. Acțiunile fără multiplu utilizabil nu sunt clasate.' : 'Criteria passed first, then the relative index within each P/FCF, P/E or P/S group. Different denominators are not compared directly. Stocks without a usable multiple are not ranked.'}</HelpDisclosure>
               </div>
               {stockUndervalued.length === 0 && (
                 <p className="py-3 text-center text-[10px] text-slate-600">{isRo ? 'Prea pu\u021bine ac\u021biuni cu multiplu utilizabil \u00een scanul curent.' : 'Too few stocks with a usable multiple in the current scan.'}</p>

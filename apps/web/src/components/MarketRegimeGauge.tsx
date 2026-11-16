@@ -1,6 +1,8 @@
 import { getMarketValue } from '../utils/market-value.js';
 import { calculateBreadth } from '../utils/market-breadth.js';
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
+import { Segmented } from './ui/Segmented.js';
+import { useLanguage } from '../i18n.js';
 import { MarketOverviewSummary, AssetScannerRow } from '../types.js';
 import {
   TrendingUp,
@@ -18,6 +20,17 @@ import {
 
 export type MarketCategory = 'ALL' | 'crypto' | 'stocks' | 'metals';
 
+const isStock = (sym: string, category?: string) =>
+  ['SPACEX', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'PLTR', 'AMD', 'MSTR', 'COIN', 'SPY', 'QQQ'].includes(sym.toUpperCase()) ||
+  Boolean(category?.includes('Stock') || category?.includes('Index') || category?.includes('Mega-Cap'));
+
+const isMetal = (sym: string, category?: string) =>
+  ['XAU', 'XAG', 'PAXG', 'OIL', 'COPPER'].includes(sym.toUpperCase()) ||
+  Boolean(category?.includes('Metal') || category?.includes('Commodity'));
+
+const isCrypto = (sym: string, category?: string) =>
+  !isStock(sym, category) && !isMetal(sym, category);
+
 interface MarketRegimeGaugeProps {
   overview: MarketOverviewSummary | null;
   rows?: AssetScannerRow[];
@@ -25,25 +38,16 @@ interface MarketRegimeGaugeProps {
   onSelectCategory?: (category: MarketCategory) => void;
 }
 
-export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
+const MarketRegimeGaugeImpl: React.FC<MarketRegimeGaugeProps> = ({
   overview,
   rows = [],
   selectedCategory = 'ALL',
   onSelectCategory
 }) => {
-  const isStock = (sym: string, category?: string) =>
-    ['SPACEX', 'NVDA', 'TSLA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'PLTR', 'AMD', 'MSTR', 'COIN', 'SPY', 'QQQ'].includes(sym.toUpperCase()) ||
-    Boolean(category?.includes('Stock') || category?.includes('Index') || category?.includes('Mega-Cap'));
-
-  const isMetal = (sym: string, category?: string) =>
-    ['XAU', 'XAG', 'PAXG', 'OIL', 'COPPER'].includes(sym.toUpperCase()) ||
-    Boolean(category?.includes('Metal') || category?.includes('Commodity'));
-
-  const isCrypto = (sym: string, category?: string) =>
-    !isStock(sym, category) && !isMetal(sym, category);
+  const { language } = useLanguage();
 
   // Filter rows based on selectedCategory
-  const filteredRows = rows.filter(r => {
+  const filteredRows = useMemo(() => rows.filter(r => {
     const sym = r.symbol.replace(/^[$#]/, '').trim().toUpperCase();
     if (selectedCategory === 'ALL') return true;
     if (r.marketClass) return r.marketClass === selectedCategory;
@@ -51,7 +55,7 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
     if (selectedCategory === 'stocks') return isStock(sym, r.category);
     if (selectedCategory === 'metals') return isMetal(sym, r.category);
     return true;
-  });
+  }), [rows, selectedCategory]);
 
   const { advancingCount, decliningCount, neutralCount, totalAssets, bullishPercent, missingCount } = calculateBreadth(filteredRows);
 
@@ -228,44 +232,17 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
     return `$${num.toLocaleString()}`;
   };
 
-  const marketCategories: { id: MarketCategory; label: string; icon: any; count: number }[] = [
-    { id: 'ALL', label: 'Toate piețele', icon: Layers, count: rows.length || 51 },
+  const marketCategories: { id: MarketCategory; label: string; icon: any; count: number }[] = useMemo(() => [
+    { id: 'ALL', label: 'Toate piețele', icon: Layers, count: rows.length },
     { id: 'crypto', label: 'Crypto', icon: Coins, count: rows.filter(r => r.marketClass ? r.marketClass === 'crypto' : isCrypto(r.symbol, r.category)).length },
     { id: 'stocks', label: 'Acțiuni SUA', icon: TrendingUp, count: rows.filter(r => r.marketClass ? r.marketClass === 'stocks' : isStock(r.symbol, r.category)).length },
     { id: 'metals', label: 'Metale', icon: Award, count: rows.filter(r => r.marketClass ? r.marketClass === 'metals' : isMetal(r.symbol, r.category)).length }
-  ];
+  ], [rows]);
 
   return (
     <div className="market-overview space-y-6">
-      {/* Top Market Selector Filter Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-1.5 bg-white/[0.02] border border-white/[0.04] rounded-[30px]">
-        <div className="flex flex-wrap items-center gap-1">
-          {marketCategories.map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => onSelectCategory && onSelectCategory(cat.id)}
-              className={`flex items-center gap-2 px-3.5 py-1.5 text-xs rounded-xl font-medium transition-all ${
-                selectedCategory === cat.id
-                  ? 'bg-white/[0.08] text-white font-semibold shadow-sm border border-white/[0.08]'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
-              }`}
-            >
-              <cat.icon className={`w-3.5 h-3.5 ${selectedCategory === cat.id ? 'text-cyan-400' : 'text-slate-500'}`} />
-              <span>{cat.label}</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                selectedCategory === cat.id ? 'bg-cyan-500/20 text-cyan-300' : 'bg-white/[0.04] text-slate-500'
-              }`}>
-                {cat.count}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        <div className="text-[11px] text-slate-500 hidden lg:flex items-center gap-1.5 pr-3 font-mono">
-          <span>Active filtrate:</span>
-          <strong className="text-slate-300 font-semibold">{filteredRows.length} instrumente</strong>
-        </div>
-      </div>
+      {/* Top Market Selector */}
+      <Segmented ariaLabel={language === 'ro' ? 'Piețe' : 'Markets'} scrollable options={marketCategories.map(cat => ({ value: cat.id, label: cat.label, badge: cat.count }))} value={selectedCategory} onChange={id => onSelectCategory?.(id)} />
 
       {/* 4 Macro Intelligence Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -383,3 +360,5 @@ export const MarketRegimeGauge: React.FC<MarketRegimeGaugeProps> = ({
     </div>
   );
 };
+
+export const MarketRegimeGauge = React.memo(MarketRegimeGaugeImpl);

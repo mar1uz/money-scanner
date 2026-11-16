@@ -243,11 +243,11 @@ export const UniversalSearchModal: React.FC<UniversalSearchModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-label="Căutare active"
-      className="fixed inset-0 z-[100] flex items-start justify-center pt-3 sm:pt-14 px-2.5 sm:px-4 bg-black/90 backdrop-blur-2xl animate-fade-in"
+      className="fixed inset-0 z-[100] flex items-start justify-center pt-3 sm:pt-14 px-2.5 sm:px-4 bg-black/90 ms-scrim-enter"
       onClick={onClose}
     >
-      <div 
-        className="relative w-full max-w-2xl flex flex-col bg-[var(--t-surface-raised)] border border-cyan-500/40 rounded-[30px] sm:rounded-[32px] shadow-[0_20px_60px_rgba(0,0,0,0.95)] overflow-hidden max-h-[92vh] sm:max-h-[85vh]"
+      <div
+        className="ms-dialog-enter relative w-full max-w-2xl flex flex-col bg-[var(--t-surface-raised)] border border-cyan-500/40 rounded-[30px] sm:rounded-[32px] shadow-[0_20px_60px_rgba(0,0,0,0.95)] overflow-hidden max-h-[92vh] sm:max-h-[85vh]"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >

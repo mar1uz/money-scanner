@@ -4,7 +4,6 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   ChevronRight,
-  LayoutGrid,
   RefreshCw,
   Search,
   TrendingDown,
@@ -19,6 +18,9 @@ import {
 import { useLanguage } from '../i18n.js';
 import { ScanLoadingBar } from './ScanLoadingBar.js';
 import { AssetExternalLinks } from './AssetExternalLinks.js';
+import { Segmented } from './ui/Segmented.js';
+import { ViewHeader } from './ui/ViewHeader.js';
+import { HelpDisclosure } from './ui/HelpDisclosure.js';
 
 type HeatMapScope = 'crypto' | 'stocks' | 'metals';
 type SortField = 'rank' | 'price' | 'change' | 'changeYtd' | 'marketCap';
@@ -320,91 +322,46 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
     : `Market Scanner 360 · Market Cap weighted (Top ${coins.length})`;
 
   return (
-    <section className="space-y-6 tab-content-enter pb-12">
+    <section className="space-y-4 pb-12">
       <ScanLoadingBar active={loading} />
-      {/* ── Header ── */}
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-cyan-300">
-            <LayoutGrid className="h-5 w-5" />
-            <span className="font-mono text-xs font-bold uppercase tracking-[0.18em]">Heat Map</span>
-          </div>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">
-            {scopeTitle}
-          </h1>
-          <p className="mt-1 text-sm text-slate-400">
-            {scopeSubtitle}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 self-start">
-          {/* Scope toggle: Crypto (Top 150) / Stocks (Top 100) / Metals (Top 50) */}
-          <div className="flex items-center rounded-xl border border-white/[0.07] bg-white/[0.03] p-1 gap-1">
-            {(['crypto', 'stocks', 'metals'] as HeatMapScope[]).map(s => {
-              const label = s === 'crypto'
-                ? 'Crypto (Top 150)'
-                : s === 'stocks'
-                ? 'Stocks (Top 100)'
-                : (isRo ? 'Metale (Top 50)' : 'Metals (Top 50)');
-
-              const isSelected = scope === s;
-              const colorClass = isSelected
-                ? s === 'crypto'
-                  ? 'bg-cyan-500/20 text-cyan-200 ring-1 ring-cyan-400/25 shadow-sm'
-                  : s === 'stocks'
-                  ? 'bg-blue-500/20 text-blue-200 ring-1 ring-blue-400/25 shadow-sm'
-                  : 'bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/25 shadow-sm'
-                : 'text-slate-400 hover:bg-white/[0.05] hover:text-slate-200';
-
-              return (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setScope(s)}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-mono font-bold transition-all ${colorClass}`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Timeframe pills */}
-          <div className="flex items-center rounded-xl border border-white/[0.07] bg-white/[0.03] p-1">
-            {TIMEFRAMES.map(item => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setTimeframe(item.id)}
-                className={`rounded-lg px-3.5 py-2 text-xs font-mono font-bold transition-all ${
-                  timeframe === item.id
-                    ? 'bg-cyan-500/20 text-cyan-200 ring-1 ring-cyan-400/25'
-                    : 'text-slate-400 hover:bg-white/[0.05] hover:text-slate-200'
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={loadCoins}
-              disabled={loading}
-              className="ml-1 rounded-lg p-2 text-slate-400 hover:bg-white/[0.06] hover:text-cyan-200 disabled:opacity-50"
-              title={isRo ? 'Actualizează datele' : 'Refresh data'}
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-        </div>
+      <ViewHeader title={scopeTitle} />
+      <div className="ms-view-toolbar">
+        <Segmented
+          ariaLabel={isRo ? 'Clasă de active' : 'Asset class'}
+          value={scope}
+          onChange={setScope}
+          options={[
+            { value: 'crypto', label: 'Crypto' },
+            { value: 'stocks', label: 'Stocks' },
+            { value: 'metals', label: isRo ? 'Metale' : 'Metals' },
+          ]}
+        />
+        <Segmented
+          ariaLabel="Timeframe"
+          skipTranslate
+          value={timeframe}
+          onChange={setTimeframe}
+          options={TIMEFRAMES.map(item => ({ value: item.id, label: item.label }))}
+        />
+        <button
+          type="button"
+          onClick={loadCoins}
+          disabled={loading}
+          className="ms-icon-btn"
+          title={isRo ? 'Actualizează datele' : 'Refresh data'}
+          aria-label={isRo ? 'Actualizează datele' : 'Refresh data'}
+        >
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+        </button>
       </div>
 
-      {/* ── Legend ── */}
-      <div className="flex flex-wrap items-center gap-4 rounded-xl border border-white/[0.05] bg-white/[0.02] px-4 py-3 text-[11px] font-mono text-slate-400">
+      <div className="ms-legend">
         <span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm bg-emerald-500" />{isRo ? 'Creștere' : 'Gain'}</span>
         <span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm bg-rose-600" />{isRo ? 'Scădere' : 'Loss'}</span>
         <span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm bg-slate-600" />{isRo ? 'Fără date' : 'No data'}</span>
-        <span className="ml-auto">{sourceLabel}</span>
+        <span className="ms-legend-end">{sourceLabel}</span>
       </div>
+      <HelpDisclosure>{scopeSubtitle}</HelpDisclosure>
 
       {error && (
         <div className="flex items-center gap-2 rounded-xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
@@ -413,7 +370,7 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
       )}
 
       {/* ── Treemap Squares Visual ── */}
-      <div className="relative min-h-[520px] sm:min-h-[640px] md:min-h-[720px] overflow-hidden rounded-[30px] border border-white/[0.08] bg-[var(--t-surface-raised)] shadow-2xl">
+      <div className="relative min-h-[520px] sm:min-h-[640px] md:min-h-[720px] overflow-hidden rounded-[30px] border border-white/[0.08] bg-[var(--t-surface-raised)]">
         {loading && !coins.length ? (
           <div className="flex min-h-[520px] items-center justify-center gap-3 font-mono text-sm text-slate-400">
             <RefreshCw className="h-5 w-5 animate-spin text-cyan-400" />
@@ -478,20 +435,11 @@ export const CryptoHeatMapView: React.FC<CryptoHeatMapViewProps> = ({ onSelectAs
       </div>
 
       {/* ── Top Detailed List / Table (Optimized for Mobile & Desktop) ── */}
-      <div className="rounded-[30px] border border-white/[0.08] bg-[var(--t-surface-raised)] shadow-xl overflow-hidden">
+      <div className="rounded-[30px] border border-white/[0.08] bg-[var(--t-surface-raised)] overflow-hidden">
         {/* Subheader & Search */}
         <div className="p-4 sm:p-5 border-b border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[var(--t-surface)]">
           <div>
             <div className="flex items-center gap-2">
-              <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold uppercase border ${
-                scope === 'crypto'
-                  ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20'
-                  : scope === 'stocks'
-                  ? 'bg-blue-500/10 text-blue-300 border-blue-500/20'
-                  : 'bg-amber-500/10 text-amber-300 border-amber-500/20'
-              }`}>
-                {scope === 'crypto' ? 'Crypto' : scope === 'stocks' ? 'Stocks' : 'Metale'}
-              </span>
               <h2 className="text-base sm:text-lg font-bold text-white font-sans">
                 {scopeTitle}
               </h2>

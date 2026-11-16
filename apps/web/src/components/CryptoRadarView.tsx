@@ -11,6 +11,9 @@ import {
 } from './crypto-radar-headers.js';
 import { ScanLoadingBar } from './ScanLoadingBar.js';
 import { AssetExternalLinks } from './AssetExternalLinks.js';
+import { Segmented } from './ui/Segmented.js';
+import { ViewHeader } from './ui/ViewHeader.js';
+import { HelpDisclosure } from './ui/HelpDisclosure.js';
 
 interface Payload {
   latest: RadarSnapshot | null;
@@ -346,31 +349,23 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
   return (
     <section className="space-y-2.5 sm:space-y-4 pb-16">
       <ScanLoadingBar active={loading || scanning} />
-      <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-bold text-white">
-              Crypto Radar
-            </h1>
-            <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
-              360° Live
-            </span>
-          </div>
-          <p className="text-xs text-slate-400 mt-0.5 hidden sm:block">
-            Solana · Base · Robinhood — radar principal și microcaps utilitare cu verificare anti-rug
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={load} disabled={loading} className="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg border border-white/10 text-xs sm:text-sm text-slate-300 hover:bg-white/5 transition-colors">
-            {loading ? 'Se încarcă…' : 'Actualizează'}
-          </button>
-          {isAdmin && (
-            <button onClick={scan} disabled={scanning} className="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-xs sm:text-sm disabled:opacity-50 hover:bg-cyan-500/25 transition-colors">
-              {scanning ? 'Scanare…' : '⚡ Scanează'}
+      <ViewHeader
+        title="Crypto Radar"
+        badge="360° Live"
+        subtitle={<span className="hidden sm:inline">Solana · Base · Robinhood — radar principal și microcaps utilitare cu verificare anti-rug</span>}
+        actions={
+          <>
+            <button onClick={load} disabled={loading} className="ms-btn ms-btn--sm ms-btn--secondary">
+              {loading ? 'Se încarcă…' : 'Actualizează'}
             </button>
-          )}
-        </div>
-      </div>
+            {isAdmin && (
+              <button onClick={scan} disabled={scanning} className="ms-btn ms-btn--sm ms-btn--primary">
+                {scanning ? 'Scanare…' : '⚡ Scanează'}
+              </button>
+            )}
+          </>
+        }
+      />
 
       {error && <div role="alert" className="p-4 border border-rose-500/30 bg-rose-500/10 rounded-xl text-rose-300 text-sm">{error}</div>}
 
@@ -401,34 +396,28 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
 
       {/* Section Switcher & Report Controls */}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-        <div className="inline-flex rounded-xl p-0.5 bg-white/[.04] border border-white/10">
-          <button
-            type="button"
-            onClick={() => switchSection('main')}
-            className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${section === 'main' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow' : 'text-slate-400 hover:text-slate-200'}`}
-          >
-            🌟 Principal (≥ $500k)
-            <span className="ml-1.5 px-1.5 py-0.5 rounded text-[11px] bg-white/10">{mainCount}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => switchSection('microcaps')}
-            className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${section === 'microcaps' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow' : 'text-slate-400 hover:text-slate-200'}`}
-          >
-            🔬 Microcaps ($200k–$500k)
-            <span className="ml-1.5 px-1.5 py-0.5 rounded text-[11px] bg-white/10">{microCount}</span>
-          </button>
-        </div>
+        <Segmented
+          ariaLabel="Radar"
+          scrollable
+          value={section}
+          onChange={switchSection}
+          options={[
+            { value: 'main', label: <>🌟 Principal (≥ $500k)</>, badge: mainCount },
+            { value: 'microcaps', label: <>🔬 Microcaps ($200k–$500k)</>, badge: microCount },
+          ]}
+        />
 
         <div className="flex items-center gap-2 text-xs">
-          <select aria-label="Selectează raportul" value={selection} onChange={e => select(e.target.value)} className="bg-slate-900 border border-white/10 rounded-lg px-2 py-1 text-xs text-slate-200">
+          <select aria-label="Selectează raportul" value={selection} onChange={e => select(e.target.value)} className="ms-select ms-select--sm">
             <option value="latest">Ultimul raport</option>
             <option value="collection">Ultima colectare</option>
             {data?.history.map(h => (
               <option key={h.id} value={h.id}>{date(h.generatedAt)} · {h.count} monede</option>
             ))}
           </select>
-          <button onClick={() => setChain('all')} className="text-cyan-300 text-xs hover:underline whitespace-nowrap">Toate rețelele</button>
+          {chain !== 'all' && (
+            <button onClick={() => setChain('all')} className="ms-btn ms-btn--sm ms-btn--ghost">Toate rețelele</button>
+          )}
         </div>
       </div>
 
@@ -444,15 +433,15 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
               </p>
             </div>
           ) : (
-            <div className="flex flex-wrap items-center justify-between gap-1.5 text-[11px] text-slate-400">
+            <div className="space-y-1 text-xs text-slate-400">
               <span className="text-slate-300">
                 {snapshot.discovered} tokenuri observate · {snapshot.excluded?.belowCap ?? 0} sub $200k · Comparat cu {date(snapshot.previousReportAt)}
               </span>
-              <details className="inline-block">
-                <summary className="cursor-pointer text-cyan-300 hover:underline select-none text-xs">
+              <details className="ms-help">
+                <summary>
                   Metodologie & acoperire ▾
                 </summary>
-                <div className="mt-2 p-3 rounded-xl border border-white/10 bg-white/[.02] text-xs text-slate-400 space-y-1">
+                <div className="ms-help-body">
                   <p>{snapshot.coverage}</p>
                   <p>
                     Scor: 70% activitate de piață + 30% dovezi sociale (inclusiv boosturi comunitare DEX Screener și canale Telegram alpha) + bonus de confluență on-chain/social - penalizări securitate portofele. Mențiuni din ultimele 12 ore. Lipsurile nu sunt înlocuite cu engagement inventat. Nu este un indicator de profit validat.
@@ -462,7 +451,7 @@ export const CryptoRadarView: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => 
             </div>
           )}
 
-          <p className="text-xs text-slate-400">Apasă pe numele monedei pentru graficul DEX Screener într-o filă nouă. Butonul Detalii arată dovezile scanării și auditul de securitate.</p>
+          <HelpDisclosure>Apasă pe numele monedei pentru graficul DEX Screener într-o filă nouă. Butonul Detalii arată dovezile scanării și auditul de securitate.</HelpDisclosure>
 
           <div className="relative rounded-xl border border-white/10 bg-[rgb(var(--t-surface-raised-rgb)/0.4)]">
             {/* Sticky Table Header (docks at top-[56px] below the 56px app header, fully opaque background, synchronized native horizontal scroll) */}

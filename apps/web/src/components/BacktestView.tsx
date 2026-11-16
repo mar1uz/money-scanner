@@ -13,7 +13,6 @@ import {
   BarChart3,
   ExternalLink,
   GitCompareArrows,
-  LineChart,
   Play,
   ShieldAlert,
   Target,
@@ -140,14 +139,10 @@ export const BacktestView: React.FC = () => {
   return (
     <div className="space-y-6 pb-8">
       <ScanLoadingBar active={loading || comparisonLoading} />
-      <section className="rounded-[30px] border border-cyan-500/25 bg-[var(--t-surface)] p-4 sm:p-6">
+      <section className="rounded-[30px] border border-[var(--t-line)] bg-[var(--t-surface)] p-4 sm:p-6">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div className="max-w-3xl">
-            <div className="flex items-center gap-2 text-cyan-300">
-              <LineChart className="h-5 w-5" />
-              <span className="font-mono text-[10px] font-bold uppercase tracking-[0.2em]">Cercetare pe lumânări închise</span>
-            </div>
-            <h1 className="mt-2 text-xl font-bold text-white sm:text-2xl">{STRATEGY_META[strategy].title}</h1>
+            <h1 className="ms-view-title">{STRATEGY_META[strategy].title}</h1>
             <p className="mt-2 text-sm leading-6 text-slate-400">
               {STRATEGY_META[strategy].description} Ordinul intră la următoarea deschidere Daily.
             </p>
@@ -158,7 +153,7 @@ export const BacktestView: React.FC = () => {
             <select
               value={strategy}
               onChange={event => setStrategy(event.target.value as ResearchStrategy)}
-              className="rounded-xl border border-emerald-500/25 bg-background-surface px-3 py-2.5 text-xs font-mono text-emerald-200 outline-none focus:border-emerald-500/50"
+              className="ms-select"
             >
               <option value="weekly_donchian_long">Strategia 1 · LONG Donchian 55/20</option>
               <option value="bear_rally_fade">Strategia 2 · SHORT Bear Rally</option>
@@ -167,7 +162,7 @@ export const BacktestView: React.FC = () => {
             <select
               value={assetKey}
               onChange={event => setAssetKey(event.target.value)}
-              className="rounded-xl border border-white/[0.09] bg-background-surface px-3 py-2.5 text-xs font-mono text-cyan-200 outline-none focus:border-cyan-500/50"
+              className="ms-select"
             >
               {availableAssets.map(asset => (
                 <option key={`${asset.marketClass}:${asset.symbol}`} value={`${asset.marketClass}:${asset.symbol}`}>
@@ -179,7 +174,7 @@ export const BacktestView: React.FC = () => {
               symbol={selectedAsset.symbol}
               marketClass={selectedAsset.marketClass}
               timeframe="1d"
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-cyan-500/25 bg-cyan-500/[0.08] px-3 py-2.5 text-xs font-bold text-cyan-200"
+              className="ms-btn ms-btn--secondary"
             >
               ${selectedAsset.symbol} Money Line <ExternalLink className="h-3.5 w-3.5" />
             </AssetLink>
@@ -187,7 +182,7 @@ export const BacktestView: React.FC = () => {
               <select
                 value={directionMode}
                 onChange={event => setDirectionMode(event.target.value as BacktestDirectionMode)}
-                className="rounded-xl border border-white/[0.09] bg-background-surface px-3 py-2.5 text-xs font-mono text-slate-200 outline-none focus:border-cyan-500/50"
+                className="ms-select"
               >
                 <option value="LONG_ONLY">Doar LONG</option>
                 <option value="LONG_SHORT">LONG + SHORT · cercetare</option>
@@ -201,7 +196,7 @@ export const BacktestView: React.FC = () => {
               type="button"
               onClick={runSimulation}
               disabled={loading}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-500/35 bg-cyan-500/15 px-4 py-2.5 text-xs font-bold text-cyan-200 transition hover:bg-cyan-500/25 disabled:opacity-60"
+              className="ms-btn ms-btn--primary"
             >
               <Play className={`h-3.5 w-3.5 ${loading ? 'animate-pulse' : ''}`} /> {loading ? 'Calculez…' : 'Rulează'}
             </button>
@@ -288,7 +283,7 @@ export const BacktestView: React.FC = () => {
                 type="button"
                 onClick={runComparison}
                 disabled={comparisonLoading}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-2.5 text-xs font-bold text-violet-200 transition hover:bg-violet-500/20 disabled:opacity-60"
+                className="ms-btn ms-btn--sm ms-btn--secondary"
               >
                 <GitCompareArrows className={`h-4 w-4 ${comparisonLoading ? 'animate-pulse' : ''}`} /> {comparisonLoading ? 'Compar…' : `Compară ${strategy === 'weekly_reclaim' || strategy === 'weekly_donchian_long' ? 10 : 7} active`}
               </button>

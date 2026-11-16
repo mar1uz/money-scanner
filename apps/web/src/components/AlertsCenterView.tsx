@@ -41,6 +41,8 @@ import {
 } from '../services/api.js';
 import { translateText, useLanguage } from '../i18n.js';
 import { ScanLoadingBar } from './ScanLoadingBar.js';
+import { Segmented } from './ui/Segmented.js';
+import { ViewHeader } from './ui/ViewHeader.js';
 import { distanceFromLastClosedHigh } from './flip-distance-from-high.js';
 import { StockBqChips, StockBqTiles, mcInline } from './StockBqBlocks.js';
 import { AssetExternalLinks } from './AssetExternalLinks.js';
@@ -614,52 +616,12 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
 
   const candidateFilterControls = (
     <div className="space-y-2">
-      <div className="grid grid-cols-3 gap-1 rounded-lg border border-white/[0.06] bg-white/[0.025] p-1">
-        {(['ALL', 'BULLISH', 'BEARISH'] as const).map(filter => (
-          <button
-            key={filter}
-            type="button"
-            onClick={() => setCandidateFilter(filter)}
-            className={`rounded-md px-2.5 py-1.5 text-[10px] font-bold transition ${candidateFilter === filter
-              ? filter === 'BULLISH'
-                ? 'bg-emerald-500/15 text-emerald-300'
-                : filter === 'BEARISH'
-                  ? 'bg-rose-500/15 text-rose-300'
-                  : 'bg-violet-500/15 text-violet-200'
-              : 'text-slate-500 hover:text-slate-300'}`}
-          >{filter === 'ALL' ? 'TOATE' : filter}</button>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-1 rounded-lg border border-white/[0.06] bg-white/[0.025] p-1">
-        {(['ALL', 'crypto', 'stocks'] as const).map(marketClass => (
-          <button
-            key={marketClass}
-            type="button"
-            onClick={() => setCandidateMarketClass(marketClass)}
-            className={`min-w-16 flex-1 rounded-md px-2.5 py-1.5 text-[10px] font-bold transition ${candidateMarketClass === marketClass
-              ? marketClass === 'crypto'
-                ? 'bg-cyan-500/15 text-cyan-300'
-                : marketClass === 'stocks'
-                  ? 'bg-blue-500/15 text-blue-300'
-                  : 'bg-violet-500/15 text-violet-200'
-              : 'text-slate-500 hover:text-slate-300'}`}
-          >
-            {marketClass === 'ALL' ? 'Toate' : marketClass === 'crypto' ? 'Crypto' : 'Stocks'}
-          </button>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-1 rounded-lg border border-white/[0.06] bg-white/[0.025] p-1">
-        {(['ALL', '4h', '8h', '1d', '1w'] as const).map(timeframe => (
-          <button
-            key={timeframe}
-            type="button"
-            onClick={() => setCandidateTimeframe(timeframe)}
-            className={`min-w-10 flex-1 rounded-md px-2 py-1.5 font-mono text-[10px] font-bold uppercase transition ${candidateTimeframe === timeframe
-              ? 'bg-cyan-500/15 text-cyan-200'
-              : 'text-slate-500 hover:text-slate-300'}`}
-          >{timeframe === 'ALL' ? 'TF toate' : timeframe}</button>
-        ))}
-      </div>
+      <Segmented ariaLabel="Bias" size="sm" full value={candidateFilter} onChange={setCandidateFilter}
+        options={(['ALL', 'BULLISH', 'BEARISH'] as const).map(filter => ({ value: filter, label: filter === 'ALL' ? 'TOATE' : filter }))} />
+      <Segmented ariaLabel={language === 'ro' ? 'Clasă de active' : 'Asset class'} size="sm" full value={candidateMarketClass} onChange={setCandidateMarketClass}
+        options={(['ALL', 'crypto', 'stocks'] as const).map(marketClass => ({ value: marketClass, label: marketClass === 'ALL' ? 'Toate' : marketClass === 'crypto' ? 'Crypto' : 'Stocks' }))} />
+      <Segmented ariaLabel="Timeframe" size="sm" full value={candidateTimeframe} onChange={setCandidateTimeframe}
+        options={(['ALL', '4h', '8h', '1d', '1w'] as const).map(timeframe => ({ value: timeframe, label: <span className="uppercase">{timeframe === 'ALL' ? 'TF toate' : timeframe}</span> }))} />
       <input
         value={candidateSearch}
         onChange={event => setCandidateSearch(event.target.value)}
@@ -671,52 +633,12 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
 
   const confirmedFilterControls = (
     <div className="space-y-2">
-      <div className="grid grid-cols-3 gap-1 rounded-lg border border-white/[0.06] bg-white/[0.025] p-1">
-        {(['ALL', 'BULLISH', 'BEARISH'] as const).map(filter => (
-          <button
-            key={filter}
-            type="button"
-            onClick={() => setConfirmedFilter(filter)}
-            className={`rounded-md px-2.5 py-1.5 text-[10px] font-bold transition ${confirmedFilter === filter
-              ? filter === 'BULLISH'
-                ? 'bg-emerald-500/15 text-emerald-300'
-                : filter === 'BEARISH'
-                  ? 'bg-rose-500/15 text-rose-300'
-                  : 'bg-violet-500/15 text-violet-200'
-              : 'text-slate-500 hover:text-slate-300'}`}
-          >{filter === 'ALL' ? 'TOATE' : filter}</button>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-1 rounded-lg border border-white/[0.06] bg-white/[0.025] p-1">
-        {(['ALL', 'crypto', 'stocks'] as const).map(marketClass => (
-          <button
-            key={marketClass}
-            type="button"
-            onClick={() => setConfirmedMarketClass(marketClass)}
-            className={`min-w-16 flex-1 rounded-md px-2.5 py-1.5 text-[10px] font-bold transition ${confirmedMarketClass === marketClass
-              ? marketClass === 'crypto'
-                ? 'bg-cyan-500/15 text-cyan-300'
-                : marketClass === 'stocks'
-                  ? 'bg-blue-500/15 text-blue-300'
-                  : 'bg-violet-500/15 text-violet-200'
-              : 'text-slate-500 hover:text-slate-300'}`}
-          >
-            {marketClass === 'ALL' ? 'Toate' : marketClass === 'crypto' ? 'Crypto' : 'Stocks'}
-          </button>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-1 rounded-lg border border-white/[0.06] bg-white/[0.025] p-1">
-        {(['ALL', '4h', '8h', '1d', '1w'] as const).map(timeframe => (
-          <button
-            key={timeframe}
-            type="button"
-            onClick={() => setConfirmedTimeframe(timeframe)}
-            className={`min-w-10 flex-1 rounded-md px-2 py-1.5 font-mono text-[10px] font-bold uppercase transition ${confirmedTimeframe === timeframe
-              ? 'bg-cyan-500/15 text-cyan-200'
-              : 'text-slate-500 hover:text-slate-300'}`}
-          >{timeframe === 'ALL' ? 'TF toate' : timeframe}</button>
-        ))}
-      </div>
+      <Segmented ariaLabel="Bias" size="sm" full value={confirmedFilter} onChange={setConfirmedFilter}
+        options={(['ALL', 'BULLISH', 'BEARISH'] as const).map(filter => ({ value: filter, label: filter === 'ALL' ? 'TOATE' : filter }))} />
+      <Segmented ariaLabel={language === 'ro' ? 'Clasă de active' : 'Asset class'} size="sm" full value={confirmedMarketClass} onChange={setConfirmedMarketClass}
+        options={(['ALL', 'crypto', 'stocks'] as const).map(marketClass => ({ value: marketClass, label: marketClass === 'ALL' ? 'Toate' : marketClass === 'crypto' ? 'Crypto' : 'Stocks' }))} />
+      <Segmented ariaLabel="Timeframe" size="sm" full value={confirmedTimeframe} onChange={setConfirmedTimeframe}
+        options={(['ALL', '4h', '8h', '1d', '1w'] as const).map(timeframe => ({ value: timeframe, label: <span className="uppercase">{timeframe === 'ALL' ? 'TF toate' : timeframe}</span> }))} />
       <input
         value={confirmedSearch}
         onChange={event => setConfirmedSearch(event.target.value)}
@@ -770,27 +692,16 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
         })()}
         total={activeManualScanStatus?.totalAssets ?? data?.manualScan.totalAssets ?? 0}
       />
-      <section className="overflow-hidden rounded-[30px] border border-cyan-500/20 bg-[var(--t-surface)] p-4 sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <div className="mb-2 flex items-center gap-2 text-cyan-300">
-              <BellRing className="h-5 w-5" />
-              <span className="font-mono text-[11px] font-bold uppercase tracking-[0.2em]">Alert Command Center</span>
-            </div>
-            <h1 className="text-xl font-bold text-white sm:text-2xl">Alertele mele MoneyLine</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-              Flipuri confirmate, Top 20 aproape de flip (4H/8H/1D/1W) și alertele urmărite.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => void loadDashboard()}
-            disabled={loading}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-xs font-semibold text-slate-300 transition hover:border-cyan-500/30 hover:text-cyan-300 disabled:opacity-60"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Actualizează
-          </button>
-        </div>
+      <section className="overflow-hidden rounded-[30px] border border-[var(--t-line)] bg-[var(--t-surface)] p-4 sm:p-6">
+        <ViewHeader
+          title="Alertele mele MoneyLine"
+          subtitle="Flipuri confirmate, Top 20 aproape de flip (4H/8H/1D/1W) și alertele urmărite."
+          actions={
+            <button type="button" onClick={() => void loadDashboard()} disabled={loading} className="ms-btn ms-btn--sm ms-btn--secondary">
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Actualizează
+            </button>
+          }
+        />
 
         <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-3">
           <SummaryCard icon={CheckCircle2} label="Flipuri Confirmate" value={summary.confirmed} tone="emerald" />
@@ -834,7 +745,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                   type="button"
                   onClick={() => void startManualScan('flips')}
                   disabled={Boolean(activeScanScope)}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-violet-500/40 bg-violet-500/15 px-3 py-2 text-[11px] font-bold text-violet-200 transition hover:bg-violet-500/25 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="ms-btn ms-btn--sm ms-btn--primary"
                 >
                   <ScanSearch className={`h-3.5 w-3.5 ${activeScanScope === 'flips' || activeScanScope === 'full' ? 'animate-pulse' : ''}`} /> Scanare Top 20 Flips
                 </button>
@@ -842,7 +753,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                   type="button"
                   onClick={() => void startManualScan('quick')}
                   disabled={Boolean(activeScanScope)}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-[11px] font-bold text-cyan-200 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="ms-btn ms-btn--sm ms-btn--secondary"
                 >
                   <Zap className={`h-3.5 w-3.5 ${activeScanScope === 'quick' ? 'animate-pulse' : ''}`} /> Rapid (Watchlist)
                 </button>
@@ -968,51 +879,29 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
 
       {/* Filter Tabs */}
       <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.06] pb-3">
-        <button
-          type="button"
-          onClick={() => setActiveTab('ALL')}
-          className={`rounded-xl px-3.5 py-2 text-xs font-bold transition ${activeTab === 'ALL' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-400 hover:text-slate-200'}`}
-        >
-          TOATE ({summary.confirmed + summary.close + summary.active})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('CONFIRMED')}
-          className={`rounded-xl px-3.5 py-2 text-xs font-bold transition ${activeTab === 'CONFIRMED' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-slate-200'}`}
-        >
-          {translateText('FLIPURI CONFIRMATE', language)} ({summary.confirmed})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('FLIPS')}
-          className={`rounded-xl px-3.5 py-2 text-xs font-bold transition ${activeTab === 'FLIPS' ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30' : 'text-slate-400 hover:text-slate-200'}`}
-        >
-          APROAPE DE FLIP ({summary.close})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('WATCHED')}
-          className={`rounded-xl px-3.5 py-2 text-xs font-bold transition ${activeTab === 'WATCHED' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-400 hover:text-slate-200'}`}
-        >
-          ALERTE URMĂRITE ({summary.active})
-        </button>
-        <div className="ml-auto flex items-center gap-1 rounded-lg border border-white/[0.06] bg-white/[0.025] p-1" role="group" aria-label="Sortare">
-          <span className="px-1.5 text-[10px] font-bold uppercase text-slate-500">Sortare</span>
-          <button
-            type="button"
-            onClick={() => setSortByPriceToRevenue(false)}
-            className={`rounded-md px-2.5 py-1 text-[10px] font-bold transition ${!sortByPriceToRevenue ? 'bg-cyan-500/20 text-cyan-300' : 'text-slate-400 hover:text-slate-200'}`}
-          >
-            {translateText('Implicit', language)}
-          </button>
-          <button
-            type="button"
-            onClick={() => setSortByPriceToRevenue(true)}
-            title="P/R = market cap / (revenue 30z × 365/30); cel mai ieftin primul, fără revenue la final"
-            className={`rounded-md px-2.5 py-1 text-[10px] font-bold transition ${sortByPriceToRevenue ? 'bg-cyan-500/20 text-cyan-300' : 'text-slate-400 hover:text-slate-200'}`}
-          >
-            P/R ↑
-          </button>
+        <Segmented
+          ariaLabel={language === 'ro' ? 'Filtru alerte' : 'Alert filter'}
+          scrollable
+          value={activeTab}
+          onChange={setActiveTab}
+          options={[
+            { value: 'ALL', label: <>TOATE ({summary.confirmed + summary.close + summary.active})</> },
+            { value: 'CONFIRMED', label: <>{translateText('FLIPURI CONFIRMATE', language)} ({summary.confirmed})</> },
+            { value: 'FLIPS', label: <>APROAPE DE FLIP ({summary.close})</> },
+            { value: 'WATCHED', label: <>ALERTE URMĂRITE ({summary.active})</> },
+          ]}
+        />
+        <div className="ml-auto">
+          <Segmented
+            ariaLabel="Sortare"
+            size="sm"
+            value={sortByPriceToRevenue ? 'pr' : 'default'}
+            onChange={value => setSortByPriceToRevenue(value === 'pr')}
+            options={[
+              { value: 'default', label: translateText('Implicit', language) },
+              { value: 'pr', label: 'P/R ↑', title: 'P/R = market cap / (revenue 30z × 365/30); cel mai ieftin primul, fără revenue la final' },
+            ]}
+          />
         </div>
       </div>
 
@@ -1111,7 +1000,7 @@ export const AlertsCenterView: React.FC<AlertsCenterViewProps> = ({ knownAssets,
                 <button
                   type="button"
                   onClick={() => setShowAllCandidates(prev => !prev)}
-                  className="w-full rounded-lg border border-cyan-500/25 bg-cyan-500/10 px-3 py-2 text-[10px] font-bold text-cyan-200 transition hover:bg-cyan-500/20"
+                  className="ms-btn ms-btn--sm ms-btn--secondary w-full"
                 >
                   {showAllCandidates ? 'Arată primele 20' : `Arată toate (${allMatchingCandidates.length})`}
                 </button>
@@ -1267,7 +1156,7 @@ const DailySmaReclaimSection: React.FC<{
   const signals = report.results.filter(result => result.status === 'NEW_SIGNAL' && result.signal);
   const ordered = report.results.slice().sort((left, right) => (left.rank ?? 9999) - (right.rank ?? 9999) || left.symbol.localeCompare(right.symbol));
   return (
-    <section className="space-y-4 rounded-[30px] border border-cyan-500/20 bg-[var(--t-surface)] p-4 sm:p-6">
+    <section className="space-y-4 rounded-[30px] border border-[var(--t-line)] bg-[var(--t-surface)] p-4 sm:p-6">
       {headerButton}
       {open && (
       <>

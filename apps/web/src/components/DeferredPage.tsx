@@ -10,15 +10,15 @@ class PageErrorBoundary extends React.Component<React.PropsWithChildren<{ fallba
 
 export const DeferredPage: React.FC<React.PropsWithChildren> = ({ children }) => {
   const { language } = useLanguage();
-  const loading = <div role="status" className="flex items-center justify-center gap-3 py-12 text-sm text-slate-400">
+  const loading = <div role="status" className="ms-tab-enter flex items-center justify-center gap-3 py-12 text-sm text-slate-400">
     <RefreshCw className="h-5 w-5 animate-spin" />
     {language === 'ro' ? 'Se încarcă pagina…' : 'Loading page…'}
   </div>;
   // An older open tab may request a chunk removed by a new deployment.
   // Keep navigation usable and offer a full reload instead of a blank screen.
-  const failure = <div role="alert" className="space-y-3 py-12 text-center text-sm text-slate-400">
+  const failure = <div role="alert" className="ms-tab-enter space-y-3 py-12 text-center text-sm text-slate-400">
     <p>{language === 'ro' ? 'Pagina nu a putut fi încărcată.' : 'The page could not be loaded.'}</p>
-    <button onClick={() => window.location.reload()} className="rounded-xl border border-white/10 px-4 py-2 text-cyan-300">
+    <button onClick={() => window.location.reload()} className="ms-btn ms-btn--secondary">
       {language === 'ro' ? 'Reîncarcă aplicația' : 'Reload app'}
     </button>
   </div>;

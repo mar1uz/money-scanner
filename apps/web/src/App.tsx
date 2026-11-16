@@ -1,4 +1,4 @@
-import React, { lazy, useState, useEffect, useRef } from 'react';
+import React, { lazy, useState, useEffect, useRef, useCallback, useDeferredValue } from 'react';
 import {
   AppTab,
   Timeframe,
@@ -25,22 +25,42 @@ import { ScanLoadingBar } from './components/ScanLoadingBar.js';
 import { useLanguage } from './i18n.js';
 import { AuthGate } from './components/AuthGate.js';
 import { AssetNavigationProvider } from './components/AssetNavigation.js';
+import { SectionTabs } from './components/ui/SectionTabs.js';
+import { Toast } from './components/ui/Toast.js';
+import { useStableCallback } from './hooks/useStableCallback.js';
 import { IntelligenceSourceFilter, UserProfile } from '@money-scanner/shared';
-import { Zap, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Zap, RefreshCw } from 'lucide-react';
 
-const AssetDeepDiveView = lazy(() => import('./components/AssetDeepDiveView.js').then(m => ({ default: m.AssetDeepDiveView })));
-const IntelligenceView = lazy(() => import('./components/IntelligenceView.js').then(m => ({ default: m.IntelligenceView })));
-const AIBriefingView = lazy(() => import('./components/AIBriefingView.js').then(m => ({ default: m.AIBriefingView })));
-const TopAlphaView = lazy(() => import('./components/TopAlphaView.js').then(m => ({ default: m.TopAlphaView })));
-const BusinessQualityView = lazy(() => import('./components/BusinessQualityView.js').then(m => ({ default: m.BusinessQualityView })));
-const BacktestView = lazy(() => import('./components/BacktestView.js').then(m => ({ default: m.BacktestView })));
-const SystemStatusView = lazy(() => import('./components/SystemStatusView.js').then(m => ({ default: m.SystemStatusView })));
-const AlertsCenterView = lazy(() => import('./components/AlertsCenterView.js').then(m => ({ default: m.AlertsCenterView })));
-const USAStatusView = lazy(() => import('./components/USAStatusView.js').then(m => ({ default: m.USAStatusView })));
-const CryptoRadarView = lazy(() => import('./components/CryptoRadarView.js').then(m => ({ default: m.CryptoRadarView })));
-const CryptoBubbleView = lazy(() => import('./components/CryptoBubbleView.js').then(m => ({ default: m.CryptoBubbleView })));
-const CryptoHeatMapView = lazy(() => import('./components/CryptoHeatMapView.js').then(m => ({ default: m.CryptoHeatMapView })));
-const UniversalSearchModal = lazy(() => import('./components/UniversalSearchModal.js').then(m => ({ default: m.UniversalSearchModal })));
+const loaders = {
+  asset: () => import('./components/AssetDeepDiveView.js'),
+  intelligence: () => import('./components/IntelligenceView.js'),
+  ai: () => import('./components/AIBriefingView.js'),
+  top_alpha: () => import('./components/TopAlphaView.js'),
+  business_quality: () => import('./components/BusinessQualityView.js'),
+  backtest: () => import('./components/BacktestView.js'),
+  status: () => import('./components/SystemStatusView.js'),
+  alerts: () => import('./components/AlertsCenterView.js'),
+  usa_status: () => import('./components/USAStatusView.js'),
+  crypto_radar: () => import('./components/CryptoRadarView.js'),
+  crypto_bubbles: () => import('./components/CryptoBubbleView.js'),
+  crypto_heatmap: () => import('./components/CryptoHeatMapView.js'),
+  search: () => import('./components/UniversalSearchModal.js')
+};
+const prefetchTab = (tab: AppTab) => { if (tab !== 'market') void loaders[tab]().catch(() => undefined); };
+
+const AssetDeepDiveView = lazy(() => loaders.asset().then(m => ({ default: m.AssetDeepDiveView })));
+const IntelligenceView = lazy(() => loaders.intelligence().then(m => ({ default: m.IntelligenceView })));
+const AIBriefingView = lazy(() => loaders.ai().then(m => ({ default: m.AIBriefingView })));
+const TopAlphaView = lazy(() => loaders.top_alpha().then(m => ({ default: m.TopAlphaView })));
+const BusinessQualityView = lazy(() => loaders.business_quality().then(m => ({ default: m.BusinessQualityView })));
+const BacktestView = lazy(() => loaders.backtest().then(m => ({ default: m.BacktestView })));
+const SystemStatusView = lazy(() => loaders.status().then(m => ({ default: m.SystemStatusView })));
+const AlertsCenterView = lazy(() => loaders.alerts().then(m => ({ default: React.memo(m.AlertsCenterView) })));
+const USAStatusView = lazy(() => loaders.usa_status().then(m => ({ default: m.USAStatusView })));
+const CryptoRadarView = lazy(() => loaders.crypto_radar().then(m => ({ default: m.CryptoRadarView })));
+const CryptoBubbleView = lazy(() => loaders.crypto_bubbles().then(m => ({ default: m.CryptoBubbleView })));
+const CryptoHeatMapView = lazy(() => loaders.crypto_heatmap().then(m => ({ default: m.CryptoHeatMapView })));
+const UniversalSearchModal = lazy(() => loaders.search().then(m => ({ default: m.UniversalSearchModal })));
 
 interface AuthenticatedAppProps {
   user: UserProfile;
@@ -103,6 +123,9 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
   const { language } = useLanguage();
   const initialDeepLink = useRef(readMoneyLineDeepLink()).current;
   const [activeTab, setActiveTab] = useState<AppTab>(initialDeepLink.tab || 'market');
+  // Content follows the deferred tab so the previous view stays readable while a lazy chunk loads.
+  const contentTab = useDeferredValue(activeTab);
+  const tabPending = contentTab !== activeTab;
   const [timeframe, setTimeframe] = useState<Timeframe>(initialDeepLink.timeframe || '1w');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
@@ -111,14 +134,7 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
   const [inspectedNarrative, setInspectedNarrative] = useState<NarrativeSummary | null>(null);
   const [watchlistOnly, setWatchlistOnly] = useState(initialDeepLink.watchlistOnly);
   const [alertsVisited, setAlertsVisited] = useState(initialDeepLink.tab === 'alerts');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem('money_scanner_sidebar_collapsed') === 'true';
-    } catch {
-      return false;
-    }
-  });
-  
+
   const watchlistStorageKey = `money_scanner_watchlist_${user.id}`;
 
   // Persistent watchlist is isolated per authenticated account in this browser.
@@ -185,14 +201,8 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
   }, [timeframe, selectedMarketCategory]);
 
   useEffect(() => {
-    if (activeTab === 'alerts') setAlertsVisited(true);
-  }, [activeTab]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('money_scanner_sidebar_collapsed', String(sidebarCollapsed));
-    } catch {}
-  }, [sidebarCollapsed]);
+    if (contentTab === 'alerts') setAlertsVisited(true);
+  }, [contentTab]);
 
   // Keep a shareable URL in sync with the open Money Line chart. Telegram
   // alerts use these same parameters, including the alert's exact timeframe.
@@ -336,68 +346,57 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
     setSelectedAssetSymbol(null);
   };
 
+  // Stable identities for memoised children (ScannerTable, MarketRegimeGauge, NarrativeBar, AlertsCenterView, Sidebar, Header).
+  const openAssetFromRow = useStableCallback((sym: string, marketClass?: AssetScannerRow['marketClass'], tf?: Timeframe) => openAsset(sym, marketClass, tf));
+  const navigateToAsset = useStableCallback(({ symbol, marketClass, timeframe: tf, coinGeckoId }: { symbol: string; marketClass?: AssetScannerRow['marketClass']; timeframe?: Timeframe; coinGeckoId?: string }) => openAsset(symbol, marketClass, tf, coinGeckoId));
+  const toggleWatchlistStable = useStableCallback(toggleWatchlist);
+  const reorderWatchlistStable = useStableCallback(handleReorderWatchlist);
+  const toggleWatchlistOnly = useCallback(() => setWatchlistOnly(v => !v), []);
+  const selectNarrative = useCallback((narr: string) => setSelectedNarrative(narr as MarketNarrativeId | 'ALL'), []);
+  const tabChangeStable = useStableCallback(handleTabChange);
+  const refreshStable = useStableCallback(refreshData);
+  const openSearch = useCallback(() => setIsSearchModalOpen(true), []);
+
+  // Warm the most-used lazy chunks once the page is idle (skipped under Save-Data).
+  useEffect(() => {
+    const saveData = (navigator as unknown as { connection?: { saveData?: boolean } }).connection?.saveData;
+    if (saveData) return;
+    const run = () => { void loaders.alerts().catch(() => undefined); void loaders.asset().catch(() => undefined); };
+    const idle = (window as unknown as { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
+    const id = idle ? idle(run) : window.setTimeout(run, 2500);
+    return () => { if (!idle) window.clearTimeout(id); };
+  }, []);
+
   return (
-    <AssetNavigationProvider onOpenAsset={({ symbol, marketClass, timeframe: targetTimeframe, coinGeckoId }) => openAsset(symbol, marketClass, targetTimeframe, coinGeckoId)}>
+    <AssetNavigationProvider onOpenAsset={navigateToAsset}>
     <div className="app-shell min-h-screen flex bg-background text-slate-100 selection:bg-cyan-500/30 selection:text-cyan-200">
       {/* Persistent Left Sidebar (Desktop) + Bottom Nav (Mobile) */}
       <Sidebar
         activeTab={activeTab}
-        onTabChange={handleTabChange}
-        watchlistCount={watchlist.length}
-        watchlistOnly={watchlistOnly}
+        onTabChange={tabChangeStable}
         onLogoClick={() => handleTabChange('market')}
-        onOpenSearchModal={() => setIsSearchModalOpen(true)}
-        onOpenWatchlist={openWatchlist}
-        onOpenAlerts={() => handleTabChange('alerts')}
-        collapsed={sidebarCollapsed}
-        onCollapsedChange={setSidebarCollapsed}
+        currentUser={user}
+        onLogout={onLogout}
+        onPrefetchTab={prefetchTab}
       />
 
-      {/* Main Wrapper with responsive margin for desktop sidebar and top padding for fixed header */}
-      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${!sidebarCollapsed ? 'md:pl-[260px]' : ''} pb-20 md:pb-0 pt-[56px]`}>
+      {/* Main Wrapper: the 84px rail offsets content on desktop; top padding clears the fixed header */}
+      <div className="flex-1 flex flex-col min-w-0 md:pl-[var(--ms-rail-w)] pb-20 md:pb-0 pt-[56px]">
         {/* Minimal Search & Control Header (Fixed at top of viewport) */}
         <Header
           timeframe={timeframe}
           onTimeframeChange={setTimeframe}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          onOpenAlerts={() => handleTabChange('alerts')}
-          isStale={overview?.providerStatus?.staleAssetsCount ? overview.providerStatus.staleAssetsCount > 0 : false}
-          allAssets={scannerRows}
-          onSelectAsset={(sym) => {
-            openAsset(sym);
-          }}
-          watchlist={watchlist}
-          onToggleWatchlist={toggleWatchlist}
-          onRefreshMarket={refreshData}
+          hideTimeframe={Boolean(selectedAssetSymbol) || activeTab !== 'market'}
+          onRefreshMarket={refreshStable}
           isRefreshing={loading}
-          onOpenSearchModal={() => setIsSearchModalOpen(true)}
-          hasSidebar={!sidebarCollapsed}
-          hideTimeframe={Boolean(selectedAssetSymbol)}
-          currentUser={user}
-          onLogout={onLogout}
+          onOpenSearchModal={openSearch}
         />
 
-        {/* Notification Banner */}
-        {bannerAlert && (
-          <div role="status" aria-live="polite" className="mx-4 lg:mx-8 mt-3 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs font-mono text-emerald-300 flex items-center justify-between shadow-glow-emerald animate-fade-in">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>{bannerAlert}</span>
-            </div>
-            <button
-              onClick={() => setBannerAlert(null)}
-              className="text-slate-400 hover:text-slate-200 ml-4"
-            >
-              ✕
-            </button>
-          </div>
-        )}
-
         {/* Main Content Area */}
-        <main className="workspace-main flex-1 px-4 lg:px-10 py-8 space-y-8 max-w-[1600px] w-full mx-auto animate-fade-in">
+        <main className={`workspace-main flex-1 px-4 lg:px-10 py-8 space-y-8 max-w-[1600px] w-full mx-auto ${tabPending ? 'ms-tab-pending' : ''}`}>
           {/* Full-Page Asset Deep-Dive View */}
           {selectedAssetSymbol && (
+            <div className="ms-tab-enter">
             <DeferredPage>
             <AssetDeepDiveView
               symbol={selectedAssetSymbol}
@@ -411,16 +410,17 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
               onToggleWatchlist={toggleWatchlist}
             />
             </DeferredPage>
+            </div>
           )}
           {/* Tab views stay mounted (hidden) while an asset is open so filter
               selection, scroll and loaded data survive back navigation instead
               of resetting to defaults and refetching. `contents` keeps the
               exact same layout as before when visible. */}
           <div className={selectedAssetSymbol ? 'hidden' : 'contents'}>
-            <DeferredPage>
-              {/* Tab 1: Market Intelligence (Gauges + Narrative Bar + Scanner Table) */}
-              {activeTab === 'market' && (
-                <div className="market-dashboard space-y-8">
+            <SectionTabs activeTab={activeTab} onTabChange={tabChangeStable} onPrefetchTab={prefetchTab} />
+              {/* Tab 1: Market Intelligence (Gauges + Narrative Bar + Scanner Table). Stays mounted while hidden, like Alerts. */}
+              <div className={contentTab === 'market' ? 'market-dashboard space-y-8 ms-tab-enter' : 'hidden'} aria-hidden={contentTab !== 'market'}>
+                  <h1 className="sr-only">{language === 'ro' ? 'Piață' : 'Markets'}</h1>
                   <ScanLoadingBar active={loading} />
                   {loading && scannerRows.length === 0 && (
                     <div role="status" aria-live="polite" className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-cyan-500/25 bg-cyan-500/[0.07] px-6 py-12 text-center">
@@ -433,17 +433,6 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
                       </p>
                     </div>
                   )}
-                  <section className="market-intro">
-                    <div>
-                      <p className="eyebrow">MARKET INTELLIGENCE / 360°</p>
-                      <h1>{language === 'ro' ? 'Piața, în perspectivă' : 'Markets, in perspective'}<span>.</span></h1>
-                      <p className="intro-description">{language === 'ro' ? 'O privire de ansamblu. Semnalele care contează.' : 'The bigger picture. The signals that matter.'}</p>
-                    </div>
-                    <button className="intro-watchlist" onClick={() => setWatchlistOnly(!watchlistOnly)} aria-pressed={watchlistOnly}>
-                      <span>{watchlistOnly ? (language === 'ro' ? 'Vezi toate activele' : 'View all assets') : (language === 'ro' ? 'Lista mea' : 'My watchlist')}</span>
-                      <span className="intro-count">{watchlist.length}</span>
-                    </button>
-                  </section>
                   {/* Top Market Intelligence Gauges */}
                   <MarketRegimeGauge
                     overview={overview}
@@ -459,8 +448,8 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
                     narratives={narratives}
                     timeframe={timeframe}
                     selectedNarrative={selectedNarrative}
-                    onSelectNarrative={(narr) => setSelectedNarrative(narr)}
-                    onInspectNarrative={(narr) => setInspectedNarrative(narr)}
+                    onSelectNarrative={selectNarrative}
+                    onInspectNarrative={setInspectedNarrative}
                     loading={loading}
                   />
 
@@ -481,32 +470,22 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
                         </h2>
                       </div>
 
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={refreshData}
-                          disabled={loading}
-                          className="flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-medium bg-white/[0.03] hover:bg-white/[0.07] text-slate-300 hover:text-cyan-300 border border-white/[0.06] rounded-xl transition-all disabled:opacity-50"
-                        >
-                          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-cyan-400' : ''}`} />
-                          <span>Actualizează</span>
-                        </button>
-                      </div>
                     </div>
 
                     <ScannerTable
                       rows={scannerRows}
-                      onSelectAsset={(sym, marketClass, selectedTimeframe) => openAsset(sym, marketClass, selectedTimeframe)}
+                      onSelectAsset={openAssetFromRow}
                       watchlist={watchlist}
-                      onToggleWatchlist={toggleWatchlist}
-                      onReorderWatchlist={handleReorderWatchlist}
+                      onToggleWatchlist={toggleWatchlistStable}
+                      onReorderWatchlist={reorderWatchlistStable}
                       selectedTier={selectedTier}
                       onSelectTier={setSelectedTier}
                       watchlistOnly={watchlistOnly}
-                      onToggleWatchlistOnly={() => setWatchlistOnly(!watchlistOnly)}
+                      onToggleWatchlistOnly={toggleWatchlistOnly}
                       selectedMarketClass={selectedMarketCategory}
                       onSelectMarketClass={setSelectedMarketCategory}
                       selectedNarrative={selectedNarrative}
-                      onSelectNarrative={(narr) => setSelectedNarrative(narr as any)}
+                      onSelectNarrative={selectNarrative}
                       loading={loading}
                     />
                   </div>
@@ -526,51 +505,52 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
                       timeframe={timeframe}
                     />
                   )}
-                </div>
-              )}
+              </div>
 
-              {/* Top 100 cryptocurrencies, sized by market capitalization */}
-              {activeTab === 'crypto_radar' && <CryptoRadarView isAdmin={user.role === 'Administrator'} />}
-              {activeTab === 'crypto_bubbles' && (
-                <CryptoBubbleView onSelectAsset={(symbol, coinGeckoId, coinPaprikaId) => openAsset(symbol, 'crypto', undefined, coinGeckoId, coinPaprikaId)} />
-              )}
-
-              {activeTab === 'crypto_heatmap' && (
-                <CryptoHeatMapView onSelectAsset={(symbol, coinGeckoId, coinPaprikaId, marketClass) => openAsset(symbol, (marketClass as any) || 'crypto', undefined, coinGeckoId, coinPaprikaId)} />
-              )}
-
-              {/* Tab 2: USA Economic Status & Macro Intelligence */}
-              {activeTab === 'usa_status' && <USAStatusView />}
-
-              {/* Tab 3: X Narrative Intelligence & AI News Aggregator */}
-              {activeTab === 'intelligence' && <IntelligenceView initialSource={initialDeepLink.intelligenceSource} />}
-
-              {/* Top Alpha: both Business Quality leaderboards in one view */}
-              {activeTab === 'top_alpha' && <TopAlphaView />}
-
-              {/* Business Quality: hidden tab (no sidebar entry) - opened from the AI Briefing header button (Marius, 2026-09-22) */}
-              {activeTab === 'business_quality' && <BusinessQualityView />}
-
-              {/* Tab 5: AI Market Briefing & Interactive Chat */}
-              {activeTab === 'ai' && <AIBriefingView onOpenBusinessQuality={() => handleTabChange('business_quality')} />}
-
-              {/* Tab 6: Alerts — stay mounted after first visit so the last
-                  scan snapshot is not refetched when leaving and coming back. */}
-              {alertsVisited && (
-                <div className={activeTab === 'alerts' ? undefined : 'hidden'} aria-hidden={activeTab !== 'alerts'}>
+              <DeferredPage>
+              {(alertsVisited || contentTab === 'alerts') && (
+                <div className={contentTab === 'alerts' ? 'ms-tab-enter' : 'hidden'} aria-hidden={contentTab !== 'alerts'}>
                   <AlertsCenterView
                     knownAssets={scannerRows}
                     watchlist={watchlist}
-                    onOpenAsset={(symbol, marketClass, selectedTimeframe) => openAsset(symbol, marketClass, selectedTimeframe)}
+                    onOpenAsset={openAssetFromRow}
                   />
                 </div>
               )}
+              {contentTab !== 'market' && contentTab !== 'alerts' && (
+                <div key={contentTab} className="ms-tab-enter space-y-8">
+                  {/* Top 100 cryptocurrencies, sized by market capitalization */}
+                  {contentTab === 'crypto_radar' && <CryptoRadarView isAdmin={user.role === 'Administrator'} />}
+                  {contentTab === 'crypto_bubbles' && (
+                    <CryptoBubbleView onSelectAsset={(symbol, coinGeckoId, coinPaprikaId) => openAsset(symbol, 'crypto', undefined, coinGeckoId, coinPaprikaId)} />
+                  )}
 
-              {/* Tab 7: Backtest Engine */}
-              {activeTab === 'backtest' && <BacktestView />}
+                  {contentTab === 'crypto_heatmap' && (
+                    <CryptoHeatMapView onSelectAsset={(symbol, coinGeckoId, coinPaprikaId, marketClass) => openAsset(symbol, (marketClass as any) || 'crypto', undefined, coinGeckoId, coinPaprikaId)} />
+                  )}
 
-              {/* Tab 8: System Status & Telemetry */}
-              {activeTab === 'status' && <SystemStatusView />}
+                  {/* Tab 2: USA Economic Status & Macro Intelligence */}
+                  {contentTab === 'usa_status' && <USAStatusView />}
+
+                  {/* Tab 3: X Narrative Intelligence & AI News Aggregator */}
+                  {contentTab === 'intelligence' && <IntelligenceView initialSource={initialDeepLink.intelligenceSource} />}
+
+                  {/* Top Alpha: both Business Quality leaderboards in one view */}
+                  {contentTab === 'top_alpha' && <TopAlphaView />}
+
+                  {/* Business Quality: hidden tab (no sidebar entry) - opened from the AI Briefing header button (Marius, 2026-09-22) */}
+                  {contentTab === 'business_quality' && <BusinessQualityView />}
+
+                  {/* Tab 5: AI Market Briefing & Interactive Chat */}
+                  {contentTab === 'ai' && <AIBriefingView onOpenBusinessQuality={() => handleTabChange('business_quality')} />}
+
+                  {/* Tab 7: Backtest Engine */}
+                  {contentTab === 'backtest' && <BacktestView />}
+
+                  {/* Tab 8: System Status & Telemetry */}
+                  {contentTab === 'status' && <SystemStatusView />}
+                </div>
+              )}
             </DeferredPage>
           </div>
         </main>
@@ -604,6 +584,8 @@ const AuthenticatedApp: React.FC<AuthenticatedAppProps> = ({ user, onLogout }) =
         onToggleWatchlist={toggleWatchlist}
       />
       </DeferredPage>}
+      <div id="ms-overlays" />
+      <Toast message={bannerAlert} onDismiss={() => setBannerAlert(null)} />
     </div>
     </AssetNavigationProvider>
   );

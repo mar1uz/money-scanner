@@ -18,6 +18,7 @@ import { AskAiButton } from './AskAiButton.js';
 import { NarrativeTag } from './NarrativeTag.js';
 import { formatFlipAgeShort } from './flip-age.js';
 import { useOutsideDismiss } from '../hooks/useOutsideDismiss.js';
+import { Segmented } from './ui/Segmented.js';
 import { useCryptoFundamentals } from '../services/crypto-fundamentals.js';
 import {
   ArrowLeft,
@@ -427,22 +428,16 @@ export const AssetDeepDiveView: React.FC<AssetDeepDiveViewProps> = ({
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="flex w-full min-w-0 items-center rounded-lg border border-[var(--t-line)] bg-[var(--t-surface)] p-0.5 sm:w-auto sm:min-w-[16rem]" role="group" aria-label="Timeframe">
-              {(['1h', '4h', '8h', '1d', '1w', '1m'] as Timeframe[]).map((tf) => (
-                <button
-                  key={tf}
-                  type="button"
-                  onClick={() => onTimeframeChange(tf)}
-                  className={`min-h-0 min-w-0 flex-1 rounded-md px-2 py-1.5 font-mono text-xs transition-all sm:flex-none sm:px-2.5 ${
-                    timeframe === tf
-                      ? 'bg-cyan-500/15 font-bold text-cyan-300'
-                      : 'font-semibold text-slate-500 hover:text-slate-300'
-                  }`}
-                >
-                  {tf.toUpperCase()}
-                </button>
-              ))}
-            </div>
+            <Segmented
+              ariaLabel="Timeframe"
+              size="sm"
+              full
+              skipTranslate
+              className="ms-seg-fluid font-mono"
+              value={timeframe}
+              onChange={onTimeframeChange}
+              options={(['1h', '4h', '8h', '1d', '1w', '1m'] as Timeframe[]).map(tf => ({ value: tf, label: tf.toUpperCase() }))}
+            />
 
             <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
               <button

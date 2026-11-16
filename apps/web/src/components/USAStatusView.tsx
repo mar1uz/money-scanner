@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { USAEconomicStatus, YieldPoint } from '@money-scanner/shared';
 import { fetchUSAStatus } from '../services/api.js';
 import { AssetLink } from './AssetNavigation.js';
+import { ViewHeader } from './ui/ViewHeader.js';
 import {
   Landmark,
   TrendingUp,
@@ -63,45 +64,26 @@ export const USAStatusView: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in font-sans">
-      {/* Header Banner */}
-      <div className="flex flex-wrap items-center justify-between gap-4 p-6 cyber-glass rounded-[30px] border border-background-border shadow-2xl">
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2.5">
-            <span className="text-2xl">🇺🇸</span>
-            <h1 className="text-xl font-bold text-slate-100 font-mono tracking-tight">
-              USA Economic Status &amp; Macro Intelligence
-            </h1>
-            <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-xs font-mono font-bold shadow-glow-cyan">
-              Live Macro 360°
-            </span>
-          </div>
-          <p className="text-xs text-slate-400 font-mono">
-            Serii oficiale FRED, U.S. Treasury și calendare Fed/BLS/BEA, cu data fiecărei observații.
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-mono text-slate-500">
-            <span className="rounded border border-emerald-500/25 bg-emerald-500/10 px-2 py-1 text-emerald-300">FRED + U.S. Treasury</span>
-            <span>Observațiile afișează data reală a seriei.</span>
-            {data.dataQuality?.unavailableSeries.length ? <span className="text-amber-300">{data.dataQuality.unavailableSeries.length} serii indisponibile</span> : null}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={loadData}
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-mono text-xs font-bold transition-all disabled:opacity-50 shadow-sm"
-          >
+    <div className="space-y-6 font-sans">
+      <ViewHeader
+        title={<>USA Economic Status &amp; Macro Intelligence</>}
+        badge="Live Macro 360°"
+        subtitle="Serii oficiale FRED, U.S. Treasury și calendare Fed/BLS/BEA, cu data fiecărei observații."
+        meta={data.dataQuality?.unavailableSeries.length
+          ? <p className="ms-view-meta">{data.dataQuality.unavailableSeries.length} serii indisponibile</p>
+          : null}
+        actions={
+          <button onClick={loadData} disabled={loading} className="ms-btn ms-btn--sm ms-btn--secondary">
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span>Actualizează Indicatorii</span>
           </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* 4 Core Macro Pillars */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Pillar 1: U.S. National Debt */}
-        <div className="cyber-glass rounded-[30px] p-5 border border-rose-500/30 bg-rose-500/5 space-y-3 relative overflow-hidden shadow-glow-ruby">
+        <div className="cyber-glass rounded-[30px] p-5 border border-rose-500/30 bg-rose-500/5 space-y-3 relative overflow-hidden">
           <div className="flex items-center justify-between font-mono text-xs text-slate-400">
             <span className="uppercase font-bold tracking-wider text-rose-300">Datoria Totală SUA</span>
             <a
@@ -135,7 +117,7 @@ export const USAStatusView: React.FC = () => {
         </div>
 
         {/* Pillar 2: Inflation & CPI vs Fed Target */}
-        <div className="cyber-glass rounded-[30px] p-5 border border-emerald-500/30 bg-emerald-500/5 space-y-3 shadow-glow-emerald">
+        <div className="cyber-glass rounded-[30px] p-5 border border-emerald-500/30 bg-emerald-500/5 space-y-3">
           <div className="flex items-center justify-between font-mono text-xs text-slate-400">
             <span className="uppercase font-bold tracking-wider text-emerald-300">Inflație &amp; CPI YoY</span>
             <Percent className="w-4 h-4 text-emerald-400" />
@@ -162,7 +144,7 @@ export const USAStatusView: React.FC = () => {
         </div>
 
         {/* Pillar 3: Fed Policy & Rate Cut Odds */}
-        <div className="cyber-glass rounded-[30px] p-5 border border-cyan-500/30 bg-cyan-500/5 space-y-3 shadow-glow-cyan">
+        <div className="cyber-glass rounded-[30px] p-5 border border-cyan-500/30 bg-cyan-500/5 space-y-3">
           <div className="flex items-center justify-between font-mono text-xs text-slate-400">
             <span className="uppercase font-bold tracking-wider text-cyan-300">Dobânda Fed &amp; Ciclul FOMC</span>
             <Activity className="w-4 h-4 text-cyan-400" />
@@ -375,7 +357,7 @@ export const USAStatusView: React.FC = () => {
       ) : null}
 
       {/* Macro synthesis & multi-asset context */}
-      <div className="cyber-glass rounded-[30px] p-6 border border-background-border space-y-6 shadow-2xl">
+      <div className="cyber-glass rounded-[30px] p-6 border border-background-border space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-background-border">
           <div className="flex items-center gap-2.5">
             <BrainCircuit className="w-5 h-5 text-cyan-400" />

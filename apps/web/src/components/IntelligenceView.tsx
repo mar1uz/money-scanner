@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Clock3, ExternalLink, Filter, RefreshCw, Sparkles } from 'lucide-react';
+import { AlertTriangle, Clock3, ExternalLink, RefreshCw } from 'lucide-react';
 import { IntelligenceBriefFilters, IntelligenceBriefPayload, IntelligencePeriod, IntelligenceSector, IntelligenceSourceFilter } from '@money-scanner/shared';
 import { fetchIntelligenceBrief } from '../services/api.js';
 import { useLanguage } from '../i18n.js';
+import { Segmented } from './ui/Segmented.js';
 
 type IntelligenceViewProps = {
   initialSource?: IntelligenceSourceFilter;
@@ -119,12 +120,10 @@ export const IntelligenceView: React.FC<IntelligenceViewProps> = ({ initialSourc
 
   const ro = language === 'ro';
   return (
-    <div className="space-y-5 animate-fade-in">
+    <div className="space-y-5">
       <header className="intelligence-hero">
         <div className="flex min-w-0 items-start gap-3">
-          <div className="intelligence-icon"><Sparkles size={19} /></div>
           <div className="min-w-0">
-            <p className="intelligence-eyebrow">{ro ? 'INFORMAȚIE SELECTATĂ' : 'CURATED INTELLIGENCE'}</p>
             <h1 className="intelligence-title">{ro ? 'Ce contează acum' : 'What matters now'}</h1>
             <p className="intelligence-subtitle">{ro ? 'Un rezumat scurt din știri și surse sociale, cu legături directe către informația originală.' : 'One concise briefing from news and social sources, linked directly to the original information.'}</p>
           </div>
@@ -136,28 +135,15 @@ export const IntelligenceView: React.FC<IntelligenceViewProps> = ({ initialSourc
       </header>
 
       <div className="intelligence-filters" aria-label={ro ? 'Filtre Intelligence' : 'Intelligence filters'}>
-        <span className="intelligence-filter-label"><Filter size={14} /> {ro ? 'Filtre' : 'Filters'}</span>
-        <div className="intelligence-filter-group" role="group" aria-label={ro ? 'Sector' : 'Sector'}>
-          {sectors.map(option => (
-            <button key={option.value} type="button" className={filters.sector === option.value ? 'is-selected' : ''} onClick={() => updateFilter('sector', option.value)}>
-              {ro ? option.ro : option.en}
-            </button>
-          ))}
-        </div>
-        <div className="intelligence-filter-group" role="group" aria-label={ro ? 'Perioadă' : 'Period'}>
-          {periods.map(option => (
-            <button key={option.value} type="button" className={filters.period === option.value ? 'is-selected' : ''} onClick={() => updateFilter('period', option.value)}>
-              {ro ? option.ro : option.en}
-            </button>
-          ))}
-        </div>
-        <div className="intelligence-filter-group" role="group" aria-label={ro ? 'Surse' : 'Sources'}>
-          {sources.map(option => (
-            <button key={option.value} type="button" className={filters.source === option.value ? 'is-selected' : ''} onClick={() => updateFilter('source', option.value)}>
-              {ro ? option.ro : option.en}
-            </button>
-          ))}
-        </div>
+        <Segmented ariaLabel={ro ? 'Sector' : 'Sector'} size="sm" scrollable value={filters.sector}
+          onChange={value => updateFilter('sector', value)}
+          options={sectors.map(option => ({ value: option.value, label: ro ? option.ro : option.en }))} />
+        <Segmented ariaLabel={ro ? 'Perioadă' : 'Period'} size="sm" scrollable value={filters.period}
+          onChange={value => updateFilter('period', value)}
+          options={periods.map(option => ({ value: option.value, label: ro ? option.ro : option.en }))} />
+        <Segmented ariaLabel={ro ? 'Surse' : 'Sources'} size="sm" scrollable value={filters.source}
+          onChange={value => updateFilter('source', value)}
+          options={sources.map(option => ({ value: option.value, label: ro ? option.ro : option.en }))} />
       </div>
 
       <section className="intelligence-brief" aria-live="polite">

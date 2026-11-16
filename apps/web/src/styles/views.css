@@ -1,0 +1,36 @@
+/* Inner-view patterns (round 2). Owner: WP6. Tokens only; no per-theme rules. */
+.ms-view-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 16px; }
+.ms-view-head-text { flex: 1 1 260px; min-width: 0; }
+.ms-view-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; color: var(--t-text); font-size: 20px; font-weight: 700; line-height: 1.25; letter-spacing: -.01em; }
+@media (min-width: 640px) { .ms-view-title { font-size: 22px; } }
+.ms-view-sub { max-width: 70ch; margin: 4px 0 0; color: var(--t-muted); font-size: 13px; line-height: 1.45; }
+.ms-view-meta { margin: 4px 0 0; color: var(--t-text-2); font: 500 12px/1.4 'JetBrains Mono', ui-monospace, monospace; }
+.ms-view-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ms-view-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.ms-badge { display: inline-flex; align-items: center; min-height: 22px; padding: 0 8px; border-radius: var(--ms-r-pill); background: var(--ms-accent-tint); color: var(--t-text); font-size: 12px; font-weight: 600; letter-spacing: 0; }
+
+/* Legend row without a card */
+.ms-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; color: var(--t-muted); font-size: 12px; }
+.ms-legend > .ms-legend-end { margin-left: auto; }
+
+/* Help disclosure (native <details>) */
+.ms-help { display: block; }
+.ms-help > summary { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px; border-radius: var(--ms-r-pill); color: var(--t-muted); font-size: 12px; font-weight: 600; cursor: pointer; list-style: none; user-select: none; }
+.ms-help > summary::-webkit-details-marker { display: none; }
+.ms-help[open] > summary { background: var(--ms-fill); color: var(--t-text); }
+.ms-help-chevron { transition: transform var(--ms-dur-fade) var(--ms-ease-fade); }
+.ms-help[open] .ms-help-chevron { transform: rotate(180deg); }
+.ms-help-body { margin-top: 8px; padding: 12px 14px; border-radius: var(--ms-r-row); background: var(--ms-fill); color: var(--t-text-2); font-size: 12px; line-height: 1.55; animation: ms-fade-in var(--ms-dur-slow) var(--ms-ease-fade) backwards; }
+.ms-help-body > * + * { margin-top: 6px; }
+@media (hover: hover) { .ms-help > summary:hover { color: var(--t-text); } }
+
+/* Native select as a pill */
+.ms-select { min-height: 44px; max-width: 100%; padding: 0 14px; border: 0; border-radius: var(--ms-r-pill); background: var(--ms-fill); color: var(--t-text); font-size: 13px; font-weight: 600; cursor: pointer; }
+.ms-select--sm { min-height: 36px; padding: 0 12px; font-size: 12px; }
+@media (hover: hover) { .ms-select:hover { background: var(--ms-fill-strong); } }
+
+/* Segmented: full width on phones, content width from 640px */
+@media (min-width: 640px) {
+  .ms-segmented.ms-seg-fluid[data-full="true"] { display: inline-flex; width: auto; }
+  .ms-segmented.ms-seg-fluid[data-full="true"] > .ms-segmented-item { flex: 0 0 auto; padding-inline: 14px; }
+}

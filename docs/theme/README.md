@@ -31,6 +31,23 @@ Aprobată 2026-09-16; preview original: `tmp/design-preview/theme-signal-graphit
    - 0 overlap-uri structurale, 0 truncări în tabel/header/sidebar (desktop 1440 + mobil 390),
    - screenshot + verificare vizuală.
 
+## Mișcare (Motion)
+
+Tokenii sunt în `apps/web/src/motion.css`, pe `:root`:
+
+- Durate: `--ms-dur-fast` 120ms, `--ms-dur-fade` 200ms, `--ms-dur-drop` 280ms, `--ms-dur-slow` 300ms, `--ms-dur-spring` 560ms, `--ms-dur-soft` 640ms, `--ms-dur-calm` 720ms, `--ms-stagger` 40ms.
+- Curbe: `--ms-ease-fade`, `--ms-ease-drop`, `--ms-ease-spring`, `--ms-ease-soft`, `--ms-ease-calm`.
+- Apăsare: `--ms-press-default`, `--ms-press-pill`, `--ms-press-icon`, `--ms-press-tab`, `--ms-press-row`.
+- Forme: `--ms-rail-w` (84px), `--ms-r-sheet`, `--ms-r-row`, `--ms-r-item`, `--ms-r-pill`.
+- Culori: `--ms-accent`, `--ms-accent-tint`, `--ms-accent-line`, `--ms-ink`, `--ms-on-ink`, `--ms-fill`, `--ms-fill-strong`, `--ms-knob`, `--ms-press-bg`.
+- Umbre: `--ms-shadow-soft`, `--ms-shadow-knob`, `--ms-shadow-sheet`.
+
+Reguli:
+
+- Componentele noi folosesc `--ms-accent*`, niciodată `--accent`. Accentul temei este `--t-cyan-400-rgb` (chihlimbar în Ember, cobalt în Arctic). `--accent` (#C8F169) nu se schimbă cu tema.
+- Mișcarea de poziție și de vizibilitate trece prin `transform` și `opacity`. Pentru apăsare, culorile și umbrele trec prin durate scurte (`--ms-dur-fast`, `--ms-dur-fade`), nu prin `transition-all`.
+- Sub `prefers-reduced-motion: reduce`, duratele `spring`, `soft`, `calm`, `drop` și `stagger` devin 0ms, iar scalarea la apăsare dispare.
+
 ## Pitfall-uri
 
 - `position: sticky` pe `thead` într-un wrapper cu `overflow-x: auto` → browserul calculează `overflow-y: auto` și împinge header-ul cu offsetul `top:` peste primul rând. Fie header static în mockup-uri, fie sticky la nivel de pagină, nu în wrapper scrollabil.

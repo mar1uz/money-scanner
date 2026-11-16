@@ -61,7 +61,7 @@ const NARRATIVE_ICONS: Record<string, React.FC<{ className?: string }>> = {
   Gamepad2
 };
 
-export const NarrativeBar: React.FC<NarrativeBarProps> = ({
+const NarrativeBarImpl: React.FC<NarrativeBarProps> = ({
   narratives,
   selectedNarrative,
   onSelectNarrative,
@@ -206,3 +206,5 @@ export const NarrativeBar: React.FC<NarrativeBarProps> = ({
     </div>
   );
 };
+
+export const NarrativeBar = React.memo(NarrativeBarImpl);
