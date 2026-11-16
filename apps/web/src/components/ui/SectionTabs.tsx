@@ -23,7 +23,7 @@ export const SectionTabs: React.FC<SectionTabsProps> = ({ activeTab, onTabChange
   if (tabs.length < 2) return null;
 
   return (
-    <div className="mb-6">
+    <div className="ms-section-tabs">
       <Segmented
         ariaLabel={GROUP_LABELS[group][language]}
         scrollable

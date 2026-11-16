@@ -26,3 +26,17 @@
 .ms-theme-swatch[data-active="true"] { box-shadow: 0 0 0 2px var(--t-surface), 0 0 0 4px var(--ms-accent); }
 .ms-theme-swatch:active { scale: var(--ms-press-icon); }
 .ms-theme-name { grid-column: 1 / -1; margin: 0; color: var(--t-muted); font-size: 12px; }
+
+/* In-group tabs stay under the fixed header while the page scrolls. The strip
+   spans the main padding so content never shows beside the pill, and fades at
+   the bottom instead of cutting off with a hard edge. */
+.ms-section-tabs {
+  position: sticky; top: 56px; z-index: 30;
+  margin: -2rem -1rem 1.5rem; padding: 12px 1rem 14px;
+  background: var(--t-header-bg);
+  -webkit-backdrop-filter: blur(14px) saturate(150%); backdrop-filter: blur(14px) saturate(150%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 10px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 10px), transparent);
+}
+@media (min-width: 1024px) { .ms-section-tabs { margin-inline: -2.5rem; padding-inline: 2.5rem; } }
+@media (max-width: 767px) { .ms-section-tabs { margin-inline: -12px; padding-inline: 12px; } }
