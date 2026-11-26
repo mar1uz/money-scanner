@@ -1,6 +1,10 @@
 import { AssetMarketClass, Timeframe } from '@money-scanner/shared';
 
-export const DEFAULT_MONEY_SCANNER_URL = 'https://market-scanner-360-384051756749.europe-west3.run.app';
+export const DEFAULT_MONEY_SCANNER_URL = 'https://scanner.relayhub.no';
+
+/** Public dashboard URL: env override, then the public hostname. */
+export const resolvePublicBaseUrl = (): string =>
+  process.env.PUBLIC_BASE_URL || process.env.DASHBOARD_BASE_URL || DEFAULT_MONEY_SCANNER_URL;
 
 export interface MoneyLineAssetLinkOptions {
   baseUrl?: string;
@@ -12,7 +16,7 @@ export interface MoneyLineAssetLinkOptions {
 
 /** Builds the SPA deep link understood by the authenticated Money Line view. */
 export const buildMoneyLineAssetUrl = ({
-  baseUrl = process.env.PUBLIC_BASE_URL || DEFAULT_MONEY_SCANNER_URL,
+  baseUrl = resolvePublicBaseUrl(),
   symbol,
   timeframe,
   marketClass,

@@ -29,7 +29,7 @@ import { execFileSync } from 'node:child_process';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUTBOX = join(ROOT, 'tmp', 'ai-content-outbox');
 const SENT = join(OUTBOX, 'sent');
-const BASE_URL = process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app';
+const BASE_URL = process.env.PUBLIC_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://scanner.relayhub.no';
 const KEYS = new Set(['capital-rotation', 'briefing', 'intelligence-brief', 'market-intelligence']);
 // Per-asset Instinct investment guides: investment-guide-<SYMBOL>.
 const KEY_PATTERN = /^(?:investment-guide|asset-profile|business-quality)-[A-Z0-9][A-Z0-9.-]{0,19}$/;

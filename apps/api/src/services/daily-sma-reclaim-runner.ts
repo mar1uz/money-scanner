@@ -10,7 +10,7 @@ import {
   DAILY_SMA_RECLAIM_RULE_VERSION
 } from '@money-scanner/shared';
 import { MarketDataService } from '@money-scanner/market-data';
-import { TelegramBotHandler, telegramAssetLink } from '@money-scanner/notifications';
+import { TelegramBotHandler, resolvePublicBaseUrl, telegramAssetLink } from '@money-scanner/notifications';
 import { evaluateDailySmaReclaim } from './daily-sma-reclaim-service.js';
 
 const DAY_MS = 86_400_000;
@@ -284,7 +284,7 @@ export class DailySmaReclaimRunner {
         lines.push('⚠️ Datele sunt incomplete sau neactualizate; acest raport nu trebuie interpretat ca „zero oportunități”.');
       }
     }
-    lines.push('', `_Semnalul folosește numai lumânarea UTC închisă; nu generează ordine, SL/TP sau probabilități._`, `🔗 [Deschide Alarmele](${process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app'})`);
+    lines.push('', `_Semnalul folosește numai lumânarea UTC închisă; nu generează ordine, SL/TP sau probabilități._`, `🔗 [Deschide Alarmele](${resolvePublicBaseUrl()})`);
     return lines.join('\n');
   }
 

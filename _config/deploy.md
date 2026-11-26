@@ -6,7 +6,7 @@ Verificat live la 2026-11-15, cu `gcloud`. Dacă producția se mută, se actuali
 
 - Proiect Google Cloud `gen-lang-client-0610749770`, regiunea `europe-west3`.
 - Serviciul Cloud Run `market-scanner-360`, public (`--allow-unauthenticated`; aplicația își face singură loginul). 1 vCPU, 1 GiB, timeout 900 s, minim 0 instanțe.
-- Adrese: `https://scanner.relayhub.no` (Load Balancer extern, NEG serverless spre Cloud Run) și `https://market-scanner-360-384051756749.europe-west3.run.app`.
+- Adrese: `https://scanner.relayhub.no` (Load Balancer extern, NEG serverless spre Cloud Run) și `<money-scanner-cloud-run-url>`.
 - Imaginea: `europe-west3-docker.pkg.dev/gen-lang-client-0610749770/cloud-run-source-deploy/crypto-scanner-web:<sha scurt>`. Tagul este commitul, deci revizia activă spune ce cod rulează.
 - La 2026-11-16 rula `crypto-scanner-web:c738545` (revizia `market-scanner-360-00299-8gn`, 100% din trafic). Revizia anterioară: `market-scanner-360-00298-fpf` (`fe1e093`).
 

@@ -1,4 +1,5 @@
 import type { RadarSnapshot, RadarToken } from '@money-scanner/shared';
+import { resolvePublicBaseUrl } from '@money-scanner/notifications';
 import { radarTokenChartUrl } from '@money-scanner/shared';
 import { collectMarket } from './market.js';
 import { collectSocial } from './social.js';
@@ -91,7 +92,7 @@ export function reportText(report: RadarSnapshot, format: 'plain' | 'html' = 'pl
         }
         lines.push('');
     }
-    lines.push(`Istoric complet și surse: ${safe((process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app').replace(/\/$/, '') + '/?tab=crypto_radar')}`, `${report.exits.length} monede ieșite din clasament; păstrate în istoric.`);
+    lines.push(`Istoric complet și surse: ${safe((resolvePublicBaseUrl()).replace(/\/$/, '') + '/?tab=crypto_radar')}`, `${report.exits.length} monede ieșite din clasament; păstrate în istoric.`);
     return lines.join('\n');
 }
 async function deliverReport(store: RadarStore, report: RadarSnapshot) {

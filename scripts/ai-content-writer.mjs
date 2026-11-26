@@ -23,7 +23,7 @@ import { pathToFileURL } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const JEV_ROUTER_PKG = join(ROOT, '..', 'jev-router', 'package.json');
-const BASE_URL = process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app';
+const BASE_URL = process.env.PUBLIC_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://scanner.relayhub.no';
 const MODEL_PAID = 'anthropic/claude-opus-4.6';
 const MODEL_FREE = 'inception/mercury-2.5';
 const LANGUAGES = ['ro', 'en'];

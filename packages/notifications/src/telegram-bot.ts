@@ -10,7 +10,7 @@ import {
   XTrendTopic,
   NewsItem
 } from '@money-scanner/shared';
-import { DEFAULT_MONEY_SCANNER_URL, buildMoneyLineAssetUrl, telegramAssetLink } from './asset-link.js';
+import { resolvePublicBaseUrl, buildMoneyLineAssetUrl, telegramAssetLink } from './asset-link.js';
 
 export interface TelegramBotOptions {
   botToken?: string;
@@ -117,8 +117,8 @@ export class TelegramBotHandler {
     this.botToken = options.botToken || process.env.TELEGRAM_BOT_TOKEN;
     const configuredChatId = options.chatId || process.env.TELEGRAM_CHAT_ID;
     this.defaultChatId = configuredChatId?.trim();
-    this.webhookSecret = options.webhookSecret || process.env.TELEGRAM_WEBHOOK_SECRET || 'money-scanner-secret';
-    this.dashboardBaseUrl = options.dashboardBaseUrl || process.env.PUBLIC_BASE_URL || DEFAULT_MONEY_SCANNER_URL;
+    this.webhookSecret = options.webhookSecret || process.env.TELEGRAM_WEBHOOK_SECRET;
+    this.dashboardBaseUrl = options.dashboardBaseUrl || resolvePublicBaseUrl();
   }
 
   public registerChat(chatId: string | number) {
@@ -218,7 +218,10 @@ export class TelegramBotHandler {
    * Validates incoming Telegram Webhook secret token header.
    */
   public validateWebhookSecret(incomingToken?: string): boolean {
-    if (!this.webhookSecret) return true;
+    if (!this.webhookSecret) {
+      console.warn('TELEGRAM_WEBHOOK_SECRET is not set; rejecting webhook request.');
+      return false;
+    }
     return incomingToken === this.webhookSecret;
   }
 

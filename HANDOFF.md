@@ -41,7 +41,7 @@ https://scanner.relayhub.no
 During development, use the independent Cloud Run URL:
 
 ```text
-https://market-scanner-360-384051756749.europe-west3.run.app
+<money-scanner-cloud-run-url>
 ```
 
 For the custom domain, route `scanner.relayhub.no` through the existing Google Cloud external Application Load Balancer to the new Cloud Run backend. The host rule must be independent of the rule serving `relayhub.no`.
@@ -624,7 +624,7 @@ The production Money Scanner revision `market-scanner-360-00091-bxb` added:
 Production URL:
 
 ```text
-https://market-scanner-360-384051756749.europe-west3.run.app
+<money-scanner-cloud-run-url>
 ```
 
 ## 17. RelayHub cost shutdown and restoration handoff
@@ -653,7 +653,7 @@ Retained resource:
 ```text
 Cloud Run service: cloud-callcenter-saas
 Region: europe-west3
-Direct URL: https://cloud-callcenter-saas-srqcsofnua-ey.a.run.app
+Direct URL: <callcenter-cloud-run-url>
 Scaling: min instances 0, max instances 20
 Resources: 1 vCPU, 512 MiB, concurrency 80, timeout 300 seconds
 Public allUsers roles/run.invoker binding: REMOVED
@@ -685,7 +685,7 @@ gcloud run services add-iam-policy-binding cloud-callcenter-saas \
 Then use:
 
 ```text
-https://cloud-callcenter-saas-srqcsofnua-ey.a.run.app
+<callcenter-cloud-run-url>
 ```
 
 ### Full restoration of `relayhub.no`
@@ -1037,7 +1037,7 @@ Cloud Build status: SUCCESS
 Cloud Run revision: market-scanner-360-00095-9kq
 Container digest: sha256:9ad8025b3e976fa467f4030f2af23145f92ba25277a85667cd872149a5c750e8
 Traffic: 100%
-Canonical URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Canonical URL: <money-scanner-cloud-run-url>
 Health verification: HTTP 200
 Root application verification: HTTP 200, bundle index-DIEPESkX.js
 Production bundle verification: Connors RSI(2), Bear Rally Fade and Strategii Daily automate present
@@ -1104,7 +1104,7 @@ Cloud Build status: SUCCESS
 Cloud Run revision: market-scanner-360-00096-4dz
 Container digest: sha256:235b25de6f4bd2898da17075468fdf07b4455f06c1903636abf0fe1850cce749
 Traffic: 100%
-Canonical URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Canonical URL: <money-scanner-cloud-run-url>
 Health verification: HTTP 200
 Root application verification: HTTP 200, bundle index-Citj7w3r.js
 Production bundle verification: Strategia 1, Strategia 2, Bear Rally Fade, bear_rally_fade and RSI arm label present
@@ -1161,7 +1161,7 @@ Cloud Build status: SUCCESS
 Cloud Run revision: market-scanner-360-00097-jjl
 Container digest: sha256:a53add7e13f28f8e3807fdd9dfa88e36e082697e9380c68f26000e06675ef739
 Traffic: 100%
-Canonical URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Canonical URL: <money-scanner-cloud-run-url>
 Health verification: HTTP 200
 Root bundle: index-CwIF4L2I.js
 Bundle verification: RSI(2) > 50 waiting text, conservative confirmation copy, arm and confirmation chart labels present
@@ -1256,7 +1256,7 @@ Deployed on 27 August 2026 from Git commit `d0977c0` through Cloud Build `cf2159
 Cloud Run service: market-scanner-360
 Cloud Run revision: market-scanner-360-00098-xwf
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Root: HTTP 200
 Health: HTTP 200, status ok
 Secret bindings preserved: DAILY_SCAN_TOKEN, GEMINI_API_KEY, TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID
@@ -1301,7 +1301,7 @@ Git commit: 4c5f3c6
 Cloud Build: c1a00248-ff2b-4d54-afdd-488c7e15aa51 (SUCCESS)
 Cloud Run revision: market-scanner-360-00100-f69
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Root: HTTP 200
 Health: HTTP 200, status ok
 Production bundle: index-BRmvk08t.js
@@ -1322,7 +1322,7 @@ Git commit: cd87fe6
 Cloud Build: 3682f9cd-72ff-4b22-b891-8bc886dcba50 (SUCCESS)
 Cloud Run revision: market-scanner-360-00101-gjc
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Root: HTTP 200
 Health: HTTP 200
 Production bundle: index-DO5HH98-.js
@@ -1361,7 +1361,7 @@ Git commit: 98390e0
 Cloud Build: 1d8da785-6acf-4c1c-bbf4-1c4c76d34382 (SUCCESS)
 Cloud Run revision: market-scanner-360-00102-qnw
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Root: HTTP 200
 Health: HTTP 200, status ok
 Production bundle: index-Bh2LUpcH.js
@@ -1412,7 +1412,7 @@ Git commit: aafa39c
 Cloud Build: a7273ffe-ef47-4fab-ad37-682294624e90 (SUCCESS)
 Cloud Run revision: market-scanner-360-00103-wrx
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -1443,7 +1443,7 @@ Git commit: d7c5f14
 Cloud Build: 23c4f53e-4756-4a01-a51d-eb0b22feaa5c (SUCCESS)
 Cloud Run revision: market-scanner-360-00104-8m6
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -1481,7 +1481,7 @@ Git commits: 6065767, 8243ab5, 6998a76
 Final Cloud Build: 1d092307-d1ae-43b9-acdc-0dbf2aa229b3 (SUCCESS)
 Cloud Run revision: market-scanner-360-00107-cvq
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 Production bundle: index-I217crRg.js
 ```
@@ -1506,7 +1506,7 @@ Git commit: 1271248
 Cloud Build: 59934de6-c13c-4b6d-b384-85121ba7216d (SUCCESS)
 Cloud Run revision: market-scanner-360-00108-b6h
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 Production bundle: index-DH9I-3_j.js
 ```
@@ -1581,7 +1581,7 @@ Local tests: 49 passed, 0 failed
 Cloud Build: fed2edd6-8e2e-482f-a8ec-652d50f545a7 (SUCCESS)
 Cloud Run revision: market-scanner-360-00109-nqp
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 Production bundle: index-DFZwLsho.js
 ```
@@ -1604,7 +1604,7 @@ Local tests: 49 passed, 0 failed
 Cloud Build: 4a6fc60a-8c71-4dd1-8c49-7e2bafd824ee (SUCCESS)
 Cloud Run revision: market-scanner-360-00110-j78
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 Production bundle: index-DYeAqNiq.js
 ```
@@ -1646,7 +1646,7 @@ Mobile visual QA: passed, no browser console errors
 Cloud Build: 22a6298e-ce7b-4a60-939b-4e3db5448a91 (SUCCESS)
 Cloud Run revision: market-scanner-360-00111-k5g
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 Production bundle: index-DTfx3SXv.js
 ```
@@ -1686,7 +1686,7 @@ Local browser interaction: passed, including provider-rate-limit fallback
 Cloud Build: 4d21c524-8f72-4e42-a001-758e9fa71310 (SUCCESS)
 Cloud Run revision: market-scanner-360-00112-bpf
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 Production bundle: index-Cd9lUI2B.js
 ```
@@ -1719,7 +1719,7 @@ Local browser QA: Top-200 PUMP card opened Money Line; CoinGecko button resolved
 Cloud Build: d4f70285-ac0a-4168-a8ff-51e3f39f27d3 (SUCCESS)
 Cloud Run revision: market-scanner-360-00113-m9l
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 Production bundle: index-cq6KN4zT.js
 ```
@@ -1759,7 +1759,7 @@ Manual scheduler execution: SUCCESS (empty Scheduler status object)
 Warm-up duration: 166,678 ms
 Warm-up result: 6/6 market reports ready; crypto criteria ready; 200 assets scanned
 Firestore verification: all 7 persistent AI cache documents exist
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -1828,7 +1828,7 @@ Local tests: 64 passed, 0 failed (including 9 new web lookup tests)
 Cloud Build: 06fa98ea-eb76-463d-8e12-75c080a4798f (SUCCESS)
 Cloud Run revision: market-scanner-360-00115-pxc
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -1912,7 +1912,7 @@ Local tests: 72 passed, 0 failed (including 6 new API tests and 8 new web lookup
 Cloud Build: b4c90680-3bf0-4d22-9d09-71a80f4afccf (SUCCESS)
 Cloud Run revision: market-scanner-360-00117-jcs
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -1955,7 +1955,7 @@ Local tests: 78 passed, 0 failed
 Cloud Build: 2901bce8-4528-489e-a05e-28aa88a7f8c5 (SUCCESS)
 Cloud Run revision: market-scanner-360-00118-h2x
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -1988,7 +1988,7 @@ Local tests: 78 passed, 0 failed
 Cloud Build: f1e5308a-7e22-46a0-8c05-5a1554398216 (SUCCESS)
 Cloud Run revision: market-scanner-360-00119-lth
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2032,7 +2032,7 @@ Cloud Build: 6b4ff5c0-fa95-4e4b-bf97-dad4f9b4b988 (SUCCESS)
 Cloud Run revision: market-scanner-360-00120-q4f
 Traffic: 100%
 Public bundle: assets/index-BQ-yt1JO.js
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2064,7 +2064,7 @@ Cloud Build: e2826664-0030-4610-a71b-87397c339423 (SUCCESS)
 Cloud Run revision: market-scanner-360-00121-p7r
 Traffic: 100%
 Public bundle: assets/index-BBXWdpIw.js
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2090,7 +2090,7 @@ Cloud Build: f8304102-e34c-4470-9809-cc78ca71c915 (SUCCESS)
 Cloud Run revision: market-scanner-360-00122-x6t
 Traffic: 100%
 Public bundle: assets/index-BI4yyW7i.js
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2124,7 +2124,7 @@ Cloud Build: 45c7b5eb-7e8d-4455-9447-24d76ca2c3c1 (SUCCESS)
 Cloud Run revision: market-scanner-360-00123-4g5
 Traffic: 100%
 Public bundle: assets/index-B81CrRSl.js
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2171,7 +2171,7 @@ Cloud Build: 74e60573-4899-41b7-b029-9355b058a37d (SUCCESS)
 Cloud Run revision: market-scanner-360-00131-7sb
 Traffic: 100%
 Public bundle: assets/index-DrLtoZrE.js
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2211,7 +2211,7 @@ Cloud Build: f737aa7c-b910-478e-990d-27b8cb0e1072 (SUCCESS)
 Cloud Run revision: market-scanner-360-00132-t97
 Traffic: 100%
 Public bundle: assets/index-DrLtoZrE.js
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2250,7 +2250,7 @@ Cloud Build: 5dce8ac0-a992-41d7-be24-c6e1a2c55b59 (SUCCESS)
 Cloud Run revision: market-scanner-360-00133-rzp
 Traffic: 100%
 Public bundle: assets/index-DrLtoZrE.js
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2284,7 +2284,7 @@ Cloud Build: 802a3b67-ce4b-4ed6-b3ea-51d470a2ce70 (SUCCESS)
 Cloud Run revision: market-scanner-360-00136-zk2
 Traffic: 100%
 Public bundle: assets/index-D5e8lqF-.js
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2318,7 +2318,7 @@ Cloud Build: f36ed013-0ebe-49bf-89b6-35fc63e2e17b (SUCCESS)
 Cloud Run revision: market-scanner-360-00137-25z
 Traffic: 100%
 Public bundle: assets/index-D5e8lqF-.js
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2358,7 +2358,7 @@ Cloud Build: dfce4a38-90f3-4f94-8a70-734cd4b7f6b3 (SUCCESS)
 Cloud Run revision: market-scanner-360-00138-4sh
 Traffic: 100%
 Public bundle: assets/index-Bsh43Wls.js
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2385,7 +2385,7 @@ Cloud Build: 3ccc5bae-afce-4f2f-8606-fe63e7ccae2a (SUCCESS)
 Cloud Run revision: market-scanner-360-00139-gwd
 Traffic: 100%
 Public bundle: assets/index-BNQ_5r-u.js
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2423,7 +2423,7 @@ Cloud Build: 4e89d2c5-ada5-470f-898c-a6d22297ba52 (SUCCESS)
 Cloud Run revision: market-scanner-360-00140-xh5
 Traffic: 100%
 Public bundle: assets/index-CFvVwFsp.js
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2456,7 +2456,7 @@ Cloud Build: c7e54132-9cc5-417a-a8f2-5fe15b149b37 (SUCCESS)
 Cloud Run revision: market-scanner-360-00141-9lr
 Traffic: 100%
 Public bundle: assets/index-C8n_E1T4.js
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2485,7 +2485,7 @@ Cloud Build: f5a6fa9d-8459-494f-897c-5814923e8f44 (SUCCESS)
 Cloud Run revision: market-scanner-360-00142-nj4
 Traffic: 100%
 Public bundle: assets/index-DHwYIXXt.js
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2523,7 +2523,7 @@ Traffic: 100%
 Public bundle: assets/index-CfUOaVp3.js
 Full production scan: 177 assets, 0 errors
 Persisted flip regimes: 693 total; 162 Weekly (97 bullish, 65 bearish)
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2570,7 +2570,7 @@ Cloud Build: ab9956e0-af35-497b-9b69-ad1d88103a53 (SUCCESS)
 Cloud Run revision: market-scanner-360-00146-2gh
 Traffic: 100%
 Public bundle: assets/index-smbWYipl.js
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2615,7 +2615,7 @@ Cloud Build: b17787dd-5ed3-4b77-b09b-b24214895d94 (SUCCESS)
 Cloud Run revision: market-scanner-360-00147-4fd
 Traffic: 100%
 Public bundle: assets/index-8gg8krDi.js
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ## 71. Market Class Filtering for Top 10 Aproape de Flip
 
@@ -2657,7 +2657,7 @@ Cloud Build: 885c576c-a7db-4554-8d81-72a426515465 (SUCCESS)
 Cloud Run revision: market-scanner-360-00148-6l9
 Traffic: 100%
 Public bundle: assets/index-ClxS58Ss.js
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2685,7 +2685,7 @@ Cloud Build: 92d37735-6ec3-44e4-8c9f-2069b284b17e (SUCCESS; full monorepo build)
 Cloud Run revision: market-scanner-360-00149-xwz
 Traffic: 100%
 Public bundle: assets/index-ZuFMPzUe.js (HTTP 200; updated UI strings verified)
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2707,7 +2707,7 @@ Local build: passed (packages/*, apps/api, apps/worker, apps/web; bundle assets/
 Cloud Build: bae13dcf-e9c4-4f03-96aa-ff08758f4e0c (SUCCESS)
 Cloud Run revision: market-scanner-360-00153-td9
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2729,7 +2729,7 @@ Local build: passed (packages/*, apps/api, apps/worker, apps/web)
 Cloud Build: a9d091b3-0385-41c3-8b2d-f5883b8f28eb (SUCCESS)
 Cloud Run revision: market-scanner-360-00154-jwj
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2791,7 +2791,7 @@ Cloud Run revision: market-scanner-360-00157-fql
 Traffic: 100%
 Revision conditions: Ready=True, Active=True, ContainerHealthy=True
 Public bundle: assets/index-CNdYlZwI.js
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Cloud Run health: HTTP 200, status ok
 ```
 
@@ -2814,7 +2814,7 @@ Local build: passed (packages/*, apps/api, apps/worker, apps/web)
 Cloud Build: cd30dd45-92e8-4249-ad5f-2094527372b7 (SUCCESS)
 Cloud Run revision: market-scanner-360-00158-wfk
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2840,7 +2840,7 @@ Full monorepo: singurul fail e pre-existentul Akedo 1w (api, prezent si pe arbor
 Cloud Build: 6fb3970f-9762-4033-a77c-6adc94d8c159 (SUCCESS)
 Cloud Run revision: market-scanner-360-00159-qp7
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2862,7 +2862,7 @@ Local build: passed (packages/*, apps/api, apps/worker, apps/web)
 Cloud Build: f05fc454-ef2a-4ea5-bbc5-25ccf7d2a46a (SUCCESS)
 Cloud Run revision: market-scanner-360-00160-fx9
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2909,7 +2909,7 @@ Full monorepo: singurul fail e pre-existentul Akedo 1w (api, prezent si pe arbor
 Cloud Build: 15243abe-56d0-44ef-a6f8-016e0df962f2 (SUCCESS)
 Cloud Run revision: market-scanner-360-00161-j98
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2931,7 +2931,7 @@ Full monorepo: singurul fail e pre-existentul Akedo 1w (api, prezent si pe arbor
 Cloud Build: 9f79343a-1384-4f95-b36b-0e9b000b5630 (SUCCESS)
 Cloud Run revision: market-scanner-360-00162-qfn
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -2973,7 +2973,7 @@ Verified 2026-09-06. This supersedes the pending activation note above.
 
 - Source commit `28c1427`; Cloud Build `17bca130-98f9-4737-babd-f02ef6ce5ddc`: SUCCESS.
 - Cloud Run revision `market-scanner-360-00164-ln4`, 100% traffic. Monorepo build and 201 tests passed; final API build and focused 23 Radar tests passed.
-- Production: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=crypto_radar . Authenticated Chrome verified chain filtering, report table, first-report prices, expandable original social evidence and delivery status.
+- Production: <money-scanner-cloud-run-url>/?tab=crypto_radar . Authenticated Chrome verified chain filtering, report table, first-report prices, expandable original social evidence and delivery status.
 - First immutable report `1788652800000` generated 2026-09-06 04:55:30 UTC (06:55:30 Oslo): 48 eligible tokens, Solana 15 / Base 16 / Robinhood 17. Uses the collection from 04:42 UTC; quote observation time is visible in each token's details. Publications reuse a collection younger than 25 minutes.
 - Telegram API confirmed delivery (`radar-delivery/1788652800000`: `sent`), also visible in the UI. Telegram includes top 10 plus a link to the full ranking/history. First-price baselines persisted for all 48 tokens.
 - Repeated authenticated publish returned the identical report and left the delivery timestamps unchanged. Health 200; anonymous radar read and unsigned scheduler request 401.
@@ -3034,7 +3034,7 @@ Cloud Run revision: market-scanner-360-00166-s4g
 Traffic: 100%
 Revision conditions: Ready=True, Active=True, ContainerHealthy=True
 Public bundle: assets/index-S7gvJY8t.js
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=crypto_radar
+Public URL: <money-scanner-cloud-run-url>/?tab=crypto_radar
 Cloud Run health: HTTP 200, status ok
 ```
 
@@ -3075,7 +3075,7 @@ Cloud Run revision: market-scanner-360-00167-pcd
 Traffic: 100%
 Revision conditions: Ready=True, Active=True, ContainerHealthy=True
 Public bundle: assets/index-BgniUTJ8.js
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=crypto_radar
+Public URL: <money-scanner-cloud-run-url>/?tab=crypto_radar
 Cloud Run health: HTTP 200, status ok
 ```
 
@@ -3138,7 +3138,7 @@ Cloud Run revision: market-scanner-360-00168-gsn
 Traffic: 100%
 Revision conditions: Ready=True, ConfigurationsReady=True, RoutesReady=True
 Public bundle: assets/index-Cs4gE2ZX.js, assets/index-CQGpHe1s.css
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=crypto_radar
+Public URL: <money-scanner-cloud-run-url>/?tab=crypto_radar
 Cloud Run health: HTTP 200, status ok
 ```
 
@@ -3188,7 +3188,7 @@ Cloud Run revision: market-scanner-360-00169-vpw
 Traffic: 100%
 Revision conditions: Ready=True, ConfigurationsReady=True, RoutesReady=True
 Public bundle: assets/index-DdhHIHSo.js, assets/index-CQGpHe1s.css
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=crypto_radar
+Public URL: <money-scanner-cloud-run-url>/?tab=crypto_radar
 Cloud Run health: HTTP 200, status ok
 ```
 
@@ -3218,7 +3218,7 @@ Implemented, adversarially audited, and deployed on 06 September 2026.
    - Full monorepo test suite passed (111 API tests + 63 Web tests = 174 passed, 0 failed).
    - Local production build completed successfully.
    - Cloud Build deployed to Cloud Run revision `market-scanner-360-00171-ltl`.
-   - Verified live endpoint `/api/health` (HTTP 200) and live page at `https://market-scanner-360-384051756749.europe-west3.run.app/?tab=crypto_radar`.
+   - Verified live endpoint `/api/health` (HTTP 200) and live page at `<money-scanner-cloud-run-url>/?tab=crypto_radar`.
 
 Verification and deployment evidence:
 
@@ -3231,7 +3231,7 @@ Cloud Run revision: market-scanner-360-00171-ltl
 Traffic: 100%
 Revision conditions: Ready=True, ConfigurationsReady=True, RoutesReady=True
 Public bundle: assets/index-BEemp_VZ.js, assets/index-AdlyYXIG.css
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=crypto_radar
+Public URL: <money-scanner-cloud-run-url>/?tab=crypto_radar
 Cloud Run health: HTTP 200, status ok
 ```
 
@@ -3285,7 +3285,7 @@ Cloud Run revision: market-scanner-360-00173-59n
 Traffic: 100%
 Revision conditions: Ready=True, ConfigurationsReady=True, RoutesReady=True
 Public bundle: assets/index-BDcKSjxJ.js, assets/index-E9yeZm2n.css
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=crypto_radar
+Public URL: <money-scanner-cloud-run-url>/?tab=crypto_radar
 Cloud Run health: HTTP 200, status ok
 ```
 
@@ -3345,7 +3345,7 @@ Cloud Run revision: market-scanner-360-00177-5k8
 Traffic: 100%
 Revision conditions: Ready=True, ConfigurationsReady=True, RoutesReady=True
 Public bundle: assets/index-D1xVwz9H.js, assets/index-CvTjS5VH.css
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app/?tab=crypto_radar
+Public URL: <money-scanner-cloud-run-url>/?tab=crypto_radar
 Cloud Run health: HTTP 200, status ok
 ```
 
@@ -3411,7 +3411,7 @@ Cloud Build: ee40edc2-7d31-4426-90ef-6477de84b3f6 (SUCCESS, 4m48s)
 Image tag: flipcg150-20260909204204
 Cloud Run revision: market-scanner-360-00179-qg4
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -3428,7 +3428,7 @@ Cloud Build: 0d09eaa6-0804-4bd3-94a9-bf2fc9228bb7 (SUCCESS, 4m23s)
 Image tag: flip20-20260910101140
 Cloud Run revision: market-scanner-360-00180-cr5
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health: HTTP 200, status ok
 ```
 
@@ -3441,7 +3441,7 @@ Adăugat `tiberioursan@gmail.com` în `ALLOWED_EMAILS` (Viewer, nu admin). `ADMI
 ```text
 Cloud Run revision: market-scanner-360-00182-qpf
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Custom URL: https://scanner.relayhub.no
 Health: HTTP 200, status ok
 ```
@@ -3460,7 +3460,7 @@ Cloud Build ID: 6245fff8-67c4-4040-a643-6dba0e1ea1f5 (SUCCESS, 5m30s)
 Cloud Run revision: market-scanner-360-00187-qgb
 Traffic: 100%
 Public bundle: assets/index-Cv9IghiR.js, assets/index-DFLRbcPz.css
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Custom URL: https://scanner.relayhub.no
 Health check (/api/health): HTTP 200 OK (status: "ok", service: "market-scanner-360-api")
 ```
@@ -3480,7 +3480,7 @@ Cloud Build ID: e95389b2-39fc-469d-a97c-ba816af96c19 (SUCCESS, 3m35s)
 Cloud Run revision: market-scanner-360-00188-l6d
 Traffic: 100%
 Public bundle: assets/index-DJEyS78j.js, assets/index-CMeskojC.css
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Custom URL: https://scanner.relayhub.no
 Health check (/api/health): HTTP 200 OK (status: "ok", service: "market-scanner-360-api")
 ```
@@ -3525,7 +3525,7 @@ Cloud Build ID: 5d242fe1-3849-440c-b214-bee11394eabd (SUCCESS, 5m25s)
 Cloud Run revision: market-scanner-360-00190-xpm
 Traffic: 100%
 Public bundle: assets/index-fH1itNGD.js, assets/index-B3dpyl4W.css (lime #c8f169 prezent în bundle; zero hex-uri din paleta veche)
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health check (/api/health): HTTP 200 OK (status: "ok", service: "market-scanner-360-api")
 ```
 
@@ -3556,7 +3556,7 @@ Cloud Build ID: 55c193c6-1a80-4846-91b1-944d029be502 (SUCCESS, 4m24s)
 Cloud Run revision: market-scanner-360-00191-25s
 Traffic: 100%
 Public bundle: assets/index-B06QgySA.js, assets/index-CFXPZzya.css (glow + radius 18px confirmate în CSS-ul servit)
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health check (/api/health): HTTP 200 OK
 ```
 
@@ -3585,7 +3585,7 @@ Cloud Build ID: 084e73eb-3f5a-4f48-b763-771128d96cdc (SUCCESS)
 Cloud Run revision: market-scanner-360-00192-n6z
 Traffic: 100%
 Public bundle: assets/index-Dv72kFR9.js, assets/index-CkbwBYnm.css (Quicksand + border-radius:30px confirmate în CSS-ul servit)
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health check (/api/health): HTTP 200 OK
 ```
 
@@ -3608,7 +3608,7 @@ Tests: 243 passed, 0 failed
 Cloud Build ID: 2d4b6042-44ef-4d33-b719-1762df7893be (SUCCESS)
 Cloud Run revision: market-scanner-360-00193-zc6
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health check (/api/health): HTTP 200 OK
 ```
 
@@ -3625,7 +3625,7 @@ Source commit: 0ed52bf
 Cloud Build ID: 90988f93-874b-4f4a-8d92-dfc00bff871b (SUCCESS)
 Cloud Run revision: market-scanner-360-00194-5sb
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health check (/api/health): HTTP 200 OK
 ```
 
@@ -3642,7 +3642,7 @@ Source commit: 9a844b1
 Cloud Build ID: 7cae8eb9-c647-48cb-ae91-ff7d226a9f17 (SUCCESS)
 Cloud Run revision: market-scanner-360-00195-b5s
 Traffic: 100%
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health check (/api/health): HTTP 200 OK
 ```
 
@@ -3663,7 +3663,7 @@ Cloud Build ID: 2762a5ed-6a3e-44d8-9604-1bdb8e14a840 (SUCCESS)
 Cloud Run revision: market-scanner-360-00196-5t4
 Traffic: 100%
 Public bundle: assets/index-DKwhbiRu.js (conține «Niciun activ pentru filtrul selectat», «Deschide analiza Money Line pentru», «Filtrează:» — verificat în JS-ul servit)
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health check (/api/health): HTTP 200 OK
 ```
 
@@ -3681,7 +3681,7 @@ COMMIT_SHA: alerts-collapse-20260918
 Cloud Run revision: market-scanner-360-00198-l24
 Traffic: 100%
 Public bundle: assets/index-B4NrCa5i.js
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health check (/api/health): HTTP 200 OK
 ```
 
@@ -3698,7 +3698,7 @@ COMMIT_SHA: ai-briefing-solid-20260918
 Cloud Run revision: market-scanner-360-00199-pmp
 Traffic: 100%
 Public bundle: assets/index-Cxnn01Ac.js
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health check (/api/health): HTTP 200 OK
 ```
 
@@ -3715,7 +3715,7 @@ COMMIT_SHA: dex-criteria-lookup-20260918
 Cloud Run revision: market-scanner-360-00200-7lp
 Traffic: 100%
 Public bundle: assets/index-DFpZwt7g.js
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health check (/api/health): HTTP 200 OK
 ```
 
@@ -3732,7 +3732,7 @@ COMMIT_SHA: theme-solid-contrast-20260918
 Cloud Run revision: market-scanner-360-00201-wwk
 Traffic: 100%
 Public bundle: assets/index-Y5Ziw_Xf.js
-Public URL: https://market-scanner-360-384051756749.europe-west3.run.app
+Public URL: <money-scanner-cloud-run-url>
 Health check (/api/health): HTTP 200 OK
 ```
 
@@ -3762,7 +3762,7 @@ Blocajul raportat („Google Cloud spune că tinotechads@gmail.com nu are permis
 
 ### 2026-09-19 — Instinct local pilot (Hermes connector) pe Mac
 
-Instalat `~/.hermes-connector` (LaunchAgent `local.hermes-connector`) pentru Instinct: MCP pe `127.0.0.1:8765`. Upgrade 2026-09-19: root aprobat = `/Users/marius/antigravity` + `project_terminal` (argv-only, sandbox-exec). Token pairing, Serve, deny-globs, expirare neschimbate. Browser dedicat pe CDP **9323** (nu 9223 — Cloak). Serve tailnet only pe `https://mariuss-macbook-air.tail452b0a.ts.net/` → 127.0.0.1:8765. Stop: `bash ~/.hermes-connector/stop.sh`. Pilot expiră 2026-10-03. Backup: `~/.hermes-connector/backups/pre-terminal-20260919-133354`.
+Instalat `~/.hermes-connector` (LaunchAgent `local.hermes-connector`) pentru Instinct: MCP pe `127.0.0.1:8765`. Upgrade 2026-09-19: root aprobat = `<local-path>` + `project_terminal` (argv-only, sandbox-exec). Token pairing, Serve, deny-globs, expirare neschimbate. Browser dedicat pe CDP **9323** (nu 9223 — Cloak). Serve tailnet only pe `https://<tailscale-host>/` → 127.0.0.1:8765. Stop: `bash ~/.hermes-connector/stop.sh`. Pilot expiră 2026-10-03. Backup: `~/.hermes-connector/backups/pre-terminal-20260919-133354`.
 
 ## Step 88 — Deploy + verificare vizuala finala (2026-09-20, 23:03 CEST)
 - Build Cloud Build 4a9b9c45 (manual, cu --substitutions=COMMIT_SHA=<short> pentru ca COMMIT_SHA nu exista la submit manual; la trigger builds e setat automat).

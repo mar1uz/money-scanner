@@ -108,7 +108,7 @@ Precondiții: revizia care include fa1104a (sau cel puțin build-ul de pachete c
 
 ```bash
 # 1) dry-run reproductibil (read-only), cu cheia injectată din configul Cloud Run, fără a o afișa:
-cd "/Users/marius/antigravity/Money Scanner"
+cd "<local-path>/Money Scanner"
 zsh tmp/re-pin/run-with-key.sh                 # scrie artefact nou în tmp/re-pin/
 
 # 2) aplicare (SCRIS în chart-market-resolutions) — doar după verificarea tabelului:

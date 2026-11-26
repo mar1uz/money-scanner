@@ -3,5 +3,5 @@
 # LaunchAgent), OUTSIDE the connector sandbox. Sources the AI Gateway key from
 # jev-router/.env.local with Marius's own file permissions and publishes the
 # generated takes through the token-protected publish endpoint.
-cd "/Users/marius/antigravity/Money Scanner"
+cd "<local-path>/Money Scanner"
 exec /opt/homebrew/bin/node scripts/ai-content-writer.mjs

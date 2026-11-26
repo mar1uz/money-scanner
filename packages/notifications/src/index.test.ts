@@ -109,6 +109,19 @@ describe('Telegram Bot & Alert Dispatcher', () => {
     assert.ok(response.text.includes('MONEY SCANNER TOP SIGNALS'));
   });
 
+  it('rejects telegram webhook requests when no webhook secret is configured', () => {
+    const previous = process.env.TELEGRAM_WEBHOOK_SECRET;
+    delete process.env.TELEGRAM_WEBHOOK_SECRET;
+    try {
+      const bot = new TelegramBotHandler();
+      assert.equal(bot.validateWebhookSecret('any-token'), false);
+      assert.equal(bot.validateWebhookSecret(undefined), false);
+    } finally {
+      if (previous === undefined) delete process.env.TELEGRAM_WEBHOOK_SECRET;
+      else process.env.TELEGRAM_WEBHOOK_SECRET = previous;
+    }
+  });
+
   it('parses flip alert commands and Telegram timeframe button callbacks', () => {
     const bot = new TelegramBotHandler({ webhookSecret: 'test-secret-123' });
     const command = bot.parseUpdate({

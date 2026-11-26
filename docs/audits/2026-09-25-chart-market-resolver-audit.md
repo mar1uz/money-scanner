@@ -172,7 +172,7 @@ Adițional, volumul OKX e înmulțit cu prețul de două ori (`okx.ts:143` → `
 **Harness principal** (resolver real, deps reale, request-uri instrumentate; log complet: `tmp/audit-resolver/live-run-2026-09-25.log`):
 
 ```bash
-cd "/Users/marius/antigravity/Money Scanner/tmp/audit-resolver"
+cd "<local-path>/Money Scanner/tmp/audit-resolver"
 export PATH="/opt/homebrew/opt/node@22/bin:$PATH"
 AUDIT_GAP_MS=28000 AUDIT_TARGETS='[
  {"symbol":"BTC","coinId":"bitcoin"},{"symbol":"GRASS","coinId":"grass"},

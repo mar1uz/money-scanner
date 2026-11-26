@@ -34,6 +34,7 @@ import {
   AlertDispatcher,
   TelegramBotHandler,
   buildMoneyLineAssetUrl,
+  resolvePublicBaseUrl,
   telegramAssetLink
 } from '@money-scanner/notifications';
 import { getApps, initializeApp } from 'firebase-admin/app';
@@ -1399,7 +1400,7 @@ export class AppState {
     events: StrategyAlertSnapshot[],
     source: 'scheduled/full scan' | 'manual quick scan'
   ) {
-    const dashboardBaseUrl = process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app';
+    const dashboardBaseUrl = resolvePublicBaseUrl();
     const freshEvents = events.filter(event => {
       const idempotencyKey = `strategy:${event.strategy}:${event.stage}:${event.symbol}:${event.candleTimestamp}`;
       return !this.alertHistory.some(alert => alert.idempotencyKey === idempotencyKey);
@@ -1563,7 +1564,7 @@ export class AppState {
       const idempotencyKey = `daily-regime:${match.scenario}:${match.symbol}:${match.dailyCandleTimestamp}`;
       return !this.alertHistory.some(alert => alert.idempotencyKey === idempotencyKey);
     });
-    const dashboardBaseUrl = process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app';
+    const dashboardBaseUrl = resolvePublicBaseUrl();
     let delivered = false;
 
     if (freshMatches.length) {
@@ -2177,7 +2178,7 @@ export class AppState {
       (right.confirmedAt || right.candleTimestamp) - (left.confirmedAt || left.candleTimestamp)
       || right.priorityScore - left.priorityScore
     );
-    const dashboardBaseUrl = process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app';
+    const dashboardBaseUrl = resolvePublicBaseUrl();
     const candidateKey = (candidate: FlipCandidate) =>
       `${candidate.marketClass}:${candidate.symbol}:${candidate.timeframe}:${candidate.direction}:${candidate.candleTimestamp}`;
     const selectedKeys = new Set<string>();
@@ -2629,7 +2630,7 @@ export class AppState {
       const resistanceText = plan.resistanceRiskReward === undefined
         ? 'fără rezistență apropiată detectată'
         : `R:R până la rezistență ${plan.resistanceRiskReward.toFixed(2)}`;
-      const dashboardBaseUrl = process.env.PUBLIC_BASE_URL || 'https://market-scanner-360-384051756749.europe-west3.run.app';
+      const dashboardBaseUrl = resolvePublicBaseUrl();
       const assetUrl = buildMoneyLineAssetUrl({
         baseUrl: dashboardBaseUrl,
         symbol: rule.symbol,
