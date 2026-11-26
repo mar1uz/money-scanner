@@ -1,6 +1,7 @@
 {
   "name": "money-scanner-monorepo",
   "version": "1.0.0",
+  "license": "MIT",
   "private": true,
   "description": "Money Scanner — Crypto Market Intelligence, Money Line Engine & Telegram Bot",
   "workspaces": [
